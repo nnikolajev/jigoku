@@ -116,6 +116,9 @@ async function runGame(options = {}) {
     const evaluators = options.evaluators || [];
     const explore = options.explore || [];
     const controllers = names.map((name, i) => makeController(game, name, seeds[i], options.trace, makeRecorder(name), evaluators[i], explore[i] || 0));
+    if(options.onControllers) {
+        options.onControllers(controllers);
+    }
     const noProgressCap = options.noProgressCap || 400;
 
     // A signature of everything that changes when the game actually advances.

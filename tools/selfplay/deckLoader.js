@@ -80,4 +80,15 @@ function loadCraneDeck() {
     return buildDeck(decklist, cardsById);
 }
 
-module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadCraneDeck, FIXTURES };
+// Crab Defense (EmeraldDB 3a8006b7) — holding-engine / defensive precon.
+function loadCrabDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'crab-decklist.json'), 'utf8'));
+    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'crab-cards.json'), 'utf8'));
+    const cardsById = {};
+    for(const card of cardsArray) {
+        cardsById[card.id] = card;
+    }
+    return buildDeck(decklist, cardsById);
+}
+
+module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadCraneDeck, loadCrabDeck, FIXTURES };

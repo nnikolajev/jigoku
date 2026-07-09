@@ -2,6 +2,8 @@ import SeededRandom from './SeededRandom.js';
 import type { CardHint } from './llm/CardHints';
 import type { DeckStrategy } from './CardPlaybook';
 import type { Omniscient } from './DeckAnalysis';
+import { profileFromStrategy, DEFAULT_PROFILE } from './DeckProfiles.js';
+import type { DeckProfile } from './DeckProfiles';
 
 type BotCommandName = 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
 
@@ -46,6 +48,9 @@ interface DecideContext {
     handStats?: HandStats;
     cardHint?: CardHintLookup;
     strategy?: DeckStrategy;
+    // Per-deck tuning knobs (DeckProfiles). When absent, derived from `strategy`
+    // so callers that pass only strategy (e.g. tests) behave identically.
+    profile?: DeckProfile;
     // Seed-4 cheat view: the human's true hand/fate/province strengths. Present
     // only for the omniscient bot; every omniscient branch is gated on it, so
     // seed 1 (undefined here) keeps identical behavior.
@@ -99,6 +104,10 @@ class JigokuBotPolicy {
         const title = `${promptTitle} ${menuTitle}`.toLowerCase();
         const buttons = this.enabledButtons(me);
         const opponent = this.opponentPlayer(playerState, me);
+        // Resolve the per-deck tuning profile once. Falls back to deriving it from
+        // the strategy flags so a caller that passes only `strategy` (tests, older
+        // paths) gets identical behavior to before the profile refactor.
+        const profile = context.profile || profileFromStrategy(context.strategy);
 
         if(promptTitle === 'Honor Bid') {
             return this.buttonDecision(this.pickBidButton(buttons, me, opponent, context.roundNumber), 'honor-bid');
@@ -112,7 +121,7 @@ class JigokuBotPolicy {
             // Holding-engine decks dig their opening provinces toward Kaiu Wall
             // holdings (mulligan every non-holding province card); other decks
             // keep their provinces.
-            if(context.strategy?.holdingEngine && promptTitle === 'Dynasty Mulligan') {
+            if(profile.mulliganForHoldings && promptTitle === 'Dynasty Mulligan') {
                 return this.holdingMulliganDecision(me, buttons);
             }
             return this.buttonDecision(this.findButton(buttons, ['done']), 'finish-mulligan');
@@ -127,14 +136,14 @@ class JigokuBotPolicy {
         }
 
         if(promptTitle === 'Initiate Conflict' || CONFLICT_TITLE_REGEX.test(promptTitle)) {
-            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, context.strategy, context.omniscient);
+            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, profile, context.omniscient);
             if(declaration) {
                 return declaration;
             }
         }
 
         if(menuTitle.toLowerCase().includes('choose defenders') && !menuTitle.toLowerCase().includes('covert')) {
-            return this.defenderDecision(me, promptTitle, buttons, context.strategy, context.omniscient);
+            return this.defenderDecision(me, promptTitle, buttons, profile, context.omniscient);
         }
 
         if(title.includes('choose first player')) {
@@ -150,11 +159,11 @@ class JigokuBotPolicy {
 
         // The dynasty window overrides the generic action-window prompt text.
         if(menuTitle === 'Initiate an action' || promptTitle === 'Play cards from provinces') {
-            return this.actionWindowDecision(me, buttons, context.strategy, context.cardHint);
+            return this.actionWindowDecision(me, buttons, profile, context.cardHint);
         }
 
         if(promptTitle === 'Conflict Action Window') {
-            return this.conflictWindowDecision(playerState, me, buttons, context.handStats, context.cardHint, context.strategy, context.omniscient);
+            return this.conflictWindowDecision(playerState, me, buttons, context.handStats, context.cardHint, profile, context.omniscient);
         }
 
         if(title.includes('where do you wish to play this character')) {
@@ -179,7 +188,7 @@ class JigokuBotPolicy {
         }
 
         if(title.includes('additional fate')) {
-            return this.buttonDecision(this.pickFateButton(buttons, me, context.playCost, context.strategy?.aggressive), 'additional-fate');
+            return this.buttonDecision(this.pickFateButton(buttons, me, context.playCost, profile.aggressiveFate), 'additional-fate');
         }
 
         if(title.includes('how much fate') || title.includes('how much honor')) {
@@ -480,7 +489,7 @@ class JigokuBotPolicy {
         return numeric[0].button;
     }
 
-    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], strategy?: DeckStrategy, omni?: Omniscient): BotDecision | null {
+    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, omni?: Omniscient): BotDecision | null {
         const lowerMenu = menuTitle.toLowerCase();
         const ready = this.readyCharacters(me);
         const conflictMatch = promptTitle.match(CONFLICT_TITLE_REGEX);
@@ -522,7 +531,7 @@ class JigokuBotPolicy {
             // earth ring with a 6-military/3-political board). Clicking the
             // ring again toggles military/political before committing.
             if(conflictType && conflictMatch) {
-                const preferredType = this.preferredConflictType(me, strategy?.aggressive);
+                const preferredType = this.preferredConflictType(me, profile.forceMilitaryConflict);
                 const element = conflictMatch[2].toLowerCase();
                 if(conflictType !== preferredType && !this.isAttempted('ringClicked', [element])) {
                     return {
@@ -581,26 +590,33 @@ class JigokuBotPolicy {
             const breakTarget = provinceStrength + defenseEstimate;
             const totalEligible = committed.length + candidates.length;
 
-            // Defensive decks only commit an attack that can actually break the
-            // province; when the break is out of reach they keep their bodies
-            // home to defend rather than throwing skill at an unwinnable break.
-            if(strategy?.defensive && potentialSkill < breakTarget) {
+            // A pure turtle ('breakable-or-hold') only commits an attack it can
+            // actually break; when the break is out of reach it keeps every body
+            // home and passes the conflict rather than throwing skill away.
+            if(profile.attackCommitment === 'breakable-or-hold' && potentialSkill < breakTarget) {
                 const passButton = this.findButton(buttons, ['pass conflict']);
                 if(committed.length === 0 && passButton) {
                     return this.buttonDecision(passButton, 'defensive-hold');
                 }
             }
 
-            // Once the break is reachable, commit exactly enough skill to
-            // secure it. When it is not: a defensive deck holds everyone back,
-            // an aggressive rush sends every body (all-in pressure feeds its
-            // swarm payoffs — Ujik Tactics, Challenge on the Fields, Cavalry
-            // Reserves), and a generic deck sends all but a stay-home defender.
+            // Once the break is reachable, commit exactly enough skill to secure
+            // it. When it is not, how many bodies to send is the deck's profile:
+            //   'all'                  — every body (rush swarm payoffs).
+            //   'all-but-one'          — all but a stay-home defender (generic).
+            //   'breakable-or-hold'    — none (handled above; turtle).
+            //   'breakable-or-pressure'— all but `attackKeepHome`, so a defensive
+            //                            deck still pressures instead of conceding
+            //                            the whole conflict (keeps wall bodies home).
+            const keepHome = Math.max(1, profile.attackKeepHome);
+            const unbreakableCommit =
+                profile.attackCommitment === 'all' ? committed.length < totalEligible
+                    : profile.attackCommitment === 'breakable-or-hold' ? false
+                        : profile.attackCommitment === 'breakable-or-pressure' ? committed.length < Math.max(1, totalEligible - keepHome)
+                            : committed.length < Math.max(1, totalEligible - 1);
             const needMore = potentialSkill >= breakTarget
                 ? committedSkill < breakTarget
-                : (strategy?.defensive ? false
-                    : strategy?.aggressive ? committed.length < totalEligible
-                        : committed.length < Math.max(1, totalEligible - 1));
+                : unbreakableCommit;
 
             if(needMore) {
                 const next = candidates.find((card) => !this.isAttempted('cardClicked', [card.uuid]));
@@ -763,7 +779,7 @@ class JigokuBotPolicy {
         return null;
     }
 
-    private defenderDecision(me: any, promptTitle: string, buttons: any[], strategy?: DeckStrategy, _omni?: Omniscient): BotDecision | null {
+    private defenderDecision(me: any, promptTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient): BotDecision | null {
         // NOTE: seed-4 defense-side omniscience (defending against the human's
         // post-commit hand pump, conceding provably-lost conflicts to save
         // bodies) was implemented and MEASURED NET-NEGATIVE — it made the bot
@@ -803,7 +819,7 @@ class JigokuBotPolicy {
         const potential = defenderSkill + candidates.reduce((total, card) => total + Math.max(this.skillValue(card, type) || 0, 0), 0);
 
         let target;
-        if(strategy?.aggressive) {
+        if(profile.defenseCommitment === 'win-only') {
             // The rush would rather lose a province than bow bodies it needs to
             // attack again, so it only defends when it can win the conflict
             // outright; a chump-block that merely delays a break is conceded.
@@ -867,7 +883,7 @@ class JigokuBotPolicy {
         };
     }
 
-    private conflictWindowDecision(playerState: any, me: any, buttons: any[], handStats?: HandStats, cardHint?: CardHintLookup, strategy?: DeckStrategy, _omni?: Omniscient): BotDecision | null {
+    private conflictWindowDecision(playerState: any, me: any, buttons: any[], handStats?: HandStats, cardHint?: CardHintLookup, profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient): BotDecision | null {
         // NOTE: seed-4 window-hold omniscience (as attacker, HOLD when the human
         // can swing the conflict out of break range; as defender, concede a
         // provably lost conflict to keep bodies) was implemented and MEASURED
@@ -880,10 +896,10 @@ class JigokuBotPolicy {
             return pass;
         }
 
-        // A military-rush deck does not sink cards into defense — every card and
-        // fate is saved for its own attacks, so it passes every defensive
+        // A deck that does not spend cards on defense (the military rush) saves
+        // every card and fate for its own attacks — it passes every defensive
         // window and lets the province fall if it must.
-        if(strategy?.aggressive && !standing.amAttacker) {
+        if(!profile.spendCardsOnDefense && !standing.amAttacker) {
             return pass;
         }
 
@@ -1037,7 +1053,7 @@ class JigokuBotPolicy {
         return value === null || value === undefined ? null : value;
     }
 
-    private actionWindowDecision(me: any, buttons: any[], strategy?: DeckStrategy, cardHint?: CardHintLookup): BotDecision | null {
+    private actionWindowDecision(me: any, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, cardHint?: CardHintLookup): BotDecision | null {
         const pass = this.findButton(buttons, ['pass']);
 
         if(me?.phase === 'dynasty') {
@@ -1059,7 +1075,13 @@ class JigokuBotPolicy {
             // characters/holdings into provinces). Fire those once fate remains
             // to actually pay for what they surface; the engine rejects a click
             // whose ability is not currently legal without mutating state.
-            if(strategy?.holdingEngine && (me?.stats?.fate ?? 0) >= 1 && cardHint) {
+            // Gate the dig on a minimum board presence: a holding deck that digs
+            // every window starves itself of defenders (it churns the engine
+            // instead of playing bodies) and its provinces fall. Once enough of
+            // its own characters are already in play, resume digging.
+            const boardCharacters = this.myCharactersInPlay(me).filter((card) => card.type === 'character').length;
+            if(profile.digWithActions && boardCharacters >= profile.digMinBoardCharacters
+                && (me?.stats?.fate ?? 0) >= 1 && cardHint) {
                 const digger = this.dynastyActionSources(me, cardHint)
                     .find((card) => !this.isAttempted('cardClicked', [card.uuid]));
                 if(digger) {

@@ -6,6 +6,8 @@ import LlmActionPlanner from './llm/LlmActionPlanner.js';
 import type { ActionOption } from './llm/LlmActionPlanner';
 import { getPlaybookEntry, deriveDeckStrategy } from './CardPlaybook.js';
 import type { DeckStrategy } from './CardPlaybook';
+import { resolveDeckProfile } from './DeckProfiles.js';
+import type { DeckProfile } from './DeckProfiles';
 import { getCardModel } from './DeckAnalysis.js';
 import type { KnownCard, OmniProvince, Omniscient } from './DeckAnalysis';
 import { stateFeatures, optionFeatures } from './ml/features.js';
@@ -352,6 +354,7 @@ class JigokuBotController {
                     // analysis for the same card.
                     cardHint: (cardId: string) => getPlaybookEntry(cardId) || this.hintService?.getHint(cardId),
                     strategy: this.currentDeckStrategy(player),
+                    profile: this.currentDeckProfile(player),
                     // Seed 4 only: the cheat view (human hand/fate/true province
                     // strengths). Undefined for every other seed, so the policy's
                     // omniscient branches stay dormant and seed 1 is unchanged.
@@ -504,20 +507,40 @@ class JigokuBotController {
     // Deck-level strategy flags (holding engine / defensive) derived once from
     // the printed cards the bot actually owns. Cards populate at game setup;
     // memoize as soon as any are available so mulligan/dynasty prompts see it.
+    private deckProfile?: DeckProfile;
     private currentDeckStrategy(player: Player): DeckStrategy | undefined {
         if(this.deckStrategy) {
             return this.deckStrategy;
         }
-        const allCards: any[] = (this.game as any).allCards || [];
-        const ids = allCards
-            .filter((card: any) => card.owner === player && card.cardData?.id)
-            .map((card: any) => card.cardData.id);
+        const ids = this.deckCardIds(player);
         if(ids.length === 0) {
             return undefined;
         }
         this.deckStrategy = deriveDeckStrategy(ids);
         logger.info(`Bot ${this.config.playerName} deck strategy: ${JSON.stringify(this.deckStrategy)}`);
         return this.deckStrategy;
+    }
+
+    private deckCardIds(player: Player): string[] {
+        const allCards: any[] = (this.game as any).allCards || [];
+        return allCards
+            .filter((card: any) => card.owner === player && card.cardData?.id)
+            .map((card: any) => card.cardData.id);
+    }
+
+    // The tuning profile for this deck: the strategy-derived knobs plus any
+    // per-deck override (see DeckProfiles). Cached once the deck is known.
+    private currentDeckProfile(player: Player): DeckProfile | undefined {
+        if(this.deckProfile) {
+            return this.deckProfile;
+        }
+        const strategy = this.currentDeckStrategy(player);
+        if(!strategy) {
+            return undefined;
+        }
+        this.deckProfile = resolveDeckProfile(this.deckCardIds(player), strategy);
+        logger.info(`Bot ${this.config.playerName} deck profile: ${JSON.stringify(this.deckProfile)}`);
+        return this.deckProfile;
     }
 
     // Kick off deck analysis on the first tick after the game initialises.

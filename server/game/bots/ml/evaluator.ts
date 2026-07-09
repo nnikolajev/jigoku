@@ -9,11 +9,11 @@ import { stateFeatures, optionFeatures } from './features.js';
 import type { OptionInput } from './features';
 
 export interface GbdtTree {
-    feature: number[];   // -2 at leaves
+    feature: number[]; // -2 at leaves
     threshold: number[];
-    left: number[];      // -1 at leaves
+    left: number[]; // -1 at leaves
     right: number[];
-    value: number[];     // leaf raw steps
+    value: number[]; // leaf raw steps
 }
 
 export interface EvaluatorWeights {

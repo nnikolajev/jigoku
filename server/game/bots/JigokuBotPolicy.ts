@@ -1,6 +1,7 @@
 import SeededRandom from './SeededRandom.js';
 import type { CardHint } from './llm/CardHints';
 import type { DeckStrategy } from './CardPlaybook';
+import type { Omniscient } from './DeckAnalysis';
 
 type BotCommandName = 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
 
@@ -45,6 +46,10 @@ interface DecideContext {
     handStats?: HandStats;
     cardHint?: CardHintLookup;
     strategy?: DeckStrategy;
+    // Seed-4 cheat view: the human's true hand/fate/province strengths. Present
+    // only for the omniscient bot; every omniscient branch is gated on it, so
+    // seed 1 (undefined here) keeps identical behavior.
+    omniscient?: Omniscient;
 }
 
 class JigokuBotPolicy {
@@ -122,14 +127,14 @@ class JigokuBotPolicy {
         }
 
         if(promptTitle === 'Initiate Conflict' || CONFLICT_TITLE_REGEX.test(promptTitle)) {
-            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, context.strategy);
+            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, context.strategy, context.omniscient);
             if(declaration) {
                 return declaration;
             }
         }
 
         if(menuTitle.toLowerCase().includes('choose defenders') && !menuTitle.toLowerCase().includes('covert')) {
-            return this.defenderDecision(me, promptTitle, buttons, context.strategy);
+            return this.defenderDecision(me, promptTitle, buttons, context.strategy, context.omniscient);
         }
 
         if(title.includes('choose first player')) {
@@ -149,7 +154,7 @@ class JigokuBotPolicy {
         }
 
         if(promptTitle === 'Conflict Action Window') {
-            return this.conflictWindowDecision(playerState, me, buttons, context.handStats, context.cardHint, context.strategy);
+            return this.conflictWindowDecision(playerState, me, buttons, context.handStats, context.cardHint, context.strategy, context.omniscient);
         }
 
         if(title.includes('where do you wish to play this character')) {
@@ -475,7 +480,7 @@ class JigokuBotPolicy {
         return numeric[0].button;
     }
 
-    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], strategy?: DeckStrategy): BotDecision | null {
+    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], strategy?: DeckStrategy, omni?: Omniscient): BotDecision | null {
         const lowerMenu = menuTitle.toLowerCase();
         const ready = this.readyCharacters(me);
         const conflictMatch = promptTitle.match(CONFLICT_TITLE_REGEX);
@@ -528,7 +533,7 @@ class JigokuBotPolicy {
                     };
                 }
             }
-            return this.attackProvinceDecision(opponent);
+            return this.attackProvinceDecision(opponent, omni);
         }
 
         if(lowerMenu.includes('covert')) {
@@ -563,7 +568,17 @@ class JigokuBotPolicy {
             const defenseEstimate = (opponent?.cardPiles?.cardsInPlay || [])
                 .filter((card: any) => card.type === 'character' && !card.bowed)
                 .reduce((total: number, card: any) => total + skillOf(card), 0);
-            const breakTarget = this.attackedProvinceStrength(opponent, 4) + defenseEstimate;
+            // Seed 4 uses the TRUE strength of the (even face-down) province being
+            // attacked instead of the heuristic's guess-4 fallback, so it sizes
+            // the break correctly. NOTE: folding the human's affordable HAND
+            // defense into this estimate was tried and MEASURED NET-NEGATIVE — it
+            // made the bot over-commit against defense that never materialized
+            // and lose bodies it needed for later conflicts (self-play mirror
+            // dropped below 50%). The hand analysis (estimateHandThreat) is kept
+            // and unit-tested for a future, more careful use; the live edge is
+            // weakest-province targeting + true province strength.
+            const provinceStrength = omni ? this.omniAttackedStrength(opponent, omni) : this.attackedProvinceStrength(opponent, 4);
+            const breakTarget = provinceStrength + defenseEstimate;
             const totalEligible = committed.length + candidates.length;
 
             // Defensive decks only commit an attack that can actually break the
@@ -680,14 +695,47 @@ class JigokuBotPolicy {
         return military >= political ? 'military' : 'political';
     }
 
-    private attackProvinceDecision(opponent: any): BotDecision | null {
+    // The real strength of the province currently under attack. Omniscient only:
+    // matches the in-conflict province (even face-down) to its true strength.
+    private omniAttackedStrength(opponent: any, omni: Omniscient): number {
+        const lists = PROVINCE_KEYS
+            .map((key) => opponent?.provinces?.[key] || [])
+            .concat([opponent?.strongholdProvince || []]);
+        for(const list of lists) {
+            const prov = (list || []).find((card: any) => (card.isProvince || card.facedown) && card.inConflict);
+            if(prov) {
+                const match = omni.oppProvinces.find((p) => p.location && p.location === prov.location);
+                if(match) {
+                    return match.strength;
+                }
+            }
+        }
+        return this.attackedProvinceStrength(opponent, 4);
+    }
+
+    private attackProvinceDecision(opponent: any, omni?: Omniscient): BotDecision | null {
         if(!opponent) {
             return null;
         }
 
-        const candidateLists = PROVINCE_KEYS
+        let candidateLists = PROVINCE_KEYS
             .map((key) => opponent.provinces?.[key] || [])
             .concat([opponent.strongholdProvince || []]);
+
+        // Seed 4 sees every province's true strength, so it strikes the weakest
+        // unbroken province first (fastest break, least skill spent) instead of
+        // taking them in board order. Ties keep board order.
+        if(omni) {
+            const strengthOf = (list: any): number => {
+                const province = (list || []).find((card: any) => (card.isProvince || card.facedown) && card.isProvince !== false);
+                const match = province && omni.oppProvinces.find((p) => p.location && p.location === province.location);
+                return match ? match.strength : Number.POSITIVE_INFINITY;
+            };
+            candidateLists = candidateLists
+                .map((list, index) => ({ list, index, strength: strengthOf(list) }))
+                .sort((a, b) => (a.strength - b.strength) || (a.index - b.index))
+                .map((entry) => entry.list);
+        }
 
         for(const list of candidateLists) {
             const province = (list || []).find((card: any) => card.isProvince !== false && (card.isProvince || card.facedown));
@@ -715,7 +763,14 @@ class JigokuBotPolicy {
         return null;
     }
 
-    private defenderDecision(me: any, promptTitle: string, buttons: any[], strategy?: DeckStrategy): BotDecision | null {
+    private defenderDecision(me: any, promptTitle: string, buttons: any[], strategy?: DeckStrategy, _omni?: Omniscient): BotDecision | null {
+        // NOTE: seed-4 defense-side omniscience (defending against the human's
+        // post-commit hand pump, conceding provably-lost conflicts to save
+        // bodies) was implemented and MEASURED NET-NEGATIVE — it made the bot
+        // over-concede and stall (Crane mirror 0-12). The plumbing (`_omni`) is
+        // kept for a more careful future attempt; seed 4's live edge comes from
+        // weakest-province targeting + hand-aware ATTACK sizing, which test as a
+        // clear win. Defense here is the unchanged seed-1 heuristic.
         const done = this.findButton(buttons, ['done']);
         const conflictMatch = promptTitle.match(CONFLICT_TITLE_REGEX);
         const type = conflictMatch ? conflictMatch[1].toLowerCase() : 'military';
@@ -812,7 +867,13 @@ class JigokuBotPolicy {
         };
     }
 
-    private conflictWindowDecision(playerState: any, me: any, buttons: any[], handStats?: HandStats, cardHint?: CardHintLookup, strategy?: DeckStrategy): BotDecision | null {
+    private conflictWindowDecision(playerState: any, me: any, buttons: any[], handStats?: HandStats, cardHint?: CardHintLookup, strategy?: DeckStrategy, _omni?: Omniscient): BotDecision | null {
+        // NOTE: seed-4 window-hold omniscience (as attacker, HOLD when the human
+        // can swing the conflict out of break range; as defender, concede a
+        // provably lost conflict to keep bodies) was implemented and MEASURED
+        // NET-NEGATIVE — over-holding cost the bot conflicts it could have won
+        // (Crane mirror regressed to 1-11). The `_omni` plumbing is kept for a
+        // more careful future attempt; the seed-1 window heuristic is unchanged.
         const pass = this.buttonDecision(this.findButton(buttons, ['pass']) || buttons[0], 'pass-window');
         const standing = this.conflictStanding(playerState, me);
         if(!standing) {

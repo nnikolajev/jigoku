@@ -6,6 +6,8 @@ import LlmActionPlanner from './llm/LlmActionPlanner.js';
 import type { ActionOption } from './llm/LlmActionPlanner';
 import { getPlaybookEntry, deriveDeckStrategy } from './CardPlaybook.js';
 import type { DeckStrategy } from './CardPlaybook';
+import { getCardModel } from './DeckAnalysis.js';
+import type { KnownCard, OmniProvince, Omniscient } from './DeckAnalysis';
 import { stateFeatures, optionFeatures } from './ml/features.js';
 import type { MoveEvaluator } from './ml/evaluator';
 import { logger } from '../../logger.js';
@@ -111,6 +113,115 @@ class JigokuBotController {
     // Needs a loaded evaluator; without one the seat stays on the heuristic.
     private isEvaluatorDriven(): boolean {
         return (this.config.seed === 3 || this.config.seed === '3') && !!this.evaluator;
+    }
+
+    // Seed 4 is the omniscient (cheating) brain: it keeps the whole seed-1
+    // heuristic but is fed the human's true hand, fate and face-down province
+    // strengths so the policy can target the weakest province, size an attack to
+    // beat exactly what the human can afford to defend with, press when they
+    // cannot fight back, and hold a conflict it cannot win. No LLM, no model —
+    // just perfect information layered onto the heuristic.
+    private isOmniscient(): boolean {
+        return this.config.seed === 4 || this.config.seed === '4';
+    }
+
+    // Translate one live card the human holds into the model the policy reasons
+    // over. Skill/cost come from the live object (exact for ANY deck); the
+    // curated registry overlays what the object cannot express — an event's
+    // conflict swing, an attachment's granted skill, the effect tag.
+    private knownCard(card: any): KnownCard {
+        const model = getCardModel(card.id);
+        const type: string = card.type || (typeof card.getType === 'function' ? card.getType() : '') || '';
+        const side = card.isConflict ? 'conflict' : card.isDynasty ? 'dynasty' : (model?.side || '');
+        const cost = Number(typeof card.getCost === 'function' ? card.getCost() : card.printedCost);
+        const mil = type === 'character' && typeof card.getMilitarySkill === 'function' ? card.getMilitarySkill() : 0;
+        const pol = type === 'character' && typeof card.getPoliticalSkill === 'function' ? card.getPoliticalSkill() : 0;
+        return {
+            id: card.id,
+            type,
+            side,
+            fate: isNaN(cost) ? (model?.fate ?? 0) : Math.max(cost, 0),
+            mil: Math.max(Number(mil) || 0, 0),
+            pol: Math.max(Number(pol) || 0, 0),
+            milBonus: model?.milBonus ?? 0,
+            polBonus: model?.polBonus ?? 0,
+            swing: model?.swing ?? 0,
+            tag: model?.tag ?? 'utility'
+        };
+    }
+
+    // The true strength of every one of the human's provinces, including the
+    // face-down ones a fair bot cannot see.
+    private opponentProvinces(opp: Player): OmniProvince[] {
+        const out: OmniProvince[] = [];
+        const provinces: any[] = typeof (opp as any).getProvinces === 'function' ? (opp as any).getProvinces() : [];
+        for(const card of provinces) {
+            if(!card || card.isProvince === false) {
+                continue;
+            }
+            out.push({
+                location: card.location || '',
+                name: card.name || card.id || '',
+                strength: typeof card.getStrength === 'function' ? Number(card.getStrength()) || 0 : 0,
+                broken: !!card.isBroken,
+                facedown: !!card.facedown
+            });
+        }
+        return out;
+    }
+
+    // Assemble the seed-4 cheat view from the live opponent Player. Recomputed
+    // each tick (cheap) so it always reflects the current hand/fate/board.
+    private buildOmniscient(me: Player): Omniscient | undefined {
+        if(!this.isOmniscient()) {
+            return undefined;
+        }
+        const opp = (me as any).opponent as Player | undefined;
+        if(!opp) {
+            return undefined;
+        }
+        const handCards: any[] = typeof (opp as any).hand?.toArray === 'function' ? (opp as any).hand.toArray() : [];
+        const oppHand = handCards.map((card) => this.knownCard(card));
+        const unmodeledEvents = Array.from(new Set(
+            oppHand.filter((card) => card.type === 'event' && !getCardModel(card.id)).map((card) => card.id)
+        ));
+        return {
+            oppName: (opp as any).name,
+            oppFate: Number((opp as any).fate) || 0,
+            oppHand,
+            oppProvinces: this.opponentProvinces(opp),
+            unmodeledEvents
+        };
+    }
+
+    // One-time deck-analysis gate for seed 4 (satisfies "analyze the deck before
+    // the omniscient bot works"). Scans the human's whole deck for conflict
+    // events with no curated model and reports coverage. The bot still plays if
+    // some events are unmodeled — it is simply blind to those specific tricks.
+    private omniscientGateChecked = false;
+    private ensureDeckAnalyzed(me: Player): void {
+        if(this.omniscientGateChecked || !this.isOmniscient()) {
+            return;
+        }
+        const opp = (me as any).opponent as Player | undefined;
+        if(!opp) {
+            return;
+        }
+        this.omniscientGateChecked = true;
+        const allCards: any[] = (this.game as any).allCards || [];
+        const oppEventIds = Array.from(new Set(allCards
+            .filter((card: any) => card.owner === opp && card.type === 'event' && card.cardData?.id)
+            .map((card: any) => card.cardData.id)));
+        const missing = oppEventIds.filter((id) => !getCardModel(id));
+        if(oppEventIds.length === 0) {
+            return;
+        }
+        if(missing.length === 0) {
+            this.game.addMessage(`${this.config.playerName} (omniscient) has analyzed the opponent deck: all ${oppEventIds.length} conflict events modeled.`);
+        } else {
+            logger.info(`Bot ${this.config.playerName} omniscient: ${missing.length}/${oppEventIds.length} opponent events unmodeled: ${missing.join(', ')}`);
+            this.game.addMessage(`${this.config.playerName} (omniscient) is blind to ${missing.length} unanalyzed opponent card(s); add them to DeckAnalysis for full strength.`);
+        }
     }
 
     // Prompts where a move choice is genuinely strategic and safe for the
@@ -231,6 +342,7 @@ class JigokuBotController {
                 }
 
                 const targetHint = this.currentTargetHint(player);
+                this.ensureDeckAnalyzed(player);
                 let decision = this.policy.decide(this.game.getState(player.name), player.name, {
                     roundNumber: (this.game as any).roundNumber,
                     targetHint: targetHint,
@@ -239,7 +351,11 @@ class JigokuBotController {
                     // Hand-written playbook knowledge outranks the cached LLM
                     // analysis for the same card.
                     cardHint: (cardId: string) => getPlaybookEntry(cardId) || this.hintService?.getHint(cardId),
-                    strategy: this.currentDeckStrategy(player)
+                    strategy: this.currentDeckStrategy(player),
+                    // Seed 4 only: the cheat view (human hand/fate/true province
+                    // strengths). Undefined for every other seed, so the policy's
+                    // omniscient branches stay dormant and seed 1 is unchanged.
+                    omniscient: this.buildOmniscient(player)
                 });
 
                 // Seed 2: let the LLM choose the move. Whenever the step is a

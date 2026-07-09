@@ -68,4 +68,16 @@ function loadUnicornDeck() {
     return buildDeck(loadDecklist(), loadCards());
 }
 
-module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, FIXTURES };
+// Crane Duels (EmeraldDB b59bc6b3) — the deck the human plays against the
+// seed-4 omniscient bot. The card fixture is a raw array, so index it by id.
+function loadCraneDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'crane-decklist.json'), 'utf8'));
+    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'crane-cards.json'), 'utf8'));
+    const cardsById = {};
+    for(const card of cardsArray) {
+        cardsById[card.id] = card;
+    }
+    return buildDeck(decklist, cardsById);
+}
+
+module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadCraneDeck, FIXTURES };

@@ -1,0 +1,12 @@
+{
+  "cardId": "iaijutsu-master",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 9,
+  "summary": "Attach to any Duelist character immediately to boost their honor bid by 1 in every duel they participate in."
+}

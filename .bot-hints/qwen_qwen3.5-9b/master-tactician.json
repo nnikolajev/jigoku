@@ -1,0 +1,12 @@
+{
+  "cardId": "master-tactician",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 7,
+  "summary": "Play this character to access extra cards from your conflict deck during conflicts when a Battlefield is in play."
+}

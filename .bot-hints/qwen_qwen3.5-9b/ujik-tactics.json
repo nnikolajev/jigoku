@@ -1,0 +1,11 @@
+{
+  "cardId": "ujik-tactics",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 10,
+  "summary": "Always use during any military conflict to boost all non-unique characters' military skill for the remainder of that conflict."
+}

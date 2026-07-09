@@ -1,0 +1,11 @@
+{
+  "cardId": "cunning-negotiator",
+  "useWhen": "always",
+  "conflictTypes": [
+    "political"
+  ],
+  "targetSide": "either",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use during political conflicts to duel the opponent's strongest character and steal their province's action ability for an extra turn of value."
+}

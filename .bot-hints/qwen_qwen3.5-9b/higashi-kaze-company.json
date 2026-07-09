@@ -1,0 +1,11 @@
+{
+  "cardId": "higashi-kaze-company",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "either",
+  "targetPreference": "most-fate",
+  "priority": 8,
+  "summary": "Use this reaction immediately after winning a military conflict to save a participating character (preferably one with fate on it) from bowing."
+}

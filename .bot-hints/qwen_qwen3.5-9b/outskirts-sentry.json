@@ -1,0 +1,12 @@
+{
+  "cardId": "outskirts-sentry",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "either",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use this reaction to honor the opponent's highest-skill character in the conflict to maximize their damage output or prevent them from winning by strength."
+}

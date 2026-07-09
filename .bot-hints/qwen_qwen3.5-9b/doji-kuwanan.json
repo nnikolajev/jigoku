@@ -1,0 +1,11 @@
+{
+  "cardId": "doji-kuwanan",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use the action during a military conflict where Kuwanan is winning to remove high-skill enemy blockers or attackers."
+}

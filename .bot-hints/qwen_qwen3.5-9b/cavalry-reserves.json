@@ -1,0 +1,11 @@
+{
+  "cardId": "cavalry-reserves",
+  "useWhen": "losing",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Use this event during a military conflict when losing to instantly bring high-cost Cavalry characters from the discard pile into play to turn the tide."
+}

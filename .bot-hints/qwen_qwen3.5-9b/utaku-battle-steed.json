@@ -1,0 +1,11 @@
+{
+  "cardId": "utaku-battle-steed",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Attach to a strong Unicorn character immediately before or during a military conflict they are likely to win to secure the honor swing."
+}

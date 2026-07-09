@@ -1,0 +1,11 @@
+{
+  "cardId": "kakita-toshimoko",
+  "useWhen": "losing",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Use this interrupt immediately when losing a military conflict to force a duel that nullifies the result and saves the province."
+}

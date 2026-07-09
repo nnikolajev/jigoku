@@ -1,0 +1,12 @@
+{
+  "cardId": "daidoji-uji-2",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 10,
+  "summary": "Always play Daidoji Uji to access your entire deck as if it were in hand, enabling any card you need for conflicts or other effects."
+}

@@ -1,0 +1,11 @@
+{
+  "cardId": "shiotome-encampment",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "most-fate",
+  "priority": 8,
+  "summary": "Use this action immediately after winning a military conflict to ready your most valuable Cavalry character that has fate on it."
+}

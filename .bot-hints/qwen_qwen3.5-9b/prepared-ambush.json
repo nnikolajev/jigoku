@@ -1,0 +1,12 @@
+{
+  "cardId": "prepared-ambush",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 10,
+  "summary": "Attach to a province to access all your characters during conflicts there."
+}

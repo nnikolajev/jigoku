@@ -54,6 +54,7 @@ interface GameDetails {
     players: Record<string, any>;
     spectators: Record<string, any>;
     clocks: any;
+    bot?: any;
 }
 
 interface GameOptions {
@@ -93,6 +94,7 @@ class Game extends EventEmitter {
     currentConflict: any;
     currentDuel: any;
     manualMode: boolean;
+    showBotHand: boolean;
     gameMode: string;
     currentPhase: string;
     password?: string;
@@ -109,6 +111,7 @@ class Game extends EventEmitter {
     finishedAt?: Date;
     winReason?: string;
     hiddenInfoLog: any[];
+    bot?: any;
     private lastHiddenInfoFingerprint = '';
     startedAt?: Date;
     private _playersCache: Player[] | null = null;
@@ -138,6 +141,7 @@ class Game extends EventEmitter {
         this.currentConflict = null;
         this.currentDuel = null;
         this.manualMode = false;
+        this.showBotHand = false;
         this.gameMode = details.gameMode;
         this.currentPhase = '';
         this.password = details.password;
@@ -156,6 +160,7 @@ class Game extends EventEmitter {
         this.allCards = [];
         this.provinceCards = [];
         this.hiddenInfoLog = [];
+        this.bot = details.bot;
 
         Object.values(details.players).forEach((player: any) => {
             this.playersAndSpectators[player.user.username] = new Player(
@@ -821,6 +826,20 @@ class Game extends EventEmitter {
     }
 
     /*
+     * This function is called by the client when a player clicks the "Show Bot Hand"
+     * debug toggle. Only takes effect when the player's opponent is an AI bot.
+     */
+    toggleShowBotHand(playerName: string): void {
+        const player = this.getPlayerByName(playerName) as Player;
+        if(!player || !player.opponent || !player.opponent.user || !player.opponent.user.isBot) {
+            return;
+        }
+
+        this.showBotHand = !this.showBotHand;
+        this.addMessage('{0} turns bot hand visibility {1}', player, this.showBotHand ? 'on' : 'off');
+    }
+
+    /*
      * Sets up Player objects, creates allCards, checks each player has a stronghold
      * and starts the game pipeline
      */
@@ -1333,7 +1352,9 @@ class Game extends EventEmitter {
             gameMode: this.gameMode,
             finishedAt: this.finishedAt,
             roundNumber: this.roundNumber,
-            initialFirstPlayer: this.initialFirstPlayer
+            initialFirstPlayer: this.initialFirstPlayer,
+            botGame: !!this.bot,
+            botPlayers: this.bot ? [this.bot.playerName] : []
         };
     }
 
@@ -1358,6 +1379,7 @@ class Game extends EventEmitter {
         return {
             id: this.id,
             manualMode: this.manualMode,
+            showBotHand: this.showBotHand,
             name: this.name,
             owner: ownerSummary,
             conflict: conflictState,

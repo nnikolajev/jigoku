@@ -1,0 +1,11 @@
+{
+  "cardId": "makeshift-war-camp",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 9,
+  "summary": "Attach to a province to boost your military skill during conflicts there."
+}

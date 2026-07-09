@@ -1,0 +1,12 @@
+{
+  "cardId": "ikoma-tsanuri",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 9,
+  "summary": "Use this action during conflicts with 3+ participating Bushi to buff all your characters."
+}

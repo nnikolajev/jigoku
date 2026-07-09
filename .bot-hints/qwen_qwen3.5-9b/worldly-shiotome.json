@@ -1,0 +1,12 @@
+{
+  "cardId": "worldly-shiotome",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Use as a reaction to honor Worldly Shiotome immediately after playing a Gaijin character to boost its skill for the upcoming conflict."
+}

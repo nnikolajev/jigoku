@@ -1,0 +1,12 @@
+{
+  "cardId": "northern-curtain-wall",
+  "useWhen": "never",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 0,
+  "summary": "This is a static province attachment that boosts adjacent Kaiu Wall holdings; it does not provide an active effect to use during the conflict phase."
+}

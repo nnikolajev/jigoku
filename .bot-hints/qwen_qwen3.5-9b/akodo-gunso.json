@@ -1,0 +1,12 @@
+{
+  "cardId": "akodo-gunso",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Play from province to reveal it faceup for information advantage and use in conflicts."
+}

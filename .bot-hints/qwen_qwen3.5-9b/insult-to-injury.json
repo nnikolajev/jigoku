@@ -1,0 +1,12 @@
+{
+  "cardId": "insult-to-injury",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use immediately after your Duelist wins a duel to dishonor the opponent's character, reducing their skill totals for future conflicts."
+}

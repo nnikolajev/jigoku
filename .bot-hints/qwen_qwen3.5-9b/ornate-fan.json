@@ -1,0 +1,11 @@
+{
+  "cardId": "ornate-fan",
+  "useWhen": "always",
+  "conflictTypes": [
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Attach this free attachment to your highest political skill character to boost conflict wins."
+}

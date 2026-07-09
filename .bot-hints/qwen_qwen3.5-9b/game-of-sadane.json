@@ -1,0 +1,11 @@
+{
+  "cardId": "game-of-sadane",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "political"
+  ],
+  "targetSide": "either",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use this event during a political conflict to force a duel that honors your strongest character and dishonors the opponent's best threat."
+}

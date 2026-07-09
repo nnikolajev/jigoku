@@ -1,0 +1,12 @@
+{
+  "cardId": "warrior-poet",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Always activate this action to weaken the opponent's strongest participating characters in both conflict types."
+}

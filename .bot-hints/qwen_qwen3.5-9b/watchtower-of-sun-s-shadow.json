@@ -1,0 +1,12 @@
+{
+  "cardId": "watchtower-of-sun-s-shadow",
+  "useWhen": "never",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "any",
+  "priority": 0,
+  "summary": "This card is a defensive holding that punishes attackers based on their fate count but forces the bot to lose 2 fate when its province breaks, making it strategically unsound for an aggressive bot strategy."
+}

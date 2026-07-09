@@ -1,0 +1,11 @@
+{
+  "cardId": "kakita-favorite",
+  "useWhen": "always",
+  "conflictTypes": [
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Play this character to boost political conflict strength by +2 when attacking or defending in a duel."
+}

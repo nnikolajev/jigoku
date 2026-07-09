@@ -1,0 +1,11 @@
+{
+  "cardId": "disparaging-challenge",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "political"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use during a winning political conflict to force the opponent's strongest home character into the conflict, potentially breaking their province or removing key defenders."
+}

@@ -1,0 +1,11 @@
+{
+  "cardId": "cautious-scout",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Play this character alone in a military conflict to ignore the defending province's abilities and strength."
+}

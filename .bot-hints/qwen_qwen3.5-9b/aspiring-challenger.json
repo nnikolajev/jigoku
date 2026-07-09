@@ -1,0 +1,11 @@
+{
+  "cardId": "aspiring-challenger",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use this character to initiate a military duel during conflicts to secure an honor swing via the Composure ability and potential Pride effect."
+}

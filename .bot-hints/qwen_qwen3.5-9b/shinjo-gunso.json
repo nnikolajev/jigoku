@@ -1,0 +1,12 @@
+{
+  "cardId": "shinjo-gunso",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 10,
+  "summary": "Always use this reaction to immediately bring a low-cost character into play for free, effectively doubling your board presence and conflict options."
+}

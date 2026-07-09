@@ -1,0 +1,11 @@
+{
+  "cardId": "akodo-toshiro",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 9,
+  "summary": "Use when attacking to prevent province breaks and boost military power, preferably with a Commander in play."
+}

@@ -1,0 +1,12 @@
+{
+  "cardId": "borderlands-defender",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Play this character to defend a province when the opponent is likely to use bow or move effects against it."
+}

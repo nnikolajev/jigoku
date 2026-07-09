@@ -1,0 +1,11 @@
+{
+  "cardId": "arrogant-kakita",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Use this character in military conflicts to force a duel that often results in the opponent losing their defender and gaining no ring effect."
+}

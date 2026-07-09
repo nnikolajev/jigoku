@@ -1,0 +1,12 @@
+{
+  "cardId": "minami-kaze-regulars",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Use this reaction immediately after winning a conflict where the bot has more characters than the opponent to gain fate and draw cards."
+}

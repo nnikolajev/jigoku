@@ -1,0 +1,12 @@
+{
+  "cardId": "iuchi-soulweaver",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 10,
+  "summary": "Always play this character to ensure you have a second participant in every conflict where you control one, effectively doubling your skill totals and preventing the opponent from using single-target removal or Covert tactics."
+}

@@ -1,0 +1,9 @@
+{
+  "cardId": "tactician-s-apprentice",
+  "useWhen": "always",
+  "conflictTypes": [],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Play this character to draw a card when you bid lower than your opponent."
+}

@@ -1,0 +1,12 @@
+{
+  "cardId": "hiruma-yojimbo",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Play Hiruma Yōjimbō in a province under attack to maximize its defensive skill while it cannot be used as an attacker."
+}

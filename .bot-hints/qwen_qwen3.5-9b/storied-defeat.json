@@ -1,0 +1,12 @@
+{
+  "cardId": "storied-defeat",
+  "useWhen": "losing",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use immediately when losing a conflict to bow the opponent's highest-skill character involved in the duel to prevent them from winning or reduce their future impact."
+}

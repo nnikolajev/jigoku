@@ -1,0 +1,12 @@
+{
+  "cardId": "in-service-to-my-lord",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use this free event to ready a key unique character for immediate conflict use by bowing another friendly unit."
+}

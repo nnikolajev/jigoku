@@ -1,0 +1,11 @@
+{
+  "cardId": "adorned-barcha",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use during a military conflict where the attached character is not fighting to bow the strongest enemy participant and insert Adorned Barcha into the fight."
+}

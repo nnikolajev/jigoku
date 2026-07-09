@@ -20,7 +20,12 @@ const parsedEnv = z
         LOBBY_WS_URL: z.string(),
         SECRET: z.string(),
         SENTRY_DSN: z.string().optional(),
-        BUILD_VERSION: z.string().optional()
+        BUILD_VERSION: z.string().optional(),
+        BOT_LLM_ENABLED: z.string().optional(),
+        BOT_LLM_BASE_URL: z.string().optional(),
+        BOT_LLM_MODEL: z.string().optional(),
+        BOT_LLM_LIVE_CONSULT: z.string().optional(),
+        BOT_LLM_CONSULT_TIMEOUT_MS: z.coerce.number().int().optional()
     })
     .safeParse(process.env);
 
@@ -47,3 +52,15 @@ export const lobbyWsUrl = parsedEnv.data.LOBBY_WS_URL;
 export const secret = parsedEnv.data.SECRET;
 export const sentryDsn = parsedEnv.data.SENTRY_DSN;
 export const buildVersion = parsedEnv.data.BUILD_VERSION ?? 'LOCAL';
+
+// Default bot LLM config (LM Studio). Enabled by default — an unreachable
+// server just posts one warning and the bot falls back to pure heuristics.
+// Override with BOT_LLM_ENABLED=false / BOT_LLM_BASE_URL / BOT_LLM_MODEL /
+// BOT_LLM_LIVE_CONSULT=false / BOT_LLM_CONSULT_TIMEOUT_MS.
+export const botLlm = {
+    enabled: parsedEnv.data.BOT_LLM_ENABLED !== 'false',
+    baseUrl: parsedEnv.data.BOT_LLM_BASE_URL || 'http://localhost:1234',
+    model: parsedEnv.data.BOT_LLM_MODEL || 'qwen/qwen3.5-9b',
+    liveConsult: parsedEnv.data.BOT_LLM_LIVE_CONSULT !== 'false',
+    consultTimeoutMs: parsedEnv.data.BOT_LLM_CONSULT_TIMEOUT_MS || 120000
+};

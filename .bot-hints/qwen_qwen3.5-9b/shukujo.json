@@ -1,0 +1,12 @@
+{
+  "cardId": "shukujo",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Attach to your strongest Champion character to instantly flip any conflict type they are in, maximizing their versatility and skill bonuses."
+}

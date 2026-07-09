@@ -1,0 +1,12 @@
+{
+  "cardId": "daidoji-nerishma",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Use this action during a conflict to reveal a facedown province card to trigger its ability or gain information before the attack resolves."
+}

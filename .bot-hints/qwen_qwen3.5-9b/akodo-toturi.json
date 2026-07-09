@@ -1,0 +1,11 @@
+{
+  "cardId": "akodo-toturi",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "most-fate",
+  "priority": 8,
+  "summary": "Play in military conflicts to leverage ring effects against enemy characters."
+}

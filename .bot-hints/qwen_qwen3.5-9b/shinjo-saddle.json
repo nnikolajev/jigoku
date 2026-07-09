@@ -1,0 +1,11 @@
+{
+  "cardId": "shinjo-saddle",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Attach to your highest-military-skill Cavalry character to maximize military conflict damage and province break potential."
+}

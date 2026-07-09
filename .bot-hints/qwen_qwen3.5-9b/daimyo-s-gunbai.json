@@ -1,0 +1,11 @@
+{
+  "cardId": "daimyo-s-gunbai",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Use this attachment to initiate a military duel against the opponent's highest-military-skill character to potentially remove a key threat or gain an honor swing."
+}

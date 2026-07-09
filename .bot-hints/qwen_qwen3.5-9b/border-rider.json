@@ -1,0 +1,12 @@
+{
+  "cardId": "border-rider",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Use the action to ready Border Rider immediately after it enters play or is knocked down to ensure it can participate in the next conflict."
+}

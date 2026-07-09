@@ -1,0 +1,11 @@
+{
+  "cardId": "shinomen-wayfinders",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Play this character in military conflicts whenever you control Unicorn characters to significantly reduce its cost and maximize your military skill."
+}

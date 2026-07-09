@@ -15,6 +15,7 @@ import { detectBinary } from '../util';
 import { SendGameStateProfiler } from './SendGameStateProfiler';
 import { WsSocket } from './WsSocket';
 import * as env from '../env.js';
+import JigokuBotController from '../game/bots/JigokuBotController.js';
 
 export class GameServer {
     private games = new Map<string, Game>();
@@ -28,6 +29,7 @@ export class GameServer {
     private shortCardData: any;
     private lastSentMessageCount = new Map<string, number>();
     private profiler = new SendGameStateProfiler();
+    private botControllers = new Map<string, JigokuBotController>();
 
     constructor() {
         let privateKey: undefined | string;
@@ -70,9 +72,11 @@ export class GameServer {
             logger.info(`${env.gameNodeName} listening on port ${env.gameNodeSocketIoPort} (proxy port ${env.gameNodeProxyPort ?? 'none'}, protocol ${this.protocol})`);
         });
 
-        const lobbyOrigins = [`https://${env.domain}`, `http://${env.domain}`];
+        const localOrigins = ['localhost', '127.0.0.1'];
+        const originHosts = Array.from(new Set([env.domain, ...localOrigins].filter(Boolean)));
+        const lobbyOrigins = originHosts.flatMap((host) => [`https://${host}`, `http://${host}`]);
         if(env.lobbyPort && env.lobbyPort !== 80 && env.lobbyPort !== 443) {
-            lobbyOrigins.push(`https://${env.domain}:${env.lobbyPort}`, `http://${env.domain}:${env.lobbyPort}`);
+            lobbyOrigins.push(...originHosts.flatMap((host) => [`https://${host}:${env.lobbyPort}`, `http://${host}:${env.lobbyPort}`]));
         }
         const corsConfig = env.domain
             ? { origin: lobbyOrigins, credentials: true }
@@ -175,6 +179,31 @@ export class GameServer {
                 this.userGameMap.delete(username);
             }
         }
+    }
+
+    private runBotCommand(game: Game, command: string, playerName: string, args: any[]): boolean {
+        if(!GameServer.ALLOWED_GAME_COMMANDS.has(command)) {
+            logger.info(`Rejected unknown bot game command '${command}' from ${playerName}`);
+            return false;
+        }
+
+        let accepted = false;
+        this.runAndCatchErrors(game, () => {
+            game.stopNonChessClocks();
+            const result = (game as any)[command](playerName, ...args);
+            accepted = result !== false;
+        });
+
+        return accepted;
+    }
+
+    private tickBot(game: Game): void {
+        const controller = this.botControllers.get(game.id);
+        if(!controller) {
+            return;
+        }
+
+        controller.tick();
     }
 
     sendGameState(game: Game): void {
@@ -319,12 +348,14 @@ export class GameServer {
         const saveState = game.getSaveState();
         this.wsSocket.send('GAMEWIN', { game: saveState, winner: winner.name, reason: reason });
 
-        void axios
-            .post(
-                `https://l5r-analytics-engine-production.up.railway.app/api/game-report/${env.environment}`,
-                saveState
-            )
-            .catch(() => {});
+        if(!saveState.botGame) {
+            void axios
+                .post(
+                    `https://l5r-analytics-engine-production.up.railway.app/api/game-report/${env.environment}`,
+                    saveState
+                )
+                .catch(() => {});
+        }
 
         // Send hidden info log (hands + provinces) to both players for replay enrichment
         const hiddenInfoLog = game.hiddenInfoLog;
@@ -342,12 +373,25 @@ export class GameServer {
         this.games.set(pendingGame.id, game);
         this.registerUsersForGame(game);
 
+        if((pendingGame as any).bot) {
+            this.botControllers.set(game.id, new JigokuBotController(
+                game,
+                (pendingGame as any).bot,
+                (command, playerName, args) => this.runBotCommand(game, command, playerName, args),
+                // Async bot ticks (LLM consults, self-scheduled follow-ups) act
+                // outside onGameMessage, so the controller pushes state itself
+                // after those or the human's board would freeze mid-turn.
+                { onStateChange: () => this.sendGameState(game) }
+            ));
+        }
+
         game.started = true;
         for(const player of Object.values<Player>(pendingGame.players)) {
             game.selectDeck(player.name, player.deck);
         }
 
         game.initialise();
+        this.tickBot(game);
     }
 
     onSpectator(pendingGame: PendingGame, user) {
@@ -545,6 +589,7 @@ export class GameServer {
         'shuffleConflictDeck',
         'shuffleDynastyDeck',
         'toggleManualMode',
+        'toggleShowBotHand',
         'toggleOptionSetting',
         'togglePromptedActionWindow',
         'toggleTimerSetting'
@@ -571,6 +616,7 @@ export class GameServer {
             game[command](socket.user.username, ...args);
 
             game.continue();
+            this.tickBot(game);
 
             this.sendGameState(game);
         });

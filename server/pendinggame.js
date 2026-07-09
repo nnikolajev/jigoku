@@ -14,6 +14,7 @@ class PendingGame {
         this.allowSpectators = details.spectators;
         this.spectatorSquelch = details.spectatorSquelch;
         this.gameType = details.gameType;
+        this.gameMode = details.gameMode;
         this.clocks = details.clocks;
         this.createdAt = new Date();
         this.gameChat = new GameChat();
@@ -49,8 +50,10 @@ class PendingGame {
         return {
             gameId: this.id,
             gameType: this.gameType,
+            gameMode: this.gameMode,
             players: players,
-            startedAt: this.createdAt
+            startedAt: this.createdAt,
+            botGame: !!this.bot
         };
     }
 
@@ -73,6 +76,18 @@ class PendingGame {
             user: user,
             emailHash: user.emailHash,
             owner: this.owner.username === user.username
+        };
+    }
+
+    addBot(id, user, botConfig) {
+        this.bot = botConfig;
+        this.players[user.username] = {
+            id: id,
+            name: user.username,
+            user: user,
+            emailHash: user.emailHash,
+            owner: false,
+            isBot: true
         };
     }
 
@@ -289,6 +304,7 @@ class PendingGame {
                 emailHash: player.emailHash,
                 faction: this.started && player.faction ? player.faction.value : undefined,
                 id: player.id,
+                isBot: !!player.isBot,
                 left: player.left,
                 name: player.name,
                 owner: player.owner,

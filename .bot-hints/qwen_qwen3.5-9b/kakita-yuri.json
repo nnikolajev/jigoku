@@ -1,0 +1,11 @@
+{
+  "cardId": "kakita-yuri",
+  "useWhen": "always",
+  "conflictTypes": [
+    "political"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Use this action during political conflicts to duel the opponent's strongest character and prevent them from declaring military conflicts."
+}

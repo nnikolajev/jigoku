@@ -1,0 +1,11 @@
+{
+  "cardId": "banzai",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "either",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Use during military conflicts to buff your strongest attacker or dishonor the enemy's strongest defender by paying honor."
+}

@@ -1,0 +1,12 @@
+{
+  "cardId": "elemental-fury",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 9,
+  "summary": "Use this province's reaction to switch the contested ring and disrupt enemy attacks."
+}

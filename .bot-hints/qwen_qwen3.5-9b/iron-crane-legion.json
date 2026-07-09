@@ -1,0 +1,12 @@
+{
+  "cardId": "iron-crane-legion",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "either",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Use in any conflict to leverage the opponent's hand size into massive military or political skill."
+}

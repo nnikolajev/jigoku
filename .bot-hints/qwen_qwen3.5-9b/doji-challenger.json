@@ -1,0 +1,12 @@
+{
+  "cardId": "doji-challenger",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Use this action to remove the opponent's highest-skill character from the conflict to secure a win."
+}

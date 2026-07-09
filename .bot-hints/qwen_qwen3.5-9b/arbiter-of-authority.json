@@ -1,0 +1,11 @@
+{
+  "cardId": "arbiter-of-authority",
+  "useWhen": "always",
+  "conflictTypes": [
+    "political"
+  ],
+  "targetSide": "either",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Initiate a political duel to force the opponent to dishonor their strongest character or remove them from play entirely."
+}

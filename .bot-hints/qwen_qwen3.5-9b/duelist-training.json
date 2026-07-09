@@ -1,0 +1,11 @@
+{
+  "cardId": "duelist-training",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use this attachment to force high-skill enemy characters into duels where you can discard cards instead of bidding honor, aiming to bow their strongest threats."
+}

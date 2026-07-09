@@ -1,0 +1,12 @@
+{
+  "cardId": "shinjo-shono",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use Shono's action to buff your strongest participating Cavalry characters whenever you have a numerical advantage in the conflict."
+}

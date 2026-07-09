@@ -1,0 +1,11 @@
+{
+  "cardId": "sashimono",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Attach to a key Bushi to prevent removal from play during military conflicts."
+}

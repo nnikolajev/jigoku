@@ -1,0 +1,12 @@
+{
+  "cardId": "samurai-of-integrity",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 6,
+  "summary": "Play this character in conflicts to contribute balanced military and political skill."
+}

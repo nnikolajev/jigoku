@@ -1,0 +1,11 @@
+{
+  "cardId": "shinjo-altansarnai-2",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 9,
+  "summary": "Use this action in any military conflict to immediately add a low-cost character to the battlefield for free."
+}

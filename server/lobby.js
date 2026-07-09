@@ -12,6 +12,7 @@ const DeckService = require('./services/DeckService.js');
 const CardService = require('./services/CardService.js');
 const Settings = require('./settings.js');
 const env = require('./env.js');
+const { buildBotUser } = require('./game/bots/JigokuBotConfig.js');
 
 class Lobby {
     constructor(server, options = {}) {
@@ -240,11 +241,79 @@ class Lobby {
 
         Object.values(game.getPlayersAndSpectators()).forEach((player) => {
             if(!this.sockets.get(player.id)) {
-                logger.info('Wanted to send to ', player.id, ' but have no socket');
+                // Bot seats never have a socket; only log for real players.
+                if(player.id !== 'BOT' && !player.user?.isBot) {
+                    logger.info('Wanted to send to ', player.id, ' but have no socket');
+                }
                 return;
             }
 
             this.sockets.get(player.id).send('gamestate', game.getSummary(player.name));
+        });
+    }
+
+    hydrateDeck(deckId) {
+        return Promise.all([this.cardService.getAllCards(), this.cardService.getAllPacks(), this.deckService.getById(deckId)])
+            .then((results) => {
+                let [cards, , deck] = results;
+
+                if(deck.stronghold) {
+                    deck.stronghold.forEach((stronghold) => {
+                        stronghold.card = cards[stronghold.card.id];
+                    });
+                }
+
+                if(deck.role) {
+                    deck.role.forEach((role) => {
+                        role.card = cards[role.card.id];
+                    });
+                }
+
+                if(deck.provinceCards) {
+                    deck.provinceCards.forEach((province) => {
+                        province.card = cards[province.card.id];
+                    });
+                }
+
+                if(deck.conflictCards) {
+                    deck.conflictCards.forEach((conflict) => {
+                        conflict.card = cards[conflict.card.id];
+                    });
+                }
+
+                if(deck.dynastyCards) {
+                    deck.dynastyCards.forEach((dynasty) => {
+                        dynasty.card = cards[dynasty.card.id];
+                    });
+                }
+
+                return deck;
+            });
+    }
+
+    addBotOpponent(game, botDetails = {}) {
+        if(!botDetails.enabled) {
+            return Promise.resolve();
+        }
+
+        const botConfig = {
+            playerName: botDetails.playerName || 'Jigoku Bot',
+            deckId: botDetails.deckId,
+            seed: botDetails.seed || `${game.id}:bot`,
+            difficulty: botDetails.difficulty || 'mvp',
+            trace: botDetails.trace !== false,
+            llm: botDetails.llm || env.botLlm
+        };
+        const botUser = buildBotUser(botConfig);
+
+        game.addBot('BOT', botUser, botConfig);
+
+        if(!botConfig.deckId) {
+            return Promise.resolve();
+        }
+
+        return this.hydrateDeck(botConfig.deckId).then((deck) => {
+            game.selectDeck(botConfig.playerName, deck);
         });
     }
 
@@ -389,12 +458,18 @@ class Lobby {
                 return;
             }
 
-            socket.joinChannel(game.id);
-            this.sendGameState(game);
+            this.addBotOpponent(game, gameDetails.bot)
+                .then(() => {
+                    socket.joinChannel(game.id);
+                    this.sendGameState(game);
 
-            this.games.set(game.id, game);
-            this.userGameMap.set(socket.user.username, game);
-            this.broadcastGameList();
+                    this.games.set(game.id, game);
+                    this.userGameMap.set(socket.user.username, game);
+                    this.broadcastGameList();
+                })
+                .catch((botErr) => {
+                    logger.info('failed to add bot opponent', botErr);
+                });
         });
     }
 
@@ -560,40 +635,8 @@ class Lobby {
             return;
         }
 
-        Promise.all([this.cardService.getAllCards(), this.cardService.getAllPacks(), this.deckService.getById(deckId)])
-            .then((results) => {
-                let [cards, , deck] = results;
-
-                if(deck.stronghold) {
-                    deck.stronghold.forEach((stronghold) => {
-                        stronghold.card = cards[stronghold.card.id];
-                    });
-                }
-
-                if(deck.role) {
-                    deck.role.forEach((role) => {
-                        role.card = cards[role.card.id];
-                    });
-                }
-
-                if(deck.provinceCards) {
-                    deck.provinceCards.forEach((province) => {
-                        province.card = cards[province.card.id];
-                    });
-                }
-
-                if(deck.conflictCards) {
-                    deck.conflictCards.forEach((conflict) => {
-                        conflict.card = cards[conflict.card.id];
-                    });
-                }
-
-                if(deck.dynastyCards) {
-                    deck.dynastyCards.forEach((dynasty) => {
-                        dynasty.card = cards[dynasty.card.id];
-                    });
-                }
-
+        this.hydrateDeck(deckId)
+            .then((deck) => {
                 game.selectDeck(socket.user.username, deck);
 
                 this.sendGameState(game);

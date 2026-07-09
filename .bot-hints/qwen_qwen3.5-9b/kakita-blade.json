@@ -1,0 +1,11 @@
+{
+  "cardId": "kakita-blade",
+  "useWhen": "always",
+  "conflictTypes": [
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Attach to your strongest political character to boost duel wins and gain honor via the reaction ability."
+}

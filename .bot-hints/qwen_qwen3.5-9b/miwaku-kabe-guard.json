@@ -1,0 +1,11 @@
+{
+  "cardId": "miwaku-kabe-guard",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 6,
+  "summary": "Play as a low-cost military attacker that gains honor on wins and loses it on losses."
+}

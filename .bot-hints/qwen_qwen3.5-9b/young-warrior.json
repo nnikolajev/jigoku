@@ -1,0 +1,12 @@
+{
+  "cardId": "young-warrior",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "either",
+  "targetPreference": "any",
+  "priority": 10,
+  "summary": "Always play this character to guarantee a presence in the first conflict of the round."
+}

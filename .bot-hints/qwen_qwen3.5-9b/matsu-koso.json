@@ -1,0 +1,11 @@
+{
+  "cardId": "matsu-koso",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "either",
+  "targetPreference": "any",
+  "priority": 7,
+  "summary": "Use this card during conflicts to reduce the military skill of opponents with high political skills, particularly when defending against them."
+}

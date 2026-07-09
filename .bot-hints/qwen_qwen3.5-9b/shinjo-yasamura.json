@@ -1,0 +1,11 @@
+{
+  "cardId": "shinjo-yasamura",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Use in military conflicts to bypass enemy Covert characters and prevent them from defending."
+}

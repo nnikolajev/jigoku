@@ -1,0 +1,12 @@
+{
+  "cardId": "pilgrimage",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 9,
+  "summary": "Play this province to negate all ring effects during conflicts at this location."
+}

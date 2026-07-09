@@ -1,0 +1,12 @@
+{
+  "cardId": "shiksha-scout",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 10,
+  "summary": "Always play this character to effectively double your skill totals in any conflict you participate in."
+}

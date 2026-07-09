@@ -1,0 +1,11 @@
+{
+  "cardId": "time-for-war",
+  "useWhen": "losing",
+  "conflictTypes": [
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 10,
+  "summary": "Recycle a cheap weapon onto a Bushi immediately after losing a political conflict."
+}

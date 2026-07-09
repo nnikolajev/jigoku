@@ -1,0 +1,11 @@
+{
+  "cardId": "tengu-sensei",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Use as a reaction to prevent the opponent's strongest Covert attacker from participating in the current military conflict."
+}

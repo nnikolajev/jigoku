@@ -1,0 +1,12 @@
+{
+  "cardId": "tactical-ingenuity",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Attach to your strongest Commander immediately to boost military skill and gain event card advantage during conflicts."
+}

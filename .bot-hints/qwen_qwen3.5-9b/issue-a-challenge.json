@@ -1,0 +1,11 @@
+{
+  "cardId": "issue-a-challenge",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Use this reaction immediately when a single Bushi attacks alone to force the opponent into a 1v1 conflict where ties are won by the attacker."
+}

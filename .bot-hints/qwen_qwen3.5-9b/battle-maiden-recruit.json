@@ -1,0 +1,11 @@
+{
+  "cardId": "battle-maiden-recruit",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Always play this character to boost military skill when controlling Water or Void rings."
+}

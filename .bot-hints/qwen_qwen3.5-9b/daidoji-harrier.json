@@ -1,0 +1,11 @@
+{
+  "cardId": "daidoji-harrier",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Use this reaction immediately after winning a military conflict to force the opponent to discard one of their two revealed hand cards."
+}

@@ -1,0 +1,12 @@
+{
+  "cardId": "ancestral-armory",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 7,
+  "summary": "Sacrifice this holding to retrieve a weapon attachment from your discard pile."
+}

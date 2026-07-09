@@ -1,0 +1,11 @@
+{
+  "cardId": "courtly-challenger",
+  "useWhen": "always",
+  "conflictTypes": [
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use this character to initiate political duels where its Pride ability can secure honor and card draw upon winning."
+}

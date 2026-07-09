@@ -1,0 +1,11 @@
+{
+  "cardId": "true-strike-kenjutsu",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "weakest",
+  "priority": 9,
+  "summary": "Use this attachment during military conflicts to force a base-skill duel that bows the loser."
+}

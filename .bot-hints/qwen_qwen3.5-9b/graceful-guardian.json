@@ -1,0 +1,12 @@
+{
+  "cardId": "graceful-guardian",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use this action while winning a conflict to increase the opponent's card costs, hindering their ability to commit strong characters or attachments."
+}

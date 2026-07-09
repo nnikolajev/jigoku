@@ -1,0 +1,11 @@
+{
+  "cardId": "moto-outrider",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Use this character's action to ready itself during military conflicts to ensure it can participate in subsequent rounds or survive fate phases."
+}

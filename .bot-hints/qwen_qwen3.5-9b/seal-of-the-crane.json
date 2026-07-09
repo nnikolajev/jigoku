@@ -1,0 +1,12 @@
+{
+  "cardId": "seal-of-the-crane",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Attach to your highest-skill character to boost their political skill and grant the Duelist trait for flexibility."
+}

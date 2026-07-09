@@ -2,8 +2,8 @@ import * as winston from 'winston';
 import 'winston-daily-rotate-file';
 
 const rotate = new winston.transports.DailyRotateFile({
-    filename: __dirname + '/logs/jigoku',
-    datePattern: '-yyyy-MM-dd.log',
+    filename: __dirname + '/logs/jigoku-%DATE%.log',
+    datePattern: 'YYYY-MM-DD',
     json: false,
     zippedArchive: true
 });

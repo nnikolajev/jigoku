@@ -1,0 +1,12 @@
+{
+  "cardId": "i-am-ready",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "either",
+  "targetPreference": "most-fate",
+  "priority": 8,
+  "summary": "Use this event to remove fate from a friendly Unicorn character with the most fate on them and ready them for immediate re-entry into conflicts."
+}

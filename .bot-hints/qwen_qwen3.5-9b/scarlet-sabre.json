@@ -1,0 +1,11 @@
+{
+  "cardId": "scarlet-sabre",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "most-fate",
+  "priority": 9,
+  "summary": "Attach to a military attacker when you are first player and they win the conflict to strip the opponent of fate."
+}

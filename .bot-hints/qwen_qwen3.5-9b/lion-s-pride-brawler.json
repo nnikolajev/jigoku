@@ -1,0 +1,11 @@
+{
+  "cardId": "lion-s-pride-brawler",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use this character in military conflicts to remove enemy characters with equal or lower military skill."
+}

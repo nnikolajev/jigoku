@@ -1,0 +1,11 @@
+{
+  "cardId": "make-your-case",
+  "useWhen": "always",
+  "conflictTypes": [
+    "political"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use this event to force a political duel against the opponent's highest-skill character and place fate on the winner to disrupt their board state."
+}

@@ -1,0 +1,11 @@
+{
+  "cardId": "matsu-berserker",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 7,
+  "summary": "Play this character to boost military skill during conflicts."
+}

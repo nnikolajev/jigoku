@@ -1,0 +1,12 @@
+{
+  "cardId": "matsu-gohei",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Play this character to prevent bowing when attacking with other Bushi."
+}

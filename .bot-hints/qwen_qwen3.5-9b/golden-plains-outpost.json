@@ -1,0 +1,11 @@
+{
+  "cardId": "golden-plains-outpost",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use during a military conflict to bow the stronghold and move your strongest Cavalry character into the fight."
+}

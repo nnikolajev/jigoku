@@ -1,0 +1,11 @@
+{
+  "cardId": "seal-of-the-unicorn",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Attach to your strongest military character to boost their skill and enable Cavalry abilities for consistent conflict wins."
+}

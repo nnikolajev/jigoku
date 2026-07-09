@@ -1,0 +1,11 @@
+{
+  "cardId": "moto-stables",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Use as a reaction to buff your strongest military character entering the conflict to secure wins."
+}

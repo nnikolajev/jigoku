@@ -1,0 +1,12 @@
+{
+  "cardId": "daidoji-iron-warrior",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Use this reaction immediately after winning any conflict to force both players to discard down to 4 cards, disrupting their hand size and resource availability."
+}

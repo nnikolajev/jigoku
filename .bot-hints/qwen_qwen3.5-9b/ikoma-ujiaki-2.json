@@ -1,0 +1,12 @@
+{
+  "cardId": "ikoma-ujiaki-2",
+  "useWhen": "losing",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 7,
+  "summary": "Use to switch conflict type and save a losing conflict at the cost of 2 honor."
+}

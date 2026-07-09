@@ -1608,7 +1608,11 @@ class Player extends GameObject {
                 cardsInPlay: this.getSummaryForCardList(this.cardsInPlay, activePlayer),
                 conflictDiscardPile: this.getSummaryForCardList(this.conflictDiscardPile, activePlayer),
                 dynastyDiscardPile: this.getSummaryForCardList(this.dynastyDiscardPile, activePlayer),
-                hand: this.getSummaryForHand(this.hand, activePlayer, true),
+                hand: this.getSummaryForHand(
+                    this.hand,
+                    activePlayer,
+                    !(this.game.showBotHand && this.user && this.user.isBot && activePlayer !== this)
+                ),
                 removedFromGame: this.getSummaryForCardList(this.removedFromGame, activePlayer),
                 provinceDeck: this.getSummaryForCardList(this.provinceDeck, activePlayer, true)
             },

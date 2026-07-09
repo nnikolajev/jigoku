@@ -1,0 +1,12 @@
+{
+  "cardId": "shori",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Attach to a Lion Champion character for extra military conflicts and significant skill bonuses."
+}

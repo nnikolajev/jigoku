@@ -1,0 +1,12 @@
+{
+  "cardId": "matsu-beiona",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Play this character when you control enough Bushi to trigger the reaction, maximizing its survival duration."
+}

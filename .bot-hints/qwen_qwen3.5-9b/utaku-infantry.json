@@ -1,0 +1,12 @@
+{
+  "cardId": "utaku-infantry",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Always include Utaku Infantry in conflicts to leverage your Unicorn clan count for significant skill bonuses."
+}

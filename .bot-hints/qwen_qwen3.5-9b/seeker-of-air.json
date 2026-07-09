@@ -1,0 +1,12 @@
+{
+  "cardId": "seeker-of-air",
+  "useWhen": "never",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 0,
+  "summary": "This is a deckbuilding role card and cannot be played during the game phases."
+}

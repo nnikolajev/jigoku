@@ -1,0 +1,11 @@
+{
+  "cardId": "way-of-the-lion",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 10,
+  "summary": "Use this free event to double the military skill of a Lion character during any conflict."
+}

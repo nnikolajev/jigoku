@@ -1,0 +1,12 @@
+{
+  "cardId": "proving-ground",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Use this reaction immediately after winning any duel to draw a card, up to twice per round."
+}

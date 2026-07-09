@@ -1,0 +1,11 @@
+{
+  "cardId": "duel-to-the-death",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use during a military conflict you are winning to force the opponent to dishonor their strongest character or discard them."
+}

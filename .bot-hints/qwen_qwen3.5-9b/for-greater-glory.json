@@ -1,0 +1,11 @@
+{
+  "cardId": "for-greater-glory",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Play this event when breaking a military province to place fate on your Bushi characters."
+}

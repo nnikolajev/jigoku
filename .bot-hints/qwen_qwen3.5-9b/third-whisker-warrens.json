@@ -1,0 +1,12 @@
+{
+  "cardId": "third-whisker-warrens",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 10,
+  "summary": "Always activate during conflicts at provinces with Kaiu Wall to access extra dynasty cards for immediate conflict resolution or setup."
+}

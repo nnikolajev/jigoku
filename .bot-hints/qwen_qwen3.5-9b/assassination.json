@@ -1,0 +1,12 @@
+{
+  "cardId": "assassination",
+  "useWhen": "losing",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "weakest",
+  "priority": 7,
+  "summary": "Use to remove low-cost enemy characters during conflicts when you have sufficient honor."
+}

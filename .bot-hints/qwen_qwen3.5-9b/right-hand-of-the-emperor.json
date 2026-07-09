@@ -1,0 +1,12 @@
+{
+  "cardId": "right-hand-of-the-emperor",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Ready your strongest Bushi when you have an honor advantage to sustain conflict pressure without spending fate."
+}

@@ -1,0 +1,12 @@
+{
+  "cardId": "fertile-fields",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 7,
+  "summary": "Play this province to gain card advantage when defending against attacks."
+}

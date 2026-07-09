@@ -1,0 +1,11 @@
+{
+  "cardId": "a-legion-of-one",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Use this free military buff to win conflicts, paying fate on the target to double the effect if needed."
+}

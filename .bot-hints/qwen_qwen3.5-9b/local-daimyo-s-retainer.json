@@ -1,0 +1,12 @@
+{
+  "cardId": "local-daimyo-s-retainer",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Play this character immediately if you have 3+ faceup provinces to gain a balanced +2/+2 combatant for conflicts."
+}

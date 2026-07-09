@@ -1,0 +1,11 @@
+{
+  "cardId": "moto-youth",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Play this character to boost your military skill for the first military conflict of the round."
+}

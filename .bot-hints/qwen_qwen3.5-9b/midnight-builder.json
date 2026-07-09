@@ -1,0 +1,12 @@
+{
+  "cardId": "midnight-builder",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "none",
+  "targetPreference": "any",
+  "priority": 10,
+  "summary": "Always play this character to provide a flat +2 strength bonus to all held provinces, significantly increasing the bot's win chance in conflicts."
+}

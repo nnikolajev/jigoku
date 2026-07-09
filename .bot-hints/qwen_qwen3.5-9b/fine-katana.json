@@ -1,0 +1,11 @@
+{
+  "cardId": "fine-katana",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 10,
+  "summary": "Attach this free attachment to your strongest military character to boost conflict power."
+}

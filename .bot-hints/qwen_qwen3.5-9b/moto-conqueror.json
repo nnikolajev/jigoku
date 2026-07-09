@@ -1,0 +1,11 @@
+{
+  "cardId": "moto-conqueror",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Commit this character to military conflicts as a high-skill attacker due to its strong 4 military skill for only 2 fate."
+}

@@ -1,0 +1,11 @@
+{
+  "cardId": "kakita-s-final-stance",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use this event on your highest-skill military character during a military conflict to prevent them from bowing, ensuring they remain in play for the resolution."
+}

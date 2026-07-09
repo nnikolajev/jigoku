@@ -1,0 +1,11 @@
+{
+  "cardId": "honored-general",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 8,
+  "summary": "Play this character to buff your Clan Lion characters' military skill during conflicts."
+}

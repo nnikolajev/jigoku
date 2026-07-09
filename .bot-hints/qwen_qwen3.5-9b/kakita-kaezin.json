@@ -1,0 +1,11 @@
+{
+  "cardId": "kakita-kaezin",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Use this action in military conflicts to force a duel that likely removes high-value enemy characters from play."
+}

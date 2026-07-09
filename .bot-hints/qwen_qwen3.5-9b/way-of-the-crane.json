@@ -1,0 +1,12 @@
+{
+  "cardId": "way-of-the-crane",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Honor the strongest Crane character you control during a conflict to maximize your skill total and secure victory."
+}

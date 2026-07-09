@@ -1,0 +1,11 @@
+{
+  "cardId": "a-perfect-cut",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Play this free event to buff a participating Bushi's military skill and potentially gain honor during military conflicts."
+}

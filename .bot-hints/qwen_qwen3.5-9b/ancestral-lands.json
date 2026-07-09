@@ -1,0 +1,11 @@
+{
+  "cardId": "ancestral-lands",
+  "useWhen": "always",
+  "conflictTypes": [
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "any",
+  "priority": 9,
+  "summary": "Play this province to boost political strength by 5."
+}

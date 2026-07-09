@@ -1,0 +1,11 @@
+{
+  "cardId": "unified-company",
+  "useWhen": "winning",
+  "conflictTypes": [
+    "military"
+  ],
+  "targetSide": "self",
+  "targetPreference": "strongest",
+  "priority": 8,
+  "summary": "Play this character in military conflicts to win and recover cards from your dynasty discard pile."
+}

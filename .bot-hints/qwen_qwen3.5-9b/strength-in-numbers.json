@@ -1,0 +1,12 @@
+{
+  "cardId": "strength-in-numbers",
+  "useWhen": "always",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "enemy",
+  "targetPreference": "strongest",
+  "priority": 9,
+  "summary": "Play this event while attacking to remove a defender with glory equal to or less than your attacker count."
+}

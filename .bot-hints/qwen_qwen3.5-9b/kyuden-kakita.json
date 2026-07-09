@@ -1,0 +1,12 @@
+{
+  "cardId": "kyuden-kakita",
+  "useWhen": "attacked",
+  "conflictTypes": [
+    "military",
+    "political"
+  ],
+  "targetSide": "self",
+  "targetPreference": "most-fate",
+  "priority": 9,
+  "summary": "Use this reaction immediately after any duel to bow the stronghold and honor a key character involved in the conflict."
+}

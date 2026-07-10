@@ -25,11 +25,11 @@ describe('DeckAnalysis (seed-4 omniscient)', function() {
         // A hand full of free swing events must not add up to a huge threat: the
         // human can realistically resolve one big answer per conflict.
         const hand = [
-            known('assassination'),                       // swing 4, free
-            known('make-your-case'),                      // swing 3, free
-            known('issue-a-challenge'),                   // swing 3, free
-            known('way-of-the-crane'),                    // swing 2, free
-            known('storied-defeat')                       // swing 2, free
+            known('assassination'), // swing 4, free
+            known('make-your-case'), // swing 3, free
+            known('issue-a-challenge'), // swing 3, free
+            known('way-of-the-crane'), // swing 2, free
+            known('storied-defeat') // swing 2, free
         ];
         const { skill } = estimateHandThreat(hand, 0, 'military');
         // best trick only (no conflict body in hand); NOT 4+3+3+2+2 = 14.
@@ -39,7 +39,7 @@ describe('DeckAnalysis (seed-4 omniscient)', function() {
     it('adds one affordable body plus one affordable trick, respecting fate', function() {
         const hand = [
             known('local-daimyo-s-retainer', { type: 'character', mil: 2, fate: 1 }), // body +2 / 1f
-            known('duel-to-the-death', { swing: 5, fate: 1 })                          // trick +5 / 1f
+            known('duel-to-the-death', { swing: 5, fate: 1 }) // trick +5 / 1f
         ];
         // 2 fate pays for both: body(2) + trick(5) = 7.
         expect(estimateHandThreat(hand, 2, 'military').skill).toBe(7);

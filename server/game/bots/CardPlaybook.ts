@@ -1,4 +1,5 @@
 import type { CardHint } from './llm/CardHints';
+import { getCardModel } from './DeckAnalysis.js';
 
 /**
  * Hand-written per-card knowledge for the bot, keyed by printed card id.
@@ -31,11 +32,22 @@ export interface PlaybookContext {
     myCharacters: any[];
     opponentCharacters: any[];
     dynastyDiscard: any[];
+    // Optional extras (older callers omit them; gates must tolerate undefined).
+    fate?: number;
+    canPayHonor?: boolean; // dishonor decks: own honor is above the profile floor
 }
 
 export interface PlaybookEntry extends CardHint {
     inPlayAction?: boolean;
     dynastyAction?: boolean;
+    // The card cannot (or should not) be played during a conflict — play it
+    // from hand in a conflict-phase action window instead (Pacifism's
+    // "Peaceful", Stolen Breath). Only fired for dishonor-profile decks.
+    preConflict?: boolean;
+    // Declaring this character as attacker/defender costs the controller
+    // honor (Marauding Oni's forced reaction). Dishonor decks skip declaring
+    // it while their honor sits at the floor.
+    declareCostsHonor?: boolean;
     shouldPlay?: (ctx: PlaybookContext) => boolean;
     shouldUseAction?: (ctx: PlaybookContext) => boolean;
 }
@@ -56,6 +68,10 @@ export interface DeckStrategy {
     // keep bodies ready for the next attack. The whole plan is to break
     // provinces faster than the opponent, racing the game to 2-3 turns.
     aggressive: boolean;
+    // Dishonor/mill: win by driving the opponent to 0 honor — bid low on every
+    // dial, take honor with the air ring, dishonor enemy characters, mill the
+    // opponent's conflict deck, and keep own honor in the low-but-alive band.
+    dishonor: boolean;
 }
 
 const entry = (cardId: string, overrides: Partial<PlaybookEntry>): PlaybookEntry => Object.assign({
@@ -93,12 +109,21 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // Lose 3 honor, discard an enemy character of printed cost 2 or lower.
     // The engine offers only legal targets; if just our own cheap characters
     // qualify, the targeting stage cancels (targetSide enemy).
+    // Only legal against a cost-2-or-less participant. Playing it blind put
+    // the bot in a cancel loop (click -> only own characters legal -> cancel
+    // -> click again, 200+ times per match, eating every conflict window), so
+    // gate on a KNOWN cheap enemy participant via the DeckAnalysis card
+    // models. An unmodeled opponent card keeps Assassination in hand — better
+    // than the loop.
     'assassination': entry('assassination', {
         targetSide: 'enemy',
         targetPreference: 'strongest',
         priority: 9,
         summary: 'discard an enemy cost-2-or-less character for 3 honor',
-        shouldPlay: (ctx) => ctx.honor >= 6
+        shouldPlay: (ctx) => ctx.honor >= 6 && ctx.opponentCharacters.some((card) => {
+            const model = card.inConflict && card.id ? getCardModel(card.id) : undefined;
+            return !!model && model.fate <= 2;
+        })
     }),
 
     // Put up to 6 printed cost of Cavalry characters from the dynasty discard
@@ -330,10 +355,29 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: 'win reaction: opponent loses 1 fate'
     }),
 
-    // Role reaction: gain 1 fate after an air province is revealed. Free.
+    // Seeker role reactions: gain 1 fate after an own province of the role's
+    // element is revealed. Free fate, always fire. All five elements get an
+    // entry so any deck's role works (Unicorn/Crab/Crane run air, Scorpion
+    // runs earth).
     'seeker-of-air': entry('seeker-of-air', {
         priority: 8,
-        summary: 'gain 1 fate when an air province is revealed'
+        summary: 'gain 1 fate when an own air province is revealed'
+    }),
+    'seeker-of-earth': entry('seeker-of-earth', {
+        priority: 8,
+        summary: 'gain 1 fate when an own earth province is revealed'
+    }),
+    'seeker-of-fire': entry('seeker-of-fire', {
+        priority: 8,
+        summary: 'gain 1 fate when an own fire province is revealed'
+    }),
+    'seeker-of-water': entry('seeker-of-water', {
+        priority: 8,
+        summary: 'gain 1 fate when an own water province is revealed'
+    }),
+    'seeker-of-void': entry('seeker-of-void', {
+        priority: 8,
+        summary: 'gain 1 fate when an own void province is revealed'
     }),
 
     // Province Conflict Action: strip 1 fate from an attacker — take it from
@@ -718,6 +762,227 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 6,
         summary: 'wall tutor: swap in a holding from the top 10',
         dynastyAction: true
+    }),
+
+    // ==================================================================
+    // Scorpion "Poison Mill" dishonor deck (EmeraldDB 5eb874cc).
+    // Win condition: opponent at 0 honor. Disrupt, debuff, mill their
+    // conflict deck, farm honor off every dial and the air ring.
+    // ==================================================================
+
+    // ---- control attachments onto ENEMY characters ----
+
+    // Peaceful: cannot be played during a conflict — the pre-conflict path
+    // plays it. Locks the bearer out of military conflicts entirely; aim at
+    // their best military body.
+    'pacifism': entry('pacifism', {
+        conflictTypes: ['military'],
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 9,
+        summary: 'enemy character cannot join military conflicts',
+        preConflict: true
+    }),
+
+    // Pre-conflict only: the bearer cannot join political conflicts.
+    'stolen-breath': entry('stolen-breath', {
+        conflictTypes: ['political'],
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        summary: 'enemy character cannot join political conflicts',
+        preConflict: true
+    }),
+
+    // Poison: -2/-2 on the strongest enemy — the deck's tutorable answer.
+    'fiery-madness': entry('fiery-madness', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        summary: '-2/-2 poison attachment on the strongest enemy',
+        shouldPlay: (ctx) => ctx.opponentCharacters.some((card) => card.inConflict && !card.bowed)
+    }),
+
+    // The bearer cannot ready unless its controller mills their own conflict
+    // deck 3 — either outcome (a stuck body or self-mill) feeds the plan.
+    'softskin': entry('softskin', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 7,
+        summary: 'enemy character cannot ready without milling 3'
+    }),
+
+    // Sticky -1/-1 that re-homes itself when the bearer leaves play.
+    'tainted-koku': entry('tainted-koku', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 6,
+        summary: 'sticky debuff that moves to another enemy when the bearer dies'
+    }),
+
+    // Taxes the bearer's abilities: 1 honor to us per trigger. Best on an
+    // ability-heavy character, but any strong body is fine.
+    'compromised-secrets': entry('compromised-secrets', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 6,
+        summary: 'enemy pays us 1 honor to use the bearer\'s abilities'
+    }),
+
+    // ---- conflict events ----
+
+    // -X/-X where X = |our dial - their dial|; our low bids vs a value bidder
+    // make X large most rounds. Needs both sides participating and dials shown.
+    'make-an-opening': entry('make-an-opening', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 7,
+        summary: '-X/-X on an enemy participant, X = honor dial difference',
+        shouldPlay: (ctx) => ctx.opponentCharacters.some((card) => card.inConflict && !card.bowed)
+    }),
+
+    // -4 political on a participant during a political conflict.
+    'compelling-testimony': entry('compelling-testimony', {
+        conflictTypes: ['political'],
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        summary: '-4 political on an enemy participant',
+        shouldPlay: (ctx) => ctx.opponentCharacters.some((card) => card.inConflict && !card.bowed)
+    }),
+
+    // Opponent's choice: +2/+2 on our participant or they give us 1 honor.
+    // Both outcomes serve the plan; costs 0.
+    'deceptive-offer': entry('deceptive-offer', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 7,
+        summary: 'opponent picks: +2/+2 for us or gives us 1 honor',
+        shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.inConflict && !card.bowed)
+    }),
+
+    // Each player draws 2 then discards 2: cycles our hand and burns 2 of the
+    // opponent's conflict deck — cheap mill.
+    'oracle-of-stone': entry('oracle-of-stone', {
+        priority: 4,
+        summary: 'both players draw 2 discard 2 (mills their conflict deck)'
+    }),
+
+    // Bow an enemy character after it triggers an ability — fires through the
+    // hinted reaction path whenever the window is offered.
+    'kirei-ko': entry('kirei-ko', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        summary: 'bow an enemy character after it uses an ability'
+    }),
+
+    // Cancel an enemy event while less honorable — the deck is nearly always
+    // less honorable, and canceling their trick mid-conflict is a swing.
+    'forgery': entry('forgery', {
+        priority: 7,
+        summary: 'cancel an enemy event while less honorable'
+    }),
+
+    // Cancel the effect that would take our LAST honor, then gain 1. The
+    // safety net that lets the deck live at low honor. Always fire.
+    'duty': entry('duty', {
+        priority: 10,
+        summary: 'cancel losing our last honor, gain 1 back'
+    }),
+
+    // ---- characters with honor-drain / mill triggers ----
+
+    // 4-military body whose forced reaction bleeds 1 of OUR honor every time
+    // it is declared. Fine while honor is a resource, banned at the floor.
+    'marauding-oni': entry('marauding-oni', {
+        conflictTypes: ['military'],
+        priority: 5,
+        summary: 'big body; declaring it costs us 1 honor',
+        declareCostsHonor: true
+    }),
+
+
+    // Political win: take 1 honor from the opponent.
+    'blackmail-artist': entry('blackmail-artist', {
+        conflictTypes: ['political'],
+        priority: 8,
+        summary: 'political win: take 1 honor from the opponent'
+    }),
+
+    // Military win: peek at the top 2 of their conflict deck, discard 1.
+    'midnight-prowler': entry('midnight-prowler', {
+        conflictTypes: ['military'],
+        priority: 7,
+        summary: 'military win: mill 1 from the top 2 of their conflict deck'
+    }),
+
+    // Interrupt on leaving play while less honorable: gain 2 honor.
+    'beautiful-entertainer': entry('beautiful-entertainer', {
+        priority: 7,
+        summary: 'gain 2 honor when she leaves play while less honorable'
+    }),
+
+    // Action (no cost, once per round): a player discards 3 and draws 3 —
+    // aimed at the opponent it burns 3 conflict cards and scrambles their hand.
+    'master-whisperer': entry('master-whisperer', {
+        priority: 7,
+        summary: 'opponent discards 3 and draws 3 (burns their conflict deck)',
+        inPlayAction: true
+    }),
+
+    // Action while participating, pay 1 honor: opponent discards a random card.
+    'thunder-guard-elite': entry('thunder-guard-elite', {
+        priority: 7,
+        summary: 'pay 1 honor: opponent discards a random card',
+        inPlayAction: true,
+        shouldUseAction: (ctx) => ctx.canPayHonor !== false &&
+            ctx.myCharacters.some((card) => card.id === 'thunder-guard-elite' && card.inConflict)
+    }),
+
+    // Action, pay 1 honor: tutor a Poison card (Fiery Madness) from the
+    // conflict deck. Also nudges our honor down toward the band.
+    'shosuro-hametsu': entry('shosuro-hametsu', {
+        priority: 5,
+        summary: 'pay 1 honor: fetch a Poison card from the conflict deck',
+        inPlayAction: true,
+        shouldUseAction: (ctx) => ctx.canPayHonor !== false && (ctx.fate ?? 0) >= 1 &&
+            ctx.myCharacters.some((card) => card.id === 'shosuro-hametsu')
+    }),
+
+    // Action during a conflict, lose 1 honor: move into the conflict — extra
+    // skill when it matters, and honor down toward the band.
+    'moto-eviscerator': entry('moto-eviscerator', {
+        conflictTypes: ['military'],
+        priority: 6,
+        summary: 'lose 1 honor: move into the conflict',
+        inPlayAction: true,
+        shouldUseAction: (ctx) => ctx.canPayHonor !== false && ctx.losing &&
+            ctx.myCharacters.some((card) => card.id === 'moto-eviscerator' && !card.inConflict && !card.bowed)
+    }),
+
+    // Military duel that dishonors the loser. Our low duel bid usually loses
+    // the duel — but a dishonored own character bleeds only when it dies,
+    // while a WON duel dishonors theirs. Fire while clearly participating
+    // with a strong duelist and honor to trade.
+    'insolent-rival': entry('insolent-rival', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 5,
+        summary: 'military duel: dishonor the loser',
+        inPlayAction: true,
+        shouldUseAction: (ctx) => ctx.canPayHonor !== false &&
+            ctx.myCharacters.some((card) => card.id === 'insolent-rival' && card.inConflict && !card.bowed) &&
+            ctx.opponentCharacters.some((card) => card.inConflict)
+    }),
+
+    // ---- holdings ----
+
+    // Unlimited reaction: every conflict WE win mills the top of their
+    // conflict deck.
+    'licensed-quarter': entry('licensed-quarter', {
+        priority: 8,
+        summary: 'every conflict we win mills their conflict deck'
     })
 };
 
@@ -747,6 +1012,17 @@ const AGGRESSIVE_MARKERS = [
     'curved-blade', 'flank-the-enemy', 'born-in-war'
 ];
 
+// Cards that mark a dishonor/mill deck: honor-drain payoffs, conflict-deck
+// mill, and low-honor enablers. Four or more (or the City of the Open Hand
+// stronghold, whose whole point is balancing a low honor total) flips the
+// dishonor strategy on. No other piloted deck runs any of these.
+const DISHONOR_MARKERS = [
+    'city-of-the-open-hand', 'blackmail-artist', 'loyal-oathbreaker', 'shadow-stalker',
+    'yogo-outcast', 'compromised-secrets', 'kirei-ko', 'licensed-quarter',
+    'master-whisperer', 'midnight-prowler', 'shosuro-hametsu', 'thunder-guard-elite',
+    'deserted-shrine', 'silent-ones-monastery'
+];
+
 // Derive the deck's strategy flags from the printed card ids it contains.
 // A deck with none of a group's markers gets that flag false and thus the
 // unchanged generic behavior; the flags are mutually independent.
@@ -755,10 +1031,12 @@ export function deriveDeckStrategy(cardIds: Iterable<string>): DeckStrategy {
     const wallCount = HOLDING_ENGINE_MARKERS.filter((id) => ids.has(id)).length;
     const defenderCount = DEFENSIVE_MARKERS.filter((id) => ids.has(id)).length;
     const aggroCount = AGGRESSIVE_MARKERS.filter((id) => ids.has(id)).length;
+    const dishonorCount = DISHONOR_MARKERS.filter((id) => ids.has(id)).length;
     return {
         holdingEngine: ids.has('kyuden-hida') || wallCount >= 2,
         defensive: defenderCount >= 3,
-        aggressive: aggroCount >= 3
+        aggressive: aggroCount >= 3,
+        dishonor: ids.has('city-of-the-open-hand') || dishonorCount >= 4
     };
 }
 

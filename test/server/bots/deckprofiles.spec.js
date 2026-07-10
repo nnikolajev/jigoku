@@ -43,4 +43,20 @@ describe('DeckProfiles', function() {
         expect(resolveDeckProfile([], AGGRO).attackCommitment).toBe('all');
         expect(resolveDeckProfile([], GENERIC).attackCommitment).toBe('all-but-one');
     });
+
+    it('Unicorn cavalry override keeps the pressure but adds defense and fate', function() {
+        const p = resolveDeckProfile(['cavalry-reserves', 'ride-on'], AGGRO);
+        expect(p.defenseCommitment).toBe('prevent-break');
+        expect(p.spendCardsOnDefense).toBe(true);
+        expect(p.attackCommitment).toBe('all-but-one');
+        expect(p.aggressiveFate).toBe(false);
+        // The rush attack identity stays.
+        expect(p.forceMilitaryConflict).toBe(true);
+    });
+
+    it('does NOT apply the Unicorn override without the marker card or flag', function() {
+        expect(resolveDeckProfile([], AGGRO).defenseCommitment).toBe('win-only');
+        expect(resolveDeckProfile(['cavalry-reserves'], GENERIC).defenseCommitment).toBe('prevent-break');
+        expect(resolveDeckProfile(['cavalry-reserves'], GENERIC).aggressiveFate).toBe(false);
+    });
 });

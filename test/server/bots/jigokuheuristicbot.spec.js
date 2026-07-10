@@ -796,7 +796,7 @@ describe('Jigoku heuristic bot', function() {
                     'Human': {
                         name: 'Human',
                         id: 'human-id',
-                        cardPiles: { cardsInPlay: [] },
+                        cardPiles: { cardsInPlay: options.opponentCardsInPlay || [] },
                         provinces: {
                             one: options.opponentProvince ? [options.opponentProvince] : [],
                             two: [], three: [], four: []
@@ -944,19 +944,31 @@ describe('Jigoku heuristic bot', function() {
         describe('card playbook', function() {
             const playbookHint = (cardId) => getPlaybookEntry(cardId);
 
-            it('gates Assassination behind spare honor', function() {
+            it('gates Assassination behind spare honor AND a known cheap enemy participant', function() {
                 const assassination = { uuid: 'assassin-1', id: 'assassination', name: 'Assassination', type: 'event', location: 'hand', isPlayableByMe: true };
+                // A Crane card modeled in DeckAnalysis with cost 2 — the gate
+                // needs a KNOWN cost-2-or-less participating enemy, otherwise
+                // playing it blind loops on the cancel (no valid target).
+                const cheapEnemy = { uuid: 'challenger-1', id: 'aspiring-challenger', name: 'Aspiring Challenger', type: 'character', location: 'play area', inConflict: true, bowed: false };
 
                 const rich = new JigokuBotPolicy('playbook-assassin');
                 const play = rich.decide(makeConflictWindowState({
-                    amAttacker: false, attackerSkill: 4, defenderSkill: 2, hand: [assassination], honor: 10
+                    amAttacker: false, attackerSkill: 4, defenderSkill: 2, hand: [assassination], honor: 10,
+                    opponentCardsInPlay: [cheapEnemy]
                 }), 'Jigoku Bot', { cardHint: playbookHint });
                 expect(play.command).toBe('cardClicked');
                 expect(play.args[0]).toBe('assassin-1');
 
                 const poor = new JigokuBotPolicy('playbook-assassin-poor');
                 expect(poor.decide(makeConflictWindowState({
-                    amAttacker: false, attackerSkill: 4, defenderSkill: 2, hand: [assassination], honor: 4
+                    amAttacker: false, attackerSkill: 4, defenderSkill: 2, hand: [assassination], honor: 4,
+                    opponentCardsInPlay: [cheapEnemy]
+                }), 'Jigoku Bot', { cardHint: playbookHint }).target).toBe('Pass');
+
+                // No known cheap enemy participant: hold it (avoids the loop).
+                const blind = new JigokuBotPolicy('playbook-assassin-blind');
+                expect(blind.decide(makeConflictWindowState({
+                    amAttacker: false, attackerSkill: 4, defenderSkill: 2, hand: [assassination], honor: 10
                 }), 'Jigoku Bot', { cardHint: playbookHint }).target).toBe('Pass');
             });
 

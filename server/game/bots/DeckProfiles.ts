@@ -17,6 +17,8 @@
 // deck is affected.
 
 import type { DeckStrategy } from './CardPlaybook';
+import { DISHONOR_DEFAULTS } from './DishonorTactics.js';
+import type { DishonorProfile } from './DishonorTactics';
 
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
@@ -52,6 +54,19 @@ export interface DeckProfile {
     // ---- defense ----
     defenseCommitment: DefenseCommitment;
     spendCardsOnDefense: boolean; // play conflict cards / fire abilities to defend
+
+    // ---- setup ----
+    // Printed id of the province to place under the stronghold. The stronghold
+    // province is only attackable after 3 others are broken, so an on-reveal
+    // punisher there (Night Raid) blunts the opponent's final all-in push.
+    // Unset = keep the generic placement (bot picks arbitrarily).
+    strongholdProvinceId?: string;
+
+    // ---- dishonor / mill playstyle (Scorpion Poison Mill) ----
+    // Present only for decks whose strategy derives `dishonor`; every policy
+    // branch that reads it is gated on its presence, so all other decks keep
+    // the unchanged generic behavior. Knobs live in DishonorTactics.
+    dishonor?: DishonorProfile;
 }
 
 // Generic baseline = a deck with no strategy flags (e.g. Crane, unknown). These
@@ -92,6 +107,15 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         profile.defenseCommitment = 'win-only';
         profile.spendCardsOnDefense = false;
     }
+    if(strategy.dishonor) {
+        // Dishonor/mill deck: generic attack/defense knobs stay — measured:
+        // keeping bodies home ('breakable-or-pressure' + attackKeepHome 2)
+        // DROPPED the win rate vs Crane from ~67% to 60%; the honor engine
+        // feeds on won conflicts (Licensed Quarter mill, unopposed drains),
+        // so full pressure beats turtling. The playstyle difference lives in
+        // the DishonorTactics knobs (low bids, air ring, honor band).
+        profile.dishonor = { ...DISHONOR_DEFAULTS };
+    }
     return profile;
 }
 
@@ -123,6 +147,36 @@ const OVERRIDES: ProfileOverride[] = [
             // instead of playing bodies), leaving too thin a board to defend.
             // Tuned by self-play vs the Crane precon: 10% -> ~45% win rate.
             digMinBoardCharacters: 3
+        }
+    },
+    {
+        // Unicorn "Cavalry Rush" precon (EmeraldDB ef93bae2). The pure rush
+        // (concede every defense, disposable 0-1-fate bodies, commit every
+        // body) was tuned in the seed-4 mirror and got rolled by the Crane
+        // precon (~23%): Crane defends to prevent breaks, so the all-in
+        // attacks bounced, while every Crane counterattack was conceded.
+        // Keep the military pressure (forced military conflicts, cheap-body
+        // flood) but defend provinces, spend cards defending, keep one body
+        // home, and put real fate on characters so the board persists.
+        // Self-play swept vs Crane: ~23% -> ~68% (pooled N=60).
+        name: 'unicorn-cavalry-rush',
+        match: (ids, strategy) => strategy.aggressive && ids.has('cavalry-reserves'),
+        apply: {
+            defenseCommitment: 'prevent-break',
+            spendCardsOnDefense: true,
+            attackCommitment: 'all-but-one',
+            aggressiveFate: false
+        }
+    },
+    {
+        // Scorpion "Poison Mill": Night Raid goes under the stronghold. The
+        // stronghold province is only attackable after 3 others break, so the
+        // opponent's final all-in push reveals it and discards X cards from
+        // their hand (X = attackers) — exactly when they commit everything.
+        name: 'scorpion-poison-mill',
+        match: (ids, strategy) => strategy.dishonor && ids.has('night-raid'),
+        apply: {
+            strongholdProvinceId: 'night-raid'
         }
     }
 ];

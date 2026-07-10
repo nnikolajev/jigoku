@@ -4,6 +4,7 @@ import type { DeckStrategy } from './CardPlaybook';
 import type { Omniscient } from './DeckAnalysis';
 import { profileFromStrategy, DEFAULT_PROFILE } from './DeckProfiles.js';
 import type { DeckProfile } from './DeckProfiles';
+import { DishonorTactics } from './DishonorTactics.js';
 
 type BotCommandName = 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
 
@@ -61,6 +62,14 @@ class JigokuBotPolicy {
     private random: SeededRandom;
     private lastSignature = '';
     private attempted = new Set<string>();
+    // Source cards whose ability targeting was CANCELED for lack of a
+    // valid-side target this round, by printed id. The attempted-set cannot
+    // stop these loops because the prompt signature flips between the ability
+    // window and the target prompt (clearing it) — so a card whose targeting
+    // cancels twice is vetoed until the next round starts. Without this the
+    // bot burns its whole decision budget re-clicking the same dead reaction
+    // (Assassination/Higashi Kaze: 200+ clicks per match before the gate).
+    private cancelledSources = new Map<string, number>();
 
     constructor(seed: string | number = 1) {
         this.random = new SeededRandom(seed);
@@ -90,12 +99,28 @@ class JigokuBotPolicy {
             this.attempted.clear();
         }
 
+        // Round boundary (every draw-phase bid): dead abilities may have
+        // targets again after the board changes, so lift the cancel vetoes.
+        if(me.promptTitle === 'Honor Bid') {
+            this.cancelledSources.clear();
+        }
+
         const decision = this.decideForPrompt(playerState, me, context);
         if(decision && ['cardClicked', 'ringClicked', 'facedownCardClicked'].includes(decision.command)) {
             this.attempted.add(this.decisionKey(decision));
         }
+        if(decision && decision.reason === 'cancel-wrong-side-target' && context.targetHint?.sourceCardId) {
+            const id = context.targetHint.sourceCardId;
+            this.cancelledSources.set(id, (this.cancelledSources.get(id) || 0) + 1);
+        }
 
         return decision;
+    }
+
+    // A source ability whose targeting canceled twice this round is dead —
+    // stop re-clicking it until the next round.
+    private isCancelVetoed(cardId?: string): boolean {
+        return !!cardId && (this.cancelledSources.get(cardId) || 0) >= 2;
     }
 
     private decideForPrompt(playerState: any, me: any, context: DecideContext = {}): BotDecision | null {
@@ -108,9 +133,38 @@ class JigokuBotPolicy {
         // the strategy flags so a caller that passes only `strategy` (tests, older
         // paths) gets identical behavior to before the profile refactor.
         const profile = context.profile || profileFromStrategy(context.strategy);
+        // Dishonor/mill decks get a tactics object; null for every other deck,
+        // and every dishonor branch below is gated on it.
+        const dishonor = profile.dishonor ? new DishonorTactics(profile.dishonor) : null;
 
         if(promptTitle === 'Honor Bid') {
+            // Dishonor decks bid low on EVERY dial (draw phase and duels) so
+            // the opponent's higher bid pays them the difference in honor.
+            if(dishonor) {
+                const desired = dishonor.desiredBid(context.roundNumber, me?.stats?.honor ?? 10);
+                return this.buttonDecision(this.closestBidButton(buttons, desired), 'dishonor-honor-bid');
+            }
             return this.buttonDecision(this.pickBidButton(buttons, me, opponent, context.roundNumber), 'honor-bid');
+        }
+
+        // Select prompts whose choices are decks ("<player>'s Conflict") or
+        // players — Deserted Shrine's mill and Master Whisperer's discard-3.
+        // Only a dishonor deck runs these cards; aim both at the opponent.
+        if(dishonor && buttons.length > 0) {
+            if(buttons.some((button) => /('s Dynasty|'s Conflict)$/.test(String(button.text || '')))) {
+                const deckButton = dishonor.pickDeckButton(buttons, me.name);
+                if(deckButton) {
+                    return this.buttonDecision(deckButton, 'dishonor-mill-deck');
+                }
+            }
+            if(opponent?.name && me?.name &&
+                buttons.some((button) => String(button.text || '') === opponent.name) &&
+                buttons.some((button) => String(button.text || '') === me.name)) {
+                const playerButton = dishonor.pickOpponentButton(buttons, opponent.name);
+                if(playerButton) {
+                    return this.buttonDecision(playerButton, 'dishonor-target-opponent');
+                }
+            }
         }
 
         if(title.includes('are you sure') || title.includes('pass conflict')) {
@@ -136,18 +190,30 @@ class JigokuBotPolicy {
         }
 
         if(promptTitle === 'Initiate Conflict' || CONFLICT_TITLE_REGEX.test(promptTitle)) {
-            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, profile, context.omniscient);
+            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, profile, context.omniscient, dishonor, context.cardHint);
             if(declaration) {
                 return declaration;
             }
         }
 
         if(menuTitle.toLowerCase().includes('choose defenders') && !menuTitle.toLowerCase().includes('covert')) {
-            return this.defenderDecision(me, promptTitle, buttons, profile, context.omniscient);
+            return this.defenderDecision(me, promptTitle, buttons, profile, context.omniscient, dishonor, context.cardHint);
         }
 
         if(title.includes('choose first player')) {
             return this.buttonDecision(this.findButton(buttons, ['first player']) || buttons[0], 'choose-first-player');
+        }
+
+        // Setup: which province goes under the stronghold. It is only
+        // attackable after 3 other provinces break, so a deck can park an
+        // on-reveal punisher there (Night Raid) to blunt the final push.
+        if(menuTitle === 'Select stronghold province' && profile.strongholdProvinceId) {
+            const pick = this.findVisibleCards(me).find((card) =>
+                card.id === profile.strongholdProvinceId && card.selectable && card.uuid &&
+                !this.isAttempted('cardClicked', [card.uuid]));
+            if(pick) {
+                return this.cardClickDecision(pick, 'stronghold-province-pick');
+            }
         }
 
         if(title.includes('province order')) {
@@ -159,11 +225,11 @@ class JigokuBotPolicy {
 
         // The dynasty window overrides the generic action-window prompt text.
         if(menuTitle === 'Initiate an action' || promptTitle === 'Play cards from provinces') {
-            return this.actionWindowDecision(me, buttons, profile, context.cardHint);
+            return this.actionWindowDecision(me, buttons, profile, context.cardHint, dishonor);
         }
 
         if(promptTitle === 'Conflict Action Window') {
-            return this.conflictWindowDecision(playerState, me, buttons, context.handStats, context.cardHint, profile, context.omniscient);
+            return this.conflictWindowDecision(playerState, me, buttons, context.handStats, context.cardHint, profile, context.omniscient, dishonor);
         }
 
         if(title.includes('where do you wish to play this character')) {
@@ -206,7 +272,7 @@ class JigokuBotPolicy {
             return this.buttonDecision(choice || buttons[0], 'choose-triggered-ability');
         }
 
-        const ringResolution = this.ringResolutionDecision(playerState, me, menuTitle, buttons);
+        const ringResolution = this.ringResolutionDecision(playerState, me, menuTitle, buttons, dishonor);
         if(ringResolution) {
             return ringResolution;
         }
@@ -222,7 +288,7 @@ class JigokuBotPolicy {
         // outside conflicts every ring reports unselectable !== true, and a
         // stray ringClicked is rejected by the controller and stalls the bot.
         if(me.selectRing === true) {
-            const ringDecision = this.ringDecision(playerState, me, title);
+            const ringDecision = this.ringDecision(playerState, me, title, dishonor);
             if(ringDecision) {
                 return ringDecision;
             }
@@ -315,6 +381,17 @@ class JigokuBotPolicy {
 
         const value = Number(stat);
         return isNaN(value) ? null : value;
+    }
+
+    // Dishonor decks at their honor floor stop declaring characters whose
+    // declaration bleeds honor (Marauding Oni's forced reaction) — unless no
+    // one else can fight. Inert for every other deck (dishonor is null).
+    private withoutHonorCostDeclares(cards: any[], dishonor: DishonorTactics | null, honor: number, cardHint?: CardHintLookup): any[] {
+        if(!dishonor || !cardHint || dishonor.canPayHonor(honor)) {
+            return cards;
+        }
+        const filtered = cards.filter((card) => !(card.id && (cardHint(card.id) as any)?.declareCostsHonor));
+        return filtered.length > 0 ? filtered : cards;
     }
 
     private myCharactersInPlay(me: any): any[] {
@@ -416,6 +493,11 @@ class JigokuBotPolicy {
             desired = 1;
         }
 
+        return this.closestBidButton(buttons, desired);
+    }
+
+    // The legal bid button nearest the desired value (lower on ties).
+    private closestBidButton(buttons: any[], desired: number): any {
         const numeric = buttons
             .map((button) => ({ button, value: parseInt(String(button.text), 10) }))
             .filter((entry) => !isNaN(entry.value));
@@ -489,7 +571,7 @@ class JigokuBotPolicy {
         return numeric[0].button;
     }
 
-    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, omni?: Omniscient): BotDecision | null {
+    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, omni?: Omniscient, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup): BotDecision | null {
         const lowerMenu = menuTitle.toLowerCase();
         const ready = this.readyCharacters(me);
         const conflictMatch = promptTitle.match(CONFLICT_TITLE_REGEX);
@@ -505,7 +587,7 @@ class JigokuBotPolicy {
             const rings = Object.values(playerState?.rings || {})
                 .filter((ring: any) => ring && ring.unselectable !== true && !ring.claimed)
                 .sort((a: any, b: any) => {
-                    const scoreDiff = this.ringScore(b, me, opponent) - this.ringScore(a, me, opponent);
+                    const scoreDiff = this.ringScore(b, me, opponent, dishonor) - this.ringScore(a, me, opponent, dishonor);
                     if(scoreDiff !== 0) {
                         return scoreDiff;
                     }
@@ -561,7 +643,9 @@ class JigokuBotPolicy {
             const type = conflictType || 'military';
             const committed = this.myCharactersInPlay(me).filter((card) => card.inConflict);
             const candidates = this.sortBySkillDesc(
-                ready.filter((card) => !card.inConflict && (this.skillValue(card, type) || 0) > 0),
+                this.withoutHonorCostDeclares(
+                    ready.filter((card) => !card.inConflict && (this.skillValue(card, type) || 0) > 0),
+                    dishonor, me?.stats?.honor ?? 10, cardHint),
                 type
             );
 
@@ -654,9 +738,15 @@ class JigokuBotPolicy {
     // remain, dead otherwise. Air trails. The ring's displayed conflict type
     // is irrelevant — any ring can be flipped military/political by clicking
     // it again, which happens separately based on character strength.
-    private ringScore(ring: any, me: any, opponent: any): number {
+    private ringScore(ring: any, me: any, opponent: any, dishonor: DishonorTactics | null = null): number {
         const fate = Number(ring.fate) || 0;
         const fateComponent = fate >= 2 ? 1000 + fate * 100 : 0;
+
+        // The dishonor deck's honor-drain engine is the air ring: boost it
+        // past the generic ordering (fate piles still dominate).
+        if(dishonor && ring.element === 'air') {
+            return fateComponent + 15 + dishonor.airRingBonus;
+        }
 
         let base;
         switch(ring.element) {
@@ -779,7 +869,7 @@ class JigokuBotPolicy {
         return null;
     }
 
-    private defenderDecision(me: any, promptTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient): BotDecision | null {
+    private defenderDecision(me: any, promptTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup): BotDecision | null {
         // NOTE: seed-4 defense-side omniscience (defending against the human's
         // post-commit hand pump, conceding provably-lost conflicts to save
         // bodies) was implemented and MEASURED NET-NEGATIVE — it made the bot
@@ -796,10 +886,12 @@ class JigokuBotPolicy {
         const defenderSkill = skillMatch ? parseInt(skillMatch[2], 10) : 0;
 
         const candidates = this.sortBySkillDesc(
-            this.readyCharacters(me).filter((card) =>
-                !card.inConflict &&
-                (this.skillValue(card, type) || 0) > 0 &&
-                !this.isAttempted('cardClicked', [card.uuid])),
+            this.withoutHonorCostDeclares(
+                this.readyCharacters(me).filter((card) =>
+                    !card.inConflict &&
+                    (this.skillValue(card, type) || 0) > 0 &&
+                    !this.isAttempted('cardClicked', [card.uuid])),
+                dishonor, me?.stats?.honor ?? 10, cardHint),
             type
         );
 
@@ -883,7 +975,7 @@ class JigokuBotPolicy {
         };
     }
 
-    private conflictWindowDecision(playerState: any, me: any, buttons: any[], handStats?: HandStats, cardHint?: CardHintLookup, profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient): BotDecision | null {
+    private conflictWindowDecision(playerState: any, me: any, buttons: any[], handStats?: HandStats, cardHint?: CardHintLookup, profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient, dishonor: DishonorTactics | null = null): BotDecision | null {
         // NOTE: seed-4 window-hold omniscience (as attacker, HOLD when the human
         // can swing the conflict out of break range; as defender, concede a
         // provably lost conflict to keep bodies) was implemented and MEASURED
@@ -929,11 +1021,16 @@ class JigokuBotPolicy {
         }
 
         const conflictType: 'military' | 'political' = playerState?.conflict?.type === 'political' ? 'political' : 'military';
+        const myHonor = me?.stats?.honor ?? 10;
         const playCtx = {
             conflictType,
             losing: standing.losing,
             amAttacker: standing.amAttacker,
-            honor: me?.stats?.honor ?? 10,
+            honor: myHonor,
+            fate: me?.stats?.fate ?? 0,
+            // Dishonor decks stop paying honor costs at their floor; undefined
+            // for every other deck (playbook gates treat undefined as payable).
+            canPayHonor: dishonor ? dishonor.canPayHonor(myHonor) : undefined,
             myCharacters: this.myCharactersInPlay(me),
             opponentCharacters: (opponent?.cardPiles?.cardsInPlay || []).filter((card: any) => card.type === 'character'),
             dynastyDiscard: me?.cardPiles?.dynastyDiscardPile || []
@@ -944,7 +1041,7 @@ class JigokuBotPolicy {
         // cost). Clicking a card with no legal ability is rejected by the
         // game without mutation and the attempted-set moves to the next
         // candidate.
-        const abilitySource = this.conflictAbilitySources(me, playCtx, cardHint).find((card) => !this.isAttempted('cardClicked', [card.uuid]));
+        const abilitySource = this.conflictAbilitySources(me, playCtx, cardHint, dishonor).find((card) => !this.isAttempted('cardClicked', [card.uuid]));
         if(abilitySource) {
             return this.cardClickDecision(abilitySource, 'use-board-ability');
         }
@@ -960,7 +1057,7 @@ class JigokuBotPolicy {
         const hasReadyParticipant = this.myCharactersInPlay(me).some((card) => card.inConflict && !card.bowed);
         const playable = (me?.cardPiles?.hand || [])
             .filter((card: any) => {
-                if(!card.isPlayableByMe || !card.uuid || this.isAttempted('cardClicked', [card.uuid])) {
+                if(!card.isPlayableByMe || !card.uuid || this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id)) {
                     return false;
                 }
                 if(!hasReadyParticipant && card.type !== 'character') {
@@ -985,8 +1082,13 @@ class JigokuBotPolicy {
                     }
                 }
                 // Skip cards that are dead weight in this conflict type (e.g.
-                // a military attachment during a political conflict).
+                // a military attachment during a political conflict) — except
+                // enemy-aimed attachments, whose printed bonuses are NEGATIVE
+                // on purpose (Fiery Madness's -2/-2 debuff).
                 const contribution = this.handContribution(card, conflictType, handStats);
+                if(contribution !== null && contribution < 0) {
+                    return !!hint && hint.targetSide === 'enemy';
+                }
                 return contribution === null || contribution > 0;
             })
             .sort((a: any, b: any) => {
@@ -1008,9 +1110,19 @@ class JigokuBotPolicy {
     // Own in-play cards worth clicking for their Action abilities during a
     // conflict: the stronghold, the attacked province, and any board card
     // (holding, attachment, character) with a playbook-known Action.
-    private conflictAbilitySources(me: any, playCtx?: any, cardHint?: CardHintLookup): any[] {
-        const stronghold = (me?.strongholdProvince || []).filter((card: any) =>
-            card.type === 'stronghold' && card.uuid && !card.bowed);
+    private conflictAbilitySources(me: any, playCtx?: any, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null): any[] {
+        const stronghold = (me?.strongholdProvince || []).filter((card: any) => {
+            if(card.type !== 'stronghold' || !card.uuid || card.bowed) {
+                return false;
+            }
+            // City of the Open Hand gains 1 honor — for the dishonor deck
+            // that is only wanted while it keeps us inside the low-honor
+            // band (many deck cards turn on at 6 or fewer honor).
+            if(dishonor && card.id === 'city-of-the-open-hand') {
+                return dishonor.shouldGainStrongholdHonor(playCtx?.honor ?? 10);
+            }
+            return true;
+        });
         const attacked = PROVINCE_KEYS
             .map((key) => me?.provinces?.[key] || [])
             .concat([me?.strongholdProvince || []])
@@ -1023,7 +1135,7 @@ class JigokuBotPolicy {
                 location === 'play area' || /^(province [1-4]|stronghold province)$/.test(location);
             playbookSources = this.findVisibleCards(me)
                 .filter((card) => {
-                    if(!card.uuid || !card.id || card.facedown || !onBoard(String(card.location || ''))) {
+                    if(!card.uuid || !card.id || card.facedown || !onBoard(String(card.location || '')) || this.isCancelVetoed(card.id)) {
                         return false;
                     }
                     const hint: any = cardHint(card.id);
@@ -1053,8 +1165,30 @@ class JigokuBotPolicy {
         return value === null || value === undefined ? null : value;
     }
 
-    private actionWindowDecision(me: any, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, cardHint?: CardHintLookup): BotDecision | null {
+    private actionWindowDecision(me: any, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null): BotDecision | null {
         const pass = this.findButton(buttons, ['pass']);
+
+        // Peaceful/pre-conflict control attachments (Pacifism, Stolen Breath)
+        // cannot be played once a conflict is running — the dishonor deck
+        // plays them from hand in the conflict-phase action windows instead.
+        if(dishonor && cardHint && me?.phase === 'conflict' && dishonor.canPlayPreConflict(me?.stats?.fate ?? 0)) {
+            const preConflict = (me?.cardPiles?.hand || [])
+                .filter((card: any) => {
+                    if(!card.uuid || !card.id || !card.isPlayableByMe || this.isAttempted('cardClicked', [card.uuid])) {
+                        return false;
+                    }
+                    const hint: any = cardHint(card.id);
+                    return !!hint && hint.preConflict;
+                })
+                .sort((a: any, b: any) => {
+                    const priorityOf = (card: any) => (cardHint(card.id) as any)?.priority ?? 5;
+                    const priorityDiff = priorityOf(b) - priorityOf(a);
+                    return priorityDiff !== 0 ? priorityDiff : String(a.uuid).localeCompare(String(b.uuid));
+                });
+            if(preConflict.length > 0) {
+                return this.cardClickDecision(preConflict[0], 'play-preconflict-attachment');
+            }
+        }
 
         if(me?.phase === 'dynasty') {
             const playable = PROVINCE_KEYS
@@ -1145,7 +1279,7 @@ class JigokuBotPolicy {
         return this.buttonDecision(this.findButton(buttons, ['done']), 'finish-dynasty-discard');
     }
 
-    private ringDecision(playerState: any, me: any, title: string): BotDecision | null {
+    private ringDecision(playerState: any, me: any, title: string, dishonor: DishonorTactics | null = null): BotDecision | null {
         const rings = Object.values(playerState?.rings || {}).filter((ring: any) =>
             ring && ring.unselectable !== true && !this.isAttempted('ringClicked', [ring.element]));
         if(rings.length === 0) {
@@ -1156,7 +1290,7 @@ class JigokuBotPolicy {
         // hands weak rings (air) to card abilities that ask for a ring.
         const opponent = this.opponentPlayer(playerState, me);
         rings.sort((a: any, b: any) => {
-            const scoreDiff = this.ringScore(b, me, opponent) - this.ringScore(a, me, opponent);
+            const scoreDiff = this.ringScore(b, me, opponent, dishonor) - this.ringScore(a, me, opponent, dishonor);
             return scoreDiff !== 0 ? scoreDiff : RING_ORDER.indexOf(a.element) - RING_ORDER.indexOf(b.element);
         });
         const ring: any = rings[0];
@@ -1190,7 +1324,7 @@ class JigokuBotPolicy {
         // ability worth using — blind triggers waste fate and honor.
         if(cardHint) {
             const hinted = this.findVisibleCards(me).find((card) => {
-                if(!card.selectable || !card.uuid || !card.id || this.isAttempted('cardClicked', [card.uuid])) {
+                if(!card.selectable || !card.uuid || !card.id || this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id)) {
                     return false;
                 }
                 const hint = cardHint(card.id);
@@ -1256,13 +1390,20 @@ class JigokuBotPolicy {
             }
         }
 
-        if((targetHint.gameActions || []).includes('attach')) {
-            return this.attachmentTargetDecision(mine, theirs, playerState, me, skillType);
-        }
-
         // A per-card LLM hint on the source beats the generic action polarity:
         // the hint was derived from the actual card text.
         const sourceHint = targetHint.sourceCardId && cardHint ? cardHint(targetHint.sourceCardId) : undefined;
+
+        if((targetHint.gameActions || []).includes('attach')) {
+            // Control attachments (Pacifism, Fiery Madness, Pit Trap...) are
+            // hinted enemy-side: land them on the opponent's best character on
+            // the axis the attachment shuts down, never on our own side.
+            if(sourceHint && sourceHint.targetSide === 'enemy' && theirs.length > 0) {
+                const axis = sourceHint.conflictTypes.length > 0 ? sourceHint.conflictTypes[0] : skillType;
+                return this.cardClickDecision(this.sortBySkillDesc(theirs, axis)[0], 'attach-debuff-enemy');
+            }
+            return this.attachmentTargetDecision(mine, theirs, playerState, me, skillType);
+        }
         if(sourceHint && (sourceHint.targetSide === 'self' || sourceHint.targetSide === 'enemy')) {
             // Buffs on own bowed characters do nothing in the current
             // conflict — aim at ready ones whenever any exist.
@@ -1344,7 +1485,7 @@ class JigokuBotPolicy {
     // skipping is better), fire honors own / dishonors enemy, water bows the
     // opponent's strongest ready character or readies an own bowed one when
     // more conflicts remain, air weighs gaining 2 honor against taking 1.
-    private ringResolutionDecision(playerState: any, me: any, menuTitle: string, buttons: any[]): BotDecision | null {
+    private ringResolutionDecision(playerState: any, me: any, menuTitle: string, buttons: any[], dishonor: DishonorTactics | null = null): BotDecision | null {
         const dontResolve = this.findButton(buttons, ['don\'t resolve']);
         const isRingTargetPrompt = ['Choose character to remove fate from', 'Choose character to honor or dishonor', 'Choose character to bow or unbow'].includes(menuTitle);
 
@@ -1375,10 +1516,15 @@ class JigokuBotPolicy {
             if(menuTitle === 'Choose character to honor or dishonor') {
                 const ownTargets = this.sortBySkillDesc(mine.filter((card) => !card.isHonored), 'military');
                 const ownPool = ownTargets.filter((card) => card.inConflict).concat(ownTargets.filter((card) => !card.inConflict));
+                const enemyTargets = this.sortBySkillDesc(theirs.filter((card) => !card.isDishonored), 'military');
+                // Dishonor decks flip the order: a dishonored enemy fights
+                // worse and bleeds its controller 1 honor when it dies.
+                if(dishonor?.preferDishonorEnemy() && enemyTargets.length > 0) {
+                    return this.cardClickDecision(enemyTargets[0], 'fire-ring-dishonor-enemy');
+                }
                 if(ownPool.length > 0) {
                     return this.cardClickDecision(ownPool[0], 'fire-ring-honor-own');
                 }
-                const enemyTargets = this.sortBySkillDesc(theirs.filter((card) => !card.isDishonored), 'military');
                 if(enemyTargets.length > 0) {
                     return this.cardClickDecision(enemyTargets[0], 'fire-ring-dishonor-enemy');
                 }
@@ -1408,10 +1554,13 @@ class JigokuBotPolicy {
         if(honorButtons.length > 0 || dishonorButtons.length > 0) {
             const myNames = new Set(this.myCharactersInPlay(me).map((card) => card.name));
             const honorOwn = honorButtons.find((button) => myNames.has(String(button.text).slice('Honor '.length)));
+            const dishonorEnemy = dishonorButtons.find((button) => !myNames.has(String(button.text).slice('Dishonor '.length)));
+            if(dishonor?.preferDishonorEnemy() && dishonorEnemy) {
+                return this.buttonDecision(dishonorEnemy, 'fire-ring-dishonor');
+            }
             if(honorOwn) {
                 return this.buttonDecision(honorOwn, 'fire-ring-honor');
             }
-            const dishonorEnemy = dishonorButtons.find((button) => !myNames.has(String(button.text).slice('Dishonor '.length)));
             if(dishonorEnemy) {
                 return this.buttonDecision(dishonorEnemy, 'fire-ring-dishonor');
             }
@@ -1425,7 +1574,12 @@ class JigokuBotPolicy {
         if(gainTwo || takeOne) {
             const opponent = this.opponentPlayer(playerState, me);
             const opponentHonor = opponent?.stats?.honor ?? 10;
-            const preferTake = opponentHonor <= 4 || opponentHonor >= 16;
+            // Dishonor decks: taking 1 IS the win condition (and gaining 2
+            // climbs out of the low-honor band) — take unless our own honor
+            // needs the rescue.
+            const preferTake = dishonor
+                ? dishonor.preferTakeHonor(me?.stats?.honor ?? 10)
+                : opponentHonor <= 4 || opponentHonor >= 16;
             return this.buttonDecision((preferTake ? takeOne : gainTwo) || takeOne || gainTwo, 'air-ring-honor');
         }
 

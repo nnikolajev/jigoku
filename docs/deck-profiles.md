@@ -59,8 +59,14 @@ knob or an override instead.
 A deck with a genuinely different PLAYSTYLE (not just different values for the
 generic knobs) gets its own tactics module hung off the profile: see
 `dishonor?: DishonorProfile` (`DishonorTactics.ts`, doc `dishonor-bot.md`) for
-the Scorpion Poison Mill deck. Same gating rule: the sub-profile exists only
-for decks whose strategy derives it, and every policy hook checks its presence.
+the Scorpion Poison Mill deck, `lion?: LionProfile` (`LionTactics.ts`, doc
+`lion-bot.md`) for the Lion Bushi swarm's bid dials and stronghold ready, and
+`glory?: GloryProfile` (`GloryTactics.ts`, doc `glory-bot.md`) for the Phoenix
+honor engine's board-driven ring choice and glory pumps, and
+`dragon?: DragonProfile` (`DragonTactics.ts`, doc `dragon-bot.md`) for the
+Dragon monk card engine around Togashi Mitsu. Same gating rule:
+the sub-profile exists only for decks whose strategy/override derives it, and
+every policy hook checks its presence.
 
 ## Case study: Crab Defense (EmeraldDB 3a8006b7)
 
@@ -93,6 +99,52 @@ After the fix the Crab seat plays bodies (8 → 22), digs sparingly (49 → 8), 
 actually attacks (1 → 8 initiations) while keeping its defense. It no longer
 rolls over; it trades roughly evenly. Unicorn and Crane profiles are unchanged.
 
+**Deck update (2026-07-10, EmeraldDB c9381e02):** three provinces swapped in
+for Pilgrimage / Elemental Fury / Ancestral Lands:
+
+- **Flooded Waste** — on-reveal bows EVERY attacker; the `crab-flooded-waste`
+  override parks it under the stronghold (blunts the final all-in push).
+- **Defend the Wall** — win a conflict there: resolve the ring as the
+  attacker. Fires automatically (provinces trigger first in reaction windows).
+- **Shameful Display** — honor one participant, dishonor another. The policy
+  steers the exactly-2 selection (own strongest + enemy strongest), then the
+  Honor/Dishonor menu picks "Honor" so the helpful-polarity select lands the
+  honor on our side. With no own participant it cancels rather than honor an
+  enemy. The cancel-veto now also covers PROVINCE clicks — without it,
+  saturated honor states made the bot re-click the province ~49×/game
+  (1940 clicks in 40 games → 197 after the veto).
+
+Utilization audit of the new list: every card fires, zero-clicks list empty.
+Band unchanged: 17-23 (42.5%, N=40) vs Crane.
+
+**Knob sweep (2026-07-11)** — attempt to lift the ~37% band vs Crane. Every
+config measured N=40-60, seed 1, alternating seats:
+
+| Config | Result |
+|--------|--------|
+| baseline (keepHome 2, dig 3) | ~37.5% (59/160 recent pooled) |
+| + chumpBlock | 14-26 (35%) — dishonor losses 15→9, conquest losses up |
+| + chumpBlock, keepHome 1 | 18-22 + 20-40 = 38/100 (38%) |
+| + chumpBlock, keepHome 1, attack all-but-one | 14-26 (35%) — defense collapses |
+| + chumpBlock, keepHome 1, dig 2 | 11-29 (27.5%) — over-digs again |
+| + chumpBlock, defenseSkillBuffer 2 (final) | 37/100 (37%) |
+
+Verdict: the matchup is knob-INSENSITIVE — every configuration lands 35-45%,
+within run-to-run noise. The ceiling is structural: the slow wall engine
+trades badly against Crane's draw/honor engine in a symmetric-AI mirror.
+Two changes are KEPT anyway, chosen for their mechanism against humans, both
+free in the mirror:
+
+- `chumpBlock: true` — one cheap body blocks a hopeless defense instead of
+  conceding unopposed. Halved the dishonor-loss rate across runs (~42% →
+  ~23% of games) even though total win rate is flat.
+- `defenseSkillBuffer: 2` — defenses overshoot the minimal prevent-break
+  block by 2 skill; an exact-size block is a free flip for any human holding
+  one pump card.
+
+Post-sweep utilization audit: every card, action, and reaction still fires
+(zero-clicks empty; `chump-block` visible in traces).
+
 ## Case study: Unicorn Cavalry Rush (EmeraldDB ef93bae2)
 
 The aggressive rush profile was tuned in the Unicorn seed-4 mirror, but the
@@ -123,6 +175,95 @@ defense alone ~50%, fate alone ~40%, defense+fate ~57%, all three
 **~68% seed 1 (41-19, pooled N=60) / ~63% seed 4 (25-15, N=40)** — locked.
 Regression checks on the final build: Crab vs Crane 19-21 (~47%), Scorpion vs
 Crane 12-8 (both in their bands).
+
+**Deck update (2026-07-10, EmeraldDB 52b78858):** four provinces swapped in
+for Pilgrimage / Elemental Fury / Ancestral Lands / Meditations:
+
+- **Temple of the Dragons** — on-reveal resolves the contested ring as if we
+  were the attacker; parked under the stronghold
+  (`unicorn-temple-of-the-dragons` override) to punish the final push.
+- **Endless Plains** — BREAKS ITSELF to make the opponent discard an
+  attacking character (their choice). Gated in
+  `provinceReactionWorthIt`: fire only against an attacker with 2+ fate or
+  5+ military, or when the defense could not stop the break anyway. Spec-locked.
+- **Public Forum** — must be broken twice (interrupt places an honor token);
+  fires automatically through the provinces-first interrupt path (35 saves
+  in 40 games). Cannot be a stronghold province by its own text.
+- **Manicured Garden** — Conflict Action: gain 1 fate; covered by the generic
+  attacked-province click (175 gains in 40 games).
+
+Utilization audit of the new list: every card fires, zero-clicks empty.
+Band unchanged: 26-14 (65%, N=40) vs Crane.
+
+## Case study: Lion Bushi Swarm (EmeraldDB e3feb31b)
+
+Onboarded on top of the Unicorn learnings: its swarm markers derive
+`aggressive`, the `lion-bushi-swarm` override (matched on the
+`hayaken-no-shiro` stronghold) applies the anti-Crane defensive fixes but
+keeps `attackCommitment: 'all'` (the swarm buffs want every body in), and a
+`LionTactics` sub-profile handles the bid dials (draw 2 / duel 3 / first
+round 5) and the stronghold's ready-a-cheap-Bushi click. Full write-up and
+sweep table: `lion-bot.md`. Final: **~70% both seeds (seed 1 34-14 pooled
+N=48, seed 4 28-12)** vs the Crane precon.
+
+## Generic stronghold and province logic (all decks, 2026-07-10)
+
+Four deck-independent behaviors added at user request:
+
+1. **Stronghold province defaults to Ancestral Lands** (+5 strength during
+   political conflicts) when the deck has it and no override names another
+   province (Scorpion keeps Night Raid).
+2. **Attacked own province's Conflict Action fires before any pass/concede
+   gate** — Fertile Fields draws a card, Meditations on the Tao strips an
+   attacker's fate. Free value even in conflicts the bot was going to concede.
+3. **All-in stronghold defense**: the stronghold province breaking loses the
+   game, so every defense cap is overridden there — every ready body defends
+   (`stronghold-defense-all`), cards are spent even by no-cards-on-defense
+   rush profiles, and there is no "hopeless" fold. Fixes the bot skipping
+   defense when the human's final attack was too big.
+4. **All-in stronghold assault** (mirror): when attacking the ENEMY
+   stronghold, the "deficit too big, save the hand" cap is lifted — breaking
+   it wins the game.
+
+Effect on the vs-Crane benchmarks: Crane benefits from the same logic (it
+defends its stronghold all-in and draws off Fertile Fields), so the
+bot-vs-Crane bands shifted down slightly — Lion ~65%, Unicorn ~65%, Scorpion
+~62%, and **Crab dropped to ~35% (42-78 pooled N=120, was ~45-57%)**: Crane's
+stronghold no longer folds to Crab's slow final push, the games run longer,
+and Crane's honor engine wins them (Crane dishonor wins 12.5% → ~40% of Crab
+games). This is the sparring partner getting stronger, not a Crab bug; a
+possible future fix is chump-blocking one cheap body instead of conceding
+unopposed conflicts (each unopposed loss bleeds 1 honor).
+
+## Card-utilization audits (`tools/selfplay/auditCards.js`)
+
+`node tools/selfplay/auditCards.js <unicorn|crab|scorpion|lion> [games]` runs
+the deck vs Crane and prints, for EVERY card in the decklist, how many times
+the bot successfully clicked it and through which decision reasons — plus a
+ZERO-clicks list. Run it after onboarding or tuning a deck: zero-click cards
+are either passives (fine) or silently gated (the Softskin/Spyglass class of
+bug, where a policy filter kept a playable card in hand forever).
+
+Audit of 2026-07-10 (N=40 per deck): every card in all four decks fires.
+Findings and decisions:
+
+| Card | Finding | Band effect | Decision |
+|------|---------|-------------|----------|
+| Softskin, Compromised Secrets (Scorpion) | never played (0/0 stats, zero-contribution filter) | 62% → 77.5% on the fix run | ENABLED (`abilityValue`) |
+| Spyglass (Unicorn) | never played in military conflicts (+0 mil) | pre-generic build measured 59% N=80; current build 69% pooled N=80 | ENABLED (`abilityValue`, user decision — draw engine matters vs humans) |
+| Kaiu Siege Force action (Crab) | 0 ability uses in 40 games (gate needed bowed+inConflict+losing) | 42.5% run, no harm (band ~35-42%) | gate loosened to bowed+inConflict |
+
+## Re-baseline (2026-07-11, after the Crane Duels onboarding)
+
+The upgraded Crane Duels list shares ~41 cards with the SPARRING Crane
+precon, and playbook entries are global by card id — so onboarding it also
+taught the baseline opponent to use its own duel package (Kaezin, Kuwanan,
+Toshimoko, Harrier, Duelist Training, Kakita Dojo were idle before). The
+DuelTactics module itself stays exclusive to the new list (flag keys on
+Tsuma). Every deck's vs-Crane band shifted down as a result (N=20 spot
+checks, ±15pts): Scorpion 12-8, Unicorn 9-11, Phoenix 9-11, Lion 5-15,
+CraneDuels ~42-45%, Dragon/Crab unmeasured-but-expected-lower. Treat all
+pre-2026-07-11 band numbers as measured against the WEAKER Crane.
 
 ## Measuring in self-play
 

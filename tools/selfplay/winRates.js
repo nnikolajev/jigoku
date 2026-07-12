@@ -1,0 +1,115 @@
+'use strict';
+
+// One-stop win-rate board for every piloted bot deck vs the Crane precon.
+// Each deck runs in its OWN child process (see _deckWorker.js) so a rare
+// synchronous engine loop or an out-of-memory game kills only that child; the
+// parent keeps every game that already streamed and prints the board anyway,
+// marking a deck whose child died before finishing. Usage:
+//   node tools/selfplay/winRates.js [gamesPerDeck] [botSeed]
+// gamesPerDeck default 30. botSeed 1 = heuristic (default), 4 = omniscient.
+// A single deck swings ~13pts at N=40, so use higher N for steadier numbers.
+
+const path = require('path');
+const { spawn } = require('child_process');
+
+const DECKS = ['Unicorn', 'Scorpion', 'Lion', 'Phoenix', 'Dragon', 'CraneDuels', 'Crab'];
+const WORKER = path.join(__dirname, '_deckWorker.js');
+
+// Per-game wall budget; the deck child is killed if it exceeds games * this.
+const PER_GAME_MS = 12000;
+
+function runDeckChild(label, games, botSeed) {
+    return new Promise((resolve) => {
+        const child = spawn(process.execPath, ['--max-old-space-size=1024', WORKER, label, String(games), String(botSeed)], {
+            cwd: path.join(__dirname, '..', '..'),
+            env: { ...process.env, LOG_LEVEL: 'error' }
+        });
+
+        const results = [];
+        let buffer = '';
+        let killedFor = null;
+
+        const timer = setTimeout(() => {
+            killedFor = 'timeout';
+            child.kill('SIGKILL');
+        }, games * PER_GAME_MS);
+
+        child.stdout.on('data', (chunk) => {
+            buffer += chunk.toString();
+            let nl;
+            while((nl = buffer.indexOf('\n')) >= 0) {
+                const line = buffer.slice(0, nl).trim();
+                buffer = buffer.slice(nl + 1);
+                if(!line) {
+                    continue;
+                }
+                try {
+                    results.push(JSON.parse(line));
+                    process.stderr.write('.');
+                } catch{
+                    /* ignore non-JSON noise */
+                }
+            }
+        });
+        // Swallow child stderr (logger noise); a crash is inferred from exit code.
+        child.stderr.on('data', () => {});
+
+        child.on('close', (code) => {
+            clearTimeout(timer);
+            process.stderr.write('\n');
+            const died = killedFor || (code !== 0 ? `exit ${code}` : null);
+            resolve({ label, results, died: results.length < games ? (died || 'incomplete') : null });
+        });
+    });
+}
+
+async function main() {
+    const games = parseInt(process.argv[2], 10) || 30;
+    const botSeed = process.argv[3] === '4' ? 4 : 1;
+
+    const rows = [];
+    for(const label of DECKS) {
+        process.stderr.write(`running ${label} (${games} games) `);
+        const { results, died } = await runDeckChild(label, games, botSeed);
+        let wins = 0;
+        let losses = 0;
+        let other = 0;
+        const reasons = {};
+        for(const r of results) {
+            const key = `${r.winner || 'none'}:${r.reason || 'none'}`;
+            reasons[key] = (reasons[key] || 0) + 1;
+            if(r.winner === label) {
+                wins++;
+            } else if(r.winner === 'Crane') {
+                losses++;
+            } else {
+                other++;
+            }
+        }
+        rows.push({ label, wins, losses, other, played: results.length, reasons, died });
+    }
+
+    rows.sort((a, b) => (b.played ? b.wins / b.played : 0) - (a.played ? a.wins / a.played : 0));
+
+    console.log(`\n=== Bot win rates vs Crane precon (seed ${botSeed}, N=${games}/deck, seats alternate) ===\n`);
+    console.log('deck          record     win%   played  top loss / note');
+    console.log('------------  ---------  -----  ------  ------------------------');
+    for(const row of rows) {
+        const pct = row.played ? ((row.wins / row.played) * 100).toFixed(0).padStart(3) : ' --';
+        const record = `${row.wins}-${row.losses}${row.other ? ' (+' + row.other + ')' : ''}`;
+        const craneReasons = Object.entries(row.reasons)
+            .filter(([key]) => key.startsWith('Crane:'))
+            .sort((a, b) => b[1] - a[1]);
+        let note = craneReasons.length > 0 ? `${craneReasons[0][0]} x${craneReasons[0][1]}` : '-';
+        if(row.died) {
+            note = `child ${row.died} after ${row.played}/${games}`;
+        }
+        console.log(`${row.label.padEnd(12)}  ${record.padEnd(9)}  ${pct}%   ${String(row.played).padStart(3)}/${games}  ${note}`);
+    }
+    console.log('\n(each deck runs in its own process; a deck marked "child ..." hit a hang/OOM and shows partial results.)');
+}
+
+main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+});

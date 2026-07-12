@@ -1,13 +1,13 @@
 {
- "ride-on": {
-  "id": "ride-on",
-  "name": "Ride On",
+ "adorned-barcha": {
+  "id": "adorned-barcha",
+  "name": "Adorned Barcha",
   "name_extra": null,
   "faction": "unicorn",
   "side": "conflict",
-  "type": "event",
+  "type": "attachment",
   "is_unique": false,
-  "text": "<b>Action:</b> During a conflict, choose a <em>Cavalry</em> character you control. Select one - either move that character to the conflict or move it home.",
+  "text": "Attach to a unique character you control. Limited. Restricted.\n<b>Action:</b> During a [conflict-military] conflict in which attached character is not participating, choose a participating character - bow that character and move attached character to the conflict.",
   "restricted_in": [],
   "banned_in": [],
   "allowed_clans": [
@@ -21,11 +21,384 @@
    "mantis"
   ],
   "traits": [
-   "tactic"
+   "gaijin",
+   "weapon"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": 2,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+3",
+  "political_bonus": "+0",
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "adorned-barcha",
+    "pack_id": "for-the-empire",
+    "flavor": "",
+    "illustrator": "Carlos Palma Cruchaga",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C19_21.jpg",
+    "position": "21",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "assassination": {
+  "id": "assassination",
+  "name": "Assassination",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Conflict Action:</b> Lose 3 honor. Choose a character with printed cost 2 or lower – discard that character. (Max 1 per round.)",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 0,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "assassination",
+    "pack_id": "core",
+    "flavor": null,
+    "illustrator": "Greg Lambrakis",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_203.jpg",
+    "position": "203",
+    "quantity": 2,
+    "rotated": true
+   },
+   {
+    "card_id": "assassination",
+    "pack_id": "emerald-core-set",
+    "flavor": "Steel whispered through silk and flesh. In the morning, they would find the body and speak of shadows and dishonor — but tonight, the deed was done.",
+    "illustrator": "Valentine",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs242.jpg",
+    "position": "242",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "battle-maiden-recruit": {
+  "id": "battle-maiden-recruit",
+  "name": "Battle Maiden Recruit",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "This character gets +2[conflict-military] while you have claimed the [element-water] or [element-void] ring.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "battle-maiden",
+   "cavalry"
   ],
   "cost": "0",
   "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 0,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "0",
+  "political": "0",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "battle-maiden-recruit",
+    "pack_id": "the-fires-within",
+    "flavor": "",
+    "illustrator": "Kathryn Steele",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C11_50.jpg",
+    "position": "50",
+    "quantity": 3,
+    "rotated": true
+   }
+  ]
+ },
+ "border-rider": {
+  "id": "border-rider",
+  "name": "Border Rider",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "<b>Action:</b> Ready this character.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "cavalry"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "2",
+  "political": "1",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "border-rider",
+    "pack_id": "core",
+    "flavor": "Ride to the horizon and back again. Only then can you begin to comprehend the Unicorn.",
+    "illustrator": "Charles Urbach",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_112.jpg",
+    "position": "112",
+    "quantity": 1,
+    "rotated": true
+   }
+  ]
+ },
+ "born-in-war": {
+  "id": "born-in-war",
+  "name": "Born in War",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "conflict",
+  "type": "attachment",
+  "is_unique": false,
+  "text": "<em>Cavalry</em> character only.\nX is equal to the number of unclaimed rings.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "condition"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
   "influence_cost": 1,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+X",
+  "political_bonus": "+0",
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "born-in-war",
+    "pack_id": "core",
+    "flavor": "",
+    "illustrator": "Kevin Zamir Goeke",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_194.jpg",
+    "position": "194",
+    "quantity": 1,
+    "rotated": true
+   }
+  ]
+ },
+ "captive-audience": {
+  "id": "captive-audience",
+  "name": "Captive Audience",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a [conflict-political] conflict, lose 1 honor – change the conflict type to [conflict-military].",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 3,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "captive-audience",
+    "pack_id": "core",
+    "flavor": "\"Now you must heed our demands!\"",
+    "illustrator": "Calvin Chua",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_196.jpg",
+    "position": "196",
+    "quantity": 1,
+    "rotated": true
+   }
+  ]
+ },
+ "cavalry-reserves": {
+  "id": "cavalry-reserves",
+  "name": "Cavalry Reserves",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>[conflict-military] Conflict Action:</b> Choose up to 6 printed cost worth of <em>Cavalry</em> characters in your dynasty discard pile - put those characters into play in the conflict.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "3",
+  "deck_limit": 3,
+  "influence_cost": 2,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "cavalry-reserves",
+    "pack_id": "core",
+    "flavor": null,
+    "illustrator": "Andy Hepworth",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_199.jpg",
+    "position": "199",
+    "quantity": 1,
+    "rotated": true
+   },
+   {
+    "card_id": "cavalry-reserves",
+    "pack_id": "emerald-core-set",
+    "flavor": "When the children of the five winds unite, who can ride out the coming storm?",
+    "illustrator": "Thulsa Doom",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs200.jpg",
+    "position": "200",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "challenge-on-the-fields": {
+  "id": "challenge-on-the-fields",
+  "name": "Challenge on the Fields",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a conflict, initiate a [conflict-military] duel - resolve the duel, giving each dueling character +1[conflict-military] for each other participating character controlled by the same player until the end of the duel. Move the duel's loser home.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 2,
   "elements": [],
   "strength": null,
   "glory": null,
@@ -41,32 +414,28 @@
   "role_restrictions": [],
   "versions": [
    {
-    "card_id": "ride-on",
-    "pack_id": "peace-at-any-cost",
-    "flavor": "\"Why would we settle down like some indulgent Bayushi, when we draw strength from our unique freedom?\" - Moto Rurame",
-    "illustrator": "Carlos Palma Cruchaga",
-    "image_url": "https://emerald-legacy.github.io/emeralddb-images/ffg/peace-at-any-cost/pac130.jpg",
-    "position": "130",
+    "card_id": "challenge-on-the-fields",
+    "pack_id": "children-of-the-empire",
+    "flavor": "\"Face me, Shono! Fight me now!\" - Matsu Mitsuko",
+    "illustrator": "Tomas Muir",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_75.jpg",
+    "position": "75",
     "quantity": 3,
     "rotated": false
    }
   ]
  },
- "spyglass": {
-  "id": "spyglass",
-  "name": "Spyglass",
+ "curved-blade": {
+  "id": "curved-blade",
+  "name": "Curved Blade",
   "name_extra": null,
   "faction": "unicorn",
   "side": "conflict",
   "type": "attachment",
   "is_unique": false,
-  "text": "<b>Reaction:</b> After attached character commits to a conflict or moves to a conflict – draw 1 card. (Limit twice per round.)",
+  "text": "Attach to a [clan-unicorn] character. Restricted.\nWhile attached character is attacking, it gets an additional +2[conflict-military].",
   "restricted_in": [],
-  "banned_in": [
-   "standard",
-   "jade-edict",
-   "skirmish"
-  ],
+  "banned_in": [],
   "allowed_clans": [
    "crab",
    "crane",
@@ -78,12 +447,12 @@
    "mantis"
   ],
   "traits": [
-   "item",
+   "weapon",
    "gaijin"
   ],
-  "cost": "1",
+  "cost": "0",
   "deck_limit": 3,
-  "influence_cost": 2,
+  "influence_cost": 1,
   "elements": [],
   "strength": null,
   "glory": null,
@@ -93,20 +462,339 @@
   "strength_bonus": null,
   "military": null,
   "political": null,
-  "military_bonus": "+0",
-  "political_bonus": "+1",
+  "military_bonus": "+1",
+  "political_bonus": "+0",
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "curved-blade",
+    "pack_id": "warriors-of-the-wind",
+    "flavor": "",
+    "illustrator": "Carlos Palma Cruchaga",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C17_20.jpg",
+    "position": "20",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "endless-plains": {
+  "id": "endless-plains",
+  "name": "Endless Plains",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "province",
+  "type": "province",
+  "is_unique": false,
+  "text": "<b>Reaction:</b> After an attack is declared here, break this province. Your opponent chooses an attacking character – discard that character.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [],
+  "cost": null,
+  "deck_limit": 1,
+  "influence_cost": null,
+  "elements": [
+   "water"
+  ],
+  "strength": "2",
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "endless-plains",
+    "pack_id": "core",
+    "flavor": "",
+    "illustrator": "Alayna Lemmer",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_14.jpg",
+    "position": "14",
+    "quantity": 1,
+    "rotated": true
+   }
+  ]
+ },
+ "fertile-fields": {
+  "id": "fertile-fields",
+  "name": "Fertile Fields",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "province",
+  "type": "province",
+  "is_unique": false,
+  "text": "<b>Conflict Action:</b> Draw 1 card.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": null,
+  "deck_limit": 1,
+  "influence_cost": null,
+  "elements": [
+   "air"
+  ],
+  "strength": "4",
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
   "splash_banned_in": [],
   "role_restrictions": [],
   "versions": [
    {
-    "card_id": "spyglass",
+    "card_id": "fertile-fields",
+    "pack_id": "core",
+    "flavor": "\"Inari-no-Kami smiles upon these lands.\" - Aiko, priestess of Inari",
+    "illustrator": "Gong Studios",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_18.jpg",
+    "position": "18",
+    "quantity": 2,
+    "rotated": true
+   },
+   {
+    "card_id": "fertile-fields",
+    "pack_id": "emerald-core-set",
+    "flavor": "“The fortunes blessed these lands, but it takes honest work to harvest them.”",
+    "illustrator": "Jose M. Garcia",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs218.jpg",
+    "position": "218",
+    "quantity": 1,
+    "rotated": false
+   }
+  ]
+ },
+ "fine-katana": {
+  "id": "fine-katana",
+  "name": "Fine Katana",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "conflict",
+  "type": "attachment",
+  "is_unique": false,
+  "text": "Restricted. <i>(No more than two restricted attachments per character.)</i>",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "weapon"
+  ],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 0,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+2",
+  "political_bonus": "+0",
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "fine-katana",
+    "pack_id": "core",
+    "flavor": "Immortal steel waits\nVenerated divine blade\nThe fires of the soul",
+    "illustrator": "Brent Chumley",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_200.jpg",
+    "position": "200",
+    "quantity": 2,
+    "rotated": true
+   },
+   {
+    "card_id": "fine-katana",
+    "pack_id": "emerald-core-set",
+    "flavor": "“Just as a horse must have endurance and no defects, so it is with weapons. Horses should walk strongly, and swords and companion swords should cut strongly.”\n— Miyamoto Musashi",
+    "illustrator": "Thulsa Doom",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs257.jpg",
+    "position": "257",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "flank-the-enemy": {
+  "id": "flank-the-enemy",
+  "name": "Flank the Enemy",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a conflict in which you control more participating characters than your opponent, your opponent chooses a participating character they control - bow that character.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "tactic"
+  ],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": 3,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "flank-the-enemy",
+    "pack_id": "atonement",
+    "flavor": "",
+    "illustrator": "Imad Awan",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C34_136.jpg",
+    "position": "136",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "golden-plains-outpost": {
+  "id": "golden-plains-outpost",
+  "name": "Golden Plains Outpost",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "province",
+  "type": "stronghold",
+  "is_unique": true,
+  "text": "<b>Action:</b> During a [conflict-military] conflict, bow this stronghold. Choose a <em>Cavalry</em> character you control – move it to that conflict.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "outpost"
+  ],
+  "cost": null,
+  "deck_limit": 1,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": 7,
+  "honor": 10,
+  "influence_pool": 10,
+  "strength_bonus": "+0",
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "golden-plains-outpost",
     "pack_id": "core",
     "flavor": "",
-    "illustrator": "Aaron Miller",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_193.jpg",
-    "position": "193",
+    "illustrator": "Alayna Lemmer",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_7.jpg",
+    "position": "7",
     "quantity": 1,
     "rotated": true
+   }
+  ]
+ },
+ "higashi-kaze-company": {
+  "id": "higashi-kaze-company",
+  "name": "Higashi Kaze Company",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "No attachments except <em>Weapon</em>.\n<b>Reaction:</b> After this character wins a conflict, choose another participating character with no fate on it - that character does not bow as the result of this conflict's resolution.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "army",
+   "cavalry"
+  ],
+  "cost": "5",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "6",
+  "political": "3",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "higashi-kaze-company",
+    "pack_id": "coils-of-power",
+    "flavor": "",
+    "illustrator": "Imad Awan",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/ffg/coils-of-power/cop099.jpg",
+    "position": "99",
+    "quantity": 3,
+    "rotated": false
    }
   ]
  },
@@ -158,6 +846,303 @@
     "position": "197",
     "quantity": 1,
     "rotated": true
+   }
+  ]
+ },
+ "iuchi-soulweaver": {
+  "id": "iuchi-soulweaver",
+  "name": "Iuchi Soulweaver",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "Dire - This character is considered to be participating in each conflict in which you control at least 1 other participating character. It does not bow as a result of conflict resolution in conflicts in which it is at home. <i>(This character is dire when it has no fate on it.)</i>",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "shugenja",
+   "water",
+   "cavalry"
+  ],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 0,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "1",
+  "political": "1",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "iuchi-soulweaver",
+    "pack_id": "the-temptation-of-the-scorpion",
+    "flavor": "",
+    "illustrator": "Jorge Matar",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C39_74.jpg",
+    "position": "74",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "manicured-garden": {
+  "id": "manicured-garden",
+  "name": "Manicured Garden",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "province",
+  "type": "province",
+  "is_unique": false,
+  "text": "<b>Conflict Action:</b> Gain 1 fate.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": null,
+  "deck_limit": 1,
+  "influence_cost": null,
+  "elements": [
+   "air"
+  ],
+  "strength": "4",
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "manicured-garden",
+    "pack_id": "core",
+    "flavor": "The perfect garden maintains all five elements in harmony.",
+    "illustrator": "Stefano Baldo",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_19.jpg",
+    "position": "19",
+    "quantity": 2,
+    "rotated": true
+   },
+   {
+    "card_id": "manicured-garden",
+    "pack_id": "emerald-core-set",
+    "flavor": "“In equilibrium, beauty is revealed.”",
+    "illustrator": "Ryan Nock",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs223.jpg",
+    "position": "223",
+    "quantity": 1,
+    "rotated": false
+   }
+  ]
+ },
+ "minami-kaze-regulars": {
+  "id": "minami-kaze-regulars",
+  "name": "Minami Kaze Regulars",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "No attachments except <em>Weapon</em>.\n<b>Reaction:</b> After this character wins a conflict in which you have more participating characters than your opponent – gain 1 fate and draw 1 card.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "army",
+   "cavalry"
+  ],
+  "cost": "5",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "6",
+  "political": "3",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "minami-kaze-regulars",
+    "pack_id": "elements-unbound",
+    "flavor": "",
+    "illustrator": "Eli Ring",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C14_110.jpg",
+    "position": "110",
+    "quantity": 3,
+    "rotated": true
+   }
+  ]
+ },
+ "moto-conqueror": {
+  "id": "moto-conqueror",
+  "name": "Moto Conqueror",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": null,
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "cavalry"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 0,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "4",
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "moto-conqueror",
+    "pack_id": "peace-at-any-cost",
+    "flavor": "On the distant Plain of Wind and Stone, Shinjo's followers learned new gaijin ways to ride, to hunt and to fight from horseback.",
+    "illustrator": "Imad Awan",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/ffg/peace-at-any-cost/pac121.jpg",
+    "position": "121",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "moto-outrider": {
+  "id": "moto-outrider",
+  "name": "Moto Outrider",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a [conflict-military] conflict in which this character is participating - ready this character.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "cavalry"
+  ],
+  "cost": "3",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "3",
+  "political": "2",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "moto-outrider",
+    "pack_id": "shoju-s-duty",
+    "flavor": "Lands won on horseback ought to be ruled from horseback.",
+    "illustrator": "Conceptopolis",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C24_123.jpg",
+    "position": "123",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "moto-stables": {
+  "id": "moto-stables",
+  "name": "Moto Stables",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "holding",
+  "is_unique": false,
+  "text": "<b>Reaction:</b> After a character you control moves to a conflict - it gets +2[conflict-military] until the end of the conflict. (Limit twice per round.)",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [],
+  "cost": null,
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": "+2",
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "moto-stables",
+    "pack_id": "spreading-shadows",
+    "flavor": "",
+    "illustrator": "Leanna Crossan",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C30_40.jpg",
+    "position": "40",
+    "quantity": 3,
+    "rotated": false
    }
   ]
  },
@@ -271,15 +1256,62 @@
    }
   ]
  },
- "pilgrimage": {
-  "id": "pilgrimage",
-  "name": "Pilgrimage",
+ "outskirts-sentry": {
+  "id": "outskirts-sentry",
+  "name": "Outskirts Sentry",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "<b>Reaction:</b> After a character is moved to the conflict in which this character is participating, choose a participating character - honor that character.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "scout"
+  ],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 0,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "2",
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "outskirts-sentry",
+    "pack_id": "children-of-the-empire",
+    "flavor": "",
+    "illustrator": "Kevin Zamir Goeke",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_36.jpg",
+    "position": "36",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "public-forum": {
+  "id": "public-forum",
+  "name": "Public Forum",
   "name_extra": null,
   "faction": "neutral",
   "side": "province",
   "type": "province",
   "is_unique": false,
-  "text": "During conflicts at this province, cancel all ring effects. <i>(If this province breaks, resolve ring effects as normal.)</i>",
+  "text": "Cannot be a stronghold province.\n<b>Interrupt:</b> When this province would be broken, if there are no honor tokens on it – place 1 honor token on it instead.",
   "restricted_in": [],
   "banned_in": [],
   "allowed_clans": [
@@ -297,9 +1329,9 @@
   "deck_limit": 1,
   "influence_cost": null,
   "elements": [
-   "void"
+   "earth"
   ],
-  "strength": "5",
+  "strength": "3",
   "glory": null,
   "fate": null,
   "honor": null,
@@ -313,36 +1345,36 @@
   "role_restrictions": [],
   "versions": [
    {
-    "card_id": "pilgrimage",
-    "pack_id": "core",
+    "card_id": "public-forum",
+    "pack_id": "into-the-forbidden-city",
     "flavor": null,
-    "illustrator": "Nele Diel",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_22.jpg",
-    "position": "22",
-    "quantity": 2,
+    "illustrator": "Pavel Kolomeyets",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C04_42.jpg",
+    "position": "42",
+    "quantity": 3,
     "rotated": true
    },
    {
-    "card_id": "pilgrimage",
+    "card_id": "public-forum",
     "pack_id": "emerald-core-set",
-    "flavor": "“Faith is the greatest armor. The Seppun understand this as they guard the Empress — and as they brave the mountain's elemental trials.”\n— Teachings of the Imperial Guard",
-    "illustrator": "Thulsa Doom",
-    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs226.jpg",
-    "position": "226",
+    "flavor": "In the silent courtyard, one can almost hear the clamor of history — a thousand years of Hantei rule, now calling out for young Botan.",
+    "illustrator": "Tariq Ali / Ryan Nock",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs227.jpg",
+    "position": "227",
     "quantity": 1,
     "rotated": false
    }
   ]
  },
- "born-in-war": {
-  "id": "born-in-war",
-  "name": "Born in War",
+ "ride-on": {
+  "id": "ride-on",
+  "name": "Ride On",
   "name_extra": null,
   "faction": "unicorn",
   "side": "conflict",
-  "type": "attachment",
+  "type": "event",
   "is_unique": false,
-  "text": "<em>Cavalry</em> character only.\nX is equal to the number of unclaimed rings.",
+  "text": "<b>Action:</b> During a conflict, choose a <em>Cavalry</em> character you control. Select one - either move that character to the conflict or move it home.",
   "restricted_in": [],
   "banned_in": [],
   "allowed_clans": [
@@ -356,9 +1388,9 @@
    "mantis"
   ],
   "traits": [
-   "condition"
+   "tactic"
   ],
-  "cost": "2",
+  "cost": "0",
   "deck_limit": 3,
   "influence_cost": 1,
   "elements": [],
@@ -370,142 +1402,32 @@
   "strength_bonus": null,
   "military": null,
   "political": null,
-  "military_bonus": "+X",
-  "political_bonus": "+0",
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "born-in-war",
-    "pack_id": "core",
-    "flavor": "",
-    "illustrator": "Kevin Zamir Goeke",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_194.jpg",
-    "position": "194",
-    "quantity": 1,
-    "rotated": true
-   }
-  ]
- },
- "fine-katana": {
-  "id": "fine-katana",
-  "name": "Fine Katana",
-  "name_extra": null,
-  "faction": "neutral",
-  "side": "conflict",
-  "type": "attachment",
-  "is_unique": false,
-  "text": "Restricted. <i>(No more than two restricted attachments per character.)</i>",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [
-   "weapon"
-  ],
-  "cost": "0",
-  "deck_limit": 3,
-  "influence_cost": 0,
-  "elements": [],
-  "strength": null,
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": "+2",
-  "political_bonus": "+0",
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "fine-katana",
-    "pack_id": "core",
-    "flavor": "Immortal steel waits\nVenerated divine blade\nThe fires of the soul",
-    "illustrator": "Brent Chumley",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_200.jpg",
-    "position": "200",
-    "quantity": 2,
-    "rotated": true
-   },
-   {
-    "card_id": "fine-katana",
-    "pack_id": "emerald-core-set",
-    "flavor": "“Just as a horse must have endurance and no defects, so it is with weapons. Horses should walk strongly, and swords and companion swords should cut strongly.”\n— Miyamoto Musashi",
-    "illustrator": "Thulsa Doom",
-    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs257.jpg",
-    "position": "257",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "border-rider": {
-  "id": "border-rider",
-  "name": "Border Rider",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": "<b>Action:</b> Ready this character.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "cavalry"
-  ],
-  "cost": "2",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 1,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "2",
-  "political": "1",
   "military_bonus": null,
   "political_bonus": null,
   "splash_banned_in": null,
   "role_restrictions": [],
   "versions": [
    {
-    "card_id": "border-rider",
-    "pack_id": "core",
-    "flavor": "Ride to the horizon and back again. Only then can you begin to comprehend the Unicorn.",
-    "illustrator": "Charles Urbach",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_112.jpg",
-    "position": "112",
-    "quantity": 1,
-    "rotated": true
+    "card_id": "ride-on",
+    "pack_id": "peace-at-any-cost",
+    "flavor": "\"Why would we settle down like some indulgent Bayushi, when we draw strength from our unique freedom?\" - Moto Rurame",
+    "illustrator": "Carlos Palma Cruchaga",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/ffg/peace-at-any-cost/pac130.jpg",
+    "position": "130",
+    "quantity": 3,
+    "rotated": false
    }
   ]
  },
- "curved-blade": {
-  "id": "curved-blade",
-  "name": "Curved Blade",
+ "seal-of-the-unicorn": {
+  "id": "seal-of-the-unicorn",
+  "name": "Seal of the Unicorn",
   "name_extra": null,
   "faction": "unicorn",
   "side": "conflict",
   "type": "attachment",
   "is_unique": false,
-  "text": "Attach to a [clan-unicorn] character. Restricted.\nWhile attached character is attacking, it gets an additional +2[conflict-military].",
+  "text": "Attached character gains the [clan-unicorn] clan symbol and the <em>Cavalry</em> trait.",
   "restricted_in": [],
   "banned_in": [],
   "allowed_clans": [
@@ -519,8 +1441,8 @@
    "mantis"
   ],
   "traits": [
-   "weapon",
-   "gaijin"
+   "item",
+   "seal"
   ],
   "cost": "0",
   "deck_limit": 3,
@@ -536,366 +1458,18 @@
   "political": null,
   "military_bonus": "+1",
   "political_bonus": "+0",
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "curved-blade",
-    "pack_id": "warriors-of-the-wind",
-    "flavor": "",
-    "illustrator": "Carlos Palma Cruchaga",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C17_20.jpg",
-    "position": "20",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "moto-stables": {
-  "id": "moto-stables",
-  "name": "Moto Stables",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "holding",
-  "is_unique": false,
-  "text": "<b>Reaction:</b> After a character you control moves to a conflict - it gets +2[conflict-military] until the end of the conflict. (Limit twice per round.)",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [],
-  "cost": null,
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": "+2",
-  "military": null,
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "moto-stables",
-    "pack_id": "spreading-shadows",
-    "flavor": "",
-    "illustrator": "Leanna Crossan",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C30_40.jpg",
-    "position": "40",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "shinjo-gunso": {
-  "id": "shinjo-gunso",
-  "name": "Shinjo Gunsō",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": "<b>Reaction:</b> After you play this character from your provinces - look at the top 5 cards of your dynasty deck. You may put a character with cost 2 or lower from among those cards into play. Discard the rest.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "cavalry"
-  ],
-  "cost": "2",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 1,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "1",
-  "political": "1",
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "shinjo-gunso",
-    "pack_id": "justice-for-satsume",
-    "flavor": "\"March divided. Attack united.\" - from the tactics of Shinjo Khulan Khan",
-    "illustrator": "Eli Ring",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C21_58.jpg",
-    "position": "58",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "shinjo-shono": {
-  "id": "shinjo-shono",
-  "name": "Shinjo Shono",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": true,
-  "text": "Pride.\n<b>Action:</b> While this character is participating in a conflict, if you control more participating characters than your opponent – each participating <em>Cavalry</em> character you control gets +1[conflict-military] and +1[conflict-political] until the end of the conflict.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "cavalry",
-   "commander"
-  ],
-  "cost": "4",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 2,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "4",
-  "political": "3",
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "shinjo-shono",
-    "pack_id": "breath-of-the-kami",
-    "flavor": "",
-    "illustrator": "Maerel Hibadita",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C09_11.jpg",
-    "position": "11",
-    "quantity": 3,
-    "rotated": true
-   }
-  ]
- },
- "ujik-tactics": {
-  "id": "ujik-tactics",
-  "name": "Ujik Tactics",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "conflict",
-  "type": "event",
-  "is_unique": false,
-  "text": "<b>Action:</b> During a conflict - each non-unique character you control gets +1[conflict-military] until the end of the conflict.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [
-   "gaijin",
-   "tactic"
-  ],
-  "cost": "0",
-  "deck_limit": 3,
-  "influence_cost": 2,
-  "elements": [],
-  "strength": null,
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "ujik-tactics",
-    "pack_id": "justice-for-satsume",
-    "flavor": "It was only by adopting the tactics of their assailants that the Ki-Rin Clan survived their journey across the Plain of Wind and Stone.",
-    "illustrator": "Shen Fei",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C21_66.jpg",
-    "position": "66",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "warrior-poet": {
-  "id": "warrior-poet",
-  "name": "Warrior Poet",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": "<b>Action:</b> While this character is participating in a conflict – each participating character controlled by your opponent gets –1[conflict-military] and –1[conflict-political] until the end of the conflict.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "cavalry"
-  ],
-  "cost": "3",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 2,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "2",
-  "political": "2",
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "warrior-poet",
-    "pack_id": "core",
-    "flavor": "",
-    "illustrator": "Le Vuong",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_117.jpg",
-    "position": "117",
-    "quantity": 1,
-    "rotated": true
-   }
-  ]
- },
- "assassination": {
-  "id": "assassination",
-  "name": "Assassination",
-  "name_extra": null,
-  "faction": "neutral",
-  "side": "conflict",
-  "type": "event",
-  "is_unique": false,
-  "text": "<b>Conflict Action:</b> Lose 3 honor. Choose a character with printed cost 2 or lower – discard that character. (Max 1 per round.)",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [],
-  "cost": "0",
-  "deck_limit": 3,
-  "influence_cost": 0,
-  "elements": [],
-  "strength": null,
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
   "splash_banned_in": [],
   "role_restrictions": [],
   "versions": [
    {
-    "card_id": "assassination",
-    "pack_id": "core",
-    "flavor": null,
-    "illustrator": "Greg Lambrakis",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_203.jpg",
-    "position": "203",
-    "quantity": 2,
+    "card_id": "seal-of-the-unicorn",
+    "pack_id": "meditations-on-the-ephemeral",
+    "flavor": "In the name of Lady Shinjo Altansarnai,\nSeeker of the Setting Sun,\nKhan of Khans,\nMistress of the Five Winds,\nDaimyō of the Shinjo, and\nChampion of the Unicorn Clan",
+    "illustrator": "Mauro Dal Bo",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C07_118.jpg",
+    "position": "118",
+    "quantity": 3,
     "rotated": true
-   },
-   {
-    "card_id": "assassination",
-    "pack_id": "emerald-core-set",
-    "flavor": "Steel whispered through silk and flesh. In the morning, they would find the body and speak of shadows and dishonor — but tonight, the deed was done.",
-    "illustrator": "Valentine",
-    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs242.jpg",
-    "position": "242",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "moto-outrider": {
-  "id": "moto-outrider",
-  "name": "Moto Outrider",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": "<b>Action:</b> During a [conflict-military] conflict in which this character is participating - ready this character.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "cavalry"
-  ],
-  "cost": "3",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 1,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "3",
-  "political": "2",
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "moto-outrider",
-    "pack_id": "shoju-s-duty",
-    "flavor": "Lands won on horseback ought to be ruled from horseback.",
-    "illustrator": "Conceptopolis",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C24_123.jpg",
-    "position": "123",
-    "quantity": 3,
-    "rotated": false
    }
   ]
  },
@@ -1017,6 +1591,101 @@
    }
   ]
  },
+ "shinjo-altansarnai-2": {
+  "id": "shinjo-altansarnai-2",
+  "name": "Shinjo Altansarnai",
+  "name_extra": "(2)",
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": true,
+  "text": "<b>Action:</b> During a [conflict-military] conflict in which this character is participating - search the top 8 cards of your dynasty deck for a non-unique character with printed cost 3 or lower and put that character into play in the conflict. Shuffle.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "cavalry",
+   "champion"
+  ],
+  "cost": "5",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "5",
+  "political": "4",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "shinjo-altansarnai-2",
+    "pack_id": "as-honor-demands",
+    "flavor": "\"We shall fight together.\"",
+    "illustrator": "Leo Avero",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C33_105.jpg",
+    "position": "105",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "shinjo-gunso": {
+  "id": "shinjo-gunso",
+  "name": "Shinjo Gunsō",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "<b>Reaction:</b> After you play this character from your provinces - look at the top 5 cards of your dynasty deck. You may put a character with cost 2 or lower from among those cards into play. Discard the rest.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "cavalry"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "1",
+  "political": "1",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "shinjo-gunso",
+    "pack_id": "justice-for-satsume",
+    "flavor": "\"March divided. Attack united.\" - from the tactics of Shinjo Khulan Khan",
+    "illustrator": "Eli Ring",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C21_58.jpg",
+    "position": "58",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
  "shinjo-saddle": {
   "id": "shinjo-saddle",
   "name": "Shinjo Saddle",
@@ -1070,66 +1739,15 @@
    }
   ]
  },
- "spoils-of-war": {
-  "id": "spoils-of-war",
-  "name": "Spoils of War",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "conflict",
-  "type": "event",
-  "is_unique": false,
-  "text": "<b>Reaction:</b> After you win a [conflict-military] as the attacker - draw 3 cards. Then, choose and discard 1 card from your hand. (Max 1 per conflict.)",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [],
-  "cost": "0",
-  "deck_limit": 3,
-  "influence_cost": 2,
-  "elements": [],
-  "strength": null,
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "spoils-of-war",
-    "pack_id": "warriors-of-the-wind",
-    "flavor": "\"It would be a shame to leave such craftsmanship to rust.\"",
-    "illustrator": "Andreia Ugrai",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C17_24.jpg",
-    "position": "24",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "young-warrior": {
-  "id": "young-warrior",
-  "name": "Young Warrior",
+ "shinjo-shono": {
+  "id": "shinjo-shono",
+  "name": "Shinjo Shono",
   "name_extra": null,
   "faction": "unicorn",
   "side": "dynasty",
   "type": "character",
-  "is_unique": false,
-  "text": "This character must be declared as an attacker or defender in the first conflict declared each round.",
+  "is_unique": true,
+  "text": "Pride.\n<b>Action:</b> While this character is participating in a conflict, if you control more participating characters than your opponent – each participating <em>Cavalry</em> character you control gets +1[conflict-military] and +1[conflict-political] until the end of the conflict.",
   "restricted_in": [],
   "banned_in": [],
   "allowed_clans": [
@@ -1138,9 +1756,9 @@
   "traits": [
    "bushi",
    "cavalry",
-   "battle-maiden"
+   "commander"
   ],
-  "cost": "2",
+  "cost": "4",
   "deck_limit": 3,
   "influence_cost": null,
   "elements": [],
@@ -1150,7 +1768,7 @@
   "honor": null,
   "influence_pool": null,
   "strength_bonus": null,
-  "military": "3",
+  "military": "4",
   "political": "3",
   "military_bonus": null,
   "political_bonus": null,
@@ -1158,451 +1776,14 @@
   "role_restrictions": [],
   "versions": [
    {
-    "card_id": "young-warrior",
-    "pack_id": "warriors-of-the-wind",
-    "flavor": "Utaku women prove early on whether they have the strength and dedication to join the venerated ranks of the shiotome.",
-    "illustrator": "Anthony Grabski",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C17_5.jpg",
-    "position": "5",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "adorned-barcha": {
-  "id": "adorned-barcha",
-  "name": "Adorned Barcha",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "conflict",
-  "type": "attachment",
-  "is_unique": false,
-  "text": "Attach to a unique character you control. Limited. Restricted.\n<b>Action:</b> During a [conflict-military] conflict in which attached character is not participating, choose a participating character - bow that character and move attached character to the conflict.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [
-   "gaijin",
-   "weapon"
-  ],
-  "cost": "2",
-  "deck_limit": 3,
-  "influence_cost": 2,
-  "elements": [],
-  "strength": null,
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": "+3",
-  "political_bonus": "+0",
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "adorned-barcha",
-    "pack_id": "for-the-empire",
+    "card_id": "shinjo-shono",
+    "pack_id": "breath-of-the-kami",
     "flavor": "",
-    "illustrator": "Carlos Palma Cruchaga",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C19_21.jpg",
-    "position": "21",
+    "illustrator": "Maerel Hibadita",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C09_11.jpg",
+    "position": "11",
     "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "elemental-fury": {
-  "id": "elemental-fury",
-  "name": "Elemental Fury",
-  "name_extra": null,
-  "faction": "neutral",
-  "side": "province",
-  "type": "province",
-  "is_unique": false,
-  "text": "<b>Reaction:</b> After this province is revealed – switch the contested ring with an unclaimed ring. <i>(The conflict retains its type.)</i>",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [],
-  "cost": null,
-  "deck_limit": 1,
-  "influence_cost": null,
-  "elements": [
-   "water"
-  ],
-  "strength": "4",
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "elemental-fury",
-    "pack_id": "core",
-    "flavor": "",
-    "illustrator": "Calvin Chua",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_16.jpg",
-    "position": "16",
-    "quantity": 2,
     "rotated": true
-   }
-  ]
- },
- "fertile-fields": {
-  "id": "fertile-fields",
-  "name": "Fertile Fields",
-  "name_extra": null,
-  "faction": "neutral",
-  "side": "province",
-  "type": "province",
-  "is_unique": false,
-  "text": "<b>Conflict Action:</b> Draw 1 card.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [],
-  "cost": null,
-  "deck_limit": 1,
-  "influence_cost": null,
-  "elements": [
-   "air"
-  ],
-  "strength": "4",
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": [],
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "fertile-fields",
-    "pack_id": "core",
-    "flavor": "\"Inari-no-Kami smiles upon these lands.\" - Aiko, priestess of Inari",
-    "illustrator": "Gong Studios",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_18.jpg",
-    "position": "18",
-    "quantity": 2,
-    "rotated": true
-   },
-   {
-    "card_id": "fertile-fields",
-    "pack_id": "emerald-core-set",
-    "flavor": "“The fortunes blessed these lands, but it takes honest work to harvest them.”",
-    "illustrator": "Jose M. Garcia",
-    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs218.jpg",
-    "position": "218",
-    "quantity": 1,
-    "rotated": false
-   }
-  ]
- },
- "moto-conqueror": {
-  "id": "moto-conqueror",
-  "name": "Moto Conqueror",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": null,
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "cavalry"
-  ],
-  "cost": "2",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 0,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "4",
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "moto-conqueror",
-    "pack_id": "peace-at-any-cost",
-    "flavor": "On the distant Plain of Wind and Stone, Shinjo's followers learned new gaijin ways to ride, to hunt and to fight from horseback.",
-    "illustrator": "Imad Awan",
-    "image_url": "https://emerald-legacy.github.io/emeralddb-images/ffg/peace-at-any-cost/pac121.jpg",
-    "position": "121",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "twilight-rider": {
-  "id": "twilight-rider",
-  "name": "Twilight Rider",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": "Rally. <i>(After this card is revealed in a province, add the top card of your dynasty deck to the province, faceup.)</i>\n<b>Reaction:</b> After this character moves to a conflict, choose a character – ready that character.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "cavalry",
-   "scout"
-  ],
-  "cost": "3",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 1,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "3",
-  "political": "1",
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "twilight-rider",
-    "pack_id": "spreading-shadows",
-    "flavor": "",
-    "illustrator": "Imad Awan",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C30_39.jpg",
-    "position": "39",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "utaku-infantry": {
-  "id": "utaku-infantry",
-  "name": "Utaku Infantry",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": "While this character is participating in a conflict, it gets +1[conflict-military] and +1[conflict-political] for each participating [clan-unicorn] character you control.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi"
-  ],
-  "cost": "1",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 1,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "0",
-  "political": "0",
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "utaku-infantry",
-    "pack_id": "core",
-    "flavor": "",
-    "illustrator": "Bob Stevlic",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_110.jpg",
-    "position": "110",
-    "quantity": 1,
-    "rotated": true
-   },
-   {
-    "card_id": "utaku-infantry",
-    "pack_id": "emerald-core-set",
-    "flavor": "Forbidden to ride in battle, Utaku men are like the high banks of the river; their sisters are the current, swift and unstoppable.",
-    "illustrator": "Kevin Sanborn",
-    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs195.jpg",
-    "position": "195",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "ancestral-lands": {
-  "id": "ancestral-lands",
-  "name": "Ancestral Lands",
-  "name_extra": null,
-  "faction": "neutral",
-  "side": "province",
-  "type": "province",
-  "is_unique": false,
-  "text": "This province gets +5 strength during [conflict-political] conflicts.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [],
-  "cost": null,
-  "deck_limit": 1,
-  "influence_cost": null,
-  "elements": [
-   "earth"
-  ],
-  "strength": "5",
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "ancestral-lands",
-    "pack_id": "core",
-    "flavor": "\"Our claim on these lands stretches back to the dawn of the Empire.\"",
-    "illustrator": "Nele Diel",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_15.jpg",
-    "position": "15",
-    "quantity": 2,
-    "rotated": true
-   },
-   {
-    "card_id": "ancestral-lands",
-    "pack_id": "emerald-core-set",
-    "flavor": "“We cannot know if the sun has set forever on the Emerald Empire, but its remembered glory will shine through our long nights of exile.”",
-    "illustrator": "Ryan Nock",
-    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs211.jpg",
-    "position": "211",
-    "quantity": 1,
-    "rotated": false
-   }
-  ]
- },
- "flank-the-enemy": {
-  "id": "flank-the-enemy",
-  "name": "Flank the Enemy",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "conflict",
-  "type": "event",
-  "is_unique": false,
-  "text": "<b>Action:</b> During a conflict in which you control more participating characters than your opponent, your opponent chooses a participating character they control - bow that character.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [
-   "tactic"
-  ],
-  "cost": "1",
-  "deck_limit": 3,
-  "influence_cost": 3,
-  "elements": [],
-  "strength": null,
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "flank-the-enemy",
-    "pack_id": "atonement",
-    "flavor": "",
-    "illustrator": "Imad Awan",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C34_136.jpg",
-    "position": "136",
-    "quantity": 3,
-    "rotated": false
    }
   ]
  },
@@ -1653,368 +1834,6 @@
     "position": "22",
     "quantity": 3,
     "rotated": false
-   }
-  ]
- },
- "captive-audience": {
-  "id": "captive-audience",
-  "name": "Captive Audience",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "conflict",
-  "type": "event",
-  "is_unique": false,
-  "text": "<b>Action:</b> During a [conflict-political] conflict, lose 1 honor – change the conflict type to [conflict-military].",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [],
-  "cost": "0",
-  "deck_limit": 3,
-  "influence_cost": 3,
-  "elements": [],
-  "strength": null,
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": [],
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "captive-audience",
-    "pack_id": "core",
-    "flavor": "\"Now you must heed our demands!\"",
-    "illustrator": "Calvin Chua",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_196.jpg",
-    "position": "196",
-    "quantity": 1,
-    "rotated": true
-   }
-  ]
- },
- "cavalry-reserves": {
-  "id": "cavalry-reserves",
-  "name": "Cavalry Reserves",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "conflict",
-  "type": "event",
-  "is_unique": false,
-  "text": "<b>[conflict-military] Conflict Action:</b> Choose up to 6 printed cost worth of <em>Cavalry</em> characters in your dynasty discard pile - put those characters into play in the conflict.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [],
-  "cost": "3",
-  "deck_limit": 3,
-  "influence_cost": 2,
-  "elements": [],
-  "strength": null,
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": [],
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "cavalry-reserves",
-    "pack_id": "core",
-    "flavor": null,
-    "illustrator": "Andy Hepworth",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_199.jpg",
-    "position": "199",
-    "quantity": 1,
-    "rotated": true
-   },
-   {
-    "card_id": "cavalry-reserves",
-    "pack_id": "emerald-core-set",
-    "flavor": "When the children of the five winds unite, who can ride out the coming storm?",
-    "illustrator": "Thulsa Doom",
-    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs200.jpg",
-    "position": "200",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "iuchi-soulweaver": {
-  "id": "iuchi-soulweaver",
-  "name": "Iuchi Soulweaver",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": "Dire - This character is considered to be participating in each conflict in which you control at least 1 other participating character. It does not bow as a result of conflict resolution in conflicts in which it is at home. <i>(This character is dire when it has no fate on it.)</i>",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "shugenja",
-   "water",
-   "cavalry"
-  ],
-  "cost": "1",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 0,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "1",
-  "political": "1",
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "iuchi-soulweaver",
-    "pack_id": "the-temptation-of-the-scorpion",
-    "flavor": "",
-    "illustrator": "Jorge Matar",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C39_74.jpg",
-    "position": "74",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "outskirts-sentry": {
-  "id": "outskirts-sentry",
-  "name": "Outskirts Sentry",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": "<b>Reaction:</b> After a character is moved to the conflict in which this character is participating, choose a participating character - honor that character.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "scout"
-  ],
-  "cost": "1",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 0,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "2",
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "outskirts-sentry",
-    "pack_id": "children-of-the-empire",
-    "flavor": "",
-    "illustrator": "Kevin Zamir Goeke",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_36.jpg",
-    "position": "36",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "worldly-shiotome": {
-  "id": "worldly-shiotome",
-  "name": "Worldly Shiotome",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": "<b>Reaction:</b> After you play a <em>Gaijin</em> card - honor this character.\n<b>Card design by <em>Legend of the Five Rings</em> community.</b>",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "cavalry",
-   "battle-maiden"
-  ],
-  "cost": "2",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 2,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "2",
-  "political": "2",
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "worldly-shiotome",
-    "pack_id": "atonement",
-    "flavor": "",
-    "illustrator": "Mario Wibisono",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C34_126.jpg",
-    "position": "126",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "utaku-battle-steed": {
-  "id": "utaku-battle-steed",
-  "name": "Utaku Battle Steed",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "conflict",
-  "type": "attachment",
-  "is_unique": false,
-  "text": "Attach to a [clan-unicorn] character.\nAttached character gains the <em>Cavalry</em> trait.\n<b>Reaction:</b> After attached character wins a [conflict-military] conflict - honor attached character.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [
-   "mount"
-  ],
-  "cost": "1",
-  "deck_limit": 3,
-  "influence_cost": 1,
-  "elements": [],
-  "strength": null,
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": "+1",
-  "political_bonus": "+1",
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "utaku-battle-steed",
-    "pack_id": "warriors-of-the-wind",
-    "flavor": "",
-    "illustrator": "Charles Urbach",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C17_22.jpg",
-    "position": "22",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "seal-of-the-unicorn": {
-  "id": "seal-of-the-unicorn",
-  "name": "Seal of the Unicorn",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "conflict",
-  "type": "attachment",
-  "is_unique": false,
-  "text": "Attached character gains the [clan-unicorn] clan symbol and the <em>Cavalry</em> trait.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [
-   "item",
-   "seal"
-  ],
-  "cost": "0",
-  "deck_limit": 3,
-  "influence_cost": 1,
-  "elements": [],
-  "strength": null,
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": "+1",
-  "political_bonus": "+0",
-  "splash_banned_in": [],
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "seal-of-the-unicorn",
-    "pack_id": "meditations-on-the-ephemeral",
-    "flavor": "In the name of Lady Shinjo Altansarnai,\nSeeker of the Setting Sun,\nKhan of Khans,\nMistress of the Five Winds,\nDaimyō of the Shinjo, and\nChampion of the Unicorn Clan",
-    "illustrator": "Mauro Dal Bo",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C07_118.jpg",
-    "position": "118",
-    "quantity": 3,
-    "rotated": true
    }
   ]
  },
@@ -2119,316 +1938,15 @@
    }
   ]
  },
- "higashi-kaze-company": {
-  "id": "higashi-kaze-company",
-  "name": "Higashi Kaze Company",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": "No attachments except <em>Weapon</em>.\n<b>Reaction:</b> After this character wins a conflict, choose another participating character with no fate on it - that character does not bow as the result of this conflict's resolution.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "army",
-   "cavalry"
-  ],
-  "cost": "5",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 2,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "6",
-  "political": "3",
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "higashi-kaze-company",
-    "pack_id": "coils-of-power",
-    "flavor": "",
-    "illustrator": "Imad Awan",
-    "image_url": "https://emerald-legacy.github.io/emeralddb-images/ffg/coils-of-power/cop099.jpg",
-    "position": "99",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "minami-kaze-regulars": {
-  "id": "minami-kaze-regulars",
-  "name": "Minami Kaze Regulars",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": "No attachments except <em>Weapon</em>.\n<b>Reaction:</b> After this character wins a conflict in which you have more participating characters than your opponent – gain 1 fate and draw 1 card.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "army",
-   "cavalry"
-  ],
-  "cost": "5",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 2,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "6",
-  "political": "3",
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "minami-kaze-regulars",
-    "pack_id": "elements-unbound",
-    "flavor": "",
-    "illustrator": "Eli Ring",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C14_110.jpg",
-    "position": "110",
-    "quantity": 3,
-    "rotated": true
-   }
-  ]
- },
- "shinjo-altansarnai-2": {
-  "id": "shinjo-altansarnai-2",
-  "name": "Shinjo Altansarnai",
-  "name_extra": "(2)",
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": true,
-  "text": "<b>Action:</b> During a [conflict-military] conflict in which this character is participating - search the top 8 cards of your dynasty deck for a non-unique character with printed cost 3 or lower and put that character into play in the conflict. Shuffle.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "cavalry",
-   "champion"
-  ],
-  "cost": "5",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 2,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "5",
-  "political": "4",
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "shinjo-altansarnai-2",
-    "pack_id": "as-honor-demands",
-    "flavor": "\"We shall fight together.\"",
-    "illustrator": "Leo Avero",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C33_105.jpg",
-    "position": "105",
-    "quantity": 3,
-    "rotated": false
-   }
-  ]
- },
- "battle-maiden-recruit": {
-  "id": "battle-maiden-recruit",
-  "name": "Battle Maiden Recruit",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "dynasty",
-  "type": "character",
-  "is_unique": false,
-  "text": "This character gets +2[conflict-military] while you have claimed the [element-water] or [element-void] ring.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "bushi",
-   "battle-maiden",
-   "cavalry"
-  ],
-  "cost": "0",
-  "deck_limit": 3,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": 0,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": "0",
-  "political": "0",
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "battle-maiden-recruit",
-    "pack_id": "the-fires-within",
-    "flavor": "",
-    "illustrator": "Kathryn Steele",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C11_50.jpg",
-    "position": "50",
-    "quantity": 3,
-    "rotated": true
-   }
-  ]
- },
- "golden-plains-outpost": {
-  "id": "golden-plains-outpost",
-  "name": "Golden Plains Outpost",
-  "name_extra": null,
-  "faction": "unicorn",
-  "side": "province",
-  "type": "stronghold",
-  "is_unique": true,
-  "text": "<b>Action:</b> During a [conflict-military] conflict, bow this stronghold. Choose a <em>Cavalry</em> character you control – move it to that conflict.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "unicorn"
-  ],
-  "traits": [
-   "outpost"
-  ],
-  "cost": null,
-  "deck_limit": 1,
-  "influence_cost": null,
-  "elements": [],
-  "strength": null,
-  "glory": null,
-  "fate": 7,
-  "honor": 10,
-  "influence_pool": 10,
-  "strength_bonus": "+0",
-  "military": null,
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": null,
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "golden-plains-outpost",
-    "pack_id": "core",
-    "flavor": "",
-    "illustrator": "Alayna Lemmer",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_7.jpg",
-    "position": "7",
-    "quantity": 1,
-    "rotated": true
-   }
-  ]
- },
- "meditations-on-the-tao": {
-  "id": "meditations-on-the-tao",
-  "name": "Meditations on the Tao",
-  "name_extra": null,
-  "faction": "neutral",
-  "side": "province",
-  "type": "province",
-  "is_unique": false,
-  "text": "<b>Conflict Action:</b> Choose an attacking character – remove 1 fate from that character.",
-  "restricted_in": [],
-  "banned_in": [],
-  "allowed_clans": [
-   "crab",
-   "crane",
-   "dragon",
-   "lion",
-   "phoenix",
-   "scorpion",
-   "unicorn",
-   "mantis"
-  ],
-  "traits": [],
-  "cost": null,
-  "deck_limit": 1,
-  "influence_cost": null,
-  "elements": [
-   "fire"
-  ],
-  "strength": "4",
-  "glory": null,
-  "fate": null,
-  "honor": null,
-  "influence_pool": null,
-  "strength_bonus": null,
-  "military": null,
-  "political": null,
-  "military_bonus": null,
-  "political_bonus": null,
-  "splash_banned_in": [],
-  "role_restrictions": [],
-  "versions": [
-   {
-    "card_id": "meditations-on-the-tao",
-    "pack_id": "core",
-    "flavor": "\"Appreciation of beauty is the beginning of wisdom.\" - Tao of Shinsei",
-    "illustrator": "Eli Ring",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_20.jpg",
-    "position": "20",
-    "quantity": 2,
-    "rotated": true
-   },
-   {
-    "card_id": "meditations-on-the-tao",
-    "pack_id": "emerald-core-set",
-    "flavor": "\"The motion of the Tao is the return\nThe way of the Tao is yielding\nAll things under the Sky come from existence\nAll that exists comes out of Nothing\"\n— Laozi",
-    "illustrator": "Thulsa Doom",
-    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs224.jpg",
-    "position": "224",
-    "quantity": 1,
-    "rotated": false
-   }
-  ]
- },
- "challenge-on-the-fields": {
-  "id": "challenge-on-the-fields",
-  "name": "Challenge on the Fields",
+ "spoils-of-war": {
+  "id": "spoils-of-war",
+  "name": "Spoils of War",
   "name_extra": null,
   "faction": "unicorn",
   "side": "conflict",
   "type": "event",
   "is_unique": false,
-  "text": "<b>Action:</b> During a conflict, initiate a [conflict-military] duel - resolve the duel, giving each dueling character +1[conflict-military] for each other participating character controlled by the same player until the end of the duel. Move the duel's loser home.",
+  "text": "<b>Reaction:</b> After you win a [conflict-military] as the attacker - draw 3 cards. Then, choose and discard 1 card from your hand. (Max 1 per conflict.)",
   "restricted_in": [],
   "banned_in": [],
   "allowed_clans": [
@@ -2460,12 +1978,479 @@
   "role_restrictions": [],
   "versions": [
    {
-    "card_id": "challenge-on-the-fields",
+    "card_id": "spoils-of-war",
+    "pack_id": "warriors-of-the-wind",
+    "flavor": "\"It would be a shame to leave such craftsmanship to rust.\"",
+    "illustrator": "Andreia Ugrai",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C17_24.jpg",
+    "position": "24",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "spyglass": {
+  "id": "spyglass",
+  "name": "Spyglass",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "conflict",
+  "type": "attachment",
+  "is_unique": false,
+  "text": "<b>Reaction:</b> After attached character commits to a conflict or moves to a conflict – draw 1 card. (Limit twice per round.)",
+  "restricted_in": [],
+  "banned_in": [
+   "standard",
+   "jade-edict",
+   "skirmish"
+  ],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "item",
+   "gaijin"
+  ],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": 2,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+0",
+  "political_bonus": "+1",
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "spyglass",
+    "pack_id": "core",
+    "flavor": "",
+    "illustrator": "Aaron Miller",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_193.jpg",
+    "position": "193",
+    "quantity": 1,
+    "rotated": true
+   }
+  ]
+ },
+ "temple-of-the-dragons": {
+  "id": "temple-of-the-dragons",
+  "name": "Temple of the Dragons",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "province",
+  "type": "province",
+  "is_unique": false,
+  "text": "<b>Reaction:</b> After this province is revealed - resolve the contested ring's effects as if you were the attacking player.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "temple"
+  ],
+  "cost": null,
+  "deck_limit": 1,
+  "influence_cost": null,
+  "elements": [
+   "void"
+  ],
+  "strength": "4",
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "temple-of-the-dragons",
     "pack_id": "children-of-the-empire",
-    "flavor": "\"Face me, Shono! Fight me now!\" - Matsu Mitsuko",
-    "illustrator": "Tomas Muir",
-    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_75.jpg",
-    "position": "75",
+    "flavor": "",
+    "illustrator": "Leanna Crossan",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_4.jpg",
+    "position": "4",
+    "quantity": 1,
+    "rotated": false
+   }
+  ]
+ },
+ "twilight-rider": {
+  "id": "twilight-rider",
+  "name": "Twilight Rider",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "Rally. <i>(After this card is revealed in a province, add the top card of your dynasty deck to the province, faceup.)</i>\n<b>Reaction:</b> After this character moves to a conflict, choose a character – ready that character.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "cavalry",
+   "scout"
+  ],
+  "cost": "3",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "3",
+  "political": "1",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "twilight-rider",
+    "pack_id": "spreading-shadows",
+    "flavor": "",
+    "illustrator": "Imad Awan",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C30_39.jpg",
+    "position": "39",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "ujik-tactics": {
+  "id": "ujik-tactics",
+  "name": "Ujik Tactics",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a conflict - each non-unique character you control gets +1[conflict-military] until the end of the conflict.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "gaijin",
+   "tactic"
+  ],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 2,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "ujik-tactics",
+    "pack_id": "justice-for-satsume",
+    "flavor": "It was only by adopting the tactics of their assailants that the Ki-Rin Clan survived their journey across the Plain of Wind and Stone.",
+    "illustrator": "Shen Fei",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C21_66.jpg",
+    "position": "66",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "utaku-battle-steed": {
+  "id": "utaku-battle-steed",
+  "name": "Utaku Battle Steed",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "conflict",
+  "type": "attachment",
+  "is_unique": false,
+  "text": "Attach to a [clan-unicorn] character.\nAttached character gains the <em>Cavalry</em> trait.\n<b>Reaction:</b> After attached character wins a [conflict-military] conflict - honor attached character.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "mount"
+  ],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": 1,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+1",
+  "political_bonus": "+1",
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "utaku-battle-steed",
+    "pack_id": "warriors-of-the-wind",
+    "flavor": "",
+    "illustrator": "Charles Urbach",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C17_22.jpg",
+    "position": "22",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "utaku-infantry": {
+  "id": "utaku-infantry",
+  "name": "Utaku Infantry",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "While this character is participating in a conflict, it gets +1[conflict-military] and +1[conflict-political] for each participating [clan-unicorn] character you control.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi"
+  ],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "0",
+  "political": "0",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "utaku-infantry",
+    "pack_id": "core",
+    "flavor": "",
+    "illustrator": "Bob Stevlic",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_110.jpg",
+    "position": "110",
+    "quantity": 1,
+    "rotated": true
+   },
+   {
+    "card_id": "utaku-infantry",
+    "pack_id": "emerald-core-set",
+    "flavor": "Forbidden to ride in battle, Utaku men are like the high banks of the river; their sisters are the current, swift and unstoppable.",
+    "illustrator": "Kevin Sanborn",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs195.jpg",
+    "position": "195",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "warrior-poet": {
+  "id": "warrior-poet",
+  "name": "Warrior Poet",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "<b>Action:</b> While this character is participating in a conflict – each participating character controlled by your opponent gets –1[conflict-military] and –1[conflict-political] until the end of the conflict.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "cavalry"
+  ],
+  "cost": "3",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "2",
+  "political": "2",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "warrior-poet",
+    "pack_id": "core",
+    "flavor": "",
+    "illustrator": "Le Vuong",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_117.jpg",
+    "position": "117",
+    "quantity": 1,
+    "rotated": true
+   }
+  ]
+ },
+ "worldly-shiotome": {
+  "id": "worldly-shiotome",
+  "name": "Worldly Shiotome",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "<b>Reaction:</b> After you play a <em>Gaijin</em> card - honor this character.\n<b>Card design by <em>Legend of the Five Rings</em> community.</b>",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "cavalry",
+   "battle-maiden"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "2",
+  "political": "2",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "worldly-shiotome",
+    "pack_id": "atonement",
+    "flavor": "",
+    "illustrator": "Mario Wibisono",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C34_126.jpg",
+    "position": "126",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ "young-warrior": {
+  "id": "young-warrior",
+  "name": "Young Warrior",
+  "name_extra": null,
+  "faction": "unicorn",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "This character must be declared as an attacker or defender in the first conflict declared each round.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "unicorn"
+  ],
+  "traits": [
+   "bushi",
+   "cavalry",
+   "battle-maiden"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "3",
+  "political": "3",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "young-warrior",
+    "pack_id": "warriors-of-the-wind",
+    "flavor": "Utaku women prove early on whether they have the strength and dedication to join the venerated ranks of the shiotome.",
+    "illustrator": "Anthony Grabski",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C17_5.jpg",
+    "position": "5",
     "quantity": 3,
     "rotated": false
    }

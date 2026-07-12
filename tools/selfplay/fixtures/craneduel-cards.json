@@ -1,0 +1,2423 @@
+[
+ {
+  "id": "arbiter-of-authority",
+  "name": "Arbiter of Authority",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "character",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a conflict, initiate a [conflict-political] duel – your opponent may dishonor his or her character to refuse the duel. Otherwise, resolve the duel. Bow and move home the duel's loser.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "courtier",
+   "duelist"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": 2,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "0",
+  "political": "2",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "arbiter-of-authority",
+    "pack_id": "bonds-of-blood",
+    "flavor": "Yuuhisa immediately regretted asking who had requested the historical records.",
+    "illustrator": "Eli Ring",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C20_34.jpg",
+    "position": "34",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "arrogant-kakita",
+  "name": "Arrogant Kakita",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "Pride.\n<b>Forced Reaction:</b> After defenders are declared during a conflict in which this character is participating, initiate a [conflict-military] duel - resolve the duel. If this character is the duel's loser, move it home. (Unlimited.)",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi",
+   "duelist"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "3",
+  "political": "2",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "arrogant-kakita",
+    "pack_id": "the-temptation-of-the-scorpion",
+    "flavor": "",
+    "illustrator": "Lukas Banas",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C39_68.jpg",
+    "position": "68",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "aspiring-challenger",
+  "name": "Aspiring Challenger",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "Composure - This character gets +2 glory. <i>(You have composure if your honor bid is lower than an opponent's.)</i>\n<b>Action: </b>During a conflict, initiate a [conflict-military] duel - resolve the duel.  Honor the duel's winner.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "bushi",
+   "duelist",
+   "mantis-clan"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "2",
+  "political": "2",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "aspiring-challenger",
+    "pack_id": "children-of-the-empire",
+    "flavor": "",
+    "illustrator": "Felipe Gaona",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_41.jpg",
+    "position": "41",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "assassination",
+  "name": "Assassination",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Conflict Action:</b> Lose 3 honor. Choose a character with printed cost 2 or lower – discard that character. (Max 1 per round.)",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 0,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "assassination",
+    "pack_id": "core",
+    "flavor": null,
+    "illustrator": "Greg Lambrakis",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_203.jpg",
+    "position": "203",
+    "quantity": 2,
+    "rotated": true
+   },
+   {
+    "card_id": "assassination",
+    "pack_id": "emerald-core-set",
+    "flavor": "Steel whispered through silk and flesh. In the morning, they would find the body and speak of shadows and dishonor — but tonight, the deed was done.",
+    "illustrator": "Valentine",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs242.jpg",
+    "position": "242",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "cautious-scout",
+  "name": "Cautious Scout",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "While this character is attacking alone, treat the defending province as if its printed text box were blank (except for <em>Traits</em>).",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi",
+   "scout"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "2",
+  "political": "0",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "cautious-scout",
+    "pack_id": "core",
+    "flavor": "They told him to be careful, but there was only one way to know for sure.",
+    "illustrator": "Sergio Camarena",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_43.jpg",
+    "position": "43",
+    "quantity": 1,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "courtly-challenger",
+  "name": "Courtly Challenger",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "After this character wins a duel, honor it.  After this character loses a duel, dishonor it.\n<b>Action: </b>During a conflict, initiate a [conflict-political] duel - resolve the duel.  The controller of the duel's winner draws 2 cards.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "courtier",
+   "duelist"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": "2",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "courtly-challenger",
+    "pack_id": "children-of-the-empire",
+    "flavor": "",
+    "illustrator": "Joyce Maureira",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_12.jpg",
+    "position": "12",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "cunning-negotiator",
+  "name": "Cunning Negotiator",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "Rally.\n<b>Action:</b> During a conflict, initiate a [conflict-political] duel against a character your opponent controls of their choice - resolve the duel. The controller of the duel's winner may trigger the attacked province's action ability as if they controlled the province, even if it has already been triggered this round (or specified period).",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "courtier",
+   "duelist"
+  ],
+  "cost": "4",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "1",
+  "political": "5",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "cunning-negotiator",
+    "pack_id": "spreading-shadows",
+    "flavor": "",
+    "illustrator": "Jake Murray",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C30_32.jpg",
+    "position": "32",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "daidoji-harrier",
+  "name": "Daidoji Harrier",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "<b>Reaction:</b> After this character wins a [conflict-military] conflict, your opponent chooses 2 cards in his or her hand - reveal those cards. You choose and discard one of them.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi",
+   "shinobi"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "2",
+  "political": "1",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "daidoji-harrier",
+    "pack_id": "shoju-s-duty",
+    "flavor": "\"Vitory will only be achieved through preparedness.\" - Daidoji Uji",
+    "illustrator": "Pavel Kolomeyets",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C24_113.jpg",
+    "position": "113",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "daidoji-iron-warrior",
+  "name": "Daidoji Iron Warrior",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "<b>Reaction:</b> After this character wins a conflict - each player discards cards from their hand until they have 4 or fewer cards in hand.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi"
+  ],
+  "cost": "3",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "3",
+  "political": "3",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "daidoji-iron-warrior",
+    "pack_id": "peace-at-any-cost",
+    "flavor": "\"We may be outnumbered, but we will never be outmatched.\"",
+    "illustrator": "Imad Awan",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/ffg/peace-at-any-cost/pac114.jpg",
+    "position": "114",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "daidoji-nerishma",
+  "name": "Daidoji Nerishma",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": true,
+  "text": "<b>Action:</b> Choose a facedown card in one of your provinces – turn that card faceup.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi",
+   "scout"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "3",
+  "political": "1",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "daidoji-nerishma",
+    "pack_id": "core",
+    "flavor": "\"It's an ambush! Be ready!\"",
+    "illustrator": "Polar Engine",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_46.jpg",
+    "position": "46",
+    "quantity": 1,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "daidoji-uji-2",
+  "name": "Daidoji Uji",
+  "name_extra": "(2)",
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": true,
+  "text": "While this character is honored, you may play each card underneath it as if it were in your hand.\n<b>Reaction:</b> After this character enters play - search your conflict deck for 4 cards and place them underneath this character facedown <i>(out of play)</i>. When this character leaves play, remove each facedown card underneath it from the game.",
+  "restricted_in": [],
+  "banned_in": [
+   "jade-edict",
+   "obsidian"
+  ],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi",
+   "daimyo",
+   "shinobi"
+  ],
+  "cost": "5",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "6",
+  "political": "2",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "daidoji-uji-2",
+    "pack_id": "honor-in-flames",
+    "flavor": "",
+    "illustrator": "Joshua Cairos",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C37_28.jpg",
+    "position": "28",
+    "quantity": 3,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "daimyo-s-gunbai",
+  "name": "Daimyō's Gunbai",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "conflict",
+  "type": "attachment",
+  "is_unique": true,
+  "text": "Restricted.\n<b>Action:</b> During a conflict, if this card is in your hand, reveal it and initiate a [conflict-military] duel against a character your opponent controls of his or her choice - resolve the duel. Put this card into play attached to the duel's winner, if able. Otherwise, discard it.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "item"
+  ],
+  "cost": null,
+  "deck_limit": 3,
+  "influence_cost": 0,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+2",
+  "political_bonus": "+2",
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "daimyo-s-gunbai",
+    "pack_id": "masters-of-the-court",
+    "flavor": "",
+    "illustrator": "Robin Woulters",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C18_27.jpg",
+    "position": "27",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "disparaging-challenge",
+  "name": "Disparaging Challenge",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a conflict, initiate a [conflict-political] duel against a character your opponent controls in their home area - resolve the duel. Move the duel's loser to the conflict, if able. Otherwise, move it home.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": 2,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "disparaging-challenge",
+    "pack_id": "a-crimson-offering",
+    "flavor": "",
+    "illustrator": "Andreia Ugrai",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C38_59.jpg",
+    "position": "59",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "doji-challenger",
+  "name": "Doji Challenger",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "<b>Action:</b> While this character is attacking, choose a character controlled by your opponent – move that character to this conflict.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi",
+   "duelist"
+  ],
+  "cost": "3",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "3",
+  "political": "3",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "doji-challenger",
+    "pack_id": "core",
+    "flavor": "\"I hope you are prepared to defend your words with steel!\"",
+    "illustrator": "Zezhou Chen",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_47.jpg",
+    "position": "47",
+    "quantity": 1,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "doji-kuwanan",
+  "name": "Doji Kuwanan",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": true,
+  "text": "If you control Doji Hotaru, discard her.\n<b>Action:</b> During a [conflict-military] conflict in which this character is participating, choose a participating character with lower [conflict-military] skill than this character - bow that character.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi",
+   "champion"
+  ],
+  "cost": "5",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 3,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "5",
+  "political": "4",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "doji-kuwanan",
+    "pack_id": "justice-for-satsume",
+    "flavor": "\"I begin to suspect you don't even care about the truth.\"",
+    "illustrator": "Agri Karuniawan",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C21_50.jpg",
+    "position": "50",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "duel-to-the-death",
+  "name": "Duel to the Death",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "\n<b>Action:</b> During a conflict, initiate a [conflict-military] duel – your opponent may dishonor his or her character to refuse the duel. Otherwise, resolve the duel. Discard the duel's loser.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": 3,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "duel-to-the-death",
+    "pack_id": "bonds-of-blood",
+    "flavor": "\"So be it.\" - Kakita Toshimoko",
+    "illustrator": "Sergio Camarena",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C20_36.jpg",
+    "position": "36",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "duelist-training",
+  "name": "Duelist Training",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "attachment",
+  "is_unique": false,
+  "text": "Attached character gains: \"<b>Action:</b> While this character is participating in a conflict, choose a participating character controlled by your opponent – challenge that character to a [conflict-military] duel. Instead of giving honor for this duel's bid, a player may choose and discard the required number of cards from hand. Bow the loser of the duel.\"",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "technique"
+  ],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": 1,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+0",
+  "political_bonus": "+0",
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "duelist-training",
+    "pack_id": "core",
+    "flavor": null,
+    "illustrator": "Charles Urbach",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_142.jpg",
+    "position": "142",
+    "quantity": 1,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "fine-katana",
+  "name": "Fine Katana",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "conflict",
+  "type": "attachment",
+  "is_unique": false,
+  "text": "Restricted. <i>(No more than two restricted attachments per character.)</i>",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "weapon"
+  ],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 0,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+2",
+  "political_bonus": "+0",
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "fine-katana",
+    "pack_id": "core",
+    "flavor": "Immortal steel waits\nVenerated divine blade\nThe fires of the soul",
+    "illustrator": "Brent Chumley",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_200.jpg",
+    "position": "200",
+    "quantity": 2,
+    "rotated": true
+   },
+   {
+    "card_id": "fine-katana",
+    "pack_id": "emerald-core-set",
+    "flavor": "“Just as a horse must have endurance and no defects, so it is with weapons. Horses should walk strongly, and swords and companion swords should cut strongly.”\n— Miyamoto Musashi",
+    "illustrator": "Thulsa Doom",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs257.jpg",
+    "position": "257",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "game-of-sadane",
+  "name": "Game of Sadane",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a conflict, choose a participating character you control and a participating character your opponent controls – your character challenges the opponent's character to a [conflict-political] duel. Honor the duel's winner and dishonor the duel's loser.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": 2,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "game-of-sadane",
+    "pack_id": "all-and-nothing",
+    "flavor": "",
+    "illustrator": "Aaron Miller",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C13_93.jpg",
+    "position": "93",
+    "quantity": 3,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "graceful-guardian",
+  "name": "Graceful Guardian",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a conflict in which this character is participating - during each player's next action opportunity in this conflict, increase the cost to play cards by 1.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi"
+  ],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "2",
+  "political": "0",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "graceful-guardian",
+    "pack_id": "the-children-of-heaven",
+    "flavor": "\"Victory without honor is no victory at all.\"",
+    "illustrator": "Asep Ariyanto",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C22_70.jpg",
+    "position": "70",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "iaijutsu-master",
+  "name": "Iaijutsu Master",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "attachment",
+  "is_unique": false,
+  "text": "Attach to a <em>Duelist</em> character.\n<b>Reaction:</b> After honor dials are revealed during a duel in which attached character is participating - increase or decrease the value of your bid by 1 <i>(to a minimum of 0)</i>.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "skill"
+  ],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": 1,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+1",
+  "political_bonus": "+1",
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "iaijutsu-master",
+    "pack_id": "children-of-the-empire",
+    "flavor": "",
+    "illustrator": "Lin Hsiang",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_53.jpg",
+    "position": "53",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "insult-to-injury",
+  "name": "Insult to Injury",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Reaction:</b> After a <em>Duelist</em> character you control wins a duel – dishonor the losing character.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 1,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "insult-to-injury",
+    "pack_id": "the-fires-within",
+    "flavor": "\"Surely, your blade must have been caught in its sheath for your draw to have been so slow.\"",
+    "illustrator": "Le Vuong",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C11_53.jpg",
+    "position": "53",
+    "quantity": 3,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "iron-crane-legion",
+  "name": "Iron Crane Legion",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "No attachments except <em>Weapon</em>.\nDuring conflicts in which you are the attacking or defending player, X is equal to the number of cards in your opponent's hand. <i>(Otherwise, X is zero.)</i>",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi",
+   "army"
+  ],
+  "cost": "4",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "X",
+  "political": "3",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "iron-crane-legion",
+    "pack_id": "the-children-of-heaven",
+    "flavor": "",
+    "illustrator": "Lukas Banas",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C22_71.jpg",
+    "position": "71",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "issue-a-challenge",
+  "name": "Issue a Challenge",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Reaction:</b> After a <em>Bushi</em> character you control attacks alone - your opponent cannot declare more than 1 character as a defender in this conflict.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 2,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "issue-a-challenge",
+    "pack_id": "the-children-of-heaven",
+    "flavor": "\"If your skill with a blade is even half of what you have boasted, you will face me alone like a true samurai.\"",
+    "illustrator": "Carlos Palma Cruchaga",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C22_82.jpg",
+    "position": "82",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "kakita-blade",
+  "name": "Kakita Blade",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "attachment",
+  "is_unique": false,
+  "text": "Restricted.\nAttached character gets +2[conflict-political] while it is involved in a duel.\n<b>Reaction:</b> After attached character wins a duel – gain 1 honor.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "weapon"
+  ],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": 2,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+2",
+  "political_bonus": "+0",
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "kakita-blade",
+    "pack_id": "for-honor-and-glory",
+    "flavor": null,
+    "illustrator": "Shen Fei",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C03_33.jpg",
+    "position": "33",
+    "quantity": 3,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "kakita-dojo",
+  "name": "Kakita Dōjō",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "holding",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a conflict, initiate a [conflict-military] duel – resolve the duel. Until the end of the conflict, the duel's loser cannot trigger its abilities. If the duel's winner is a <em>Duelist</em>, bow the duel's loser as well.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "dojo"
+  ],
+  "cost": null,
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": "+1",
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "kakita-dojo",
+    "pack_id": "children-of-the-empire",
+    "flavor": "",
+    "illustrator": "Lin Hsiang",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_15.jpg",
+    "position": "15",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "kakita-favorite",
+  "name": "Kakita Favorite",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "This character gets +2[conflict-political] while it is involved in a duel.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi",
+   "duelist"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "3",
+  "political": "1",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "kakita-favorite",
+    "pack_id": "masters-of-the-court",
+    "flavor": "\"They will forget your name when they hear of mine.\"",
+    "illustrator": "Drew Baker",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C18_6.jpg",
+    "position": "6",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "kakita-kaezin",
+  "name": "Kakita Kaezin",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": true,
+  "text": "<b>Action:</b> While this character is participating in a conflict, your opponent must choose a participating character he or she controls – challenge that character to a [conflict-military] duel. If this character wins, move each character not involved in the duel home. If it loses, send it home.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi",
+   "duelist",
+   "kenshinzen"
+  ],
+  "cost": "3",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "3",
+  "political": "2",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "kakita-kaezin",
+    "pack_id": "core",
+    "flavor": "\"For the coward, there is no life.\nFor the hero, there is no death.\"",
+    "illustrator": "Diego Gisbert Llorens",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_49.jpg",
+    "position": "49",
+    "quantity": 1,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "kakita-toshimoko",
+  "name": "Kakita Toshimoko",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": true,
+  "text": "<b>Interrupt:</b> When this character would lose a conflict, initiate a [conflict-military] duel against a character your opponent controls of his or her choice - resolve the duel. If this character wins, instead of resolving the conflict as normal, both players count 0 total skill in the conflict. <i>(Return the contested ring to the unclaimed ring pool. The conflict has no winner.)</i>",
+  "restricted_in": [
+   "standard",
+   "emerald"
+  ],
+  "banned_in": [
+   "jade-edict"
+  ],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi",
+   "duelist"
+  ],
+  "cost": "4",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "4",
+  "political": "3",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "kakita-toshimoko",
+    "pack_id": "children-of-the-empire",
+    "flavor": "",
+    "illustrator": "Agri Karuniawan",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_14.jpg",
+    "position": "14",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "kakita-yuri",
+  "name": "Kakita Yuri",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": true,
+  "text": "<b>Action:</b> During a conflict, initiate a [conflict-political] duel against a character your opponent controls of his or her choice - resolve the duel. The controller of the duel's loser cannot declare [conflict-military] conflicts this phase.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "courtier",
+   "duelist"
+  ],
+  "cost": "3",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "0",
+  "political": "3",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "kakita-yuri",
+    "pack_id": "masters-of-the-court",
+    "flavor": "",
+    "illustrator": "Filipe Gaona",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C18_8.jpg",
+    "position": "8",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "kakita-s-final-stance",
+  "name": "Kakita's Final Stance",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a [conflict-military] conflict, choose a participating character - until the end of the conflict, that character cannot be bowed by opponent's card effects. If it is involved in a duel during this conflict, it does not bow as a result of this conflict's resolution.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "technique"
+  ],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": 2,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "kakita-s-final-stance",
+    "pack_id": "shoju-s-duty",
+    "flavor": "",
+    "illustrator": "Drew Baker",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C24_125.jpg",
+    "position": "125",
+    "quantity": 3,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "kyuden-kakita",
+  "name": "Kyūden Kakita",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "province",
+  "type": "stronghold",
+  "is_unique": true,
+  "text": "<b>Reaction:</b> After a duel resolves, bow this stronghold and choose a character you control that was involved in the duel - honor that character.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "palace"
+  ],
+  "cost": null,
+  "deck_limit": 1,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": 7,
+  "honor": 11,
+  "influence_pool": 9,
+  "strength_bonus": "+1",
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "kyuden-kakita",
+    "pack_id": "masters-of-the-court",
+    "flavor": "",
+    "illustrator": "Nele Diel",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C18_1.jpg",
+    "position": "1",
+    "quantity": 1,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "local-daimyo-s-retainer",
+  "name": "Local Daimyō's Retainer",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "character",
+  "is_unique": false,
+  "text": "You can only play this card if you control at least 3 faceup provinces.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "bushi",
+   "ronin"
+  ],
+  "cost": "1",
+  "deck_limit": 3,
+  "influence_cost": 1,
+  "elements": [],
+  "strength": null,
+  "glory": 1,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "2",
+  "political": "2",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "local-daimyo-s-retainer",
+    "pack_id": "campaigns-of-conquest",
+    "flavor": "\"My lord, is it wise to bring such lowly rōnin into your service? Surely there is a Doji or Kakita pupil who would serve better than... her.\"",
+    "illustrator": "Lukas Banas",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C32_87.jpg",
+    "position": "87",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "magistrate-station",
+  "name": "Magistrate Station",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "province",
+  "type": "province",
+  "is_unique": false,
+  "text": "<b>Action:</b> Choose an honored character – ready that character.",
+  "restricted_in": [],
+  "banned_in": [
+   "standard",
+   "jade-edict"
+  ],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [],
+  "cost": null,
+  "deck_limit": 1,
+  "influence_cost": null,
+  "elements": [
+   "fire"
+  ],
+  "strength": "3",
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "magistrate-station",
+    "pack_id": "elements-unbound",
+    "flavor": "",
+    "illustrator": "Caravan Studio",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C14_102.jpg",
+    "position": "102",
+    "quantity": 3,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "make-your-case",
+  "name": "Make Your Case",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<em>Seeker</em> role only.\n<b>Action:</b> During a conflict, initiate a [conflict-political] duel against a character your opponent controls of their choice - resolve the duel. Place 1 fate on the duel's winner.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 0,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [
+   "seeker"
+  ],
+  "versions": [
+   {
+    "card_id": "make-your-case",
+    "pack_id": "twisted-loyalties",
+    "flavor": "",
+    "illustrator": "Joshua Cairos",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C36_22.jpg",
+    "position": "22",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "manicured-garden",
+  "name": "Manicured Garden",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "province",
+  "type": "province",
+  "is_unique": false,
+  "text": "<b>Conflict Action:</b> Gain 1 fate.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": null,
+  "deck_limit": 1,
+  "influence_cost": null,
+  "elements": [
+   "air"
+  ],
+  "strength": "4",
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "manicured-garden",
+    "pack_id": "core",
+    "flavor": "The perfect garden maintains all five elements in harmony.",
+    "illustrator": "Stefano Baldo",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_19.jpg",
+    "position": "19",
+    "quantity": 2,
+    "rotated": true
+   },
+   {
+    "card_id": "manicured-garden",
+    "pack_id": "emerald-core-set",
+    "flavor": "“In equilibrium, beauty is revealed.”",
+    "illustrator": "Ryan Nock",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs223.jpg",
+    "position": "223",
+    "quantity": 1,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "ornate-fan",
+  "name": "Ornate Fan",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "conflict",
+  "type": "attachment",
+  "is_unique": false,
+  "text": "Restricted. <i>(No more than two restricted attachments per character.)</i>",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "item"
+  ],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 0,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+0",
+  "political_bonus": "+2",
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "ornate-fan",
+    "pack_id": "core",
+    "flavor": "At times, the ornamentation is the point. At others, it is merely a distraction.",
+    "illustrator": "Ancor Gil Hernandez",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_201.jpg",
+    "position": "201",
+    "quantity": 2,
+    "rotated": true
+   },
+   {
+    "card_id": "ornate-fan",
+    "pack_id": "emerald-core-set",
+    "flavor": "“There is another kind of artist, who sets more soberly about his work, striving to give real beauty to the things which men actually use and to give to them the shape which tradition has ordained.” \n— Murasaki Shikibu",
+    "illustrator": "Thulsa Doom",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs260.jpg",
+    "position": "260",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "policy-debate",
+  "name": "Policy Debate",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a conflict, choose a participating character you control and a participating character your opponent controls – your character challenges the opponent's character to a [conflict-political] duel. The controller of the losing character reveals his or her hand. That player's opponent chooses and discards 1 card from it.",
+  "restricted_in": [],
+  "banned_in": [
+   "standard",
+   "jade-edict",
+   "obsidian"
+  ],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 0,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "policy-debate",
+    "pack_id": "for-honor-and-glory",
+    "flavor": null,
+    "illustrator": "Borja Pindado",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C03_40.jpg",
+    "position": "40",
+    "quantity": 3,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "proving-ground",
+  "name": "Proving Ground",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "dynasty",
+  "type": "holding",
+  "is_unique": false,
+  "text": "<b>Reaction:</b> After a character you control wins a duel - draw 1 card. (Limit twice per round.)",
+  "restricted_in": [
+   "emerald"
+  ],
+  "banned_in": [
+   "jade-edict"
+  ],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "dojo"
+  ],
+  "cost": null,
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": "+0",
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "proving-ground",
+    "pack_id": "children-of-the-empire",
+    "flavor": "",
+    "illustrator": "Lukas Banas",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_48.jpg",
+    "position": "48",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "seal-of-the-crane",
+  "name": "Seal of the Crane",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "attachment",
+  "is_unique": false,
+  "text": "Attached character gains the [clan-crane] clan symbol and the <em>Duelist</em> trait.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "item",
+   "seal"
+  ],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 1,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+0",
+  "political_bonus": "+1",
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "seal-of-the-crane",
+    "pack_id": "tears-of-amaterasu",
+    "flavor": "In the name of Her Elegance, Lady Doji Hotaru,\nTrusted Left Hand of the Emperor,\nBeautiful Mistriss of the Arts,\nSkillfull Daimyō of the Doji, and\nIndomitable Champion of the Crane Clan",
+    "illustrator": "Mauro Dal Bo",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C02_12.jpg",
+    "position": "12",
+    "quantity": 3,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "seeker-of-air",
+  "name": "Seeker of Air",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "role",
+  "type": "role",
+  "is_unique": false,
+  "text": "You may replace 1 province of any element with an additional [element-air] province while deckbuilding.\n<b>Reaction:</b> After an [element-air] province you control is revealed – gain 1 fate.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [
+   "seeker",
+   "air"
+  ],
+  "cost": null,
+  "deck_limit": 1,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "seeker-of-air",
+    "pack_id": "core",
+    "flavor": "",
+    "illustrator": "–",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs266.jpg",
+    "position": "214B",
+    "quantity": 1,
+    "rotated": true
+   },
+   {
+    "card_id": "seeker-of-air",
+    "pack_id": "emerald-core-set",
+    "flavor": "",
+    "illustrator": "",
+    "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs266.jpg",
+    "position": "266",
+    "quantity": 1,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "shameful-display",
+  "name": "Shameful Display",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "province",
+  "type": "province",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a conflict at this province, choose 2 participating characters – honor one of those characters and dishonor the other.",
+  "restricted_in": [],
+  "banned_in": [
+   "jade-edict"
+  ],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": null,
+  "deck_limit": 1,
+  "influence_cost": null,
+  "elements": [
+   "void"
+  ],
+  "strength": "3",
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "shameful-display",
+    "pack_id": "core",
+    "flavor": "",
+    "illustrator": "Polar Engine",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_24.jpg",
+    "position": "24",
+    "quantity": 2,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "shukujo",
+  "name": "Shukujo",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "attachment",
+  "is_unique": true,
+  "text": "Attach to a unique [clan-crane] character you control. Ancestral. Restricted.\nIf attached character has the <em>Champion</em> trait, it gains \"<b>Action:</b> During a conflict in which this character is participating – switch the conflict type.\"",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "weapon"
+  ],
+  "cost": "2",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": "+2",
+  "political_bonus": "+3",
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "shukujo",
+    "pack_id": "a-champion-s-foresight",
+    "flavor": "",
+    "illustrator": "Carlos Palma Cruchaga",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C23_104.jpg",
+    "position": "104",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "storied-defeat",
+  "name": "Storied Defeat",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "conflict",
+  "type": "event",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a conflict, choose a character that has lost a duel during this conflict - bow that character. You may spend 1 fate to dishonor that character.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": "0",
+  "deck_limit": 3,
+  "influence_cost": 2,
+  "elements": [],
+  "strength": null,
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "storied-defeat",
+    "pack_id": "children-of-the-empire",
+    "flavor": "An honorable lineage, undone by a single stroke.",
+    "illustrator": "Le Vuong",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_54.jpg",
+    "position": "54",
+    "quantity": 3,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "tengu-sensei",
+  "name": "Tengu Sensei",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": false,
+  "text": "Covert.\n<b>Reaction:</b> After this character chooses a character using covert – that character cannot be declared as an attacker this phase.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "bushi",
+   "creature",
+   "duelist"
+  ],
+  "cost": "5",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 2,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": "4",
+  "political": "2",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "tengu-sensei",
+    "pack_id": "elements-unbound",
+    "flavor": "",
+    "illustrator": "Diana Martinez",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C14_105.jpg",
+    "position": "105",
+    "quantity": 3,
+    "rotated": true
+   }
+  ]
+ },
+ {
+  "id": "tsuma",
+  "name": "Tsuma",
+  "name_extra": null,
+  "faction": "crane",
+  "side": "province",
+  "type": "province",
+  "is_unique": true,
+  "text": "Eminent. <i>(This province starts the game faceup and cannot be turned facedown. It cannot be a stronghold province.)</i>\nEach character played from this province enters play honored.",
+  "restricted_in": [
+   "emerald"
+  ],
+  "banned_in": [],
+  "allowed_clans": [
+   "crane"
+  ],
+  "traits": [
+   "city"
+  ],
+  "cost": null,
+  "deck_limit": 1,
+  "influence_cost": null,
+  "elements": [
+   "air",
+   "fire"
+  ],
+  "strength": "3",
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "tsuma",
+    "pack_id": "in-pursuit-of-truth",
+    "flavor": "",
+    "illustrator": "Daniel Alekow",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C31_49.jpg",
+    "position": "49",
+    "quantity": 1,
+    "rotated": false
+   }
+  ]
+ },
+ {
+  "id": "vassal-fields",
+  "name": "Vassal Fields",
+  "name_extra": null,
+  "faction": "neutral",
+  "side": "province",
+  "type": "province",
+  "is_unique": false,
+  "text": "<b>Action:</b> During a conflict at this province - your opponent loses 1 fate.",
+  "restricted_in": [],
+  "banned_in": [],
+  "allowed_clans": [
+   "crab",
+   "crane",
+   "dragon",
+   "lion",
+   "phoenix",
+   "scorpion",
+   "unicorn",
+   "mantis"
+  ],
+  "traits": [],
+  "cost": null,
+  "deck_limit": 1,
+  "influence_cost": null,
+  "elements": [
+   "earth"
+  ],
+  "strength": "4",
+  "glory": null,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": null,
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": null,
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "vassal-fields",
+    "pack_id": "children-of-the-empire",
+    "flavor": "\"New daimyō, same tax.\"",
+    "illustrator": "IFS",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_5.jpg",
+    "position": "5",
+    "quantity": 1,
+    "rotated": false
+   }
+  ]
+ }
+]

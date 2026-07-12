@@ -102,4 +102,44 @@ function loadScorpionDeck() {
     return buildDeck(decklist, cardsById);
 }
 
-module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadCraneDeck, loadCrabDeck, loadScorpionDeck, FIXTURES };
+function loadLionDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'lion-decklist.json'), 'utf8'));
+    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'lion-cards.json'), 'utf8'));
+    const cardsById = {};
+    for(const card of cardsArray) {
+        cardsById[card.id] = card;
+    }
+    return buildDeck(decklist, cardsById);
+}
+
+function loadPhoenixDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'phoenix-decklist.json'), 'utf8'));
+    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'phoenix-cards.json'), 'utf8'));
+    const cardsById = {};
+    for(const card of cardsArray) {
+        cardsById[card.id] = card;
+    }
+    return buildDeck(decklist, cardsById);
+}
+
+function loadDragonDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-decklist.json'), 'utf8'));
+    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-cards.json'), 'utf8'));
+    const cardsById = {};
+    for(const card of cardsArray) {
+        cardsById[card.id] = card;
+    }
+    return buildDeck(decklist, cardsById);
+}
+
+function loadCraneDuelDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'craneduel-decklist.json'), 'utf8'));
+    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'craneduel-cards.json'), 'utf8'));
+    const cardsById = {};
+    for(const card of cardsArray) {
+        cardsById[card.id] = card;
+    }
+    return buildDeck(decklist, cardsById);
+}
+
+module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadCraneDeck, loadCrabDeck, loadScorpionDeck, loadLionDeck, loadPhoenixDeck, loadDragonDeck, loadCraneDuelDeck, FIXTURES };

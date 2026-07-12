@@ -175,12 +175,42 @@ describe('Jigoku heuristic bot', function() {
         return { players: players };
     }
 
-    it('bids high with an empty hand and low with a full hand', function() {
+    it('draw-phase bid scales with honor to draw cards, ignoring hand size', function() {
         const policy = new JigokuBotPolicy('bid');
-        expect(policy.decide(makeBidState(0, 10), 'Jigoku Bot').target).toBe('5');
-        expect(policy.decide(makeBidState(4, 10), 'Jigoku Bot').target).toBe('3');
-        expect(policy.decide(makeBidState(7, 10), 'Jigoku Bot').target).toBe('1');
+        // Hand size no longer matters — cards win games, so bid to draw them.
+        expect(policy.decide(makeBidState(0, 10), 'Jigoku Bot').target).toBe('5'); // honor 10: max draw
+        expect(policy.decide(makeBidState(7, 8), 'Jigoku Bot').target).toBe('5'); // honor 8: still max
+        expect(policy.decide(makeBidState(0, 6), 'Jigoku Bot').target).toBe('3'); // honor 6: safe middle
+        expect(policy.decide(makeBidState(7, 4), 'Jigoku Bot').target).toBe('3'); // honor 4: safe middle
+        expect(policy.decide(makeBidState(0, 3), 'Jigoku Bot').target).toBe('1'); // honor 3: cliff, minimum
         expect(policy.decide(makeBidState(0, 2), 'Jigoku Bot').target).toBe('1');
+    });
+
+    it('bids a duel on the skill gap: max when ahead/even, 1 when hopeless, honor-gated when close', function() {
+        const duelBidState = (gap, honor) => ({
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    promptTitle: 'Honor Bid',
+                    menuTitle: 'Choose your bid for the duel with Kakita Toshimoko',
+                    buttons: bidButtons,
+                    stats: { honor: honor },
+                    cardPiles: { hand: [] }
+                }
+            }
+        });
+        const bid = (gap, honor) => new JigokuBotPolicy('duel-bid').decide(duelBidState(gap, honor), 'Jigoku Bot', { duelGap: gap }).target;
+        // Comfortably ahead: bid only the MINIMUM that beats their max bid of 5.
+        expect(bid(5, 10)).toBe('1'); // lead >=5 wins on any bid
+        expect(bid(4, 10)).toBe('2'); // 6-gap
+        expect(bid(2, 10)).toBe('4');
+        expect(bid(1, 10)).toBe('5'); // gap 0-1 needs the full 5
+        expect(bid(0, 10)).toBe('5'); // even: bid to equalize
+        expect(bid(-4, 15)).toBe('1'); // unwinnable even at max: bank honor
+        expect(bid(-6, 15)).toBe('1');
+        expect(bid(-2, 15)).toBe('5'); // close + honor-rich: commit
+        expect(bid(-2, 5)).toBe('1'); // close + honor-poor: bank honor
+        expect(bid(2, 3)).toBe('1'); // near the cliff: never bleed honor
     });
 
     it('always bids 5 on the first round', function() {
@@ -193,74 +223,62 @@ describe('Jigoku heuristic bot', function() {
         expect(decision.target).toBe('5');
     });
 
-    it('weighs its bid against the predicted opponent bid', function() {
-        const policy = new JigokuBotPolicy('bid-matrix');
-
-        // Low honor: opponent with a full hand will bid low, so do not bid
-        // above them and bleed honor.
+    it('caps the draw bid as the opponent climbs toward an honor victory', function() {
+        const policy = new JigokuBotPolicy('bid-oppwin');
+        // Opponent at 18+: bid the minimum so WE are the low bidder and DRAIN
+        // them, denying the 25-honor win rather than feeding it.
         expect(policy.decide(
-            makeBidState(2, 5, { handSize: 7, honor: 10 }),
+            makeBidState(0, 12, { handSize: 6, honor: 22 }),
             'Jigoku Bot',
             { roundNumber: 3 }
         ).target).toBe('1');
 
-        // Opponent near the honor victory: stay at or below their predicted
-        // bid even when hungry for cards.
+        // Opponent honor building (14-17): cap the feed at 2.
         expect(policy.decide(
-            makeBidState(0, 10, { handSize: 6, honor: 18 }),
+            makeBidState(0, 12, { handSize: 6, honor: 15 }),
             'Jigoku Bot',
             { roundNumber: 3 }
         ).target).toBe('2');
 
-        // High honor but behind on cards: honor is there to spend — buy the
-        // whole gap back even at 18 honor.
+        // Opponent NOT near the win: bid the full draw.
         expect(policy.decide(
-            makeBidState(0, 18, { handSize: 4, honor: 10 }),
+            makeBidState(0, 12, { handSize: 6, honor: 12 }),
             'Jigoku Bot',
             { roundNumber: 3 }
         ).target).toBe('5');
-
-        // At 20+ honor the 25-honor win is the plan: bid under the predicted
-        // opponent bid to farm the difference.
-        expect(policy.decide(
-            makeBidState(0, 20, { handSize: 4, honor: 10 }),
-            'Jigoku Bot',
-            { roundNumber: 3 }
-        ).target).toBe('2');
     });
 
-    it('spends spare honor to close a hand-size deficit', function() {
-        const policy = new JigokuBotPolicy('bid-deficit');
+    it('keeps a 1-fate reserve in the dynasty phase, all-in only on the last play', function() {
+        const char = (uuid) => ({
+            uuid: uuid, id: uuid, name: uuid, type: 'character', isDynasty: true, facedown: false, selectable: true
+        });
+        const dynState = (fate, provCards) => ({
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', phase: 'dynasty', promptTitle: 'Action Window', menuTitle: 'Initiate an action',
+                    buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                    stats: { fate: fate },
+                    provinces: { one: provCards, two: [], three: [], four: [] },
+                    cardPiles: { hand: [] }
+                }
+            }
+        });
+        // fate 2, a 1-cost and a 2-cost: play the 1-cost to keep a fate.
+        const keep = new JigokuBotPolicy('dyn-keep').decide(
+            dynState(2, [char('cheap'), char('pricey')]), 'Jigoku Bot', { dynastyCosts: { cheap: 1, pricey: 2 } });
+        expect(keep.reason).toBe('play-dynasty-character');
+        expect(keep.args[0]).toBe('cheap');
 
-        // 8 cards vs 13, 16 honor vs 4: the opponent is 5 cards ahead and the
-        // bot has plenty of honor to spend — bid 5, not 1.
-        expect(policy.decide(
-            makeBidState(8, 16, { handSize: 13, honor: 4 }),
-            'Jigoku Bot',
-            { roundNumber: 4 }
-        ).target).toBe('5');
+        // fate 1, two 1-cost characters: neither keeps the reserve, so pass.
+        const reserve = new JigokuBotPolicy('dyn-reserve').decide(
+            dynState(1, [char('a'), char('b')]), 'Jigoku Bot', { dynastyCosts: { a: 1, b: 1 } });
+        expect(reserve.reason).toBe('dynasty-reserve-fate');
 
-        // Equal full hands, healthy honor: still worth 3 — cards beat honor.
-        expect(policy.decide(
-            makeBidState(7, 10, { handSize: 7, honor: 10 }),
-            'Jigoku Bot',
-            { roundNumber: 4 }
-        ).target).toBe('3');
-
-        // Ahead on cards with a full hand: conserve honor.
-        expect(policy.decide(
-            makeBidState(8, 10, { handSize: 5, honor: 10 }),
-            'Jigoku Bot',
-            { roundNumber: 4 }
-        ).target).toBe('1');
-
-        // Honor floor: 7 honor cannot afford a 5-bid against a predicted low
-        // bidder — shrink until the worst case keeps 6 honor.
-        expect(policy.decide(
-            makeBidState(2, 7, { handSize: 9, honor: 10 }),
-            'Jigoku Bot',
-            { roundNumber: 4 }
-        ).target).toBe('2');
+        // fate 1, a single 1-cost character: commit it (first-passer all-in).
+        const allin = new JigokuBotPolicy('dyn-allin').decide(
+            dynState(1, [char('only')]), 'Jigoku Bot', { dynastyCosts: { only: 1 } });
+        expect(allin.reason).toBe('play-dynasty-character-allin');
+        expect(allin.args[0]).toBe('only');
     });
 
     it('reads its own prompt instead of the opponent waiting prompt', function() {
@@ -383,6 +401,555 @@ describe('Jigoku heuristic bot', function() {
         const decision = policy.decide(state, 'Jigoku Bot');
         expect(decision.command).toBe('menuButton');
         expect(decision.target).toBe('Pass Conflict');
+    });
+
+    it('Shameful Display honor menu: honors own when an own participant is unhonored', function() {
+        // Bot defends its attacked Shameful Display province. Its own
+        // participant can still be honored, so the follow-up menu chooses
+        // Honor (own gains skill; the enemy gets the dishonor).
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    promptTitle: 'Political Water Conflict',
+                    menuTitle: 'Choose a character to:',
+                    buttons: [
+                        { text: 'Honor', arg: 'honor', uuid: 'h' },
+                        { text: 'Dishonor', arg: 'dishonor', uuid: 'd' }
+                    ],
+                    cardPiles: {
+                        cardsInPlay: [
+                            { uuid: 'mine', name: 'Doji Challenger', type: 'character',
+                                inConflict: true, isHonored: false,
+                                militarySkillSummary: { stat: '0' }, politicalSkillSummary: { stat: '3' } }
+                        ]
+                    }
+                }
+            }
+        };
+        const decision = new JigokuBotPolicy('shameful-honor').decide(state, 'Jigoku Bot');
+        expect(decision.command).toBe('menuButton');
+        expect(decision.target).toBe('Honor');
+    });
+
+    it('Shameful Display honor menu: dishonors enemy when every own participant is already honored', function() {
+        // No own participant can take the honor, so honoring would land on
+        // the ENEMY. Choose Dishonor instead — the leftover dishonor hits the
+        // opponent, and the honor no-ops on our already-honored character.
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    promptTitle: 'Political Water Conflict',
+                    menuTitle: 'Choose a character to:',
+                    buttons: [
+                        { text: 'Honor', arg: 'honor', uuid: 'h' },
+                        { text: 'Dishonor', arg: 'dishonor', uuid: 'd' }
+                    ],
+                    cardPiles: {
+                        cardsInPlay: [
+                            { uuid: 'mine', name: 'Doji Challenger', type: 'character',
+                                inConflict: true, isHonored: true,
+                                militarySkillSummary: { stat: '0' }, politicalSkillSummary: { stat: '3' } }
+                        ]
+                    }
+                }
+            }
+        };
+        const decision = new JigokuBotPolicy('shameful-dishonor').decide(state, 'Jigoku Bot');
+        expect(decision.command).toBe('menuButton');
+        expect(decision.target).toBe('Dishonor');
+    });
+
+    it('Court Games (non-glory deck): honors own participant, else dishonors enemy', function() {
+        const makeState = (isHonored) => ({
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    promptTitle: 'Political Water Conflict',
+                    menuTitle: 'Choose one',
+                    buttons: [
+                        { text: 'Honor a friendly character', arg: 'honor', uuid: 'h' },
+                        { text: 'Dishonor an opposing character', arg: 'dishonor', uuid: 'd' }
+                    ],
+                    cardPiles: {
+                        cardsInPlay: [
+                            { uuid: 'mine', name: 'Togashi Mitsu', type: 'character',
+                                inConflict: true, isHonored: isHonored,
+                                militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '2' } }
+                        ]
+                    }
+                }
+            }
+        });
+        // Own participant can still be honored -> Honor a friendly.
+        const honor = new JigokuBotPolicy('court-honor').decide(makeState(false), 'Jigoku Bot');
+        expect(honor.target).toBe('Honor a friendly character');
+        // Own participant already honored -> Dishonor an opposing.
+        const dishonor = new JigokuBotPolicy('court-dishonor').decide(makeState(true), 'Jigoku Bot');
+        expect(dishonor.target).toBe('Dishonor an opposing character');
+    });
+
+    it('declines a self fate-removal follow-up (A Legion of One recur/no-effect)', function() {
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    promptTitle: 'Military Air Conflict',
+                    menuTitle: 'Choose one',
+                    buttons: [
+                        { text: 'Remove 1 fate for no effect', arg: 'remove', uuid: 'r' },
+                        { text: 'Done', arg: 'done', uuid: 'done' }
+                    ],
+                    cardPiles: { cardsInPlay: [] }
+                }
+            }
+        };
+        const decision = new JigokuBotPolicy('legion').decide(state, 'Jigoku Bot');
+        expect(decision.command).toBe('menuButton');
+        expect(decision.target).toBe('Done');
+    });
+
+    it('ready effects aim at an own BOWED character, never a ready own or the enemy', function() {
+        const char = (uuid, mil, bowed) => ({
+            uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: false,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
+                    buttons: [], cardPiles: { cardsInPlay: [char('ownReady', 5, false), char('ownBowed', 3, true)] }
+                },
+                'Human': { name: 'Human', cardPiles: { cardsInPlay: [char('enemyBowed', 9, true)] } }
+            }
+        };
+        const ctx = { targetHint: { gameActions: ['ready'], sourceIsMine: true, sourceCardId: 'hayaken-no-shiro' } };
+        const decision = new JigokuBotPolicy('ready').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('ownBowed');
+    });
+
+    it('bow effects aim at a READY enemy, never one already bowed', function() {
+        const char = (uuid, mil, bowed) => ({
+            uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: false,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
+                    buttons: [], cardPiles: { cardsInPlay: [char('ownReady', 4, false)] }
+                },
+                'Human': { name: 'Human', cardPiles: { cardsInPlay: [char('enemyReady', 6, false), char('enemyBowedStrong', 9, true)] } }
+            }
+        };
+        const ctx = { targetHint: { gameActions: ['bow'], sourceIsMine: true, sourceCardId: 'kakita-dojo' } };
+        const decision = new JigokuBotPolicy('bow').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('enemyReady');
+    });
+
+    it('Softskin attaches to the strongest BOWED enemy, not a ready one', function() {
+        const char = (uuid, mil, bowed) => ({
+            uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: false,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
+                    buttons: [], cardPiles: { cardsInPlay: [char('own', 4, false)] }
+                },
+                'Human': { name: 'Human', cardPiles: { cardsInPlay: [char('enemyReady', 9, false), char('enemyBowed', 5, true)] } }
+            }
+        };
+        const ctx = {
+            targetHint: { gameActions: ['attach'], sourceCardId: 'softskin', sourceIsMine: true },
+            cardHint: (id) => id === 'softskin' ? { targetSide: 'enemy', conflictTypes: [], targetPreference: 'strongest' } : undefined
+        };
+        const decision = new JigokuBotPolicy('softskin').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('enemyBowed');
+    });
+
+    it('Pit Trap locks the strongest BOWED enemy so it stays bowed through regroup', function() {
+        const char = (uuid, mil, bowed) => ({
+            uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: false,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Military Water Conflict', menuTitle: 'Choose a character',
+                    buttons: [], cardPiles: { cardsInPlay: [char('own', 4, false)] }
+                },
+                'Human': { name: 'Human', cardPiles: { cardsInPlay: [char('enemyReady', 9, false), char('enemyBowed', 5, true)] } }
+            }
+        };
+        const ctx = {
+            targetHint: { gameActions: ['attach'], sourceCardId: 'pit-trap', sourceIsMine: true },
+            cardHint: (id) => id === 'pit-trap' ? { targetSide: 'enemy', conflictTypes: ['military'], targetPreference: 'strongest' } : undefined
+        };
+        const decision = new JigokuBotPolicy('pit-trap').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('enemyBowed');
+    });
+
+    it('does not attach to Kaiu Siege Force while another own body can carry it (tower)', function() {
+        const char = (uuid, id, mil, fate) => ({
+            uuid: uuid, name: uuid, id: id, type: 'character', selectable: true, bowed: false, inConflict: false,
+            fate: fate, militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', id: 'BOT', promptTitle: 'Choose a character', menuTitle: 'Choose a character',
+                    buttons: [], cardPiles: { cardsInPlay: [char('siege', 'kaiu-siege-force', 7, 2), char('kisada', 'hida-kisada', 7, 2)] }
+                },
+                'Human': { name: 'Human', id: 'HUMAN', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const ctx = { targetHint: { gameActions: ['attach'], sourceCardId: 'fine-katana', sourceIsMine: true } };
+        const decision = new JigokuBotPolicy('siege').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('kisada');
+    });
+
+    it('cancels an enemy-side debuff attachment when the opponent has no character', function() {
+        const own = {
+            uuid: 'own', name: 'own', type: 'character', selectable: true, bowed: false, inConflict: false,
+            militarySkillSummary: { stat: '4' }, politicalSkillSummary: { stat: '0' }
+        };
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
+                    buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'c' }],
+                    cardPiles: { cardsInPlay: [own] }
+                },
+                'Human': { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const ctx = {
+            targetHint: { gameActions: ['attach'], sourceCardId: 'pacifism', sourceIsMine: true },
+            cardHint: (id) => id === 'pacifism' ? { targetSide: 'enemy', conflictTypes: ['military'], targetPreference: 'strongest' } : undefined
+        };
+        const decision = new JigokuBotPolicy('pacifism-noenemy').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('menuButton');
+        expect(decision.target).toBe('Cancel');
+    });
+
+    it('Golden Plains Outpost moves the strongest BOWED cavalry into the conflict', function() {
+        const char = (uuid, mil, bowed, inConflict) => ({
+            uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: !!inConflict,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
+                    buttons: [],
+                    // ready home body (declarable normally, useless to move), plus
+                    // two bowed home bodies — pick the strongest bowed one.
+                    cardPiles: { cardsInPlay: [char('ownReady', 8, false), char('bowedWeak', 3, true), char('bowedStrong', 6, true)] }
+                },
+                'Human': { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const ctx = { targetHint: { gameActions: ['moveToConflict'], sourceCardId: 'golden-plains-outpost', sourceIsMine: true } };
+        const decision = new JigokuBotPolicy('gpo').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('bowedStrong');
+    });
+
+    it('Golden Plains Outpost cancels rather than move a READY body into the conflict', function() {
+        const char = (uuid, mil, bowed) => ({
+            uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: false,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
+                    buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'c' }],
+                    cardPiles: { cardsInPlay: [char('ownReady', 8, false)] }
+                },
+                'Human': { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const ctx = { targetHint: { gameActions: ['moveToConflict'], sourceCardId: 'golden-plains-outpost', sourceIsMine: true } };
+        const decision = new JigokuBotPolicy('gpo-ready').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('menuButton');
+        expect(decision.target).toBe('Cancel');
+    });
+
+    it('I Am Ready readies the strongest bowed CONFLICT participant with fate', function() {
+        const char = (uuid, mil, bowed, inConflict, fate) => ({
+            uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: !!inConflict, fate: fate,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
+                    buttons: [],
+                    cardPiles: { cardsInPlay: [
+                        char('homeTower', 9, true, false, 3),      // stronger but at home
+                        char('fightWeak', 4, true, true, 1),       // participant, low fate ok
+                        char('fightStrong', 7, true, true, 1)       // participant, strongest in fight
+                    ] }
+                },
+                'Human': { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const ctx = { targetHint: { gameActions: ['removeFate', 'ready'], sourceCardId: 'i-am-ready', sourceIsMine: true } };
+        const decision = new JigokuBotPolicy('iar').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('fightStrong');
+    });
+
+    it('I Am Ready stands up a bowed HOME tower with spare fate when none fight', function() {
+        const char = (uuid, mil, bowed, fate) => ({
+            uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: false, fate: fate,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
+                    buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'c' }],
+                    cardPiles: { cardsInPlay: [
+                        char('cheapBody', 8, true, 1),   // strongest but only 1 fate — readying strips it
+                        char('tower', 6, true, 2)         // spare fate (>1) — the safe tower pick
+                    ] }
+                },
+                'Human': { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const ctx = { targetHint: { gameActions: ['removeFate', 'ready'], sourceCardId: 'i-am-ready', sourceIsMine: true } };
+        const decision = new JigokuBotPolicy('iar-home').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('tower');
+    });
+
+    it('attaches to a multi-fate TOWER over a ready non-tower body when not in a losing fight', function() {
+        const char = (uuid, mil, bowed, fate) => ({
+            uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: false, fate: fate,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', id: 'bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
+                    buttons: [],
+                    // ready 0-fate body out-skills the bowed 2-fate tower, but the
+                    // permanent attachment should build the durable tower.
+                    cardPiles: { cardsInPlay: [char('readyBody', 8, false, 0), char('tower', 4, true, 2)] }
+                },
+                'Human': { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const ctx = {
+            targetHint: { gameActions: ['attach'], sourceCardId: 'spyglass', sourceIsMine: true },
+            cardHint: (id) => id === 'spyglass' ? { targetSide: 'self', conflictTypes: [], targetPreference: 'strongest' } : undefined
+        };
+        const decision = new JigokuBotPolicy('tower-attach').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('tower');
+    });
+
+    it('keeps a pump on a READY participant (not a home tower) when losing the current conflict', function() {
+        const char = (uuid, mil, bowed, inConflict, fate) => ({
+            uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: !!inConflict, fate: fate,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            // Losing attack: the ready participant is the only body that can
+            // swing THIS conflict — the home tower must not steal the pump.
+            conflict: { type: 'military', attackingPlayerId: 'bot', attackerSkill: 3, defenderSkill: 7 },
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', id: 'bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
+                    buttons: [],
+                    cardPiles: { cardsInPlay: [char('participant', 5, false, true, 0), char('homeTower', 6, false, false, 3)] }
+                },
+                'Human': { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const ctx = {
+            targetHint: { gameActions: ['attach'], sourceCardId: 'spyglass', sourceIsMine: true },
+            cardHint: (id) => id === 'spyglass' ? { targetSide: 'self', conflictTypes: [], targetPreference: 'strongest' } : undefined
+        };
+        const decision = new JigokuBotPolicy('losing-attach').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('participant');
+    });
+
+    it('a ready effect stands up a bowed TOWER over a bowed non-tower home body', function() {
+        const char = (uuid, mil, bowed, fate) => ({
+            uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: false, fate: fate,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', id: 'bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
+                    buttons: [],
+                    // bowed non-tower out-skills the bowed 2-fate tower, but the
+                    // ready effect should stand up the tower (it fights again).
+                    cardPiles: { cardsInPlay: [char('bowedBody', 9, true, 1), char('bowedTower', 5, true, 2)] }
+                },
+                'Human': { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const ctx = { targetHint: { gameActions: ['ready'], sourceCardId: 'water-ring', sourceIsMine: true } };
+        const decision = new JigokuBotPolicy('tower-ready').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('bowedTower');
+    });
+
+    it('plays free (0-cost) buffs to defend the stronghold even at 0 fate', function() {
+        // Regression: an old `if(fate < 1) return pass` gate threw away the
+        // whole conflict window at 0 fate, so the bot let its stronghold break
+        // with Banzai!/Supernatural Storm (both cost 0) sitting in hand.
+        const shugenja = (uuid, id, inConflict, bowed) => ({
+            uuid: uuid, id: id, name: id, type: 'character', selectable: false,
+            inConflict: inConflict, bowed: bowed,
+            militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            conflict: {
+                type: 'military', attackingPlayerId: 'HUMAN', defendingPlayerId: 'BOT',
+                attackerSkill: 9, defenderSkill: 3
+            },
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', id: 'BOT', promptTitle: 'Conflict Action Window',
+                    buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                    stats: { fate: 0, honor: 14 },
+                    // The stronghold's guarding province is under attack (no uuid
+                    // so it is not itself a click candidate — isolates the buff).
+                    strongholdProvince: [{ isProvince: true, type: 'province', inConflict: true, isBroken: false }],
+                    provinces: { one: [], two: [], three: [], four: [] },
+                    cardPiles: {
+                        cardsInPlay: [
+                            shugenja('c1', 'ethereal-dreamer', true, false),
+                            shugenja('c2', 'isawa-kaede', false, true)
+                        ],
+                        hand: [
+                            { uuid: 'aaa', id: 'banzai', name: 'Banzai!', type: 'event', isPlayableByMe: true,
+                                militarySkillSummary: {}, politicalSkillSummary: {} },
+                            { uuid: 'zzz', id: 'supernatural-storm', name: 'Supernatural Storm', type: 'event', isPlayableByMe: true,
+                                militarySkillSummary: {}, politicalSkillSummary: {} }
+                        ]
+                    }
+                },
+                'HUMAN': { name: 'HUMAN', id: 'HUMAN', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const ctx = { cardHint: (id) => getPlaybookEntry(id) };
+        const decision = new JigokuBotPolicy('stronghold-buff').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.reason).toBe('play-conflict-card');
+        expect(decision.target).toBe('Banzai!');
+    });
+
+    it('Cycle of Rebirth shuffles our OWN weakest province card, never the enemy or Mitsu', function() {
+        const card = (uuid, id, mil) => ({
+            uuid: uuid, id: id, name: uuid, type: 'character', selectable: true, bowed: false, inConflict: false,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', id: 'BOT', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a card',
+                    buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'c' }],
+                    cardPiles: { cardsInPlay: [card('weakOwn', 'acolyte', 2), card('strongOwn', 'kitsuki', 6), card('mitsu', 'togashi-mitsu-2', 5)] }
+                },
+                'Human': { name: 'Human', id: 'HUMAN', cardPiles: { cardsInPlay: [card('enemy', 'crane', 3)] } }
+            }
+        };
+        const ctx = { targetHint: { gameActions: ['moveCard'], sourceCardId: 'cycle-of-rebirth', sourceIsMine: true } };
+        const decision = new JigokuBotPolicy('cycle').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('weakOwn');
+    });
+
+    it('Banzai! resolves twice for an honor when honor allows, declines near the cliff and the no-effect trap', function() {
+        const menuState = (honor, choices) => ({
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose one',
+                    buttons: choices.map((text, i) => ({ text: text, arg: 'a' + i, uuid: 'b' + i })),
+                    stats: { honor: honor }, cardPiles: { cardsInPlay: [] }
+                }
+            }
+        });
+        const recur = ['Lose 1 honor to resolve this ability again', 'Done'];
+        const trap = ['Lose 1 honor for no effect', 'Done'];
+        expect(new JigokuBotPolicy('bz1').decide(menuState(10, recur), 'Jigoku Bot').target).toBe('Lose 1 honor to resolve this ability again');
+        expect(new JigokuBotPolicy('bz2').decide(menuState(3, recur), 'Jigoku Bot').target).toBe('Done');
+        expect(new JigokuBotPolicy('bz3').decide(menuState(10, trap), 'Jigoku Bot').target).toBe('Done');
+    });
+
+    it('A Legion of One removes a fate to resolve twice (+6), but declines the no-effect follow-up', function() {
+        const menuState = (choices) => ({
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose one',
+                    buttons: choices.map((text, i) => ({ text: text, arg: 'a' + i, uuid: 'b' + i })),
+                    stats: { honor: 10 }, cardPiles: { cardsInPlay: [] }
+                }
+            }
+        });
+        const again = ['Remove 1 fate to resolve this ability again', 'Done'];
+        const noEffect = ['Remove 1 fate for no effect', 'Done'];
+        expect(new JigokuBotPolicy('leg1').decide(menuState(again), 'Jigoku Bot').target).toBe('Remove 1 fate to resolve this ability again');
+        expect(new JigokuBotPolicy('leg2').decide(menuState(noEffect), 'Jigoku Bot').target).toBe('Done');
+    });
+
+    it('Time for War puts its weapon on the multi-fate tower, not the higher-skill throwaway', function() {
+        const char = (uuid, mil, fate) => ({
+            uuid: uuid, name: uuid, id: uuid, type: 'character', selectable: true, bowed: false, inConflict: false,
+            fate: fate, militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', id: 'BOT', promptTitle: 'Choose a character', menuTitle: 'Choose a character',
+                    buttons: [], cardPiles: { cardsInPlay: [char('tower', 4, 2), char('throwaway', 8, 0)] }
+                },
+                'Human': { name: 'Human', id: 'HUMAN', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const ctx = { targetHint: { gameActions: ['selectCard'], sourceCardId: 'time-for-war', sourceIsMine: true } };
+        const decision = new JigokuBotPolicy('tfw').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('tower');
+    });
+
+    it('sends our STRONGEST character into a duel the opponent initiated', function() {
+        // The opponent initiates the duel, so the source is their card (not in
+        // any duelAxes map). The `duel` action is HARMFUL and the old generic
+        // path picked our WEAKEST; the general duel rule must send our strongest
+        // on the duel axis instead.
+        const char = (uuid, mil) => ({
+            uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: false, inConflict: true,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', id: 'BOT', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
+                    buttons: [], cardPiles: { cardsInPlay: [char('weak', 2), char('strong', 6)] }
+                },
+                'Human': { name: 'Human', id: 'HUMAN', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const ctx = { targetHint: { gameActions: ['duel'], sourceCardId: 'issue-a-challenge', sourceIsMine: false } };
+        const decision = new JigokuBotPolicy('duel-defend').decide(state, 'Jigoku Bot', ctx);
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('strong');
     });
 
     it('picks conflict rings by value: fate piles, then void/earth/fire', function() {
@@ -656,6 +1223,45 @@ describe('Jigoku heuristic bot', function() {
         expect(done.target).toBe('Done');
     });
 
+    it('defends the stronghold province with every body, even when hopeless', function() {
+        // Breaking the stronghold loses the game: the hopeless-fold and
+        // sufficient-skill caps do not apply — every ready character defends.
+        const defender = (uuid, mil) => ({
+            uuid: uuid,
+            name: uuid,
+            type: 'character',
+            location: 'play area',
+            bowed: false,
+            inConflict: false,
+            militarySkillSummary: { stat: String(mil) },
+            politicalSkillSummary: { stat: '0' }
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    promptTitle: 'Military Air Conflict: 20 vs 0',
+                    menuTitle: 'Choose defenders',
+                    buttons: [{ text: 'Done', arg: 'done', uuid: 'done' }],
+                    cardPiles: { cardsInPlay: [defender('guard-1', 3), defender('guard-2', 1)] },
+                    strongholdProvince: [
+                        { uuid: 'sh', type: 'stronghold', bowed: false },
+                        { uuid: 'sh-prov', isProvince: true, inConflict: true, strengthSummary: { stat: '4' } }
+                    ]
+                }
+            }
+        };
+        const policy = new JigokuBotPolicy('stronghold-defense');
+        const first = policy.decide(state, 'Jigoku Bot');
+        expect(first.command).toBe('cardClicked');
+        expect(first.reason).toBe('stronghold-defense-all');
+        expect(first.args[0]).toBe('guard-1');
+        // Second body follows — no defense-sufficient cap at the stronghold.
+        const second = policy.decide(state, 'Jigoku Bot');
+        expect(second.command).toBe('cardClicked');
+        expect(second.args[0]).toBe('guard-2');
+    });
+
     it('plays a faceup dynasty character during the dynasty action window', function() {
         // Real dynasty window prompt shape from DynastyActionWindow.activePrompt().
         const state = {
@@ -845,22 +1451,53 @@ describe('Jigoku heuristic bot', function() {
         it('saves its cards when a lost defense cannot break the province anyway', function() {
             // Losing 5 vs 0, but the 8-strength province survives the loss and
             // the win is out of cheap reach: keep the hand for our own attack.
+            // The attacked province's own Conflict Action is still free value
+            // (Fertile Fields draws, Meditations strips fate), so the FIRST
+            // window click is the province; once attempted, Pass.
             const ownProvince = { isProvince: true, inConflict: true, uuid: 'my-prov', strengthSummary: { stat: '8' } };
             const policy = new JigokuBotPolicy('window-safe-loss');
-            expect(policy.decide(makeConflictWindowState({
+            const state = makeConflictWindowState({
                 amAttacker: false, attackerSkill: 5, defenderSkill: 0, hand: [playableCard], ownProvince: ownProvince
-            }), 'Jigoku Bot').target).toBe('Pass');
+            });
+            const first = policy.decide(state, 'Jigoku Bot');
+            expect(first.command).toBe('cardClicked');
+            expect(first.args[0]).toBe('my-prov');
+            expect(policy.decide(state, 'Jigoku Bot').target).toBe('Pass');
         });
 
-        it('passes when hopelessly behind or out of fate', function() {
+        it('spends cards on a hopeless defense when the STRONGHOLD is attacked', function() {
+            // 12 vs 1 is normally a fold, but the stronghold breaking loses
+            // the game — throw the hand at it.
+            const policy = new JigokuBotPolicy('window-stronghold');
+            const state = makeConflictWindowState({
+                amAttacker: false, attackerSkill: 12, defenderSkill: 1, hand: [playableCard],
+                strongholdProvince: [
+                    { uuid: 'sh', type: 'stronghold', bowed: true },
+                    { uuid: 'sh-prov', isProvince: true, inConflict: true, strengthSummary: { stat: '4' } }
+                ]
+            });
+            // First click: the attacked province's free Conflict Action.
+            expect(policy.decide(state, 'Jigoku Bot').args[0]).toBe('sh-prov');
+            // Then the hand card — no hopeless fold at the stronghold.
+            const play = policy.decide(state, 'Jigoku Bot');
+            expect(play.command).toBe('cardClicked');
+            expect(play.args[0]).toBe('event-1');
+        });
+
+        it('passes when hopelessly behind, or when no card is affordable', function() {
             const policy = new JigokuBotPolicy('window-hopeless');
             expect(policy.decide(makeConflictWindowState({
                 amAttacker: false, attackerSkill: 12, defenderSkill: 1, hand: [playableCard]
             }), 'Jigoku Bot').target).toBe('Pass');
 
+            // Affordability is the engine's call via isPlayableByMe: a card the
+            // bot cannot pay for is marked unplayable and the window passes.
+            // A 0-cost card stays isPlayableByMe and IS played even at 0 fate —
+            // see the 'plays free (0-cost) buffs ...' spec.
             const broke = new JigokuBotPolicy('window-broke');
+            const unaffordable = { uuid: 'event-1', name: 'Pump Event', type: 'event', location: 'hand', isPlayableByMe: false };
             expect(broke.decide(makeConflictWindowState({
-                amAttacker: false, attackerSkill: 4, defenderSkill: 2, hand: [playableCard], fate: 0
+                amAttacker: false, attackerSkill: 4, defenderSkill: 2, hand: [unaffordable], fate: 0
             }), 'Jigoku Bot').target).toBe('Pass');
         });
 
@@ -1436,6 +2073,53 @@ describe('Jigoku heuristic bot', function() {
 
         const fresh = new JigokuBotPolicy('reaction-pass');
         expect(fresh.decide(makeState(false), 'Jigoku Bot').target).toBe('Pass');
+    });
+
+    it('trades Endless Plains only against a real threat', function() {
+        // Endless Plains breaks ITSELF as the cost of discarding an attacker
+        // (of the opponent's choice) — firing it against a chump attack gives
+        // away a province for nothing.
+        const attacker = (fate, mil) => ({
+            uuid: `attacker-${fate}-${mil}`, type: 'character', inConflict: true,
+            fate: fate, militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+        });
+        const makeState = (attackers, myCharacters = []) => ({
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    promptTitle: 'Triggered Abilities',
+                    menuTitle: 'Any reactions?',
+                    selectCard: true,
+                    buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                    cardPiles: { cardsInPlay: myCharacters },
+                    provinces: {
+                        one: [{ uuid: 'plains', id: 'endless-plains', name: 'Endless Plains', isProvince: true, selectable: true, location: 'province 1' }],
+                        two: [], three: [], four: []
+                    }
+                },
+                'Human': {
+                    name: 'Human',
+                    cardPiles: { cardsInPlay: attackers }
+                }
+            }
+        });
+        const bigDefender = { uuid: 'wall', type: 'character', bowed: false, militarySkillSummary: { stat: '9' }, politicalSkillSummary: { stat: '0' } };
+
+        // Chump attack the defense can stop: keep the province.
+        const hold = new JigokuBotPolicy('plains-hold');
+        expect(hold.decide(makeState([attacker(0, 2)], [bigDefender]), 'Jigoku Bot').target).toBe('Pass');
+
+        // 2+ fate attacker: worth the trade.
+        const fated = new JigokuBotPolicy('plains-fate');
+        expect(fated.decide(makeState([attacker(2, 2)], [bigDefender]), 'Jigoku Bot').args[0]).toBe('plains');
+
+        // 5+ military attacker: worth the trade.
+        const big = new JigokuBotPolicy('plains-big');
+        expect(big.decide(makeState([attacker(0, 5)], [bigDefender]), 'Jigoku Bot').args[0]).toBe('plains');
+
+        // Hopeless defense: the province is lost anyway, take a body with it.
+        const hopeless = new JigokuBotPolicy('plains-hopeless');
+        expect(hopeless.decide(makeState([attacker(0, 4)], []), 'Jigoku Bot').args[0]).toBe('plains');
     });
 
     it('picks a triggered ability instead of the Back button', function() {

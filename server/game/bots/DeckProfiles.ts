@@ -19,6 +19,14 @@
 import type { DeckStrategy } from './CardPlaybook';
 import { DISHONOR_DEFAULTS } from './DishonorTactics.js';
 import type { DishonorProfile } from './DishonorTactics';
+import { LION_DEFAULTS } from './LionTactics.js';
+import type { LionProfile } from './LionTactics';
+import { GLORY_DEFAULTS } from './GloryTactics.js';
+import type { GloryProfile } from './GloryTactics';
+import { DRAGON_DEFAULTS } from './DragonTactics.js';
+import type { DragonProfile } from './DragonTactics';
+import { DUEL_DEFAULTS } from './DuelTactics.js';
+import type { DuelProfile } from './DuelTactics';
 
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
@@ -45,15 +53,33 @@ export interface DeckProfile {
                                     // (0 = always dig; higher keeps a holding deck from starving
                                     // itself of defenders while it churns the engine)
     aggressiveFate: boolean; // pickFateButton flood-cheap-bodies mode (0-1 fate)
+    drawBidCap?: number; // cap the draw-phase honor bid. The higher bidder PAYS
+                         // the difference in honor to the lower bidder, so a
+                         // grind deck facing an honor-climbing opponent (Crab vs
+                         // Crane) bleeds itself toward the dishonor loss AND fuels
+                         // the opponent's honor win by bidding high for cards.
+                         // Cap it low to protect honor over card volume. Unset =
+                         // the generic honor-scaled bid.
 
     // ---- offense ----
     forceMilitaryConflict: boolean; // always declare military while any military skill exists
     attackCommitment: AttackCommitment;
     attackKeepHome: number; // bodies kept home under the '*-pressure'/'all-but' modes
+    reserveDynastyFate: boolean; // keep 1 fate through the dynasty phase for
+                                 // conflict-phase hand cards. Good for most
+                                 // decks; a pure body-flood rush wants every
+                                 // fate on the board instead, so it opts out.
 
     // ---- defense ----
     defenseCommitment: DefenseCommitment;
     spendCardsOnDefense: boolean; // play conflict cards / fire abilities to defend
+    chumpBlock: boolean; // when a defense is hopeless, still declare ONE cheap
+                         // defender instead of conceding: an unopposed loss
+                         // costs 1 honor, and honor attrition is how slow
+                         // decks lose the long game
+    defenseSkillBuffer: number; // extra skill committed past the minimal
+                                // prevent-break target — a buffer against the
+                                // opponent's post-commit pump cards
 
     // ---- setup ----
     // Printed id of the province to place under the stronghold. The stronghold
@@ -67,6 +93,27 @@ export interface DeckProfile {
     // branch that reads it is gated on its presence, so all other decks keep
     // the unchanged generic behavior. Knobs live in DishonorTactics.
     dishonor?: DishonorProfile;
+
+    // ---- bushi-swarm playstyle (Lion precon) ----
+    // Present only via the lion-bushi-swarm override; every policy branch
+    // that reads it is gated on its presence. Knobs live in LionTactics.
+    lion?: LionProfile;
+
+    // ---- glory/honor playstyle (Phoenix For Honor and Glory) ----
+    // Present only for decks whose strategy derives `glory`; every policy
+    // branch that reads it is gated on its presence. Knobs in GloryTactics.
+    glory?: GloryProfile;
+
+    // ---- monk/card-engine playstyle (Dragon Togashi Mitsu) ----
+    // Present only for decks whose strategy derives `monk`; every policy
+    // branch that reads it is gated on its presence. Knobs in DragonTactics.
+    dragon?: DragonProfile;
+
+    // ---- duel-centric playstyle (upgraded Crane Duels) ----
+    // Present only for decks whose strategy derives `duelist` (keyed on
+    // Tsuma so the sparring Crane precon stays generic). Knobs in
+    // DuelTactics.
+    duelist?: DuelProfile;
 }
 
 // Generic baseline = a deck with no strategy flags (e.g. Crane, unknown). These
@@ -79,8 +126,11 @@ export const DEFAULT_PROFILE: DeckProfile = {
     forceMilitaryConflict: false,
     attackCommitment: 'all-but-one',
     attackKeepHome: 1,
+    reserveDynastyFate: true,
     defenseCommitment: 'prevent-break',
-    spendCardsOnDefense: true
+    spendCardsOnDefense: true,
+    chumpBlock: false,
+    defenseSkillBuffer: 0
 };
 
 // Exact reproduction of the old flag-driven behavior. Start from the generic
@@ -106,6 +156,25 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         profile.attackCommitment = 'all';
         profile.defenseCommitment = 'win-only';
         profile.spendCardsOnDefense = false;
+    }
+    if(strategy.glory) {
+        // Glory deck: the generic balanced attack/defense knobs stay — the
+        // deck is mid/late-game and picks its spots; the playstyle lives in
+        // the GloryTactics knobs (ring preference by board, glory pumps,
+        // duel bids).
+        profile.glory = { ...GLORY_DEFAULTS };
+    }
+    if(strategy.monk) {
+        // Monk/card-engine deck: generic balanced attack/defense knobs stay;
+        // the playstyle (play many cards, void recursion, Mitsu steering)
+        // lives in the DragonTactics knobs.
+        profile.dragon = { ...DRAGON_DEFAULTS };
+    }
+    if(strategy.duelist) {
+        // Duel deck: few durable bodies, balanced generic attack/defense;
+        // the playstyle (duel bids, duel target axes, attachment stacking)
+        // lives in the DuelTactics knobs.
+        profile.duelist = { ...DUEL_DEFAULTS };
     }
     if(strategy.dishonor) {
         // Dishonor/mill deck: generic attack/defense knobs stay — measured:
@@ -142,11 +211,23 @@ const OVERRIDES: ProfileOverride[] = [
         apply: {
             attackCommitment: 'breakable-or-pressure',
             attackKeepHome: 2,
+            // A hopeless defense still throws one cheap body in the way:
+            // each unopposed loss bleeds 1 honor, and Crane's honor engine
+            // was winning the long games (dishonor wins ~40% of Crab games).
+            chumpBlock: true,
+            // Overshoot the minimal block: Crane flips exact-size defenses
+            // with conflict cards after the commit.
+            defenseSkillBuffer: 2,
             // Dig only once 3+ of its own characters are already in play. The
             // engine otherwise churns the dynasty deck every window (digging
             // instead of playing bodies), leaving too thin a board to defend.
             // Tuned by self-play vs the Crane precon: 10% -> ~45% win rate.
             digMinBoardCharacters: 3
+            // NOTE: a low drawBidCap was tried to stop the honor bleed (dishonor
+            // losses 17→4 at N=100) but conquest EXPLODED 39→63 (net 44%→33%):
+            // Crab needs the cards the high bid buys to have defenders in hand.
+            // Card volume dominates honor for this grind deck — keep the generic
+            // bid. Left the drawBidCap knob in place for other decks.
         }
     },
     {
@@ -165,7 +246,104 @@ const OVERRIDES: ProfileOverride[] = [
             defenseCommitment: 'prevent-break',
             spendCardsOnDefense: true,
             attackCommitment: 'all-but-one',
-            aggressiveFate: false
+            aggressiveFate: false,
+            // Body-flood rush: every fate belongs on the board, not reserved.
+            reserveDynastyFate: false
+        }
+    },
+    {
+        // Upgraded Crane Duels (EmeraldDB e2e443b5): Vassal Fields under the
+        // stronghold — its action drains 1 of the attacker's fate in every
+        // conflict fought there, exactly on the final push.
+        name: 'crane-duel-vassal-fields',
+        match: (ids, strategy) => strategy.duelist && ids.has('vassal-fields'),
+        apply: {
+            strongholdProvinceId: 'vassal-fields'
+        }
+    },
+    {
+        // Dragon monk deck (EmeraldDB 4fb91e58): Sacred Sanctuary under the
+        // stronghold — its on-reveal readies a Monk who then cannot be
+        // bowed for the conflict, exactly when the final push arrives.
+        name: 'dragon-sacred-sanctuary',
+        match: (ids, strategy) => strategy.monk && ids.has('sacred-sanctuary'),
+        apply: {
+            strongholdProvinceId: 'sacred-sanctuary',
+            // The monks are cheap and the payoffs count PARTICIPANTS' cards:
+            // commit everything (measured vs all-but-one below).
+            attackCommitment: 'all'
+        }
+    },
+    {
+        // Phoenix glory deck (EmeraldDB 7c5b9776): Rally to the Cause under
+        // the stronghold — its on-reveal switches the conflict type, so the
+        // final push on the game-deciding province flips into the type the
+        // attacker sized wrong. (Kuroi Mori cannot be a stronghold province.)
+        name: 'phoenix-rally-stronghold',
+        match: (ids, strategy) => strategy.glory && ids.has('rally-to-the-cause'),
+        apply: {
+            strongholdProvinceId: 'rally-to-the-cause'
+        }
+    },
+    {
+        // Lion list with Manicured Garden (EmeraldDB c99f60e2): the +1-fate
+        // Conflict Action province goes under the stronghold — it fires in
+        // every conflict fought there and cannot be sniped early.
+        name: 'lion-manicured-garden',
+        match: (ids, strategy) => strategy.aggressive && ids.has('hayaken-no-shiro') && ids.has('manicured-garden'),
+        apply: {
+            strongholdProvinceId: 'manicured-garden'
+        }
+    },
+    {
+        // Unicorn list with Temple of the Dragons (EmeraldDB 52b78858): it
+        // goes under the stronghold. Its on-reveal reaction resolves the
+        // contested ring as if WE were the attacker — on the opponent's
+        // final all-in push that means bowing/dishonoring their attacker or
+        // stripping their fate at the worst moment for them. (Public Forum
+        // cannot be a stronghold province by its own text.)
+        name: 'unicorn-temple-of-the-dragons',
+        match: (ids, strategy) => strategy.aggressive && ids.has('temple-of-the-dragons'),
+        apply: {
+            strongholdProvinceId: 'temple-of-the-dragons'
+        }
+    },
+    {
+        // Crab list with Flooded Waste (EmeraldDB c9381e02): it goes under
+        // the stronghold. Its on-reveal reaction bows EVERY attacking
+        // character — parked on the game-deciding province it blunts the
+        // opponent's final all-in push. Beats the generic Ancestral Lands
+        // default for this deck.
+        name: 'crab-flooded-waste',
+        match: (ids, strategy) => strategy.defensive && strategy.holdingEngine && ids.has('flooded-waste'),
+        apply: {
+            strongholdProvinceId: 'flooded-waste'
+        }
+    },
+    {
+        // Lion "Bushi swarm" precon (EmeraldDB e3feb31b). Same shape as the
+        // Unicorn rush — the deck derives `aggressive` from its swarm
+        // markers — and it starts from the Unicorn-proven fixes vs Crane's
+        // prevent-break defense (defend provinces, spend cards defending,
+        // keep one body home, real fate on characters). On top it gets the
+        // LionTactics sub-profile: bid-4 draw dials (Tactician's
+        // Apprentice), high duel bids (its duels bow the loser), and the
+        // Hayaken no Shiro ready-a-cheap-Bushi stronghold click. Matched on
+        // the stronghold id so no other aggressive deck picks it up.
+        name: 'lion-bushi-swarm',
+        match: (ids, strategy) => strategy.aggressive && ids.has('hayaken-no-shiro'),
+        apply: {
+            defenseCommitment: 'prevent-break',
+            spendCardsOnDefense: true,
+            attackCommitment: 'all',
+            aggressiveFate: false,
+            // Lion is not a pure body-flood: it plays a couple of mid-cost
+            // tower bushi (Toturi, Unified Company, Master Tactician — cost 5,
+            // deployed with 2 fate) supported by cheap ones. Keep a 1-fate
+            // dynasty reserve so the conflict phase can arm and ready that tower
+            // (attachments, Right Hand of the Emperor) BEFORE it commits.
+            reserveDynastyFate: true,
+            lion: { ...LION_DEFAULTS }
         }
     },
     {

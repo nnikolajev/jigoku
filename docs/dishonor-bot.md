@@ -80,6 +80,15 @@ Both are inert unless a card carries an enemy-side playbook hint.
 |---|---|---|
 | Scorpion seed 1 (heuristic) | **~62%** (99-61) | 4×N=40 pooled; individual runs ranged 20-20 to 32-8 |
 | Scorpion seed 4 (omniscient) | **~67%** (54-26) | 2×N=40 pooled |
+| seed 1 after the `abilityValue` fix | **31-9 (77.5%)** | N=40; Softskin (82 plays) and Compromised Secrets (77) had NEVER fired before |
+
+The `abilityValue` fix (shipped with the Lion deck): Softskin and Compromised
+Secrets are 0/0 attachments, and the conflict window's zero-contribution
+filter silently kept them in hand for the deck's whole first tuning cycle.
+The playbook flag marks their granted ability as the point; both now land on
+the opponent's best character every game and the win rate jumped a full
+config band. (The same flag was tried on Unicorn's Spyglass and measured
+NEGATIVE — see the playbook comment — so it is per-card, not blanket.)
 
 Every Scorpion win is by **dishonor** (opponent at 0 honor), typically round
 5-6. Every Crane win is by conquest — racing the provinces before the honor

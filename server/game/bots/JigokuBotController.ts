@@ -291,7 +291,12 @@ class JigokuBotController {
             // At declaration the ring/type in the title ("Political Fire
             // Conflict") flips as the bot re-selects rings — legal clicks that
             // make no real progress. Collapse element+type so the loop is seen.
-            .replace(/(?:military|political)\s+\w+\s+conflict/gi, 'CONFLICT');
+            .replace(/(?:military|political)\s+\w+\s+conflict/gi, 'CONFLICT')
+            // Reaction/interrupt windows re-title by the trigger ("...Fate being
+            // moved from Air Ring?", "...Water Ring?"), so a chained reaction
+            // loop shows a fresh signature every fire and evades this detector.
+            // Collapse the trigger text — MUST match the policy's dedup rule.
+            .replace(/\bany (reactions?|interrupts?)\b.*/gi, 'any $1');
     }
 
     // Last-resort escape when the bot is looping on one prompt without progress.
@@ -355,6 +360,10 @@ class JigokuBotController {
                     cardHint: (cardId: string) => getPlaybookEntry(cardId) || this.hintService?.getHint(cardId),
                     strategy: this.currentDeckStrategy(player),
                     profile: this.currentDeckProfile(player),
+                    // Live duel skill gap (our side - their side) for the bid.
+                    duelGap: this.currentDuelGap(player),
+                    // Printed fate cost of dynasty province cards (reserve 1 fate).
+                    dynastyCosts: this.dynastyCostsHint(player),
                     // Seed 4 only: the cheat view (human hand/fate/true province
                     // strengths). Undefined for every other seed, so the policy's
                     // omniscient branches stay dormant and seed 1 is unchanged.
@@ -1129,6 +1138,33 @@ class JigokuBotController {
         };
     }
 
+    // The base skill gap of the live duel from `player`'s point of view:
+    // (our side's skill) - (their side's skill) on the duel's axis, BEFORE
+    // honor bids are added. The bot uses it to bid to win when it is ahead or
+    // even and to bank honor when the duel is unwinnable. Undefined when there
+    // is no duel or for Glory duels (which compare glory, not military/
+    // political) so the bid falls back to the honor-only tactic.
+    private currentDuelGap(player: Player): number | undefined {
+        const duel: any = (this.game as any).currentDuel;
+        if(!duel || !duel.challenger || (duel.duelType !== 'military' && duel.duelType !== 'political')) {
+            return undefined;
+        }
+        const axis = duel.duelType;
+        const skillOf = (card: any): number => {
+            if(!card) {
+                return 0;
+            }
+            const value = axis === 'political' ? card.getPoliticalSkill?.() : card.getMilitarySkill?.();
+            return typeof value === 'number' ? value : 0;
+        };
+        const targets: any[] = duel.targets || [];
+        const challengerIsMine = duel.challenger.controller?.name === player.name;
+        const sumTargets = targets.reduce((total: number, card: any) => total + skillOf(card), 0);
+        const mySkill = challengerIsMine ? skillOf(duel.challenger) : sumTargets;
+        const oppSkill = challengerIsMine ? sumTargets : skillOf(duel.challenger);
+        return mySkill - oppSkill;
+    }
+
     // The 'Choose additional fate' cost prompt does not expose the printed
     // cost of the character being played in the player state, so read it off
     // the prompt step's source card for the policy's fate curve.
@@ -1179,6 +1215,29 @@ class JigokuBotController {
     private parseStat(value: any): number | null {
         const parsed = parseInt(value, 10);
         return isNaN(parsed) ? null : parsed;
+    }
+
+    // Printed fate cost of each face-up dynasty card in a province, keyed by
+    // uuid — the player-state summaries omit it, so the policy cannot otherwise
+    // tell whether playing a character would spend the bot's last fate. Used to
+    // keep a 1-fate reserve for conflict-phase hand plays.
+    private dynastyCostsHint(player: Player): Record<string, number> | undefined {
+        const getProvinces = (player as any).getProvinces;
+        if(typeof getProvinces !== 'function') {
+            return undefined;
+        }
+        const costs: Record<string, number> = {};
+        const cards: any[] = getProvinces.call(player, (card: any) =>
+            typeof card.isFaceup === 'function' && card.isFaceup());
+        for(const card of cards) {
+            if(card?.uuid && card.cardData) {
+                const cost = this.parseStat(card.cardData.cost);
+                if(cost !== null) {
+                    costs[card.uuid] = cost;
+                }
+            }
+        }
+        return Object.keys(costs).length > 0 ? costs : undefined;
     }
 
     private isLegalDecision(player: Player, decision: BotDecision): boolean {

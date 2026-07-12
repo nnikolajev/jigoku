@@ -640,13 +640,21 @@ class Player extends GameObject {
         if(numCards > this.conflictDeck.size()) {
             remainingCards = numCards - this.conflictDeck.size();
             const cards = this.conflictDeck.toArray();
+            // If the discard pile is also empty the reshuffle adds no cards, so
+            // the deck stays empty and a naive recursive draw would spin forever
+            // (reshuffling nothing, losing honor and allocating events every
+            // pass until the heap is exhausted). Only queue the remainder draw
+            // when there is something to reshuffle back in.
+            const canReshuffle = this.getSourceList('conflict discard pile').size() > 0;
             this.deckRanOutOfCards('conflict');
             this.game.queueSimpleStep(() => {
                 for(const card of cards) {
                     this.moveCard(card, Locations.Hand);
                 }
             });
-            this.game.queueSimpleStep(() => this.drawCardsToHand(remainingCards));
+            if(canReshuffle) {
+                this.game.queueSimpleStep(() => this.drawCardsToHand(remainingCards));
+            }
         } else {
             for(const card of this.conflictDeck.toArray().slice(0, numCards)) {
                 this.moveCard(card, Locations.Hand);

@@ -12,6 +12,7 @@ import { DragonTactics } from './DragonTactics.js';
 import { DuelTactics } from './DuelTactics.js';
 import { ShugenjaTactics } from './ShugenjaTactics.js';
 import { DragonAttachmentTactics } from './DragonAttachmentTactics.js';
+import { attackProvinceLists, strongholdProvinceUnderAttack } from './ProvinceTargeting.js';
 
 type BotCommandName = 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
 
@@ -509,7 +510,7 @@ class JigokuBotPolicy {
         // Triggered ability windows ('Any reactions?' / 'Any interrupts to X?'):
         // fire own province and stronghold abilities, pass everything else.
         if(title.includes('any reaction') || title.includes('any interrupt')) {
-            return this.triggeredWindowDecision(playerState, me, buttons, context.cardHint, lion);
+            return this.triggeredWindowDecision(playerState, me, buttons, title, context.playCost, context.cardHint, lion, attachmentTower);
         }
 
         // Opponent-forced "reveal N cards from your hand" selects (Daidoji
@@ -537,7 +538,8 @@ class JigokuBotPolicy {
         // The follow-up "attach to a character" select goes through the
         // generic attach targeting (fate-weighted, so it lands on a
         // character that persists).
-        if((lion || attachmentTower) && menuTitle === 'Choose an attachment') {
+        if((lion || attachmentTower) && menuTitle === 'Choose an attachment' &&
+            (title.includes('illustrious forge') || context.targetHint?.sourceCardId === 'illustrious-forge')) {
             const selectable = this.findVisibleCards(playerState).filter((card) =>
                 card.selectable && card.uuid && !this.isAttempted('cardClicked', [card.uuid]));
             const pick = attachmentTower
@@ -669,7 +671,7 @@ class JigokuBotPolicy {
             return this.buttonDecision(choice || buttons[0], 'choose-triggered-ability');
         }
 
-        const ringResolution = this.ringResolutionDecision(playerState, me, menuTitle, buttons, dishonor, shugenja);
+        const ringResolution = this.ringResolutionDecision(playerState, me, promptTitle, menuTitle, buttons, dishonor);
         if(ringResolution) {
             return ringResolution;
         }
@@ -806,6 +808,11 @@ class JigokuBotPolicy {
         return isNaN(value) ? null : value;
     }
 
+    private combinedSkillValue(card: any): number {
+        return Math.max(this.skillValue(card, 'military') || 0, 0) +
+            Math.max(this.skillValue(card, 'political') || 0, 0);
+    }
+
     // Dishonor decks at their honor floor stop declaring characters whose
     // declaration bleeds honor (Marauding Oni's forced reaction) — unless no
     // one else can fight. Inert for every other deck (dishonor is null).
@@ -821,8 +828,7 @@ class JigokuBotPolicy {
     // every defense cap (win-only concedes, prevent-break sizing, hopeless
     // folds, card-spend gates) is overridden — throw everything at it.
     private strongholdUnderAttack(me: any): boolean {
-        return (me?.strongholdProvince || []).some((card: any) =>
-            card.isProvince && card.inConflict && !card.isBroken);
+        return strongholdProvinceUnderAttack(me);
     }
 
     // The own province currently under attack (regular slots or stronghold).
@@ -1084,10 +1090,13 @@ class JigokuBotPolicy {
         if(lowerMenu.includes('choose attackers') || lowerMenu.includes('skill:') || lowerMenu.includes('covert')) {
             const type = conflictType || 'military';
             const committed = this.myCharactersInPlay(me).filter((card) => card.inConflict);
+            const finalStrongholdPush = this.strongholdUnderAttack(opponent);
+            const eligible = ready.filter((card) =>
+                !card.inConflict && (this.skillValue(card, type) || 0) > 0);
             const candidates = this.sortBySkillDesc(
-                this.withoutHonorCostDeclares(
-                    ready.filter((card) => !card.inConflict && (this.skillValue(card, type) || 0) > 0),
-                    dishonor, me?.stats?.honor ?? 10, cardHint),
+                finalStrongholdPush
+                    ? eligible
+                    : this.withoutHonorCostDeclares(eligible, dishonor, me?.stats?.honor ?? 10, cardHint),
                 type
             );
 
@@ -1095,8 +1104,8 @@ class JigokuBotPolicy {
             // the attacker wins by at least its strength, so commit skill
             // until the total clears the province plus the opponent's full
             // possible defense. When even everyone together cannot reach
-            // that, the opponent likely will not defend with everything —
-            // send all but the weakest, who stays home as a defender.
+            // that, normal profiles keep their configured home defense; a
+            // final stronghold push sends everyone because breaking it wins.
             const skillOf = (card: any) => Math.max(this.skillValue(card, type) || 0, 0);
             const committedSkill = committed.reduce((total, card) => total + skillOf(card), 0);
             const potentialSkill = committedSkill + candidates.reduce((total, card) => total + skillOf(card), 0);
@@ -1119,7 +1128,7 @@ class JigokuBotPolicy {
             // A pure turtle ('breakable-or-hold') only commits an attack it can
             // actually break; when the break is out of reach it keeps every body
             // home and passes the conflict rather than throwing skill away.
-            if(profile.attackCommitment === 'breakable-or-hold' && potentialSkill < breakTarget) {
+            if(!finalStrongholdPush && profile.attackCommitment === 'breakable-or-hold' && potentialSkill < breakTarget) {
                 const passButton = this.findButton(buttons, ['pass conflict']);
                 if(committed.length === 0 && passButton) {
                     return this.buttonDecision(passButton, 'defensive-hold');
@@ -1134,12 +1143,15 @@ class JigokuBotPolicy {
             //   'breakable-or-pressure'— all but `attackKeepHome`, so a defensive
             //                            deck still pressures instead of conceding
             //                            the whole conflict (keeps wall bodies home).
+            // Final stronghold pushes override these caps and commit all eligible
+            // attackers when a guaranteed break is not yet reachable.
             const keepHome = Math.max(1, profile.attackKeepHome);
             const unbreakableCommit =
-                profile.attackCommitment === 'all' ? committed.length < totalEligible
-                    : profile.attackCommitment === 'breakable-or-hold' ? false
-                        : profile.attackCommitment === 'breakable-or-pressure' ? committed.length < Math.max(1, totalEligible - keepHome)
-                            : committed.length < Math.max(1, totalEligible - 1);
+                finalStrongholdPush ? committed.length < totalEligible
+                    : profile.attackCommitment === 'all' ? committed.length < totalEligible
+                        : profile.attackCommitment === 'breakable-or-hold' ? false
+                            : profile.attackCommitment === 'breakable-or-pressure' ? committed.length < Math.max(1, totalEligible - keepHome)
+                                : committed.length < Math.max(1, totalEligible - 1);
             const needMore = potentialSkill >= breakTarget
                 ? committedSkill < breakTarget
                 : unbreakableCommit;
@@ -1309,9 +1321,7 @@ class JigokuBotPolicy {
             return null;
         }
 
-        let candidateLists = PROVINCE_KEYS
-            .map((key) => opponent.provinces?.[key] || [])
-            .concat([opponent.strongholdProvince || []]);
+        let candidateLists = attackProvinceLists(opponent);
 
         // Seed 4 sees every province's true strength, so it strikes the weakest
         // unbroken province first (fastest break, least skill spent) instead of
@@ -1336,7 +1346,8 @@ class JigokuBotPolicy {
 
             if(province.uuid) {
                 if(!this.isAttempted('cardClicked', [province.uuid])) {
-                    return this.cardClickDecision(province, 'attack-province');
+                    const stronghold = province.location === 'stronghold province';
+                    return this.cardClickDecision(province, stronghold ? 'attack-stronghold' : 'attack-province');
                 }
             } else if(province.location && opponent.name) {
                 const args = [province.location, opponent.name, true];
@@ -1345,7 +1356,9 @@ class JigokuBotPolicy {
                         command: 'facedownCardClicked',
                         args,
                         target: province.location,
-                        reason: 'attack-facedown-province'
+                        reason: province.location === 'stronghold province'
+                            ? 'attack-facedown-stronghold'
+                            : 'attack-facedown-province'
                     };
                 }
             }
@@ -2031,6 +2044,7 @@ class JigokuBotPolicy {
                 dynastyDiscard: me?.cardPiles?.dynastyDiscardPile || [],
                 conflictDiscard: me?.cardPiles?.conflictDiscardPile || [],
                 hand: me?.cardPiles?.hand || [],
+                stronghold: me?.stronghold,
                 rings: Object.values(playerState?.rings || {})
             };
             const onBoard = (location: string) =>
@@ -2430,7 +2444,29 @@ class JigokuBotPolicy {
     // worth firing (e.g. Meditations on the Tao stripping attacker fate);
     // character and event reactions stay passed until per-card knowledge
     // exists, because firing them blindly wastes fate and honor.
-    private triggeredWindowDecision(playerState: any, me: any, buttons: any[], cardHint?: CardHintLookup, lion: LionTactics | null = null): BotDecision | null {
+    private triggeredWindowDecision(playerState: any, me: any, buttons: any[], windowTitle: string, playCost?: number, cardHint?: CardHintLookup, lion: LionTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): BotDecision | null {
+        // A cost increase can make the engine expose Castle while a printed
+        // cost-zero attachment is being played. Preserve the once-per-round
+        // bow for a printed paid attachment instead of discounting that card.
+        const castle = attachmentTower && me?.stronghold?.id === 'iron-mountain-castle'
+            ? me.stronghold
+            : null;
+        if(castle?.selectable && castle.uuid && !castle.bowed &&
+            !this.isAttempted('cardClicked', [castle.uuid])) {
+            const playedAttachment = this.findVisibleCards(me).find((card) =>
+                card.type === 'attachment' && card.name &&
+                windowTitle.includes(String(card.name).toLowerCase()));
+            const visibleCost = Number(playedAttachment?.printedCost ?? playedAttachment?.cost);
+            const printedCost = typeof playCost === 'number' ? playCost : visibleCost;
+            if(Number.isFinite(printedCost) && printedCost === 0) {
+                const pass = this.findButton(buttons, ['pass', 'done']);
+                if(pass) {
+                    return this.buttonDecision(pass, 'save-iron-mountain-castle-free-attachment');
+                }
+            }
+            return this.cardClickDecision(castle, 'iron-mountain-castle-reduce-attachment');
+        }
+
         // Facedown province summaries carry no type/isProvince flags, so also
         // match by province location.
         const source = this.findVisibleCards(me).find((card) =>
@@ -2518,6 +2554,18 @@ class JigokuBotPolicy {
 
         const skillType = title.includes('political') ? 'political' : 'military';
 
+        // Older/custom prompt adapters may omit the target hint for a single
+        // gameAction. Let Go is never allowed to fall through to generic card
+        // selection: infer its harmful enemy-only target from the prompt title.
+        if(!targetHint && title.includes('let go')) {
+            targetHint = {
+                gameActions: ['discardFromPlay'],
+                sourceIsMine: true,
+                sourceType: 'event',
+                sourceCardId: 'let-go'
+            };
+        }
+
         if(dragon && targetHint?.sourceCardId === 'ancient-master') {
             const pick = dragon.pickAncientMasterCard(cards);
             if(pick) {
@@ -2593,6 +2641,11 @@ class JigokuBotPolicy {
             const aimed = this.polarityTargetDecision(cards, playerState, me, skillType, targetHint, buttons, cardHint, glory, lion, dragon, duelist, shugenja, attachmentTower);
             if(aimed) {
                 return aimed;
+            }
+            if(targetHint.sourceCardId === 'let-go') {
+                // No enemy attachment and no Cancel button: return no card
+                // decision rather than ever discard one of our attachments.
+                return null;
             }
         }
 
@@ -3328,9 +3381,12 @@ class JigokuBotPolicy {
     // skipping is better), fire honors own / dishonors enemy, water bows the
     // opponent's strongest ready character or readies an own bowed one when
     // more conflicts remain, air weighs gaining 2 honor against taking 1.
-    private ringResolutionDecision(playerState: any, me: any, menuTitle: string, buttons: any[], dishonor: DishonorTactics | null = null, shugenja: ShugenjaTactics | null = null): BotDecision | null {
+    private ringResolutionDecision(playerState: any, me: any, promptTitle: string, menuTitle: string, buttons: any[], dishonor: DishonorTactics | null = null): BotDecision | null {
         const dontResolve = this.findButton(buttons, ['don\'t resolve']);
-        const isRingTargetPrompt = ['Choose character to remove fate from', 'Choose character to honor or dishonor', 'Choose character to bow or unbow'].includes(menuTitle);
+        const isWaterTargetPrompt = menuTitle === 'Choose character to bow or unbow' ||
+            (/water ring/i.test(promptTitle) && /choose (a )?character/i.test(menuTitle));
+        const isRingTargetPrompt = ['Choose character to remove fate from', 'Choose character to honor or dishonor'].includes(menuTitle) ||
+            isWaterTargetPrompt;
 
         if(isRingTargetPrompt) {
             const myUuids = new Set(this.findVisibleCards(me).map((card) => card.uuid));
@@ -3374,33 +3430,19 @@ class JigokuBotPolicy {
                 return dontResolve ? this.buttonDecision(dontResolve, 'fire-ring-skip') : null;
             }
 
-            // Water: clicking a ready character bows it, a bowed one readies.
-            const bowable = this.sortBySkillDesc(theirs.filter((card) => !card.bowed), 'military');
-            const readyable = mine.filter((card) => card.bowed);
-            const moreConflictsComing = (me?.stats?.conflictsRemaining ?? 0) >= 1;
-            if(shugenja && readyable.length > 0 && moreConflictsComing) {
-                const tower = shugenja.pickTower(readyable, (card) => this.skillValue(card, 'military') || 0);
-                if(tower) {
-                    return this.cardClickDecision(tower, 'water-ring-ready-own-tower');
-                }
-            }
-            if(bowable.length > 0) {
-                return this.cardClickDecision(bowable[0], 'water-ring-bow-enemy');
-            }
-            if(readyable.length > 0 && moreConflictsComing) {
-                const pick = shugenja
-                    ? shugenja.pickTower(readyable, (card) => this.skillValue(card, 'military') || 0)
-                    : this.sortBySkillDesc(readyable, 'military')[0];
-                return this.cardClickDecision(pick, 'water-ring-ready-own');
+            // Water is binary tempo: ready a bowed friendly or bow a ready
+            // enemy. Pick largest combined military + political skill swing.
+            const useful = mine.filter((card) => card.bowed)
+                .map((card) => ({ card, reason: 'water-ring-ready-own' }))
+                .concat(theirs.filter((card) => !card.bowed)
+                    .map((card) => ({ card, reason: 'water-ring-bow-enemy' })))
+                .sort((a, b) => this.combinedSkillValue(b.card) - this.combinedSkillValue(a.card) ||
+                    String(a.card.uuid).localeCompare(String(b.card.uuid)));
+            if(useful.length > 0) {
+                return this.cardClickDecision(useful[0].card, useful[0].reason);
             }
             if(dontResolve) {
                 return this.buttonDecision(dontResolve, 'water-ring-skip');
-            }
-            if(readyable.length > 0) {
-                const pick = shugenja
-                    ? shugenja.pickTower(readyable, (card) => this.skillValue(card, 'military') || 0)
-                    : this.sortBySkillDesc(readyable, 'military')[0];
-                return this.cardClickDecision(pick, 'water-ring-ready-own');
             }
             return null;
         }

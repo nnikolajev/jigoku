@@ -129,6 +129,16 @@ describe('DragonAttachmentTactics', function() {
                     { id: 'ancestral-daisho', uuid: 'paid', cost: '1', isPlayableByMe: true }
                 ]
             })).toBe(true);
+            expect(tactics.shouldUseDaimyoFavor(favor, {
+                myCharacters: [yokuni],
+                stronghold: { id: 'iron-mountain-castle', bowed: false },
+                hand: [{ id: 'ancestral-daisho', uuid: 'paid', cost: '1', isPlayableByMe: true }]
+            })).toBe(false);
+            expect(tactics.shouldUseDaimyoFavor(favor, {
+                myCharacters: [yokuni],
+                stronghold: { id: 'iron-mountain-castle', bowed: false },
+                hand: [{ id: 'jade-tetsubo', uuid: 'paid-two', cost: '2', isPlayableByMe: true }]
+            })).toBe(true);
             expect(tactics.pickDaimyoReducedAttachment([
                 { id: 'adopted-kin', uuid: 'free', cost: '0', isPlayableByMe: true },
                 { id: 'ancestral-daisho', uuid: 'paid', cost: '1', isPlayableByMe: true }
@@ -255,6 +265,155 @@ describe('DragonAttachmentTactics', function() {
             });
             expect(target.reason).toBe('daimyo-favor-reduced-attachment-target');
             expect(target.target).toBe('yokuni');
+        });
+
+        it('saves Daimyo\'s Favor so ready Iron Mountain Castle reduces Tetsubo of Blood', function() {
+            const favor = {
+                uuid: 'favor', id: 'daimyo-s-favor', type: 'attachment',
+                location: 'play area', bowed: false
+            };
+            const tower = {
+                uuid: 'tower', id: 'niten-master', type: 'character',
+                location: 'play area', fate: 3, attachments: [favor]
+            };
+            const tetsubo = {
+                uuid: 'tetsubo', id: 'tetsubo-of-blood', type: 'attachment', cost: '1',
+                location: 'hand', isPlayableByMe: true
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict', promptTitle: 'Action Window',
+                        menuTitle: 'Initiate an action', buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stats: { honor: 10, fate: 3 },
+                        stronghold: {
+                            uuid: 'castle', id: 'iron-mountain-castle', type: 'stronghold',
+                            location: 'stronghold province', bowed: false
+                        },
+                        cardPiles: { cardsInPlay: [tower], hand: [tetsubo] }
+                    },
+                    Opponent: { name: 'Opponent', cardPiles: { cardsInPlay: [], hand: [] } }
+                }
+            };
+            const policy = new JigokuBotPolicy('castle-tetsubo');
+            const context = {
+                strategy: ATTACHMENTS,
+                cardHint: getPlaybookEntry
+            };
+            const decision = policy.decide(state, 'Jigoku Bot', context);
+            expect(decision.reason).toBe('attachment-tower-preconflict');
+            expect(decision.target).toBe('tetsubo');
+
+            state.players['Jigoku Bot'].stronghold.selectable = true;
+            state.players['Jigoku Bot'].promptTitle = 'Triggered Abilities';
+            state.players['Jigoku Bot'].menuTitle = 'Any interrupts to Tetsubo of Blood being played?';
+            const interrupt = policy.decide(state, 'Jigoku Bot', context);
+            expect(interrupt.reason).toBe('iron-mountain-castle-reduce-attachment');
+            expect(interrupt.target).toBe('castle');
+        });
+
+        it('uses ready Iron Mountain Castle on a cost-one fallback when Tetsubo is absent', function() {
+            const favor = {
+                uuid: 'favor', id: 'daimyo-s-favor', type: 'attachment',
+                location: 'play area', bowed: false
+            };
+            const tower = {
+                uuid: 'tower', id: 'niten-master', type: 'character',
+                location: 'play area', fate: 3, attachments: [favor]
+            };
+            const fallback = {
+                uuid: 'fallback', id: 'ancestral-daisho', type: 'attachment', cost: '1',
+                location: 'hand', isPlayableByMe: true
+            };
+            const castle = {
+                uuid: 'castle', id: 'iron-mountain-castle', type: 'stronghold',
+                location: 'stronghold province', bowed: false
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict', promptTitle: 'Action Window',
+                        menuTitle: 'Initiate an action', buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stats: { honor: 10, fate: 3 }, stronghold: castle,
+                        cardPiles: { cardsInPlay: [tower], hand: [fallback] }
+                    },
+                    Opponent: { name: 'Opponent', cardPiles: { cardsInPlay: [], hand: [] } }
+                }
+            };
+            const policy = new JigokuBotPolicy('castle-fallback');
+            const context = { strategy: ATTACHMENTS, cardHint: getPlaybookEntry };
+            const play = policy.decide(state, 'Jigoku Bot', context);
+            expect(play.reason).toBe('attachment-tower-preconflict');
+            expect(play.target).toBe('fallback');
+
+            castle.selectable = true;
+            state.players['Jigoku Bot'].promptTitle = 'Triggered Abilities';
+            state.players['Jigoku Bot'].menuTitle = 'Any interrupts to Ancestral Daisho being played?';
+            const interrupt = policy.decide(state, 'Jigoku Bot', context);
+            expect(interrupt.reason).toBe('iron-mountain-castle-reduce-attachment');
+            expect(interrupt.target).toBe('castle');
+        });
+
+        it('saves Iron Mountain Castle when a printed cost-zero attachment is being played', function() {
+            const castle = {
+                uuid: 'castle', id: 'iron-mountain-castle', type: 'stronghold',
+                location: 'stronghold province', bowed: false, selectable: true
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', promptTitle: 'Triggered Abilities',
+                        menuTitle: 'Any interrupts to Fine Katana being played?',
+                        buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stronghold: castle,
+                        cardPiles: { cardsInPlay: [], hand: [] }
+                    },
+                    Opponent: { name: 'Opponent', cardPiles: { cardsInPlay: [], hand: [] } }
+                }
+            };
+            const decision = new JigokuBotPolicy('castle-free').decide(state, 'Jigoku Bot', {
+                strategy: ATTACHMENTS,
+                playCardId: 'fine-katana',
+                playCost: 0,
+                cardHint: getPlaybookEntry
+            });
+            expect(decision.reason).toBe('save-iron-mountain-castle-free-attachment');
+            expect(decision.target).toBe('Pass');
+        });
+
+        it('never lets a Let Go prompt fall through to an own attachment', function() {
+            const ownTetsubo = {
+                uuid: 'own-tetsubo', id: 'tetsubo-of-blood', name: 'Tetsubo of Blood',
+                type: 'attachment', location: 'play area', selectable: true
+            };
+            const ownTower = {
+                uuid: 'own-tower', id: 'niten-master', type: 'character',
+                location: 'play area', attachments: [ownTetsubo]
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', promptTitle: 'Let Go', menuTitle: 'Choose a card',
+                        buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+                        cardPiles: { cardsInPlay: [ownTower], hand: [] }
+                    },
+                    Opponent: { name: 'Opponent', cardPiles: { cardsInPlay: [], hand: [] } }
+                }
+            };
+            const decision = new JigokuBotPolicy('let-go-own-guard').decide(state, 'Jigoku Bot', {
+                strategy: ATTACHMENTS,
+                cardHint: getPlaybookEntry
+            });
+            expect(decision.reason).toBe('cancel-wrong-side-target');
+            expect(decision.target).toBe('Cancel');
+        });
+
+        it('does not play Let Go unless the opponent has an attachment', function() {
+            const shouldPlay = getPlaybookEntry('let-go').shouldPlay;
+            expect(shouldPlay({ opponentCharacters: [] })).toBe(false);
+            expect(shouldPlay({
+                opponentCharacters: [{ id: 'enemy', attachments: [{ id: 'fine-katana' }] }]
+            })).toBe(true);
         });
 
         it('copies and triggers an enemy Tengu Sensei ability with Yokuni', function() {

@@ -11,8 +11,10 @@
 
 const path = require('path');
 const { spawn } = require('child_process');
+const { DECK_LABELS } = require('./deckRegistry.js');
 
-const DECKS = ['Unicorn', 'Scorpion', 'Lion', 'Phoenix', 'PhoenixShugenja', 'Dragon', 'CraneDuels', 'Crab'];
+const BASELINE_DECK = 'Crane';
+const DECKS = Object.freeze(DECK_LABELS.filter((label) => label !== BASELINE_DECK));
 const WORKER = path.join(__dirname, '_deckWorker.js');
 
 // Per-game wall budget; the deck child is killed if it exceeds games * this.
@@ -80,7 +82,7 @@ async function main() {
             reasons[key] = (reasons[key] || 0) + 1;
             if(r.winner === label) {
                 wins++;
-            } else if(r.winner === 'Crane') {
+            } else if(r.winner === BASELINE_DECK) {
                 losses++;
             } else {
                 other++;
@@ -92,8 +94,9 @@ async function main() {
     rows.sort((a, b) => (b.played ? b.wins / b.played : 0) - (a.played ? a.wins / a.played : 0));
 
     console.log(`\n=== Bot win rates vs Crane precon (seed ${botSeed}, N=${games}/deck, seats alternate) ===\n`);
-    console.log('deck          record     win%   played  top loss / note');
-    console.log('------------  ---------  -----  ------  ------------------------');
+    const deckWidth = Math.max('deck'.length, ...rows.map((row) => row.label.length));
+    console.log(`${'deck'.padEnd(deckWidth)}  record     win%   played  top loss / note`);
+    console.log(`${'-'.repeat(deckWidth)}  ---------  -----  ------  ------------------------`);
     for(const row of rows) {
         const pct = row.played ? ((row.wins / row.played) * 100).toFixed(0).padStart(3) : ' --';
         const record = `${row.wins}-${row.losses}${row.other ? ' (+' + row.other + ')' : ''}`;
@@ -104,12 +107,16 @@ async function main() {
         if(row.died) {
             note = `child ${row.died} after ${row.played}/${games}`;
         }
-        console.log(`${row.label.padEnd(12)}  ${record.padEnd(9)}  ${pct}%   ${String(row.played).padStart(3)}/${games}  ${note}`);
+        console.log(`${row.label.padEnd(deckWidth)}  ${record.padEnd(9)}  ${pct}%   ${String(row.played).padStart(3)}/${games}  ${note}`);
     }
     console.log('\n(all decks run in parallel in isolated processes; a deck marked "child ..." hit a hang/OOM and shows partial results.)');
 }
 
-main().catch((err) => {
-    console.error(err);
-    process.exit(1);
-});
+if(require.main === module) {
+    main().catch((err) => {
+        console.error(err);
+        process.exit(1);
+    });
+}
+
+module.exports = { DECKS };

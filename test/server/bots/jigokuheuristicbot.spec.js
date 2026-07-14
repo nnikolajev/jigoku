@@ -29,6 +29,45 @@ describe('Jigoku heuristic bot', function() {
         };
     }
 
+    it('builds a target hint when a selector exposes one gameAction object', function() {
+        const controller = Object.create(JigokuBotController.prototype);
+        controller.currentPromptStep = () => ({
+            properties: { gameAction: { name: 'discardFromPlay' } },
+            context: {
+                player: { name: 'Jigoku Bot' },
+                source: { type: 'event', cardData: { id: 'let-go' } }
+            }
+        });
+        expect(controller.currentTargetHint({ name: 'Jigoku Bot' })).toEqual({
+            gameActions: ['discardFromPlay'],
+            sourceIsMine: true,
+            sourceType: 'event',
+            sourceCardId: 'let-go'
+        });
+    });
+
+    it('reads played card metadata from an active interrupt window', function() {
+        const controller = Object.create(JigokuBotController.prototype);
+        controller.currentPromptStep = () => ({ properties: {} });
+        controller.game = {
+            currentAbilityWindow: {
+                events: [
+                    {
+                        name: 'onAbilityResolverInitiated',
+                        context: {
+                            source: {
+                                printedCost: 0,
+                                cardData: { id: 'fine-katana', cost: '0' }
+                            }
+                        }
+                    }
+                ]
+            }
+        };
+        expect(controller.currentPlayCost({ name: 'Jigoku Bot' })).toBe(0);
+        expect(controller.currentPlayCardId({ name: 'Jigoku Bot' })).toBe('fine-katana');
+    });
+
     it('rejects illegal menu commands before calling the game runner', function() {
         const prompt = {
             promptTitle: 'Test Prompt',
@@ -1199,7 +1238,7 @@ describe('Jigoku heuristic bot', function() {
             expect(policy.decide(menuState, 'Jigoku Bot').target).toBe('Honor own-hero');
         });
 
-        it('water ring bows the enemy or readies its own only when conflicts remain', function() {
+        it('water ring bows a ready enemy or readies a bowed friendly', function() {
             const policy = new JigokuBotPolicy('water-bow');
             expect(policy.decide(makeRingResolutionState(
                 'Choose character to bow or unbow',
@@ -1208,15 +1247,15 @@ describe('Jigoku heuristic bot', function() {
                 [dontResolve]
             ), 'Jigoku Bot').args[0]).toBe('enemy-ready');
 
-            // Own bowed character, no conflicts left: skip.
-            const noConflicts = new JigokuBotPolicy('water-skip');
+            // Ready is always positive for the bot, even with no conflicts left.
+            const noConflicts = new JigokuBotPolicy('water-ready-no-conflicts');
             expect(noConflicts.decide(makeRingResolutionState(
                 'Choose character to bow or unbow',
                 [character('own-bowed', { bowed: true })],
                 [],
                 [dontResolve],
                 { conflictsRemaining: 0 }
-            ), 'Jigoku Bot').target).toBe('Don\'t resolve');
+            ), 'Jigoku Bot').args[0]).toBe('own-bowed');
 
             // Conflicts remaining: ready the bowed character.
             const readyUp = new JigokuBotPolicy('water-ready');
@@ -1227,6 +1266,21 @@ describe('Jigoku heuristic bot', function() {
                 [dontResolve],
                 { conflictsRemaining: 1 }
             ), 'Jigoku Bot').args[0]).toBe('own-bowed');
+        });
+
+        it('water ring recognizes generic Offerings prompt and ranks combined skill', function() {
+            const policy = new JigokuBotPolicy('water-combined-skill');
+            const state = makeRingResolutionState(
+                'Choose a character',
+                [character('own-ready', { militarySkillSummary: { stat: '8' }, politicalSkillSummary: { stat: '8' } }),
+                    character('own-bowed', { bowed: true, militarySkillSummary: { stat: '2' }, politicalSkillSummary: { stat: '3' } })],
+                [character('enemy-strong', { militarySkillSummary: { stat: '5' }, politicalSkillSummary: { stat: '6' } }),
+                    character('enemy-weak', { militarySkillSummary: { stat: '4' }, politicalSkillSummary: { stat: '1' } })],
+                [dontResolve]
+            );
+            state.players['Jigoku Bot'].promptTitle = 'Water Ring';
+
+            expect(policy.decide(state, 'Jigoku Bot').args[0]).toBe('enemy-strong');
         });
 
         it('air ring takes honor from an opponent near a win or loss, else gains 2', function() {
@@ -1307,6 +1361,89 @@ describe('Jigoku heuristic bot', function() {
         const decision = policy.decide(state, 'Jigoku Bot');
         expect(decision.command).toBe('facedownCardClicked');
         expect(decision.args).toEqual(['province 1', 'Human', true]);
+    });
+
+    it('attacks the stronghold instead of the fourth outer province after 3 breaks', function() {
+        const brokenProvince = (location) => ({
+            isProvince: true, type: 'province', location: location, isBroken: true
+        });
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    promptTitle: 'Military Air Conflict',
+                    menuTitle: 'Choose province to attack',
+                    buttons: [],
+                    cardPiles: { cardsInPlay: [] }
+                },
+                'Human': {
+                    name: 'Human',
+                    provinces: {
+                        one: [brokenProvince('province 1')],
+                        two: [brokenProvince('province 2')],
+                        three: [brokenProvince('province 3')],
+                        four: [{ facedown: true, location: 'province 4', isBroken: false }]
+                    },
+                    strongholdProvince: [{ facedown: true, location: 'stronghold province', isBroken: false }]
+                }
+            }
+        };
+
+        const decision = new JigokuBotPolicy('stronghold-target').decide(state, 'Jigoku Bot');
+
+        expect(decision.command).toBe('facedownCardClicked');
+        expect(decision.args).toEqual(['stronghold province', 'Human', true]);
+        expect(decision.reason).toBe('attack-facedown-stronghold');
+    });
+
+    it('commits every available attacker to an unreachable stronghold break', function() {
+        const attacker = (uuid, inConflict = false) => ({
+            uuid: uuid, name: uuid, type: 'character', location: 'play area',
+            bowed: false, inConflict: inConflict,
+            militarySkillSummary: { stat: '2' }, politicalSkillSummary: { stat: '0' }
+        });
+        const first = attacker('first');
+        const second = attacker('second');
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    promptTitle: 'Military Air Conflict',
+                    menuTitle: 'Choose attackers - Attacker: 0 Defender: 0',
+                    buttons: [
+                        { text: 'Initiate Conflict', arg: 'done', uuid: 'done' },
+                        { text: 'Pass Conflict', arg: 'pass', uuid: 'pass' }
+                    ],
+                    stats: { honor: 10 },
+                    cardPiles: { cardsInPlay: [first, second] }
+                },
+                'Human': {
+                    name: 'Human',
+                    cardPiles: {
+                        cardsInPlay: [{
+                            uuid: 'defender', type: 'character', bowed: false,
+                            militarySkillSummary: { stat: '5' }, politicalSkillSummary: { stat: '0' }
+                        }]
+                    },
+                    strongholdProvince: [{
+                        isProvince: true, type: 'province', location: 'stronghold province',
+                        inConflict: true, isBroken: false, strengthSummary: { stat: '5' }
+                    }]
+                }
+            }
+        };
+        const profile = { attackCommitment: 'breakable-or-hold', attackKeepHome: 2 };
+        const policy = new JigokuBotPolicy('stronghold-all-in');
+
+        const firstDecision = policy.decide(state, 'Jigoku Bot', { profile: profile });
+        expect(firstDecision.args[0]).toBe('first');
+        expect(firstDecision.reason).toBe('declare-attacker');
+
+        first.inConflict = true;
+        state.players['Jigoku Bot'].menuTitle = 'Choose attackers - Attacker: 2 Defender: 0';
+        const secondDecision = policy.decide(state, 'Jigoku Bot', { profile: profile });
+        expect(secondDecision.args[0]).toBe('second');
+        expect(secondDecision.reason).toBe('declare-attacker');
     });
 
     it('declares defenders until skill is matched, then clicks done', function() {
@@ -3025,6 +3162,70 @@ describe('Jigoku heuristic bot', function() {
             expect(calls[0].command).toBe('cardClicked');
             expect(calls[0].arg).toBe('prov-a');
         });
+    });
+
+    it('forces every driven bot seed onto the stronghold after 3 outer breaks', function() {
+        const runDrivenSeed = (seed) => {
+            const attackPrompt = {
+                promptTitle: 'Military Air Conflict',
+                menuTitle: 'Choose province to attack',
+                selectCard: true,
+                buttons: []
+            };
+            let currentPrompt = attackPrompt;
+            const player = {
+                name: 'Jigoku Bot', left: false, disconnected: false,
+                promptState: { selectableCards: [], selectableRings: [] },
+                currentPrompt: () => currentPrompt
+            };
+            const broken = (location) => ({
+                isProvince: true, type: 'province', location: location, isBroken: true
+            });
+            const state = {
+                players: {
+                    'Jigoku Bot': Object.assign({
+                        name: 'Jigoku Bot', cardPiles: { cardsInPlay: [] }
+                    }, attackPrompt),
+                    'Human': {
+                        name: 'Human',
+                        provinces: {
+                            one: [broken('province 1')],
+                            two: [broken('province 2')],
+                            three: [broken('province 3')],
+                            four: [{ facedown: true, location: 'province 4', isBroken: false }]
+                        },
+                        strongholdProvince: [{ facedown: true, location: 'stronghold province', isBroken: false }]
+                    }
+                }
+            };
+            const game = makeGame(player, state);
+            const planner = { chooseAction: jasmine.createSpy('chooseAction') };
+            const evaluator = { pick: jasmine.createSpy('pick').and.returnValue(0) };
+            const calls = [];
+            const runner = (command, name, args) => {
+                calls.push({ command: command, name: name, args: args });
+                currentPrompt = { buttons: [] };
+                state.players['Jigoku Bot'] = { name: 'Jigoku Bot', buttons: [] };
+                return true;
+            };
+            const controller = new JigokuBotController(
+                game,
+                { playerName: 'Jigoku Bot', seed: seed, llm: { enabled: false } },
+                runner,
+                { planner: planner, evaluator: evaluator }
+            );
+
+            controller.tick();
+
+            expect(calls.length).toBe(1);
+            expect(calls[0].command).toBe('facedownCardClicked');
+            expect(calls[0].args).toEqual(['stronghold province', 'Human', true]);
+            expect(planner.chooseAction).not.toHaveBeenCalled();
+            expect(evaluator.pick).not.toHaveBeenCalled();
+        };
+
+        runDrivenSeed(2);
+        runDrivenSeed(3);
     });
 
     describe('Crab wall deck strategy', function() {

@@ -336,6 +336,22 @@ export class DragonAttachmentTactics {
             return false;
         }
         const bearerUuid = this.daimyoFavorBearerUuid(source, ctx?.myCharacters || []);
-        return !!this.pickDaimyoReducedAttachment(ctx?.hand || [], ctx?.myCharacters || [], bearerUuid);
+        const attachment = this.pickDaimyoReducedAttachment(
+            ctx?.hand || [],
+            ctx?.myCharacters || [],
+            bearerUuid
+        );
+        if(!attachment) {
+            return false;
+        }
+
+        // Iron Mountain Castle is an interrupt during the attachment play.
+        // If Favor reduces a cost-1 card first, the remaining cost is zero and
+        // the engine correctly never offers Castle's interrupt. Reserve ready
+        // Castle for Tetsubo of Blood (the first attachment priority) or any
+        // other cost-1 fallback. Cost-2+ cards still use both reductions.
+        const castle = ctx?.stronghold;
+        const castleReady = castle?.id === 'iron-mountain-castle' && !castle.bowed;
+        return !castleReady || Number(attachment.cost ?? attachment.printedCost) > 1;
     }
 }

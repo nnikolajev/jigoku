@@ -12,6 +12,7 @@ import { getCardModel } from './DeckAnalysis.js';
 import type { KnownCard, OmniProvince, Omniscient } from './DeckAnalysis';
 import { stateFeatures, optionFeatures } from './ml/features.js';
 import type { MoveEvaluator } from './ml/evaluator';
+import { attackProvinceLists, mustAttackStronghold } from './ProvinceTargeting.js';
 import { logger } from '../../logger.js';
 import type Game from '../game';
 import type Player from '../player';
@@ -350,7 +351,8 @@ class JigokuBotController {
 
                 const targetHint = this.currentTargetHint(player);
                 this.ensureDeckAnalyzed(player);
-                let decision = this.policy.decide(this.game.getState(player.name), player.name, {
+                const playerState = this.game.getState(player.name);
+                let decision = this.policy.decide(playerState, player.name, {
                     roundNumber: (this.game as any).roundNumber,
                     targetHint: targetHint,
                     playCost: this.currentPlayCost(player),
@@ -370,6 +372,7 @@ class JigokuBotController {
                     // omniscient branches stay dormant and seed 1 is unchanged.
                     omniscient: this.buildOmniscient(player)
                 });
+                const mandatoryStrongholdAssault = this.isMandatoryStrongholdAssault(playerState, player.name, beforePrompt);
 
                 // Seed 2: let the LLM choose the move. Whenever the step is a
                 // real choice (more than one legal option), hand the whole
@@ -377,7 +380,7 @@ class JigokuBotController {
                 // — the heuristic decision rides along as the labelled fall-back.
                 // Forced/single-option steps skip the model and run the
                 // heuristic pick directly so trivial clicks stay fast.
-                if(this.isLlmDriven()) {
+                if(this.isLlmDriven() && !mandatoryStrongholdAssault) {
                     const options = this.enumerateOptions(player, beforePrompt, decision);
                     if(options.length >= 2) {
                         this.startActionConsult(player, beforePrompt, options, decision);
@@ -401,7 +404,7 @@ class JigokuBotController {
                 // the end-of-round phases are left to the heuristic — the
                 // evaluator adds no value there and the setup province prompts
                 // are shaped in ways it cannot satisfy (it would stall).
-                if(this.isEvaluatorDriven() && this.isStrategicPrompt(beforePrompt)) {
+                if(this.isEvaluatorDriven() && this.isStrategicPrompt(beforePrompt) && !mandatoryStrongholdAssault) {
                     const options = this.enumerateOptions(player, beforePrompt, decision);
                     if(options.length >= 1) {
                         decision = this.evaluatorPick(player, beforePrompt, options) || decision;
@@ -832,6 +835,14 @@ class JigokuBotController {
             options.push({ id: String(options.length), label: label, decision: decision });
         };
 
+        // Do not expose strategic alternatives that violate the win condition.
+        // This also keeps seed-3 training records free of pointless fourth-
+        // province targets during the forced stronghold assault sequence.
+        if(this.isMandatoryStrongholdAssault(state, player.name, prompt)) {
+            add(fallback, `Mandatory stronghold assault (${fallback?.target || fallback?.reason || 'advance'})`);
+            return options;
+        }
+
         for(const button of (me?.buttons || []).filter((b: any) => !b.disabled)) {
             add({ command: 'menuButton', args: [button.arg, button.uuid, button.method], target: button.text, reason: 'llm-button' }, `Button: ${button.text}`);
         }
@@ -851,6 +862,7 @@ class JigokuBotController {
         const meName = me?.name;
         const myUuids = new Set(this.findVisibleCards(me).map((card) => card.uuid));
         const directClick = this.isDirectClickPrompt(prompt);
+        const attackTargetPrompt = /choose province to attack/i.test(String(prompt?.menuTitle || ''));
         const sideOf = (card: any) => myUuids.has(card.uuid) ? 'mine' : 'opponent';
 
         // Cards the prompt already flags selectable (select prompts populate
@@ -866,9 +878,11 @@ class JigokuBotController {
         for(const name of Object.keys(players)) {
             const owner = players[name];
             const side = name === meName ? 'mine' : 'opponent';
-            const lists = ['one', 'two', 'three', 'four']
-                .map((key) => owner?.provinces?.[key] || [])
-                .concat([owner?.strongholdProvince || []]);
+            const lists = attackTargetPrompt && side === 'opponent'
+                ? attackProvinceLists(owner)
+                : ['one', 'two', 'three', 'four']
+                    .map((key) => owner?.provinces?.[key] || [])
+                    .concat([owner?.strongholdProvince || []]);
             for(const list of lists) {
                 for(const province of (list || [])) {
                     if(!province || province.isBroken || province.type === 'stronghold') {
@@ -1126,8 +1140,13 @@ class JigokuBotController {
     // aim harmful effects at the opponent and helpful ones at its own cards.
     private currentTargetHint(player: Player): { gameActions: string[]; sourceIsMine: boolean; sourceType?: string; sourceCardId?: string } | undefined {
         const step = this.currentPromptStep(player);
-        const gameActions = step?.properties?.gameAction;
-        if(!Array.isArray(gameActions) || gameActions.length === 0) {
+        const configuredActions = step?.properties?.gameAction;
+        const gameActions = Array.isArray(configuredActions)
+            ? configuredActions
+            : configuredActions
+                ? [configuredActions]
+                : [];
+        if(gameActions.length === 0) {
             return undefined;
         }
 
@@ -1169,22 +1188,27 @@ class JigokuBotController {
     // The 'Choose additional fate' cost prompt does not expose the printed
     // cost of the character being played in the player state, so read it off
     // the prompt step's source card for the policy's fate curve.
-    private currentPlayCost(player: Player): number | undefined {
+    private currentPlaySource(player: Player): any {
         const step = this.currentPromptStep(player);
-        if(step?.properties?.activePromptTitle !== 'Choose additional fate') {
-            return undefined;
+        if(step?.properties?.activePromptTitle === 'Choose additional fate') {
+            return step.properties?.source;
         }
+        const abilityWindow = (this.game as any).currentAbilityWindow;
+        return abilityWindow?.playEvent?.context?.source ||
+            abilityWindow?.events?.find((event: any) => event.name === 'onAbilityResolverInitiated')?.context?.source ||
+            step?.playEvent?.context?.source;
+    }
 
-        const cost = step.properties?.source?.printedCost;
-        return typeof cost === 'number' && !isNaN(cost) ? cost : undefined;
+    private currentPlayCost(player: Player): number | undefined {
+        const source = this.currentPlaySource(player);
+        const rawCost = source?.printedCost ?? source?.cardData?.cost ?? source?.cost;
+        const cost = Number(rawCost);
+        return Number.isFinite(cost) ? cost : undefined;
     }
 
     private currentPlayCardId(player: Player): string | undefined {
-        const step = this.currentPromptStep(player);
-        if(step?.properties?.activePromptTitle !== 'Choose additional fate') {
-            return undefined;
-        }
-        return step.properties?.source?.cardData?.id || step.properties?.source?.id;
+        const source = this.currentPlaySource(player);
+        return source?.cardData?.id || source?.id;
     }
 
     // Hand card skill values are hidden from player-state summaries (showStats
@@ -1305,6 +1329,22 @@ class JigokuBotController {
             text.includes('initiate an action') ||
             text.includes('play cards from provinces') ||
             text.includes('conflict action window');
+    }
+
+    // Stronghold conquest is a forced tactical sequence, not a preference for
+    // LLM/evaluator ranking. Once three outer provinces are broken, every bot
+    // brain follows the shared heuristic through ring, target, and attacker
+    // selection until the stronghold conflict is initiated.
+    private isMandatoryStrongholdAssault(state: any, playerName: string, prompt: any): boolean {
+        const opponent = Object.values(state?.players || {}).find((candidate: any) =>
+            candidate?.name && candidate.name !== playerName);
+        if(!mustAttackStronghold(opponent)) {
+            return false;
+        }
+
+        const promptTitle = String(prompt?.promptTitle || '');
+        return promptTitle === 'Initiate Conflict' ||
+            /^(Military|Political)\s+(Air|Earth|Fire|Water|Void)\s+Conflict/i.test(promptTitle);
     }
 
     private isLegalFacedownClick(player: Player, args: any[]): boolean {

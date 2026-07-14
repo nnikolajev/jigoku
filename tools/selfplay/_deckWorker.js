@@ -10,44 +10,24 @@
 process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'error';
 
 const { runGame } = require('./harness.js');
-const {
-    loadCrabDeck,
-    loadCraneDuelDeck,
-    loadDragonAttachmentsDeck,
-    loadDragonDeck,
-    loadLionDeck,
-    loadPhoenixDeck,
-    loadPhoenixShugenjaDeck,
-    loadScorpionDeck,
-    loadUnicornDeck,
-    loadCraneDeck
-} = require('./deckLoader.js');
+const { getDeckLoader } = require('./deckRegistry.js');
 
-const LOADERS = {
-    Unicorn: loadUnicornDeck,
-    Scorpion: loadScorpionDeck,
-    Lion: loadLionDeck,
-    Phoenix: loadPhoenixDeck,
-    PhoenixShugenja: loadPhoenixShugenjaDeck,
-    Dragon: loadDragonDeck,
-    DragonAttachments: loadDragonAttachmentsDeck,
-    CraneDuels: loadCraneDuelDeck,
-    Crab: loadCrabDeck
-};
+const BASELINE_DECK = 'Crane';
+const loadCraneDeck = getDeckLoader(BASELINE_DECK);
 
 async function main() {
     const label = process.argv[2];
     const games = parseInt(process.argv[3], 10) || 30;
     const botSeed = process.argv[4] === '4' ? 4 : 1;
-    const loadDeck = LOADERS[label];
-    if(!loadDeck) {
+    const loadDeck = getDeckLoader(label);
+    if(!loadDeck || label === BASELINE_DECK) {
         process.stderr.write(`unknown deck ${label}\n`);
         process.exit(2);
     }
 
     for(let i = 0; i < games; i++) {
         const botFirst = i % 2 === 0;
-        const names = botFirst ? [label, 'Crane'] : ['Crane', label];
+        const names = botFirst ? [label, BASELINE_DECK] : [BASELINE_DECK, label];
         const seeds = botFirst ? [botSeed, 1] : [1, botSeed];
         const decks = botFirst
             ? { deckA: loadDeck(), deckB: loadCraneDeck() }

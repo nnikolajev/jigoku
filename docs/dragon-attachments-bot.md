@@ -53,9 +53,12 @@ play if no strategic bearer has a free slot. Specific steering:
 - Daimyo's Favor is bowed only when a positive-cost attachment can legally be
   played on its bearer. That paid attachment becomes the next attachment play
   and is forced onto the same bearer; cost-0 attachments cannot consume the
-  prepared reduction. Iron Mountain Castle then fires only when the actual
-  remaining cost is above zero, allowing both reducers to contribute to a
-  cost-2 attachment without wasting either on a free card.
+  prepared reduction.
+- A ready Iron Mountain Castle is reserved for Tetsubo of Blood first, then the
+  next positive-cost attachment. Daimyo's Favor leaves a cost-1 attachment for
+  Castle and combines with Castle only on cost-2-or-higher attachments. Castle
+  never bows for a printed cost-0 attachment, even if another effect temporarily
+  raises the amount payable.
 - A Weapon targets a bowed Niten Master first, immediately triggering his
   ready reaction. Otherwise attachments prefer the ranked tower with the most
   fate.
@@ -65,8 +68,9 @@ play if no strategic bearer has a free slot. Specific steering:
   character; otherwise it is another Niten Master Weapon.
 - Two-Heavens Technique prefers a Bushi with exactly two Weapon attachments.
 - Tattooed Wanderer is played as an attachment, granting the tower covert.
-- Let Go removes the strongest enemy attachment. Finger of Jade and
-  Pathfinder's Blade fire through the interrupt playbook.
+- Let Go removes the strongest enemy attachment and never selects a friendly
+  attachment; without a legal enemy target, the play is cancelled or skipped.
+  Finger of Jade and Pathfinder's Blade fire through the interrupt playbook.
 
 ## Search, recursion, and character abilities
 
@@ -126,8 +130,14 @@ That snapshot produced 23 dishonor and 17 conquest wins. Rejected experiments
 were more defensive pressure (28.2%, N=40) and allowing a two-fate tower setup
 (27.5%, N=40).
 
-Current validation after the generic-bid, paid-only Favor, and dynamic enemy
-Yokuni changes used the same seed and alternating seats: **47-53 (47.0%,
-N=100), with no stalled games**. Dragon won 37 games by conquest and 10 by
-dishonor. This is 6.6 percentage points above the previous 40.4% decided-game
-baseline.
+Current validation after the generic-bid, paid-only Favor, Castle priority,
+cost-0 Castle guard, enemy-only Let Go, and dynamic enemy Yokuni changes used
+the same seed and alternating seats: **51-48, 1 stalled (51.5%, N=99 decided;
+100 games scheduled)**. This is 11.1 percentage points above the previous
+40.4% decided-game baseline.
+
+The complete bot unit suite passes **244 specs with 0 failures**, and TypeScript
+typechecking passes. A separate 10-game runtime audit observed **63 Castle
+triggers on positive-cost attachments and 0 on cost-0 attachments**, including
+4 Tetsubo of Blood reductions. All 13 observed Let Go targets were enemy
+attachments.

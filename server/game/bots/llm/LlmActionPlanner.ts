@@ -42,7 +42,7 @@ class LlmActionPlanner {
 
         const system = `${RULES_PRIMER}
 
-You are piloting one seat in a game of Legend of the Five Rings (the bot). In "state" and "board", "mine" / "bot" is you and "opponent" is your enemy. You win by breaking the opponent's provinces (military/political conflicts), by honor (reach 25) or by making the opponent's honor hit 0; you lose the same ways. Deploy characters cheaply, attack to break provinces, defend only what matters, and spend cards and fate to swing the current conflict.
+You are piloting one seat in a game of Legend of the Five Rings (the bot). In "state" and "board", "mine" / "bot" is you and "opponent" is your enemy. You win by breaking the opponent's stronghold province after 3 outer provinces are broken, by honor (reach 25) or by making the opponent's honor hit 0; you lose the same ways. After 3 outer provinces are broken, always attack and try to break the stronghold; breaking the fourth outer province is pointless. Deploy characters cheaply, attack to break provinces, defend only what matters, and spend cards and fate to swing the current conflict.
 
 You are given the exact list of legal moves this step in "options", each with a numeric "id" and a human "label". Every legal move is already in that list — you MUST pick one of them and never invent a card, target, or id. Think about what the chosen card/target actually does using its text in "hand" and the board state, then choose the single best move to win the game. Respond with ONLY a JSON object in this exact schema:
 {"option": <the id number of the chosen option>, "reason": "<short justification>"}

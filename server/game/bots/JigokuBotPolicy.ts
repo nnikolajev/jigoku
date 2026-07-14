@@ -10,6 +10,8 @@ import { LionTactics } from './LionTactics.js';
 import { GloryTactics } from './GloryTactics.js';
 import { DragonTactics } from './DragonTactics.js';
 import { DuelTactics } from './DuelTactics.js';
+import { ShugenjaTactics } from './ShugenjaTactics.js';
+import { DragonAttachmentTactics } from './DragonAttachmentTactics.js';
 
 type BotCommandName = 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
 
@@ -24,6 +26,34 @@ const RING_ORDER = ['air', 'earth', 'fire', 'water', 'void'];
 const CONFLICT_TITLE_REGEX = /^(Military|Political)\s+(Air|Earth|Fire|Water|Void)\s+Conflict/i;
 const SKILL_VS_REGEX = /:\s*(\d+)\s+vs\s+(\d+)/;
 const PROVINCE_KEYS = ['one', 'two', 'three', 'four'];
+
+// Player-state summaries do not expose the printed Restricted keyword, so
+// keep the Imperial card ids here. The engine still owns legality; this list
+// only lets the bot spread Restricted attachments before a character reaches
+// the two-attachment cap.
+const RESTRICTED_ATTACHMENT_IDS = new Set([
+    'adorned-barcha', 'ancestral-daisho', 'ancestral-daisho-2', 'ancestral-kabuto',
+    'ancestral-netsuke', 'armor-of-the-fallen', 'ashigaru-company', 'ayubune-pilot',
+    'blade-of-10-000-battles', 'callous-ashigaru', 'chikara', 'composite-yumi',
+    'contemplative-wisdom', 'curse-of-misfortune', 'curved-blade', 'dai-tsuchi',
+    'daidoji-yari', 'daikyu', 'daimyo-s-gunbai', 'dragon-s-claw', 'dragon-s-fang',
+    'dragon-tattoo', 'elegant-tessen', 'empty-city-archivist', 'fine-katana',
+    'four-temples-advisor', 'honed-nodachi', 'honest-assessment', 'honored-blade',
+    'jade-infused-arrows', 'jade-inlaid-katana', 'jade-tetsubo', 'kakita-blade',
+    'kakita-blade-2', 'kamayari', 'katana-of-fire', 'kikyo', 'kinki',
+    'kitsuki-s-method', 'kobo-ichi-kai-jujutsu', 'kunshu', 'letter-from-the-daimyo',
+    'magari-yari', 'mirumoto-daisho', 'naginata', 'ofushikai', 'ornate-fan',
+    'peacemaker-s-blade', 'phoenix-tattoo', 'restored-heirloom', 'scarlet-sabre',
+    'self-understanding', 'sensei-s-heirloom', 'setting-the-standard', 'shori',
+    'shukujo', 'sturdy-tetsubo', 'tessen-of-the-tsunami-legion', 'tetsubo-of-blood',
+    'the-skin-of-fu-leng', 'twin-sister-blades', 'wicked-tetsubo', 'writ-of-authority'
+]);
+
+// Their constant effects do not improve when the same printed attachment is
+// stacked on one character. Spread extra copies before considering a repeat.
+const NON_STACKING_DEBUFF_ATTACHMENT_IDS = new Set([
+    'pacifism', 'stolen-breath', 'softskin'
+]);
 
 // GameAction names classified by whether the resolved effect hurts or helps
 // the card it targets. Drives which side of the board ability targets aim at.
@@ -51,6 +81,7 @@ interface DecideContext {
     roundNumber?: number;
     targetHint?: TargetHint;
     playCost?: number;
+    playCardId?: string;
     handStats?: HandStats;
     cardHint?: CardHintLookup;
     strategy?: DeckStrategy;
@@ -83,7 +114,27 @@ class JigokuBotPolicy {
     // ping-pongs fate forever, because the intervening "fate moved" reaction
     // window flips the prompt signature and clears the attempted-set. Cleared
     // each round at the Honor Bid so it stays usable once per round.
-    private boardAbilityUsed = new Set<string>();
+    private boardAbilityUsed = new Map<string, number>();
+    // Teacher has no target sub-prompt, so the normal attempted-click guard
+    // would hide Way of the Dragon's second legal activation. Track successful
+    // selections per conflict and explicitly permit that one repeat.
+    private dragonAbilityConflictKey = '';
+    private dragonAbilityUses = new Map<string, number>();
+    private dragonKihoPlayed = false;
+    // Disguised can return to the action window after a target was accepted
+    // but the remaining cost/play check failed. Do not replay the same Tadaka
+    // indefinitely; a fresh round gets one new legal attempt.
+    private tadakaDisguiseAttempted = false;
+    // Yokuni's printed copy Action is max once per round, but the copied
+    // ability must remain available later. Track only the copy setup so the
+    // bot does not repeatedly open/cancel the prompt when no desired source
+    // character is present.
+    private yokuniCopyUsed = false;
+    // Daimyo's Favor reduces only the next attachment played on its own
+    // bearer. Keep that bearer between action opportunities so the bot plays
+    // a positive-cost attachment there instead of consuming the effect on a
+    // free attachment or sending the paid attachment elsewhere.
+    private pendingDaimyoBearerUuid: string | null = null;
     // Source cards whose ability targeting was CANCELED for lack of a
     // valid-side target this round, by printed id. The attempted-set cannot
     // stop these loops because the prompt signature flips between the ability
@@ -95,6 +146,7 @@ class JigokuBotPolicy {
     // Asako Diplomat picks a target, THEN a separate honor/dishonor menu
     // opens (a new prompt signature) — remember which way the target went.
     private diplomatChoice: 'honor' | 'dishonor' = 'honor';
+    private favorableGroundRetreatPending = false;
 
     constructor(seed: string | number = 1) {
         this.random = new SeededRandom(seed);
@@ -139,6 +191,12 @@ class JigokuBotPolicy {
         if(me.promptTitle === 'Honor Bid') {
             this.cancelledSources.clear();
             this.boardAbilityUsed.clear();
+            this.dragonAbilityUses.clear();
+            this.dragonAbilityConflictKey = '';
+            this.dragonKihoPlayed = false;
+            this.tadakaDisguiseAttempted = false;
+            this.yokuniCopyUsed = false;
+            this.pendingDaimyoBearerUuid = null;
         }
 
         const decision = this.decideForPrompt(playerState, me, context);
@@ -149,6 +207,9 @@ class JigokuBotPolicy {
             const id = context.targetHint.sourceCardId;
             this.cancelledSources.set(id, (this.cancelledSources.get(id) || 0) + 1);
         }
+        if(decision?.reason === 'tadaka-disguise-base') {
+            this.tadakaDisguiseAttempted = true;
+        }
 
         return decision;
     }
@@ -157,6 +218,25 @@ class JigokuBotPolicy {
     // stop re-clicking it until the next round.
     private isCancelVetoed(cardId?: string): boolean {
         return !!cardId && (this.cancelledSources.get(cardId) || 0) >= 2;
+    }
+
+    private boardAbilityKey(card: any, dragon: DragonTactics | null = null): string {
+        // Preserve the historical one-use-per-printed-id behavior for every
+        // deck except Dragon's Way-enabled Tranquil Philosopher.
+        return String(dragon && card?.id === 'tranquil-philosopher' ? (card?.uuid || card?.id) : (card?.id || card?.uuid || ''));
+    }
+
+    private boardAbilityLimit(card: any, dragon: DragonTactics | null = null): number {
+        return dragon && dragon.hasWayOfTheDragon(card) ? 2 : 1;
+    }
+
+    private boardAbilityIsUsed(card: any, dragon: DragonTactics | null = null): boolean {
+        return (this.boardAbilityUsed.get(this.boardAbilityKey(card, dragon)) || 0) >= this.boardAbilityLimit(card, dragon);
+    }
+
+    private recordBoardAbility(card: any, dragon: DragonTactics | null = null): void {
+        const key = this.boardAbilityKey(card, dragon);
+        this.boardAbilityUsed.set(key, (this.boardAbilityUsed.get(key) || 0) + 1);
     }
 
     private decideForPrompt(playerState: any, me: any, context: DecideContext = {}): BotDecision | null {
@@ -180,6 +260,13 @@ class JigokuBotPolicy {
         const dragon = profile.dragon ? new DragonTactics(profile.dragon) : null;
         // Duel-centric decks likewise; null for every other deck.
         const duelist = profile.duelist ? new DuelTactics(profile.duelist) : null;
+        // Phoenix spell/ring-control deck; null for every other profile.
+        const shugenja = profile.shugenja ? new ShugenjaTactics(profile.shugenja) : null;
+        // Iron Mountain Castle attachment tower; separate from the High House
+        // monk/card-count Dragon profile.
+        const attachmentTower = profile.attachmentTower
+            ? new DragonAttachmentTactics(profile.attachmentTower)
+            : null;
 
         if(promptTitle === 'Honor Bid') {
             const isDuelBid = menuTitle.startsWith('Choose your bid for the duel');
@@ -260,6 +347,9 @@ class JigokuBotPolicy {
             if(profile.mulliganForHoldings && promptTitle === 'Dynasty Mulligan') {
                 return this.holdingMulliganDecision(me, buttons);
             }
+            if(attachmentTower && promptTitle === 'Dynasty Mulligan') {
+                return this.attachmentTowerMulliganDecision(me, buttons, attachmentTower);
+            }
             return this.buttonDecision(this.findButton(buttons, ['done']), 'finish-mulligan');
         }
 
@@ -268,18 +358,18 @@ class JigokuBotPolicy {
         }
 
         if(title.includes('select dynasty cards to discard')) {
-            return this.dynastyDiscardDecision(playerState, buttons);
+            return this.dynastyDiscardDecision(playerState, me, buttons, duelist, attachmentTower);
         }
 
         if(promptTitle === 'Initiate Conflict' || CONFLICT_TITLE_REGEX.test(promptTitle)) {
-            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, profile, context.omniscient, dishonor, context.cardHint, glory);
+            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, profile, context.omniscient, dishonor, context.cardHint, glory, duelist, shugenja, attachmentTower);
             if(declaration) {
                 return declaration;
             }
         }
 
         if(menuTitle.toLowerCase().includes('choose defenders') && !menuTitle.toLowerCase().includes('covert')) {
-            return this.defenderDecision(me, promptTitle, buttons, profile, context.omniscient, dishonor, context.cardHint);
+            return this.defenderDecision(me, promptTitle, buttons, profile, context.omniscient, dishonor, context.cardHint, shugenja);
         }
 
         if(title.includes('choose first player')) {
@@ -310,11 +400,11 @@ class JigokuBotPolicy {
 
         // The dynasty window overrides the generic action-window prompt text.
         if(menuTitle === 'Initiate an action' || promptTitle === 'Play cards from provinces') {
-            return this.actionWindowDecision(playerState, me, buttons, profile, context.cardHint, dishonor, context.dynastyCosts);
+            return this.actionWindowDecision(playerState, me, buttons, profile, context.cardHint, dishonor, context.dynastyCosts, lion, duelist, shugenja, attachmentTower);
         }
 
         if(promptTitle === 'Conflict Action Window') {
-            return this.conflictWindowDecision(playerState, me, buttons, context.handStats, context.cardHint, profile, context.omniscient, dishonor, lion, dragon);
+            return this.conflictWindowDecision(playerState, me, buttons, context.handStats, context.cardHint, profile, context.omniscient, dishonor, lion, dragon, duelist, shugenja, attachmentTower);
         }
 
         if(title.includes('where do you wish to play this character')) {
@@ -330,17 +420,41 @@ class JigokuBotPolicy {
         const moveIntoConflict = buttons.find((button) => /move .*to the conflict|move .*to conflict/i.test(String(button.text || '')));
         const moveHome = buttons.find((button) => /move .*home/i.test(String(button.text || '')));
         if(moveIntoConflict && moveHome) {
-            return this.buttonDecision(moveIntoConflict, 'ride-move-in');
+            const retreat = this.favorableGroundRetreatPending;
+            this.favorableGroundRetreatPending = false;
+            return this.buttonDecision(retreat ? moveHome : moveIntoConflict,
+                retreat ? 'favorable-ground-move-home' : 'ride-move-in');
+        }
+        // Meddling Mediator: its unrestricted Action can keep taking value
+        // after the opponent declares two conflicts. Fate first; when the
+        // opponent has none, take honor.
+        const takeFate = buttons.find((button) => String(button.text || '') === 'Take 1 fate');
+        const takeHonor = buttons.find((button) => String(button.text || '') === 'Take 1 honor');
+        if(shugenja && takeFate && takeHonor) {
+            return this.buttonDecision((opponent?.stats?.fate ?? 0) > 0 ? takeFate : takeHonor,
+                (opponent?.stats?.fate ?? 0) > 0 ? 'mediator-take-fate' : 'mediator-take-honor');
         }
 
         if(promptTitle.startsWith('Play ') || promptTitle === 'Choose an ability:') {
             // Dragon plays its dual-mode monks (Ancient Master, Tattooed
             // Wanderer, Togashi Acolyte) as ATTACHMENTS by preference.
-            if(dragon) {
+            if(dragon || attachmentTower) {
                 const asAttachment = buttons.find((button) =>
                     String(button.text || '').toLowerCase().includes('as an attachment'));
                 if(asAttachment) {
-                    return this.buttonDecision(asAttachment, 'dragon-play-as-attachment');
+                    return this.buttonDecision(asAttachment, attachmentTower
+                        ? 'attachment-tower-play-as-attachment'
+                        : 'dragon-play-as-attachment');
+                }
+            }
+            // Isawa Tadaka enters ready and preserves the replaced non-unique
+            // Shugenja's fate/attachments. Prefer the Disguised play whenever
+            // the engine presents it as legal.
+            if(shugenja && (context.playCardId === 'isawa-tadaka-2' || promptTitle.toLowerCase().includes('isawa tadaka'))) {
+                const disguised = buttons.find((button) =>
+                    String(button.text || '').toLowerCase().includes('with disguise'));
+                if(disguised) {
+                    return this.buttonDecision(disguised, 'tadaka-play-disguised');
                 }
             }
             const play = buttons.find((button) => String(button.text || '').toLowerCase() !== 'cancel');
@@ -348,17 +462,54 @@ class JigokuBotPolicy {
         }
 
         if(title.includes('additional fate')) {
-            return this.buttonDecision(this.pickFateButton(buttons, me, context.playCost, profile.aggressiveFate), 'additional-fate');
+            if(lion) {
+                return this.buttonDecision(this.closestBidButton(buttons, lion.desiredAdditionalFate(context.playCardId)), 'lion-character-fate');
+            }
+            const attachmentFate = attachmentTower
+                ? attachmentTower.desiredAdditionalFate(context.playCardId, me?.stats?.fate ?? 0, context.playCost)
+                : null;
+            if(attachmentFate !== null) {
+                return this.buttonDecision(this.closestBidButton(buttons, attachmentFate), 'attachment-tower-fate');
+            }
+            const dragonFate = dragon ? dragon.desiredAdditionalFate(context.playCardId, context.playCost) : null;
+            if(dragonFate !== null) {
+                return this.buttonDecision(this.closestBidButton(buttons, dragonFate), 'dragon-tower-fate');
+            }
+            const towerFate = duelist
+                ? duelist.desiredAdditionalFate(context.playCardId, me?.stats?.fate ?? 0, context.playCost)
+                : null;
+            if(towerFate !== null) {
+                return this.buttonDecision(this.closestBidButton(buttons, towerFate), 'duel-tower-fate');
+            }
+            const desired = shugenja
+                ? shugenja.desiredAdditionalFate(context.playCardId, me?.cardPiles?.hand || [], me?.stats?.fate ?? 0, context.playCost)
+                : null;
+            if(desired !== null) {
+                return this.buttonDecision(this.closestBidButton(buttons, desired), 'tadaka-setup-fate');
+            }
+            const fateReserve = shugenja ? shugenja.desiredFateReserve(me, opponent) : undefined;
+            return this.buttonDecision(this.pickFateButton(buttons, me, context.playCost, profile.aggressiveFate, fateReserve), 'additional-fate');
         }
 
         if(title.includes('how much fate') || title.includes('how much honor')) {
+            // Consumed by Five Fires should remove the full affordable amount,
+            // not the generic minimum of one.
+            if(shugenja && context.targetHint?.sourceCardId === 'consumed-by-five-fires') {
+                const numeric = buttons
+                    .map((button) => ({ button, value: parseInt(String(button.text), 10) }))
+                    .filter((entry) => !isNaN(entry.value))
+                    .sort((a, b) => b.value - a.value);
+                if(numeric.length > 0) {
+                    return this.buttonDecision(numeric[0].button, 'five-fires-max-fate');
+                }
+            }
             return this.buttonDecision(buttons[0], 'minimal-cost');
         }
 
         // Triggered ability windows ('Any reactions?' / 'Any interrupts to X?'):
         // fire own province and stronghold abilities, pass everything else.
         if(title.includes('any reaction') || title.includes('any interrupt')) {
-            return this.triggeredWindowDecision(playerState, me, buttons, context.cardHint);
+            return this.triggeredWindowDecision(playerState, me, buttons, context.cardHint, lion);
         }
 
         // Opponent-forced "reveal N cards from your hand" selects (Daidoji
@@ -386,12 +537,16 @@ class JigokuBotPolicy {
         // The follow-up "attach to a character" select goes through the
         // generic attach targeting (fate-weighted, so it lands on a
         // character that persists).
-        if(lion && menuTitle === 'Choose an attachment') {
+        if((lion || attachmentTower) && menuTitle === 'Choose an attachment') {
             const selectable = this.findVisibleCards(playerState).filter((card) =>
                 card.selectable && card.uuid && !this.isAttempted('cardClicked', [card.uuid]));
-            const pick = lion.pickForgeAttachment(selectable);
+            const pick = attachmentTower
+                ? attachmentTower.pickAttachment(selectable)
+                : lion?.pickForgeAttachment(selectable);
             if(pick) {
-                return this.cardClickDecision(pick, 'forge-pick-attachment');
+                return this.cardClickDecision(pick, attachmentTower
+                    ? 'attachment-tower-pick-attachment'
+                    : 'forge-pick-attachment');
             }
         }
 
@@ -425,6 +580,14 @@ class JigokuBotPolicy {
             }
         }
 
+        if(shugenja) {
+            // Against the Waves: always take Ready, never bow our Shugenja.
+            const readyButton = buttons.find((button) => String(button.text || '') === 'Ready');
+            if(readyButton && buttons.some((button) => String(button.text || '') === 'Bow')) {
+                return this.buttonDecision(readyButton, 'shugenja-ready');
+            }
+        }
+
         // Shameful Display's follow-up menu: honor one of the two selected
         // characters, dishonor the other. When our selected participant can
         // still be honored, route the honor through it (the follow-up select
@@ -454,10 +617,15 @@ class JigokuBotPolicy {
         const courtHonorBtn = buttons.find((button) => String(button.text || '').startsWith('Honor a friendly'));
         const courtDishonorBtn = buttons.find((button) => String(button.text || '').startsWith('Dishonor an opposing'));
         if(courtHonorBtn && courtDishonorBtn) {
-            const ownHonorable = this.myCharactersInPlay(me).some((card) =>
-                card.inConflict && !card.isHonored);
-            return this.buttonDecision(ownHonorable ? courtHonorBtn : courtDishonorBtn,
-                ownHonorable ? 'court-games-honor-own' : 'court-games-dishonor-enemy');
+            const own = this.myCharactersInPlay(me)
+                .filter((card) => card.inConflict && !card.isHonored)
+                .sort((a, b) => this.gloryValue(b) - this.gloryValue(a));
+            const enemy = (opponent?.cardPiles?.cardsInPlay || [])
+                .filter((card: any) => card.type === 'character' && card.inConflict && !card.isDishonored)
+                .sort((a: any, b: any) => this.gloryValue(b) - this.gloryValue(a));
+            const honorOwn = own.length > 0 && (enemy.length === 0 || this.gloryValue(own[0]) >= this.gloryValue(enemy[0]));
+            return this.buttonDecision(honorOwn ? courtHonorBtn : courtDishonorBtn,
+                honorOwn ? 'court-games-honor-own-high-glory' : 'court-games-dishonor-enemy-high-glory');
         }
 
         // A Legion of One's "resolve this ability again" prompt: pay 1 fate off
@@ -501,7 +669,7 @@ class JigokuBotPolicy {
             return this.buttonDecision(choice || buttons[0], 'choose-triggered-ability');
         }
 
-        const ringResolution = this.ringResolutionDecision(playerState, me, menuTitle, buttons, dishonor);
+        const ringResolution = this.ringResolutionDecision(playerState, me, menuTitle, buttons, dishonor, shugenja);
         if(ringResolution) {
             return ringResolution;
         }
@@ -526,12 +694,12 @@ class JigokuBotPolicy {
                     ring && ring.unselectable !== true && !this.isAttempted('ringClicked', [ring.element]));
                 if(rings.length > 0) {
                     const worst: any = rings.sort((a: any, b: any) =>
-                        this.ringScore(a, me, this.opponentPlayer(playerState, me), dishonor, glory) -
-                        this.ringScore(b, me, this.opponentPlayer(playerState, me), dishonor, glory))[0];
+                        this.ringScore(a, me, this.opponentPlayer(playerState, me), dishonor, glory, undefined, shugenja) -
+                        this.ringScore(b, me, this.opponentPlayer(playerState, me), dishonor, glory, undefined, shugenja))[0];
                     return { command: 'ringClicked', args: [worst.element], target: worst.element, reason: 'dragon-worst-ring-for-attacker' };
                 }
             }
-            const ringDecision = this.ringDecision(playerState, me, title, dishonor, glory, dragon);
+            const ringDecision = this.ringDecision(playerState, me, title, dishonor, glory, dragon, shugenja, attachmentTower);
             if(ringDecision) {
                 return ringDecision;
             }
@@ -549,7 +717,7 @@ class JigokuBotPolicy {
             return this.buttonDecision(payCosts, 'pay-costs-first');
         }
 
-        const cardDecision = this.cardDecision(playerState, me, title, buttons, context.targetHint, context.cardHint, glory, dragon, duelist);
+        const cardDecision = this.cardDecision(playerState, me, title, buttons, context.targetHint, context.cardHint, glory, lion, dragon, duelist, shugenja, attachmentTower);
         if(cardDecision) {
             return cardDecision;
         }
@@ -780,7 +948,7 @@ class JigokuBotPolicy {
     // Fate placed on a character keeps it alive across fate phases, so scale
     // the investment with the character's printed cost: cheap bodies are
     // disposable, mid-cost characters get 1, expensive powerhouses get 2+.
-    private pickFateButton(buttons: any[], me: any, playCost?: number, aggressive = false): any {
+    private pickFateButton(buttons: any[], me: any, playCost?: number, aggressive = false, reserveOverride?: number): any {
         const fate = me?.stats?.fate ?? 0;
         const numeric = buttons
             .map((button) => ({ button, value: parseInt(String(button.text), 10) }))
@@ -822,7 +990,7 @@ class JigokuBotPolicy {
             // Keep 1 fate in reserve for conflict cards — but an expensive
             // character IS the investment: for cost 5+ spend the reserve
             // rather than drop a powerhouse onto the board with no fate.
-            const reserve = playCost >= 5 ? 0 : 1;
+            const reserve = reserveOverride ?? (playCost >= 5 ? 0 : 1);
             while(desired > 0 && fate - playCost - desired < reserve) {
                 desired -= 1;
             }
@@ -835,7 +1003,7 @@ class JigokuBotPolicy {
         return numeric[0].button;
     }
 
-    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, omni?: Omniscient, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, glory: GloryTactics | null = null): BotDecision | null {
+    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, omni?: Omniscient, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, glory: GloryTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): BotDecision | null {
         const lowerMenu = menuTitle.toLowerCase();
         const ready = this.readyCharacters(me);
         const conflictMatch = promptTitle.match(CONFLICT_TITLE_REGEX);
@@ -851,7 +1019,7 @@ class JigokuBotPolicy {
             const rings = Object.values(playerState?.rings || {})
                 .filter((ring: any) => ring && ring.unselectable !== true && !ring.claimed)
                 .sort((a: any, b: any) => {
-                    const scoreDiff = this.ringScore(b, me, opponent, dishonor, glory) - this.ringScore(a, me, opponent, dishonor, glory);
+                    const scoreDiff = this.ringScore(b, me, opponent, dishonor, glory, undefined, shugenja, duelist, attachmentTower) - this.ringScore(a, me, opponent, dishonor, glory, undefined, shugenja, duelist, attachmentTower);
                     if(scoreDiff !== 0) {
                         return scoreDiff;
                     }
@@ -1012,7 +1180,7 @@ class JigokuBotPolicy {
     // remain, dead otherwise. Air trails. The ring's displayed conflict type
     // is irrelevant — any ring can be flipped military/political by clicking
     // it again, which happens separately based on character strength.
-    private ringScore(ring: any, me: any, opponent: any, dishonor: DishonorTactics | null = null, glory: GloryTactics | null = null, dragon: DragonTactics | null = null): number {
+    private ringScore(ring: any, me: any, opponent: any, dishonor: DishonorTactics | null = null, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, shugenja: ShugenjaTactics | null = null, duelist: DuelTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): number {
         const fate = Number(ring.fate) || 0;
         const fateComponent = fate >= 2 ? 1000 + fate * 100 : 0;
 
@@ -1067,8 +1235,21 @@ class JigokuBotPolicy {
         const dragonBonus = dragon
             ? dragon.ringBonus(String(ring.element || ''), me?.cardPiles?.dynastyDiscardPile || [])
             : 0;
+        const shugenjaBonus = shugenja
+            ? shugenja.ringBonus(String(ring.element || ''), this.myCharactersInPlay(me), me?.cardPiles?.hand || [])
+            : 0;
+        const duelBonus = duelist
+            ? duelist.ringBonus(String(ring.element || ''), this.myCharactersInPlay(me))
+            : 0;
+        const attachmentBonus = attachmentTower
+            ? attachmentTower.ringBonus(
+                String(ring.element || ''),
+                this.myCharactersInPlay(me),
+                me?.cardPiles?.conflictDiscardPile || []
+            )
+            : 0;
 
-        return fateComponent + base + gloryBonus + dragonBonus;
+        return fateComponent + base + gloryBonus + dragonBonus + shugenjaBonus + duelBonus + attachmentBonus;
     }
 
     // The side (military/political) where the bot's ready characters carry
@@ -1173,7 +1354,7 @@ class JigokuBotPolicy {
         return null;
     }
 
-    private defenderDecision(me: any, promptTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup): BotDecision | null {
+    private defenderDecision(me: any, promptTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, shugenja: ShugenjaTactics | null = null): BotDecision | null {
         // NOTE: seed-4 defense-side omniscience (defending against the human's
         // post-commit hand pump, conceding provably-lost conflicts to save
         // bodies) was implemented and MEASURED NET-NEGATIVE — it made the bot
@@ -1216,6 +1397,13 @@ class JigokuBotPolicy {
                 return this.cardClickDecision(candidates[0], 'stronghold-defense-all');
             }
             return this.buttonDecision(done, 'finish-defenders');
+        }
+
+        // Display of Power is the deck's province-trade engine: leave the
+        // conflict unopposed so the reaction cancels the opponent's ring,
+        // resolves it for us, and claims it. Never concede the stronghold.
+        if(shugenja?.hasDisplayPlan(me)) {
+            return this.buttonDecision(done, 'display-of-power-unopposed');
         }
 
         // The Art of War WANTS to break (draw 3): declare no defenders.
@@ -1333,7 +1521,7 @@ class JigokuBotPolicy {
         };
     }
 
-    private conflictWindowDecision(playerState: any, me: any, buttons: any[], handStats?: HandStats, cardHint?: CardHintLookup, profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient, dishonor: DishonorTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null): BotDecision | null {
+    private conflictWindowDecision(playerState: any, me: any, buttons: any[], handStats?: HandStats, cardHint?: CardHintLookup, profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient, dishonor: DishonorTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): BotDecision | null {
         // NOTE: seed-4 window-hold omniscience (as attacker, HOLD when the human
         // can swing the conflict out of break range; as defender, concede a
         // provably lost conflict to keep bodies) was implemented and MEASURED
@@ -1352,6 +1540,7 @@ class JigokuBotPolicy {
         // concede/pass gate (a province with no action is rejected without
         // mutation and the attempted-set moves on).
         if(!standing.amAttacker) {
+            const provinceOpponent = this.opponentPlayer(playerState, me);
             const attackedProvince = PROVINCE_KEYS
                 .map((key) => me?.provinces?.[key] || [])
                 .concat([me?.strongholdProvince || []])
@@ -1361,7 +1550,13 @@ class JigokuBotPolicy {
                     // A province whose targeting cancelled twice this round
                     // (Shameful Display with saturated honor states) is dead
                     // until the next round — stop re-clicking it.
-                    !this.isCancelVetoed(card.id)))
+                    !this.isCancelVetoed(card.id) &&
+                    (!lion || lion.shouldUseProvince(
+                        card.id,
+                        this.myCharactersInPlay(me),
+                        this.myCharactersInPlay(provinceOpponent),
+                        me?.cardPiles?.hand || []
+                    ))))
                 .find(Boolean);
             if(attackedProvince) {
                 return this.cardClickDecision(attackedProvince, 'province-conflict-action');
@@ -1398,22 +1593,92 @@ class JigokuBotPolicy {
         // target is reached — the volume IS the plan. `cardsPlayedThisConflict`
         // already includes Shintao Monastery's +1, so no separate Shintao case.
         const cardsPlayed = me?.cardsPlayedThisConflict ?? 0;
-        const dragonCardTarget = dragon ? dragon.cardTarget(this.myCharactersInPlay(me), standing.amAttacker) : 0;
-        const feedCards = !!dragon &&
-            dragon.cardEngineParticipating(this.myCharactersInPlay(me)) &&
-            cardsPlayed < dragonCardTarget;
+        const opponentCardsPlayed = opponent?.cardsPlayedThisConflict ?? 0;
+        const conflictType: 'military' | 'political' = playerState?.conflict?.type === 'political' ? 'political' : 'military';
+        const myCharacters = this.myCharactersInPlay(me);
+        const opponentCharacters = (opponent?.cardPiles?.cardsInPlay || []).filter((card: any) => card.type === 'character');
+        const strongholdAssault = standing.amAttacker && this.strongholdUnderAttack(opponent);
+        const highHouse = (me?.strongholdProvince || []).find((card: any) => card.id === 'high-house-of-light');
+        const highHouseRelevant = !!dragon && !!highHouse && dragon.hasParticipatingMonk(myCharacters) &&
+            (!highHouse.bowed || cardsPlayed >= 5);
+        const dragonTargets = dragon ? dragon.cardTargets(
+            myCharacters,
+            standing.amAttacker,
+            cardsPlayed,
+            opponentCardsPlayed,
+            highHouseRelevant,
+            strongholdAssault
+        ) : [];
+        const dragonPool = (me?.cardPiles?.hand || [])
+            .concat((me?.cardPiles?.conflictDiscardPile || []).filter((card: any) => card.isPlayableByMe));
+        const dragonPlayableCount = (target: number) => dragonPool.filter((card: any) => {
+            if(!card.isPlayableByMe || !card.uuid || this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id)) {
+                return false;
+            }
+            if(card.id === 'way-of-the-dragon' && dragon && !dragon.pickWayCharacter(myCharacters)) {
+                return false;
+            }
+            const hint: any = card.id && cardHint ? cardHint(card.id) : undefined;
+            if(!hint) {
+                return true;
+            }
+            if(hint.useWhen === 'never' || hint.useWhen === 'winning' ||
+                (hint.conflictTypes.length > 0 && !hint.conflictTypes.includes(conflictType))) {
+                return false;
+            }
+            const projected = {
+                conflictType,
+                losing: standing.losing,
+                amAttacker: standing.amAttacker,
+                honor: me?.stats?.honor ?? 10,
+                fate: me?.stats?.fate ?? 0,
+                myCharacters,
+                opponentCharacters,
+                dynastyDiscard: me?.cardPiles?.dynastyDiscardPile || [],
+                hand: me?.cardPiles?.hand || [],
+                conflictDiscard: me?.cardPiles?.conflictDiscardPile || [],
+                rings: Object.values(playerState?.rings || {}),
+                cardsPlayed: target,
+                opponentCardsPlayed
+            };
+            return typeof hint.shouldPlay !== 'function' || hint.shouldPlay(projected);
+        }).length;
+        const dragonCardTarget = dragonTargets.find((target) =>
+            cardsPlayed >= target || dragon?.canReachTarget(cardsPlayed, dragonPlayableCount(target), target)) ?? dragonTargets[0] ?? 0;
+        const dragonPlanActive = dragonTargets.length > 0;
+        const feedCards = !!dragon && dragonPlanActive &&
+            dragon.canReachTarget(cardsPlayed, dragonPlayableCount(dragonCardTarget), dragonCardTarget);
+        const dragonPayoffReady = dragonPlanActive && cardsPlayed >= dragonCardTarget;
+        const saveDragonCards = dragonPlanActive && cardsPlayed < dragonCardTarget && !feedCards;
+        const opponentParticipants = (opponent?.cardPiles?.cardsInPlay || []).filter((card: any) =>
+            card.type === 'character' && card.inConflict);
+        const pathMargin = !!shugenja && standing.amAttacker && opponentParticipants.length === 0 &&
+            (me?.cardPiles?.hand || []).some((card: any) => card.id === 'the-path-of-man');
+        const preparedTadaka = shugenja?.pickTadakaPlay(
+            me?.cardPiles?.hand || [],
+            myCharacters,
+            me?.stats?.fate ?? 0
+        );
+        const preparedFiveFires = shugenja?.pickFiveFiresPlay(
+            me?.cardPiles?.hand || [],
+            myCharacters,
+            opponentCharacters,
+            me?.stats?.fate ?? 0
+        );
+        const shugenjaPlan = !!shugenja &&
+            (pathMargin || !!preparedFiveFires || !!preparedTadaka || shugenja.hasStrategicAction(me, opponent));
         if(standing.amAttacker) {
             const provinceStrength = this.attackedProvinceStrength(opponent, 4);
-            const breakDeficit = provinceStrength - (standing.attackerSkill - standing.defenderSkill);
+            const requiredLead = pathMargin ? Math.max(provinceStrength, 5) : provinceStrength;
+            const breakDeficit = requiredLead - (standing.attackerSkill - standing.defenderSkill);
             // Assaulting the enemy STRONGHOLD: breaking it wins the game, so
             // the "too far gone" cap does not apply — spend everything on the
             // final push (mirrors the all-in stronghold defense).
-            const strongholdAssault = this.strongholdUnderAttack(opponent);
-            if(!feedCards && (breakDeficit <= 0 || (!strongholdAssault && breakDeficit > 6))) {
+            if(!feedCards && !dragonPayoffReady && !shugenjaPlan && (breakDeficit <= 0 || (!strongholdAssault && breakDeficit > 6))) {
                 return pass;
             }
         } else {
-            if(!standing.losing && !feedCards) {
+            if(!standing.losing && !feedCards && !dragonPayoffReady && !shugenjaPlan) {
                 return pass;
             }
             const provinceStrength = this.attackedProvinceStrength(me, 3);
@@ -1421,12 +1686,11 @@ class JigokuBotPolicy {
             const cheapWin = standing.gap <= 3;
             // At the stronghold there is no "too far gone": every buff and
             // ability is thrown at the deficit because losing it is losing.
-            if(!strongholdDefense && !feedCards && ((breakDeficit <= 0 && !cheapWin) || breakDeficit > 6)) {
+            if(!strongholdDefense && !feedCards && !dragonPayoffReady && !shugenjaPlan && ((breakDeficit <= 0 && !cheapWin) || breakDeficit > 6)) {
                 return pass;
             }
         }
 
-        const conflictType: 'military' | 'political' = playerState?.conflict?.type === 'political' ? 'political' : 'military';
         const myHonor = me?.stats?.honor ?? 10;
         const playCtx = {
             conflictType,
@@ -1437,21 +1701,27 @@ class JigokuBotPolicy {
             // Dishonor decks stop paying honor costs at their floor; undefined
             // for every other deck (playbook gates treat undefined as payable).
             canPayHonor: dishonor ? dishonor.canPayHonor(myHonor) : undefined,
-            myCharacters: this.myCharactersInPlay(me),
-            opponentCharacters: (opponent?.cardPiles?.cardsInPlay || []).filter((card: any) => card.type === 'character'),
+            myCharacters,
+            opponentCharacters,
+            opponentHandSize: (opponent?.cardPiles?.hand || []).length,
             dynastyDiscard: me?.cardPiles?.dynastyDiscardPile || [],
+            hand: me?.cardPiles?.hand || [],
             conflictDiscard: me?.cardPiles?.conflictDiscardPile || [],
+            rings: Object.values(playerState?.rings || {}),
             // Cards this player has played this conflict (Shintao's +1 already
             // folded in). Dragon's payoff abilities gate on it.
             cardsPlayed,
+            opponentCardsPlayed,
             // Whether the bot still has a playable hand card to keep raising the
             // count — the "can't reach the target, use it now" escape hatch for
             // High House of Light.
-            moreCardsPlayable: (me?.cardPiles?.hand || []).some((card: any) =>
-                card.isPlayableByMe && card.uuid && !this.isAttempted('cardClicked', [card.uuid])),
+            moreCardsPlayable: dragonPlayableCount(dragonCardTarget) > 0,
             // Any ring holding fate — High House of Light's 5-card ring-fate
             // steal is only worth waiting for when a ring actually has fate.
-            ringsHaveFate: Object.values(playerState?.rings || {}).some((ring: any) => (Number(ring?.fate) || 0) >= 1)
+            ringsHaveFate: Object.values(playerState?.rings || {}).some((ring: any) => (Number(ring?.fate) || 0) >= 1),
+            conflictsRemaining: me?.stats?.conflictsRemaining ?? 0,
+            strongholdConflict: strongholdDefense || strongholdAssault,
+            preferFavorableRetreat: !!dragon
         };
 
         // Board powers before hand cards: stronghold, attacked-province and
@@ -1459,15 +1729,56 @@ class JigokuBotPolicy {
         // cost). Clicking a card with no legal ability is rejected by the
         // game without mutation and the attempted-set moves to the next
         // candidate.
-        const abilitySource = this.conflictAbilitySources(me, playCtx, cardHint, dishonor, lion, dragon).find((card) => !this.isAttempted('cardClicked', [card.uuid]));
+        const dragonConflictKey = [
+            playerState?.roundNumber ?? playerState?.round ?? '',
+            playerState?.conflict?.attackingPlayerId ?? '',
+            playerState?.conflict?.defendingPlayerId ?? '',
+            playerState?.conflict?.type ?? '',
+            me?.stats?.conflictsRemaining ?? '',
+            opponent?.stats?.conflictsRemaining ?? ''
+        ].join('|');
+        if(dragonConflictKey !== this.dragonAbilityConflictKey) {
+            this.dragonAbilityConflictKey = dragonConflictKey;
+            this.dragonAbilityUses.clear();
+            this.dragonKihoPlayed = false;
+        }
+        const canSelectAbility = (card: any) => {
+            if(!this.isAttempted('cardClicked', [card.uuid])) {
+                return true;
+            }
+            return !!dragon && card.id === 'teacher-of-empty-thought' && dragon.hasWayOfTheDragon(card) &&
+                (this.dragonAbilityUses.get(String(card.uuid || card.id)) || 0) < 2;
+        };
+        const abilitySource = this.conflictAbilitySources(me, playCtx, cardHint, dishonor, lion, dragon, shugenja, attachmentTower).find(canSelectAbility);
         if(abilitySource) {
             // Record once-per-round board abilities so they are not re-fired for
             // the rest of the round (stops the Tranquil Philosopher fate loop).
             const srcHint: any = cardHint ? cardHint(abilitySource.id) : undefined;
             if(srcHint && srcHint.oncePerRound) {
-                this.boardAbilityUsed.add(abilitySource.id);
+                this.recordBoardAbility(abilitySource, dragon);
+            }
+            if(shugenja && abilitySource.id === 'kyuden-isawa') {
+                this.recordBoardAbility(abilitySource);
+            }
+            if(dragon && abilitySource.id === 'teacher-of-empty-thought') {
+                const key = String(abilitySource.uuid || abilitySource.id);
+                this.dragonAbilityUses.set(key, (this.dragonAbilityUses.get(key) || 0) + 1);
             }
             return this.cardClickDecision(abilitySource, 'use-board-ability');
+        }
+
+        // Once the selected payoff is live and its board actions are exhausted,
+        // stop exactly at the threshold. If no payoff is reachable, preserve the
+        // hand; Centipede Tattoo is the one escape hatch for a losing participant
+        // that can fight again next conflict.
+        if(dragonPayoffReady) {
+            return pass;
+        }
+        const dragonSaveException = saveDragonCards && standing.losing && dragonCardTarget >= 5 &&
+            myCharacters.some((card) => card.inConflict && !card.bowed) &&
+            dragonPool.some((card: any) => card.id === 'centipede-tattoo' && card.isPlayableByMe);
+        if(saveDragonCards && !dragonSaveException) {
+            return pass;
         }
 
         // NOTE: an old `if(fate < 1) return pass` reserve gate lived here. It
@@ -1488,7 +1799,26 @@ class JigokuBotPolicy {
                 if(!card.isPlayableByMe || !card.uuid || this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id)) {
                     return false;
                 }
-                if(!hasReadyParticipant && card.type !== 'character') {
+                if(saveDragonCards && card.id !== 'centipede-tattoo') {
+                    return false;
+                }
+                if(card.id === 'isawa-tadaka-2' && this.tadakaDisguiseAttempted) {
+                    return false;
+                }
+                // Do not start a duel-deck attachment that cannot land on its
+                // intended tower. Canceling the target prompt returns the card
+                // to hand and otherwise causes an action-window retry loop.
+                if(duelist?.isTowerAttachment(card.id) &&
+                    !duelist.pickAttachmentTarget(playCtx.myCharacters, card.id)) {
+                    return false;
+                }
+                if(attachmentTower?.isAttachment(card.id) &&
+                    !attachmentTower.pickAttachmentTarget(playCtx.myCharacters, card.id)) {
+                    return false;
+                }
+                if(!hasReadyParticipant && card.type !== 'character' &&
+                    !(shugenja && card.id === 'consumed-by-five-fires') &&
+                    !(attachmentTower && attachmentTower.isAttachment(card.id))) {
                     return false;
                 }
                 // LLM hint gates first: 'never'/'winning' cards stay in hand
@@ -1527,6 +1857,37 @@ class JigokuBotPolicy {
                 return contribution === null || contribution > 0;
             })
             .sort((a: any, b: any) => {
+                if(attachmentTower) {
+                    const attachmentDiff = attachmentTower.attachmentPriority(b.id) -
+                        attachmentTower.attachmentPriority(a.id);
+                    if(attachmentDiff !== 0) {
+                        return attachmentDiff;
+                    }
+                }
+                if(feedCards && dragonCardTarget >= 5) {
+                    const order = (card: any) => {
+                        if(card.id === 'togashi-acolyte') {
+                            return 0;
+                        }
+                        if(card.id === 'hurricane-punch') {
+                            return 1;
+                        }
+                        if(card.id === 'void-fist') {
+                            return 2;
+                        }
+                        if(card.id === 'swell-of-seafoam') {
+                            return this.dragonKihoPlayed ? 3 : 5;
+                        }
+                        if(card.id === 'iron-foundations-stance') {
+                            return this.dragonKihoPlayed ? 4 : 6;
+                        }
+                        return this.dragonKihoPlayed ? 5 : 3;
+                    };
+                    const orderDiff = order(a) - order(b);
+                    if(orderDiff !== 0) {
+                        return orderDiff;
+                    }
+                }
                 const priorityOf = (card: any) => (card.id && cardHint ? cardHint(card.id)?.priority : undefined) ?? 5;
                 const priorityDiff = priorityOf(b) - priorityOf(a);
                 if(priorityDiff !== 0) {
@@ -1536,6 +1897,21 @@ class JigokuBotPolicy {
                 return statDiff !== 0 ? statDiff : String(a.uuid).localeCompare(String(b.uuid));
             });
         if(playable.length > 0) {
+            const fiveFires = preparedFiveFires
+                ? playable.find((card: any) => card.uuid === preparedFiveFires.uuid)
+                : null;
+            if(fiveFires) {
+                return this.cardClickDecision(fiveFires, 'five-fires-tower-removal');
+            }
+            const tadaka = preparedTadaka
+                ? playable.find((card: any) => card.uuid === preparedTadaka.uuid)
+                : null;
+            if(tadaka) {
+                return this.cardClickDecision(tadaka, 'tadaka-prepared-disguise');
+            }
+            if(dragon && ['hurricane-punch', 'void-fist', 'swell-of-seafoam', 'iron-foundations-stance'].includes(playable[0].id)) {
+                this.dragonKihoPlayed = true;
+            }
             return this.cardClickDecision(playable[0], 'play-conflict-card');
         }
 
@@ -1545,7 +1921,7 @@ class JigokuBotPolicy {
     // Own in-play cards worth clicking for their Action abilities during a
     // conflict: the stronghold, the attacked province, and any board card
     // (holding, attachment, character) with a playbook-known Action.
-    private conflictAbilitySources(me: any, playCtx?: any, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null): any[] {
+    private conflictAbilitySources(me: any, playCtx?: any, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, shugenja: ShugenjaTactics | null = null, _attachmentTower: DragonAttachmentTactics | null = null): any[] {
         const stronghold = (me?.strongholdProvince || []).filter((card: any) => {
             if(card.type !== 'stronghold' || !card.uuid || card.bowed) {
                 return false;
@@ -1561,11 +1937,12 @@ class JigokuBotPolicy {
             if(lion && card.id === 'hayaken-no-shiro') {
                 return lion.shouldReadyWithStronghold(playCtx?.myCharacters || []);
             }
-            // High House of Light steals a ring's fate only at 5+ cards played:
-            // hold it until the 5th card while we can still reach it, use it for
-            // the skill alone once no further card can raise the count.
+            // High House is reserved for its complete five-card effect.
             if(dragon && card.id === 'high-house-of-light') {
-                return dragon.strongholdReady(playCtx?.cardsPlayed ?? 0, !!playCtx?.moreCardsPlayable, !!playCtx?.ringsHaveFate);
+                return dragon.strongholdReady(playCtx?.cardsPlayed ?? 0);
+            }
+            if(shugenja && card.id === 'kyuden-isawa') {
+                return !this.boardAbilityIsUsed(card) && shugenja.shouldUseKyuden(playCtx);
             }
             // Golden Plains Outpost (Unicorn) bows itself to MOVE a cavalry
             // character into the conflict — worth it only to add a BOWED body
@@ -1584,7 +1961,13 @@ class JigokuBotPolicy {
             .concat([me?.strongholdProvince || []])
             .map((list) => (list || []).find((card: any) =>
                 card.isProvince && card.inConflict && card.uuid && !card.isBroken &&
-                !this.isCancelVetoed(card.id)))
+                !this.isCancelVetoed(card.id) &&
+                (!lion || lion.shouldUseProvince(
+                    card.id,
+                    playCtx?.myCharacters || [],
+                    playCtx?.opponentCharacters || [],
+                    playCtx?.hand || []
+                ))))
             .filter(Boolean);
 
         let playbookSources: any[] = [];
@@ -1603,7 +1986,7 @@ class JigokuBotPolicy {
                     // Once-per-round actions (Tranquil Philosopher's self-
                     // reversing fate move) are dropped after their first use so
                     // they cannot loop.
-                    if(hint.oncePerRound && this.boardAbilityUsed.has(card.id)) {
+                    if(hint.oncePerRound && this.boardAbilityIsUsed(card, dragon)) {
                         return false;
                     }
                     return typeof hint.shouldUseAction !== 'function' || !playCtx || hint.shouldUseAction(playCtx);
@@ -1629,25 +2012,145 @@ class JigokuBotPolicy {
         return value === null || value === undefined ? null : value;
     }
 
-    private actionWindowDecision(playerState: any, me: any, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, dynastyCosts?: Record<string, number>): BotDecision | null {
+    private actionWindowDecision(playerState: any, me: any, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, dynastyCosts?: Record<string, number>, lion: LionTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): BotDecision | null {
         const pass = this.findButton(buttons, ['pass']);
+
+        // Board Actions that belong in the conflict-phase action window even
+        // without an active conflict (Adept's phase-long Water Covert and
+        // Mediator's post-two-conflicts economy theft).
+        if((shugenja || attachmentTower) && cardHint && me?.phase === 'conflict') {
+            const opponent = this.opponentPlayer(playerState, me);
+            const phaseCtx = {
+                conflictType: 'military' as const,
+                losing: false,
+                amAttacker: false,
+                honor: me?.stats?.honor ?? 10,
+                fate: me?.stats?.fate ?? 0,
+                myCharacters: this.myCharactersInPlay(me),
+                opponentCharacters: this.myCharactersInPlay(opponent),
+                dynastyDiscard: me?.cardPiles?.dynastyDiscardPile || [],
+                conflictDiscard: me?.cardPiles?.conflictDiscardPile || [],
+                hand: me?.cardPiles?.hand || [],
+                rings: Object.values(playerState?.rings || {})
+            };
+            const onBoard = (location: string) =>
+                location === 'play area' || /^(province [1-4]|stronghold province)$/.test(location);
+            const phaseSource = this.findVisibleCards(me)
+                .filter((card) => {
+                    if(!card.uuid || !card.id || card.facedown || !onBoard(String(card.location || '')) ||
+                        this.isAttempted('cardClicked', [card.uuid])) {
+                        return false;
+                    }
+                    const hint: any = cardHint(card.id);
+                    if(attachmentTower) {
+                        if(card.id === 'togashi-yokuni' && !this.yokuniCopyUsed &&
+                            !attachmentTower.pickYokuniCopy(
+                                phaseCtx.myCharacters,
+                                phaseCtx.opponentCharacters,
+                                (candidate) => (cardHint(candidate.id) as any)?.priority ?? 0
+                            )) {
+                            return false;
+                        }
+                        if(card.id === 'daimyo-s-favor' &&
+                            !attachmentTower.shouldUseDaimyoFavor(card, phaseCtx)) {
+                            return false;
+                        }
+                    }
+                    return !!hint && hint.conflictPhaseAction &&
+                        !(hint.oncePerRound && this.boardAbilityIsUsed(card)) &&
+                        (typeof hint.shouldUseAction !== 'function' ||
+                            (attachmentTower && card.id === 'daimyo-s-favor') ||
+                            hint.shouldUseAction(phaseCtx));
+                })
+                .sort((a, b) => ((cardHint(b.id) as any)?.priority ?? 5) - ((cardHint(a.id) as any)?.priority ?? 5))[0];
+            if(phaseSource) {
+                const hint: any = cardHint(phaseSource.id);
+                if(attachmentTower && phaseSource.id === 'togashi-yokuni') {
+                    this.yokuniCopyUsed = true;
+                }
+                if(attachmentTower && phaseSource.id === 'daimyo-s-favor') {
+                    this.pendingDaimyoBearerUuid =
+                        attachmentTower.daimyoFavorBearerUuid(phaseSource, phaseCtx.myCharacters) || null;
+                }
+                if(hint?.oncePerRound) {
+                    this.recordBoardAbility(phaseSource);
+                }
+                return this.cardClickDecision(phaseSource, 'use-conflict-phase-ability');
+            }
+        }
+
+        // Five Fires and a prepared Tadaka are phase Actions, not just combat
+        // tricks. Fire Five Fires as soon as an actionable enemy tower exists;
+        // otherwise both cards could be stranded while the bot passed between
+        // conflicts because it was already ahead.
+        if(shugenja && me?.phase === 'conflict') {
+            const opponent = this.opponentPlayer(playerState, me);
+            const fiveFires = shugenja.pickFiveFiresPlay(
+                me?.cardPiles?.hand || [],
+                this.myCharactersInPlay(me),
+                this.myCharactersInPlay(opponent),
+                me?.stats?.fate ?? 0
+            );
+            if(fiveFires && !this.isAttempted('cardClicked', [fiveFires.uuid])) {
+                return this.cardClickDecision(fiveFires, 'five-fires-tower-removal');
+            }
+            const tadaka = shugenja.pickTadakaPlay(
+                me?.cardPiles?.hand || [],
+                this.myCharactersInPlay(me),
+                me?.stats?.fate ?? 0
+            );
+            if(tadaka && !this.isAttempted('cardClicked', [tadaka.uuid])) {
+                return this.cardClickDecision(tadaka, 'tadaka-prepared-disguise');
+            }
+        }
+
+        // The attachment deck builds its towers before declaring conflicts.
+        // Prioritize high-impact attachments and never start one that has no
+        // legal strategic bearer (especially a fourth Restricted card).
+        if(attachmentTower && me?.phase === 'conflict') {
+            const mine = this.myCharactersInPlay(me);
+            const hand = me?.cardPiles?.hand || [];
+            const reducedAttachment = this.pendingDaimyoBearerUuid
+                ? attachmentTower.pickDaimyoReducedAttachment(hand, mine, this.pendingDaimyoBearerUuid)
+                : null;
+            const preConflict = hand
+                .filter((card: any) => {
+                    if(!card.uuid || !card.id || !card.isPlayableByMe || this.isAttempted('cardClicked', [card.uuid])) {
+                        return false;
+                    }
+                    if(this.pendingDaimyoBearerUuid) {
+                        return card.uuid === reducedAttachment?.uuid;
+                    }
+                    return attachmentTower.isAttachment(card.id) &&
+                        !!attachmentTower.pickAttachmentTarget(mine, card.id);
+                })
+                .sort((a: any, b: any) => attachmentTower.attachmentPriority(b.id) -
+                    attachmentTower.attachmentPriority(a.id) || String(a.uuid).localeCompare(String(b.uuid)));
+            if(preConflict.length > 0) {
+                return this.cardClickDecision(preConflict[0], 'attachment-tower-preconflict');
+            }
+        }
 
         // Peaceful/pre-conflict control attachments (Pacifism, Stolen Breath)
         // cannot be played once a conflict is running — the dishonor deck
         // plays them from hand in the conflict-phase action windows instead.
-        if(dishonor && cardHint && me?.phase === 'conflict' && dishonor.canPlayPreConflict(me?.stats?.fate ?? 0)) {
+        const canPlayPreConflict = dishonor
+            ? dishonor.canPlayPreConflict(me?.stats?.fate ?? 0)
+            : !!shugenja && shugenja.canPlayPreConflict(me?.stats?.fate ?? 0);
+        if(canPlayPreConflict && cardHint && me?.phase === 'conflict') {
             // A pre-conflict debuff (Pacifism/Stolen Breath) needs an enemy
             // character to land on — with the opponent's board empty it would
             // attach to our own side, so require a legal enemy target first.
             const opponent = this.opponentPlayer(playerState, me);
-            const enemyHasCharacter = this.myCharactersInPlay(opponent).length > 0;
-            const preConflict = !enemyHasCharacter ? [] : (me?.cardPiles?.hand || [])
+            const enemyCharacters = this.myCharactersInPlay(opponent);
+            const preConflict = enemyCharacters.length === 0 ? [] : (me?.cardPiles?.hand || [])
                 .filter((card: any) => {
                     if(!card.uuid || !card.id || !card.isPlayableByMe || this.isAttempted('cardClicked', [card.uuid])) {
                         return false;
                     }
                     const hint: any = cardHint(card.id);
-                    return !!hint && hint.preConflict;
+                    return !!hint && hint.preConflict &&
+                        this.attachmentTargetsWithoutDuplicate(enemyCharacters, card.id).length > 0;
                 })
                 .sort((a: any, b: any) => {
                     const priorityOf = (card: any) => (cardHint(card.id) as any)?.priority ?? 5;
@@ -1670,9 +2173,88 @@ class JigokuBotPolicy {
                     (card.type === 'character' || card.type === 'event') &&
                     !card.facedown &&
                     card.uuid &&
-                    !this.isAttempted('cardClicked', [card.uuid]));
+                    !this.isAttempted('cardClicked', [card.uuid]))
+                .filter((card: any) => !shugenja || card.id !== 'fushicho' ||
+                    shugenja.shouldPlayFushicho(me?.cardPiles?.dynastyDiscardPile || []));
 
             if(playable.length > 0) {
+                if(shugenja && shugenja.desiredFateReserve(me, this.opponentPlayer(playerState, me)) <= 1) {
+                    const setup = shugenja.pickTadakaSetupCharacter(
+                        playable,
+                        me?.cardPiles?.hand || [],
+                        dynastyCosts || {},
+                        me?.stats?.fate ?? 0
+                    );
+                    if(setup) {
+                        return this.cardClickDecision(setup, 'tadaka-setup-character');
+                    }
+                }
+                if(lion) {
+                    const pick = lion.pickDynastyCard(
+                        playable,
+                        dynastyCosts || {},
+                        me?.stats?.fate ?? 0,
+                        this.myCharactersInPlay(me)
+                    );
+                    if(pick) {
+                        return this.cardClickDecision(pick, 'lion-play-dynasty-card');
+                    }
+                    const lionPass = this.findButton(buttons, ['pass']);
+                    if(lionPass) {
+                        return this.buttonDecision(lionPass, 'lion-save-dynasty-fate');
+                    }
+                }
+                if(duelist) {
+                    const fate = me?.stats?.fate ?? 0;
+                    const costs = dynastyCosts || {};
+                    const board = this.myCharactersInPlay(me);
+                    const tower = duelist.pickDynastyTower(playable, costs, fate, board, me?.cardPiles?.hand || []);
+                    if(tower) {
+                        return this.cardClickDecision(tower, 'duel-play-tower');
+                    }
+                    const visibleTower = duelist.needsTower(board) && duelist.hasVisibleTower(playable);
+                    // One cheap helper is still useful for defending or taking
+                    // an unopposed conflict. With an unfunded tower waiting,
+                    // never spend more than one fate on that helper.
+                    const support = duelist.pickSupportCharacter(playable, costs, fate, board, visibleTower ? 1 : undefined);
+                    if(support) {
+                        return this.cardClickDecision(support, 'duel-play-support');
+                    }
+                    if(visibleTower) {
+                        return this.buttonDecision(this.findButton(buttons, ['pass']), 'duel-save-for-tower');
+                    }
+                    const towerPass = this.findButton(buttons, ['pass']);
+                    if(towerPass) {
+                        return this.buttonDecision(towerPass, 'duel-board-complete');
+                    }
+                }
+                if(attachmentTower) {
+                    const fate = me?.stats?.fate ?? 0;
+                    const costs = dynastyCosts || {};
+                    const board = this.myCharactersInPlay(me);
+                    const tower = attachmentTower.pickDynastyTower(playable, costs, fate, board);
+                    if(tower) {
+                        return this.cardClickDecision(tower, 'attachment-tower-play-tower');
+                    }
+                    const visibleTower = attachmentTower.needsTower(board) &&
+                        attachmentTower.hasVisibleTower(playable);
+                    const support = attachmentTower.pickSupportCharacter(
+                        playable,
+                        costs,
+                        fate,
+                        board,
+                        visibleTower ? 1 : undefined
+                    );
+                    if(support) {
+                        return this.cardClickDecision(support, 'attachment-tower-play-support');
+                    }
+                    const attachmentPass = this.findButton(buttons, ['pass']);
+                    if(attachmentPass) {
+                        return this.buttonDecision(attachmentPass, visibleTower
+                            ? 'attachment-tower-save-fate'
+                            : 'attachment-tower-board-complete');
+                    }
+                }
                 // Keep a 1-fate reserve so the conflict phase still has fate to
                 // play cards from hand. Play the cheapest character that leaves
                 // a fate behind; only spend the last fate when this is our sole
@@ -1682,14 +2264,16 @@ class JigokuBotPolicy {
                 // skip the reserve — every fate belongs on the board.
                 if(profile.reserveDynastyFate) {
                     const fate = me?.stats?.fate ?? 0;
+                    const opponent = this.opponentPlayer(playerState, me);
+                    const desiredReserve = shugenja ? shugenja.desiredFateReserve(me, opponent) : 1;
                     const costOf = (card: any) => dynastyCosts?.[card.uuid] ?? 0;
                     const affordable = playable
-                        .filter((card: any) => fate - costOf(card) >= 1)
+                        .filter((card: any) => fate - costOf(card) >= desiredReserve)
                         .sort((a: any, b: any) => costOf(a) - costOf(b) || String(a.uuid).localeCompare(String(b.uuid)));
                     if(affordable.length > 0) {
                         return this.cardClickDecision(affordable[0], 'play-dynasty-character');
                     }
-                    if(playable.length > 1) {
+                    if(playable.length > 1 || desiredReserve > 1) {
                         const reservePass = this.findButton(buttons, ['pass']);
                         if(reservePass) {
                             return this.buttonDecision(reservePass, 'dynasty-reserve-fate');
@@ -1716,10 +2300,10 @@ class JigokuBotPolicy {
                 && (me?.stats?.fate ?? 0) >= 1 && cardHint) {
                 const digger = this.dynastyActionSources(me, cardHint)
                     .find((card) => !this.isAttempted('cardClicked', [card.uuid]) &&
-                        !((cardHint(card.id) as any)?.oncePerRound && this.boardAbilityUsed.has(card.id)));
+                        !((cardHint(card.id) as any)?.oncePerRound && this.boardAbilityIsUsed(card)));
                 if(digger) {
                     if((cardHint(digger.id) as any)?.oncePerRound) {
-                        this.boardAbilityUsed.add(digger.id);
+                        this.recordBoardAbility(digger);
                     }
                     return this.cardClickDecision(digger, 'dynasty-dig-action');
                 }
@@ -1766,13 +2350,27 @@ class JigokuBotPolicy {
         return this.buttonDecision(this.findButton(buttons, ['done']), 'finish-mulligan');
     }
 
-    private dynastyDiscardDecision(playerState: any, buttons: any[]): BotDecision | null {
+    private attachmentTowerMulliganDecision(me: any, buttons: any[], attachmentTower: DragonAttachmentTactics): BotDecision | null {
+        const replace = this.findVisibleCards(me).find((card) =>
+            card.selectable && card.uuid && !card.selected &&
+            attachmentTower.shouldMulliganDynasty(card) &&
+            !this.isAttempted('cardClicked', [card.uuid]));
+        if(replace) {
+            return this.cardClickDecision(replace, 'attachment-tower-mulligan');
+        }
+        return this.buttonDecision(this.findButton(buttons, ['done']), 'finish-mulligan');
+    }
+
+    private dynastyDiscardDecision(playerState: any, me: any, buttons: any[], duelist: DuelTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): BotDecision | null {
         // End-of-round province cleanup: discard leftover faceup dynasty cards
         // so provinces refill with fresh cards, then confirm with Done. Never
         // discard a holding — holdings (Kaiu Wall especially) are permanent
         // board value and throwing them away is always a loss.
+        const board = this.myCharactersInPlay(me);
         const leftover = this.findVisibleCards(playerState).find((card) =>
             card.selectable && !card.selected && card.uuid && card.type !== 'holding' &&
+            !(duelist && duelist.shouldKeepDynasty(card.id, board)) &&
+            !(attachmentTower && attachmentTower.shouldKeepDynasty(card.id, board)) &&
             !this.isAttempted('cardClicked', [card.uuid]));
         if(leftover) {
             return this.cardClickDecision(leftover, 'discard-leftover-dynasty');
@@ -1781,7 +2379,7 @@ class JigokuBotPolicy {
         return this.buttonDecision(this.findButton(buttons, ['done']), 'finish-dynasty-discard');
     }
 
-    private ringDecision(playerState: any, me: any, title: string, dishonor: DishonorTactics | null = null, glory: GloryTactics | null = null, dragon: DragonTactics | null = null): BotDecision | null {
+    private ringDecision(playerState: any, me: any, title: string, dishonor: DishonorTactics | null = null, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): BotDecision | null {
         const rings = Object.values(playerState?.rings || {}).filter((ring: any) =>
             ring && ring.unselectable !== true && !this.isAttempted('ringClicked', [ring.element]));
         if(rings.length === 0) {
@@ -1791,10 +2389,32 @@ class JigokuBotPolicy {
         // Same value ordering as conflict declaration — a random pick here
         // hands weak rings (air) to card abilities that ask for a ring.
         const opponent = this.opponentPlayer(playerState, me);
-        rings.sort((a: any, b: any) => {
-            const scoreDiff = this.ringScore(b, me, opponent, dishonor, glory, dragon) - this.ringScore(a, me, opponent, dishonor, glory, dragon);
-            return scoreDiff !== 0 ? scoreDiff : RING_ORDER.indexOf(a.element) - RING_ORDER.indexOf(b.element);
-        });
+        if(shugenja && title.includes('claim and resolve')) {
+            const mine = this.myCharactersInPlay(me);
+            const theirs = this.myCharactersInPlay(opponent);
+            rings.sort((a: any, b: any) => {
+                const scoreDiff = shugenja.offeringsRingScore(b.element, mine, theirs) -
+                    shugenja.offeringsRingScore(a.element, mine, theirs);
+                return scoreDiff !== 0 ? scoreDiff : RING_ORDER.indexOf(a.element) - RING_ORDER.indexOf(b.element);
+            });
+        } else if(shugenja && title.includes('ring to return')) {
+            rings.sort((a: any, b: any) =>
+                this.ringScore(a, me, opponent, dishonor, glory, dragon, shugenja, undefined, attachmentTower) -
+                this.ringScore(b, me, opponent, dishonor, glory, dragon, shugenja, undefined, attachmentTower));
+        } else if(shugenja && title.includes('ring to take')) {
+            rings.sort((a: any, b: any) => {
+                const aScore = (Number(a.fate) || 0) * 1000 + (a.element === 'water' ? 500 : 0) +
+                    this.ringScore(a, me, opponent, dishonor, glory, dragon, shugenja, undefined, attachmentTower);
+                const bScore = (Number(b.fate) || 0) * 1000 + (b.element === 'water' ? 500 : 0) +
+                    this.ringScore(b, me, opponent, dishonor, glory, dragon, shugenja, undefined, attachmentTower);
+                return bScore - aScore;
+            });
+        } else {
+            rings.sort((a: any, b: any) => {
+                const scoreDiff = this.ringScore(b, me, opponent, dishonor, glory, dragon, shugenja, undefined, attachmentTower) - this.ringScore(a, me, opponent, dishonor, glory, dragon, shugenja, undefined, attachmentTower);
+                return scoreDiff !== 0 ? scoreDiff : RING_ORDER.indexOf(a.element) - RING_ORDER.indexOf(b.element);
+            });
+        }
         const ring: any = rings[0];
 
         return {
@@ -1810,7 +2430,7 @@ class JigokuBotPolicy {
     // worth firing (e.g. Meditations on the Tao stripping attacker fate);
     // character and event reactions stay passed until per-card knowledge
     // exists, because firing them blindly wastes fate and honor.
-    private triggeredWindowDecision(playerState: any, me: any, buttons: any[], cardHint?: CardHintLookup): BotDecision | null {
+    private triggeredWindowDecision(playerState: any, me: any, buttons: any[], cardHint?: CardHintLookup, lion: LionTactics | null = null): BotDecision | null {
         // Facedown province summaries carry no type/isProvince flags, so also
         // match by province location.
         const source = this.findVisibleCards(me).find((card) =>
@@ -1836,7 +2456,11 @@ class JigokuBotPolicy {
                     return false;
                 }
                 const hint = cardHint(card.id);
-                return !!hint && hint.useWhen !== 'never' && hint.priority >= 6;
+                if(!hint || hint.useWhen === 'never' || hint.priority < 6) {
+                    return false;
+                }
+                return card.id !== 'feeding-an-army' || !lion ||
+                    lion.shouldUseFeedingArmy(this.myCharactersInPlay(me));
             });
             if(hinted) {
                 return this.cardClickDecision(hinted, 'trigger-hinted-ability');
@@ -1882,7 +2506,7 @@ class JigokuBotPolicy {
         return myPotential < attackerSkill;
     }
 
-    private cardDecision(playerState: any, me: any, title: string, buttons: any[], targetHint?: TargetHint, cardHint?: CardHintLookup, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null): BotDecision | null {
+    private cardDecision(playerState: any, me: any, title: string, buttons: any[], targetHint?: TargetHint, cardHint?: CardHintLookup, glory: GloryTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): BotDecision | null {
         const cards = this.findVisibleCards(playerState).filter((card) =>
             card.selectable && card.uuid && !this.isAttempted('cardClicked', [card.uuid]));
         if(cards.length === 0) {
@@ -1894,10 +2518,88 @@ class JigokuBotPolicy {
 
         const skillType = title.includes('political') ? 'political' : 'military';
 
+        if(dragon && targetHint?.sourceCardId === 'ancient-master') {
+            const pick = dragon.pickAncientMasterCard(cards);
+            if(pick) {
+                return this.cardClickDecision(pick, 'ancient-master-card-order');
+            }
+        }
+
+        if(attachmentTower && targetHint?.sourceCardId === 'keen-warrior' && title.includes('bottom')) {
+            const bottom = attachmentTower.pickLeastValuable(cards);
+            if(bottom) {
+                return this.cardClickDecision(bottom, 'keen-warrior-bottom-weakest');
+            }
+        }
+
+        if(attachmentTower && ['illustrious-forge', 'agasha-swordsmith', 'inventive-mirumoto']
+            .includes(targetHint?.sourceCardId || '')) {
+            const attachment = attachmentTower.pickAttachment(cards);
+            if(attachment) {
+                return this.cardClickDecision(attachment, 'attachment-tower-search-pick');
+            }
+        }
+
+        if(shugenja && title.includes('character to replace')) {
+            const base = shugenja.pickDisguiseTarget(cards, me?.stats?.fate ?? 0);
+            if(base) {
+                return this.cardClickDecision(base, 'tadaka-disguise-base');
+            }
+        }
+
+        // TargetModes.Ability exposes only characters with a legal printed
+        // ability. Keep the deck's preferred friendly copy order, then fall
+        // back to the best legal enemy character. The title check covers this
+        // special target mode even when it does not expose a normal gameAction
+        // target hint.
+        if(attachmentTower && (targetHint?.sourceCardId === 'togashi-yokuni' ||
+            title.includes('character to copy from'))) {
+            const myUuids = new Set(this.findVisibleCards(me).map((card) => card.uuid));
+            const mine = cards.filter((card) => myUuids.has(card.uuid));
+            const theirs = cards.filter((card) => !myUuids.has(card.uuid));
+            const copy = attachmentTower.pickYokuniCopy(
+                mine,
+                theirs,
+                (card) => (card.id && cardHint ? cardHint(card.id)?.priority : undefined) ?? 0
+            );
+            if(copy) {
+                const enemy = theirs.some((card) => card.uuid === copy.uuid);
+                return this.cardClickDecision(copy, enemy
+                    ? 'yokuni-copy-enemy-ability'
+                    : 'yokuni-copy-best-ability');
+            }
+            const cancel = this.findButton(buttons, ['cancel']);
+            if(cancel) {
+                return this.buttonDecision(cancel, 'cancel-wrong-side-target');
+            }
+        }
+
+        // Oracle of Stone's discard prompt carries no target hint. Cycle the
+        // two least valuable cards while protecting Tadaka and the build-around
+        // spells; never fall through to the raw skill sort.
+        if(shugenja && title.includes('oracle of stone') && title.includes('choose 2 cards to discard')) {
+            const done = this.findButton(buttons, ['done']);
+            const selected = this.findVisibleCards(me).filter((card) => card.selected).length;
+            if(selected >= 2 && done) {
+                return this.buttonDecision(done, 'oracle-discard-two');
+            }
+            const discard = shugenja.pickKyudenDiscard(cards);
+            if(discard) {
+                return this.cardClickDecision(discard, 'oracle-discard-weakest');
+            }
+        }
+
         if(targetHint) {
-            const aimed = this.polarityTargetDecision(cards, playerState, me, skillType, targetHint, buttons, cardHint, glory, dragon, duelist);
+            const aimed = this.polarityTargetDecision(cards, playerState, me, skillType, targetHint, buttons, cardHint, glory, lion, dragon, duelist, shugenja, attachmentTower);
             if(aimed) {
                 return aimed;
+            }
+        }
+
+        if(shugenja && title.includes('spell or kiho')) {
+            const spell = shugenja.pickSpell(cards);
+            if(spell) {
+                return this.cardClickDecision(spell, 'shrine-maiden-pick-spell');
             }
         }
 
@@ -1914,7 +2616,7 @@ class JigokuBotPolicy {
     // hit the opponent's strongest card (or our weakest when only own cards
     // are legal, e.g. a forced sacrifice), helpful effects go to our own side
     // (preferring characters already in the conflict).
-    private polarityTargetDecision(cards: any[], playerState: any, me: any, skillType: string, targetHint: TargetHint, buttons: any[], cardHint?: CardHintLookup, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null): BotDecision | null {
+    private polarityTargetDecision(cards: any[], playerState: any, me: any, skillType: string, targetHint: TargetHint, buttons: any[], cardHint?: CardHintLookup, glory: GloryTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): BotDecision | null {
         const myUuids = new Set(this.findVisibleCards(me).map((card) => card.uuid));
         const mine = cards.filter((card) => myUuids.has(card.uuid));
         const theirs = cards.filter((card) => !myUuids.has(card.uuid));
@@ -1923,12 +2625,216 @@ class JigokuBotPolicy {
         // effect at the wrong side of the board.
         const cancel = this.findButton(buttons, ['cancel']);
 
+        if(attachmentTower && targetHint.sourceCardId === 'jade-tetsubo') {
+            const fateTargets = theirs.filter((card) => (Number(card.fate) || 0) > 0);
+            if(fateTargets.length > 0) {
+                const pick = fateTargets.slice().sort((a, b) =>
+                    (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
+                    (this.skillValue(b, skillType) || 0) - (this.skillValue(a, skillType) || 0))[0];
+                return this.cardClickDecision(pick, 'jade-tetsubo-strip-fate');
+            }
+            if(cancel) {
+                return this.buttonDecision(cancel, 'cancel-wrong-side-target');
+            }
+        }
+
+        if(['let-go', 'miya-mystic'].includes(targetHint.sourceCardId || '')) {
+            const selectable = new Map(cards.map((card) => [card.uuid, card]));
+            const opponent = this.opponentPlayer(playerState, me);
+            const attachments = (opponent?.cardPiles?.cardsInPlay || [])
+                .filter((card: any) => card.type === 'character')
+                .flatMap((carrier: any) => (carrier.attachments || [])
+                    .filter((attachment: any) => selectable.has(attachment.uuid))
+                    .map((attachment: any) => ({ carrier, attachment: selectable.get(attachment.uuid) })));
+            attachments.sort((a: any, b: any) =>
+                (this.isTower(b.carrier) ? 1 : 0) - (this.isTower(a.carrier) ? 1 : 0) ||
+                (this.skillValue(b.carrier, skillType) || 0) - (this.skillValue(a.carrier, skillType) || 0) ||
+                (this.skillValue(b.attachment, skillType) || 0) - (this.skillValue(a.attachment, skillType) || 0));
+            if(attachments.length > 0) {
+                return this.cardClickDecision(attachments[0].attachment, 'discard-strong-enemy-attachment');
+            }
+            if(cancel) {
+                return this.buttonDecision(cancel, 'cancel-wrong-side-target');
+            }
+        }
+
+        if(lion && targetHint.sourceCardId === 'emperor-s-summons') {
+            const tower = lion.pickTower(mine, (card) => this.skillValue(card, skillType) || 0);
+            if(tower) {
+                return this.cardClickDecision(tower, 'lion-summons-strongest-tower');
+            }
+        }
+
+        if(lion && targetHint.sourceCardId === 'forebearer-s-echoes') {
+            const tower = lion.pickTower(mine, (card) => this.skillValue(card, skillType) || 0);
+            if(tower) {
+                return this.cardClickDecision(tower, 'lion-echoes-strongest-character');
+            }
+        }
+
+        if(lion && targetHint.sourceCardId === 'weight-of-duty') {
+            const actions = targetHint.gameActions || [];
+            if(actions.includes('sacrifice') && mine.length > 0) {
+                const cheap = lion.pickCheapSacrifice(mine, (card) => this.skillValue(card, skillType) || 0);
+                if(cheap) {
+                    return this.cardClickDecision(cheap, 'lion-weight-sacrifice-cheap');
+                }
+            }
+            if(actions.includes('bow') && theirs.length > 0) {
+                const ready = this.sortBySkillDesc(theirs.filter((card) => !card.bowed), skillType);
+                return this.cardClickDecision(ready[0] || this.sortBySkillDesc(theirs, skillType)[0], 'lion-weight-bow-enemy');
+            }
+        }
+
+        if(lion && targetHint.sourceCardId === 'elegant-tessen' &&
+            (targetHint.gameActions || []).includes('attach')) {
+            const cheap = lion.pickTessenTarget(mine, (card) => this.skillValue(card, skillType) || 0);
+            if(cheap) {
+                return this.cardClickDecision(cheap, 'lion-tessen-ready-cheap');
+            }
+            if(cancel) {
+                return this.buttonDecision(cancel, 'lion-tessen-no-bowed-cheap');
+            }
+        }
+
+        if(lion && targetHint.sourceCardId === 'true-strike-kenjutsu' &&
+            (targetHint.gameActions || []).includes('attach')) {
+            const tower = lion.pickTower(mine.filter((card) => lion.isTower(card)),
+                (card) => this.skillValue(card, 'military') || 0);
+            if(tower) {
+                return this.cardClickDecision(tower, 'lion-kenjutsu-tower');
+            }
+        }
+
+        if(shugenja && targetHint.sourceCardId === 'isawa-tadaka-2') {
+            const prompt = `${me?.promptTitle || ''} ${me?.menuTitle || ''}`.toLowerCase();
+            if(prompt.includes('character to replace')) {
+                const base = shugenja.pickDisguiseTarget(mine, me?.stats?.fate ?? 0);
+                if(base) {
+                    return this.cardClickDecision(base, 'tadaka-disguise-base');
+                }
+            }
+            if((targetHint.gameActions || []).includes('removeFromGame') && mine.length > 0) {
+                const done = this.findButton(buttons, ['done']);
+                const alreadyPicked = this.findVisibleCards(playerState).some((card) => card.selected) ||
+                    this.findVisibleCards(me).some((card) => card.uuid && this.isAttempted('cardClicked', [card.uuid]));
+                if(alreadyPicked && done) {
+                    return this.buttonDecision(done, 'tadaka-cost-one-card');
+                }
+                const weakest = shugenja.pickWeakest(mine);
+                if(weakest) {
+                    return this.cardClickDecision(weakest, 'tadaka-remove-weakest');
+                }
+            }
+        }
+
+        if(shugenja && targetHint.sourceCardId === 'fushicho' &&
+            (targetHint.gameActions || []).includes('putIntoPlay')) {
+            const resurrect = shugenja.pickFushichoTarget(mine);
+            if(resurrect) {
+                return this.cardClickDecision(resurrect, 'fushicho-five-cost-character');
+            }
+        }
+
+        // Ujina is a forced reaction. Prefer an enemy with no fate; if the
+        // engine offers only our characters, cancelling simply reopens the
+        // forced prompt forever, so sacrifice our weakest legal body.
+        if(shugenja && targetHint.sourceCardId === 'isawa-ujina' &&
+            (targetHint.gameActions || []).includes('removeFromGame')) {
+            if(theirs.length > 0) {
+                return this.cardClickDecision(this.sortBySkillDesc(theirs, skillType)[0], 'ujina-remove-enemy');
+            }
+            if(mine.length > 0) {
+                return this.cardClickDecision(shugenja.pickWeakest(mine), 'ujina-forced-own-weakest');
+            }
+        }
+
+        if(shugenja && targetHint.sourceCardId === 'kyuden-isawa') {
+            const prompt = `${me?.promptTitle || ''} ${me?.menuTitle || ''}`.toLowerCase();
+            const pick = prompt.includes('spell event')
+                ? shugenja.pickKyudenSpell(mine, {
+                    fate: me?.stats?.fate ?? 0,
+                    hand: me?.cardPiles?.hand || [],
+                    myCharacters: this.myCharactersInPlay(me),
+                    opponentCharacters: (this.opponentPlayer(playerState, me)?.cardPiles?.cardsInPlay || [])
+                        .filter((card: any) => card.type === 'character')
+                })
+                : shugenja.pickKyudenDiscard(mine);
+            if(pick) {
+                return this.cardClickDecision(pick, prompt.includes('spell event') ? 'kyuden-recast-spell' : 'kyuden-discard-spell');
+            }
+        }
+
+        if(shugenja && targetHint.sourceCardId === 'shrine-maiden') {
+            const spell = shugenja.pickSpell(mine);
+            if(spell) {
+                return this.cardClickDecision(spell, 'shrine-maiden-pick-spell');
+            }
+        }
+
+        if(shugenja && targetHint.sourceCardId === 'oracle-of-stone' &&
+            (targetHint.gameActions || []).includes('discardCard')) {
+            const done = this.findButton(buttons, ['done']);
+            const selected = this.findVisibleCards(me).filter((card) => card.selected).length;
+            if(selected >= 2 && done) {
+                return this.buttonDecision(done, 'oracle-discard-two');
+            }
+            const discard = shugenja.pickKyudenDiscard(mine);
+            if(discard) {
+                return this.cardClickDecision(discard, 'oracle-discard-weakest');
+            }
+        }
+
+        if(shugenja && targetHint.sourceCardId === 'consumed-by-five-fires') {
+            const target = shugenja.pickFiveFiresTarget(theirs, (card) =>
+                Math.max(this.skillValue(card, 'military') || 0, this.skillValue(card, 'political') || 0));
+            if(target) {
+                return this.cardClickDecision(target, 'five-fires-enemy-tower');
+            }
+            const cancel = this.findButton(buttons, ['cancel']);
+            if(cancel) {
+                return this.buttonDecision(cancel, 'five-fires-skip-neutralized');
+            }
+        }
+
+        if(shugenja && ['adept-of-the-waves', 'clarity-of-purpose', 'supernatural-storm'].includes(targetHint.sourceCardId || '')) {
+            const legal = targetHint.sourceCardId === 'clarity-of-purpose' || targetHint.sourceCardId === 'supernatural-storm'
+                ? mine.filter((card) => card.inConflict && !card.bowed)
+                : mine;
+            const tower = shugenja.pickTower(legal.length > 0 ? legal : mine,
+                (card) => this.skillValue(card, skillType) || 0);
+            if(tower) {
+                return this.cardClickDecision(tower, `${targetHint.sourceCardId}-tower`);
+            }
+        }
+
         // Ride On / Favorable Ground move a character in or home; the bot plays
         // them to add a body, so aim at a ready character sitting at home —
         // moving that one INTO the conflict is the useful direction. The card
         // offers both sendHome and moveToConflict on the target, so picking a
         // participant would move our own body OUT (self-harm) — never do that.
-        if(targetHint.sourceCardId === 'ride-on' || targetHint.sourceCardId === 'favorable-ground') {
+        if(targetHint.sourceCardId === 'favorable-ground') {
+            const standing = this.conflictStanding(playerState, me);
+            const opponent = this.opponentPlayer(playerState, me);
+            const strongholdConflict = !!standing && (standing.amAttacker
+                ? this.strongholdUnderAttack(opponent)
+                : this.strongholdUnderAttack(me));
+            const participants = mine.filter((card) => !card.bowed && card.inConflict);
+            if(dragon && standing?.losing && !strongholdConflict && (me?.stats?.conflictsRemaining ?? 0) >= 1 && participants.length > 0) {
+                this.favorableGroundRetreatPending = true;
+                return this.cardClickDecision(this.sortBySkillDesc(participants, skillType)[0], 'favorable-ground-rescue-tower');
+            }
+            const home = mine.filter((card) => !card.bowed && !card.inConflict);
+            if(home.length > 0) {
+                this.favorableGroundRetreatPending = false;
+                return this.cardClickDecision(this.sortBySkillDesc(home, skillType)[0], 'favorable-ground-reinforce');
+            }
+            if(cancel) {
+                this.favorableGroundRetreatPending = false;
+                return this.buttonDecision(cancel, 'cancel-wrong-side-target');
+            }
+        }
+        if(targetHint.sourceCardId === 'ride-on') {
             const home = mine.filter((card) => !card.bowed && !card.inConflict);
             if(home.length > 0) {
                 return this.cardClickDecision(this.sortBySkillDesc(home, skillType)[0], `${targetHint.sourceCardId}-target-home`);
@@ -1946,12 +2852,21 @@ class JigokuBotPolicy {
         // the ranked key duelists.
         if(duelist) {
             const axis = duelist.duelAxis(targetHint.sourceCardId);
-            if(axis && (targetHint.gameActions || []).includes('attach')) {
-                const pick = duelist.pickKeyCharacter(mine);
+            if(duelist.isTowerAttachment(targetHint.sourceCardId) &&
+                (targetHint.gameActions || []).includes('attach')) {
+                const pick = duelist.pickAttachmentTarget(mine, targetHint.sourceCardId);
                 if(pick) {
-                    return this.cardClickDecision(pick, 'duel-attach-key-character');
+                    return this.cardClickDecision(pick, targetHint.sourceCardId === 'shukujo'
+                        ? 'duel-attach-shukujo-kuwanan'
+                        : 'duel-attach-tower');
                 }
-            } else if(axis) {
+                if(cancel) {
+                    return this.buttonDecision(cancel, targetHint.sourceCardId === 'shukujo'
+                        ? 'duel-cancel-shukujo-without-kuwanan'
+                        : 'duel-cancel-no-tower-slot');
+                }
+            }
+            if(axis) {
                 if(mine.length > 0 && theirs.length === 0) {
                     return this.cardClickDecision(this.sortBySkillDesc(mine, axis)[0], 'duel-own-strongest');
                 }
@@ -1981,7 +2896,17 @@ class JigokuBotPolicy {
 
         // Dragon build-around attachments (Way of the Dragon doubles the
         // bearer's ability, Finger of Jade shields it): Togashi Mitsu first.
-        if(dragon && ['way-of-the-dragon', 'finger-of-jade'].includes(targetHint.sourceCardId || '') &&
+        if(dragon && targetHint.sourceCardId === 'way-of-the-dragon' &&
+            (targetHint.gameActions || []).includes('attach')) {
+            const pick = dragon.pickWayCharacter(mine);
+            if(pick) {
+                return this.cardClickDecision(pick, 'dragon-way-repeatable-character');
+            }
+            if(cancel) {
+                return this.buttonDecision(cancel, 'cancel-wrong-side-target');
+            }
+        }
+        if(dragon && targetHint.sourceCardId === 'finger-of-jade' &&
             (targetHint.gameActions || []).includes('attach')) {
             const pick = dragon.pickKeyCharacter(mine);
             if(pick) {
@@ -2040,7 +2965,7 @@ class JigokuBotPolicy {
         // never the opponent's (that just refills THEIR board). Keep Mitsu if he
         // is already showing; cancel rather than target an enemy province.
         if(targetHint.sourceCardId === 'cycle-of-rebirth') {
-            const ownDiggable = mine.filter((card) => card.id !== 'togashi-mitsu-2');
+            const ownDiggable = mine.filter((card) => !dragon?.shouldPreserveProvinceCharacter(card));
             if(ownDiggable.length > 0) {
                 const sorted = this.sortBySkillDesc(ownDiggable, skillType);
                 return this.cardClickDecision(sorted[sorted.length - 1], 'cycle-own-weakest-province');
@@ -2058,7 +2983,10 @@ class JigokuBotPolicy {
             // prefer ready ones — the wrong direction here).
             const bowed = mine.filter((card) => card.bowed);
             if(bowed.length > 0) {
-                return this.cardClickDecision(this.sortBySkillDesc(bowed, skillType)[0], 'waves-ready-bowed');
+                const pick = shugenja
+                    ? shugenja.pickTower(bowed, (card) => this.skillValue(card, skillType) || 0)
+                    : this.sortBySkillDesc(bowed, skillType)[0];
+                return this.cardClickDecision(pick, 'waves-ready-bowed');
             }
             if(cancel) {
                 return this.buttonDecision(cancel, 'cancel-wrong-side-target');
@@ -2082,11 +3010,11 @@ class JigokuBotPolicy {
             const unhonored = mine.filter((card) => !card.isHonored);
             if(unhonored.length > 0) {
                 this.diplomatChoice = 'honor';
-                return this.cardClickDecision(this.sortBySkillDesc(unhonored, skillType)[0], 'diplomat-honor-own');
+                return this.cardClickDecision(this.sortByStatusImpact(unhonored, skillType)[0], 'diplomat-honor-own');
             }
             if(theirs.length > 0) {
                 this.diplomatChoice = 'dishonor';
-                return this.cardClickDecision(this.sortBySkillDesc(theirs, skillType)[0], 'diplomat-dishonor-enemy');
+                return this.cardClickDecision(this.sortByStatusImpact(theirs, skillType)[0], 'diplomat-dishonor-enemy');
             }
         }
         if(targetHint.sourceCardId === 'isawa-mori-seido' && glory) {
@@ -2120,12 +3048,12 @@ class JigokuBotPolicy {
             // already dishonored), give the leftover to the weakest legal
             // card so the misdirected token costs the least.
             if(promptTitle === 'Choose a character to honor') {
-                const pick = this.sortBySkillDesc(mine, skillType)[0] ||
+                const pick = this.sortByStatusImpact(mine, skillType)[0] ||
                     this.sortBySkillDesc(theirs, skillType).pop();
                 return pick ? this.cardClickDecision(pick, 'shameful-honor-own') : null;
             }
             if(promptTitle === 'Choose a character to dishonor') {
-                const pick = this.sortBySkillDesc(theirs, skillType)[0] ||
+                const pick = this.sortByStatusImpact(theirs, skillType)[0] ||
                     this.sortBySkillDesc(mine, skillType).pop();
                 return pick ? this.cardClickDecision(pick, 'shameful-dishonor-enemy') : null;
             }
@@ -2135,11 +3063,11 @@ class JigokuBotPolicy {
                 if(mine.length === 0) {
                     return cancel ? this.buttonDecision(cancel, 'cancel-wrong-side-target') : null;
                 }
-                const ownSorted = this.sortBySkillDesc(mine, skillType);
+                const ownSorted = this.sortByStatusImpact(mine, skillType);
                 const ownPick = ownSorted.find((card) => !card.isHonored) || ownSorted[0];
                 return this.cardClickDecision(ownPick, 'shameful-pick-own');
             }
-            const enemySorted = this.sortBySkillDesc(theirs, skillType);
+            const enemySorted = this.sortByStatusImpact(theirs, skillType);
             const second = enemySorted.find((card) => !card.isDishonored) || enemySorted[0] ||
                 this.sortBySkillDesc(mine, skillType).pop();
             if(second) {
@@ -2155,8 +3083,21 @@ class JigokuBotPolicy {
             const ready = mine.filter((card) => !card.bowed);
             const home = ready.filter((card) => !card.inConflict);
             const pool = home.length > 0 ? home : ready;
+            if(lion) {
+                const cheap = lion.pickCheapSacrifice(pool, (card) => this.skillValue(card, skillType) || 0);
+                if(cheap) {
+                    return this.cardClickDecision(cheap, 'lion-in-service-bow-cheap');
+                }
+            }
             const sorted = this.sortBySkillDesc(pool, skillType);
             return this.cardClickDecision(sorted[sorted.length - 1], 'in-service-bow-weakest');
+        }
+        if(lion && targetHint.sourceCardId === 'in-service-to-my-lord' && mine.some((card) => card.bowed)) {
+            const pick = lion.pickReadyTarget(mine.filter((card) => card.bowed),
+                (card) => this.skillValue(card, skillType) || 0);
+            if(pick) {
+                return this.cardClickDecision(pick, 'lion-in-service-ready-strong');
+            }
         }
 
         // Time for War (lost-political reaction) attaches a permanent weapon to
@@ -2165,7 +3106,7 @@ class JigokuBotPolicy {
         // targeter on the military axis: build the durable tower, not whichever
         // body happens to top the (political) skill sort.
         if(targetHint.sourceCardId === 'time-for-war') {
-            return this.attachmentTargetDecision(mine, theirs, playerState, me, 'military');
+            return this.attachmentTargetDecision(mine, theirs, playerState, me, 'military', targetHint.sourceCardId);
         }
 
         // Battlefield attachments (Prepared Ambush, Makeshift War Camp) go on
@@ -2184,16 +3125,33 @@ class JigokuBotPolicy {
         const sourceHint = targetHint.sourceCardId && cardHint ? cardHint(targetHint.sourceCardId) : undefined;
 
         if((targetHint.gameActions || []).includes('attach')) {
+            if(attachmentTower?.isAttachment(targetHint.sourceCardId)) {
+                const pendingBearer = this.pendingDaimyoBearerUuid;
+                const target = attachmentTower.pickAttachmentTarget(mine, targetHint.sourceCardId, pendingBearer || undefined);
+                if(target) {
+                    if(pendingBearer) {
+                        this.pendingDaimyoBearerUuid = null;
+                    }
+                    return this.cardClickDecision(target, pendingBearer
+                        ? 'daimyo-favor-reduced-attachment-target'
+                        : 'attachment-tower-target');
+                }
+                if(cancel) {
+                    return this.buttonDecision(cancel, 'cancel-wrong-side-target');
+                }
+                return null;
+            }
             // Some attachments carry an enemy-aimed ABILITY but belong on our
             // own character (True Strike Kenjutsu) — attach own-side first.
             if(sourceHint && (sourceHint as any).attachSide === 'self') {
-                return this.attachmentTargetDecision(mine, theirs, playerState, me, skillType);
+                return this.attachmentTargetDecision(mine, theirs, playerState, me, skillType, targetHint.sourceCardId);
             }
             // Control attachments (Pacifism, Fiery Madness, Pit Trap...) are
             // hinted enemy-side: land them on the opponent's best character on
             // the axis the attachment shuts down, never on our own side.
             if(sourceHint && sourceHint.targetSide === 'enemy') {
-                if(theirs.length > 0) {
+                const usefulTargets = this.attachmentTargetsWithoutDuplicate(theirs, targetHint.sourceCardId);
+                if(usefulTargets.length > 0) {
                     const axis = sourceHint.conflictTypes.length > 0 ? sourceHint.conflictTypes[0] : skillType;
                     // Softskin and Pit Trap both carry a "does not ready" lock:
                     // their value lands on an already-BOWED enemy — pinned there
@@ -2203,12 +3161,18 @@ class JigokuBotPolicy {
                     // enemy; fall back to the strongest enemy when none are bowed
                     // (Pit Trap's -1/-1 still shrinks the current attacker).
                     if(targetHint.sourceCardId === 'softskin' || targetHint.sourceCardId === 'pit-trap') {
-                        const bowedEnemy = this.sortBySkillDesc(theirs.filter((card) => card.bowed), axis);
+                        const bowedEnemy = this.sortBySkillDesc(usefulTargets.filter((card) => card.bowed), axis);
                         if(bowedEnemy.length > 0) {
                             return this.cardClickDecision(bowedEnemy[0], `${targetHint.sourceCardId}-bowed-enemy`);
                         }
                     }
-                    return this.cardClickDecision(this.sortBySkillDesc(theirs, axis)[0], 'attach-debuff-enemy');
+                    return this.cardClickDecision(this.sortBySkillDesc(usefulTargets, axis)[0], 'attach-debuff-enemy');
+                }
+                if(theirs.length > 0) {
+                    if(cancel) {
+                        return this.buttonDecision(cancel, 'cancel-redundant-debuff-attachment');
+                    }
+                    return null;
                 }
                 // A debuff attachment with no enemy character to hit must NOT
                 // land on our own side — that would shut down our own body.
@@ -2218,7 +3182,7 @@ class JigokuBotPolicy {
                 }
                 return null;
             }
-            return this.attachmentTargetDecision(mine, theirs, playerState, me, skillType);
+            return this.attachmentTargetDecision(mine, theirs, playerState, me, skillType, targetHint.sourceCardId);
         }
 
         // Bow and ready are state-sensitive, and several cards leave the target
@@ -2230,6 +3194,18 @@ class JigokuBotPolicy {
         // aims at an enemy that is still READY. This runs before the generic
         // hint/classify paths, which would preferReady() a ready body.
         const actionNames = targetHint.gameActions || [];
+        if(actionNames.includes('honor') && !actionNames.includes('dishonor')) {
+            const honorable = mine.filter((card) => !card.isHonored);
+            if(honorable.length > 0) {
+                return this.cardClickDecision(this.sortByStatusImpact(honorable, skillType)[0], 'honor-own-highest-glory');
+            }
+        }
+        if(actionNames.includes('dishonor') && !actionNames.includes('honor')) {
+            const dishonorable = theirs.filter((card) => !card.isDishonored);
+            if(dishonorable.length > 0) {
+                return this.cardClickDecision(this.sortByStatusImpact(dishonorable, skillType)[0], 'dishonor-enemy-highest-glory');
+            }
+        }
         if(actionNames.includes('ready') && !actionNames.includes('bow')) {
             const bowedOwn = mine.filter((card) => card.bowed);
             if(bowedOwn.length > 0) {
@@ -2352,7 +3328,7 @@ class JigokuBotPolicy {
     // skipping is better), fire honors own / dishonors enemy, water bows the
     // opponent's strongest ready character or readies an own bowed one when
     // more conflicts remain, air weighs gaining 2 honor against taking 1.
-    private ringResolutionDecision(playerState: any, me: any, menuTitle: string, buttons: any[], dishonor: DishonorTactics | null = null): BotDecision | null {
+    private ringResolutionDecision(playerState: any, me: any, menuTitle: string, buttons: any[], dishonor: DishonorTactics | null = null, shugenja: ShugenjaTactics | null = null): BotDecision | null {
         const dontResolve = this.findButton(buttons, ['don\'t resolve']);
         const isRingTargetPrompt = ['Choose character to remove fate from', 'Choose character to honor or dishonor', 'Choose character to bow or unbow'].includes(menuTitle);
 
@@ -2381,9 +3357,9 @@ class JigokuBotPolicy {
             }
 
             if(menuTitle === 'Choose character to honor or dishonor') {
-                const ownTargets = this.sortBySkillDesc(mine.filter((card) => !card.isHonored), 'military');
+                const ownTargets = this.sortByStatusImpact(mine.filter((card) => !card.isHonored), 'military');
                 const ownPool = ownTargets.filter((card) => card.inConflict).concat(ownTargets.filter((card) => !card.inConflict));
-                const enemyTargets = this.sortBySkillDesc(theirs.filter((card) => !card.isDishonored), 'military');
+                const enemyTargets = this.sortByStatusImpact(theirs.filter((card) => !card.isDishonored), 'military');
                 // Dishonor decks flip the order: a dishonored enemy fights
                 // worse and bleeds its controller 1 honor when it dies.
                 if(dishonor?.preferDishonorEnemy() && enemyTargets.length > 0) {
@@ -2400,18 +3376,33 @@ class JigokuBotPolicy {
 
             // Water: clicking a ready character bows it, a bowed one readies.
             const bowable = this.sortBySkillDesc(theirs.filter((card) => !card.bowed), 'military');
+            const readyable = mine.filter((card) => card.bowed);
+            const moreConflictsComing = (me?.stats?.conflictsRemaining ?? 0) >= 1;
+            if(shugenja && readyable.length > 0 && moreConflictsComing) {
+                const tower = shugenja.pickTower(readyable, (card) => this.skillValue(card, 'military') || 0);
+                if(tower) {
+                    return this.cardClickDecision(tower, 'water-ring-ready-own-tower');
+                }
+            }
             if(bowable.length > 0) {
                 return this.cardClickDecision(bowable[0], 'water-ring-bow-enemy');
             }
-            const readyable = this.sortBySkillDesc(mine.filter((card) => card.bowed), 'military');
-            const moreConflictsComing = (me?.stats?.conflictsRemaining ?? 0) >= 1;
             if(readyable.length > 0 && moreConflictsComing) {
-                return this.cardClickDecision(readyable[0], 'water-ring-ready-own');
+                const pick = shugenja
+                    ? shugenja.pickTower(readyable, (card) => this.skillValue(card, 'military') || 0)
+                    : this.sortBySkillDesc(readyable, 'military')[0];
+                return this.cardClickDecision(pick, 'water-ring-ready-own');
             }
             if(dontResolve) {
                 return this.buttonDecision(dontResolve, 'water-ring-skip');
             }
-            return readyable.length > 0 ? this.cardClickDecision(readyable[0], 'water-ring-ready-own') : null;
+            if(readyable.length > 0) {
+                const pick = shugenja
+                    ? shugenja.pickTower(readyable, (card) => this.skillValue(card, 'military') || 0)
+                    : this.sortBySkillDesc(readyable, 'military')[0];
+                return this.cardClickDecision(pick, 'water-ring-ready-own');
+            }
+            return null;
         }
 
         // Fire ring second step: 'Honor <name>' / 'Dishonor <name>' menu for
@@ -2457,7 +3448,7 @@ class JigokuBotPolicy {
     // around (fate on them survives fate phases) and that fight in the current
     // conflict type. When losing a conflict, attach to a participant so the
     // skill swings the resolution.
-    private attachmentTargetDecision(mine: any[], theirs: any[], playerState: any, me: any, skillType: string): BotDecision | null {
+    private attachmentTargetDecision(mine: any[], theirs: any[], playerState: any, me: any, skillType: string, sourceCardId?: string): BotDecision | null {
         if(mine.length === 0) {
             if(theirs.length === 0) {
                 return null;
@@ -2477,6 +3468,14 @@ class JigokuBotPolicy {
             mine = mine.filter((card) => !ATTACH_AVOID.has(card.id));
         }
 
+        const restricted = !!sourceCardId && RESTRICTED_ATTACHMENT_IDS.has(sourceCardId);
+        if(restricted) {
+            const underCap = mine.filter((card) => this.restrictedAttachmentCount(card) < 2);
+            if(underCap.length > 0) {
+                mine = underCap;
+            }
+        }
+
         const conflictType = playerState?.conflict?.type || skillType;
         let pool = mine;
         const standing = this.conflictStanding(playerState, me);
@@ -2487,7 +3486,7 @@ class JigokuBotPolicy {
             if(participants.length > 0) {
                 pool = participants;
             }
-        } else {
+        } else if(!restricted) {
             // Not fighting for a conflict we could lose right now: an
             // attachment is (almost always) permanent, so invest it in a
             // multi-fate "tower" character that will keep fighting for several
@@ -2502,6 +3501,12 @@ class JigokuBotPolicy {
         }
 
         const scored = pool.slice().sort((a, b) => {
+            if(restricted) {
+                const countDiff = this.restrictedAttachmentCount(a) - this.restrictedAttachmentCount(b);
+                if(countDiff !== 0) {
+                    return countDiff;
+                }
+            }
             const scoreDiff = this.attachmentScore(b, conflictType) - this.attachmentScore(a, conflictType);
             return scoreDiff !== 0 ? scoreDiff : String(a.uuid).localeCompare(String(b.uuid));
         });
@@ -2513,6 +3518,47 @@ class JigokuBotPolicy {
         // unbowed is a better home for an attachment.
         const bowedPenalty = card.bowed ? 100 : 0;
         return (Number(card.fate) || 0) * 3 + (this.skillValue(card, conflictType) || 0) + (card.inConflict ? 2 : 0) - bowedPenalty;
+    }
+
+    private restrictedAttachmentCount(card: any): number {
+        return (card?.attachments || []).filter((attachment: any) =>
+            attachment?.id && RESTRICTED_ATTACHMENT_IDS.has(attachment.id)).length;
+    }
+
+    private attachmentTargetsWithoutDuplicate(cards: any[], sourceCardId?: string): any[] {
+        if(!sourceCardId || !NON_STACKING_DEBUFF_ATTACHMENT_IDS.has(sourceCardId)) {
+            return cards;
+        }
+        return cards.filter((card) => !(card?.attachments || [])
+            .some((attachment: any) => attachment?.id === sourceCardId));
+    }
+
+    private sortByStatusImpact(cards: any[], skillType: string): any[] {
+        return cards.slice().sort((a, b) => {
+            const towerDiff = (this.isTower(b) ? 1 : 0) - (this.isTower(a) ? 1 : 0);
+            if(towerDiff !== 0) {
+                return towerDiff;
+            }
+            const gloryDiff = this.gloryValue(b) - this.gloryValue(a);
+            if(gloryDiff !== 0) {
+                return gloryDiff;
+            }
+            const readyDiff = (b.bowed ? 0 : 1) - (a.bowed ? 0 : 1);
+            if(readyDiff !== 0) {
+                return readyDiff;
+            }
+            const conflictDiff = (b.inConflict ? 1 : 0) - (a.inConflict ? 1 : 0);
+            if(conflictDiff !== 0) {
+                return conflictDiff;
+            }
+            const skillDiff = (this.skillValue(b, skillType) || 0) - (this.skillValue(a, skillType) || 0);
+            return skillDiff !== 0 ? skillDiff : String(a.uuid).localeCompare(String(b.uuid));
+        });
+    }
+
+    private gloryValue(card: any): number {
+        const value = Number(card?.glorySummary?.stat);
+        return Number.isFinite(value) ? value : 0;
     }
 
     private preferReady(cards: any[]): any[] {

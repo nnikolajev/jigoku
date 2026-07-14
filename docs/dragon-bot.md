@@ -1,75 +1,102 @@
-# Dragon "Monks In Da High House" bot deck (EmeraldDB 4fb91e58, Lion splash)
+# Dragon "Monks In Da High House" bot deck
 
-A Togashi Mitsu card engine: cheap monks flood conflicts, cheap cards are
-played in VOLUME during his conflicts, and the cards-played payoffs convert
-the volume into extra ring resolutions, draws, and free breaks.
+EmeraldDB deck: `4fb91e58-9c3b-47e1-983e-133e0a4d9254` (Lion splash).
 
-## How the bot plays it
+This is a Togashi Mitsu card-count engine. It builds durable monk towers, then
+plays an exact number of cards in selected conflicts to unlock High House of
+Light, Togashi Mitsu, Togashi Ichi, and Teacher of Empty Thought.
 
-`monk` strategy flag (MONK_MARKERS / the High House of Light stronghold) →
-`DragonProfile` sub-profile → `DragonTactics` helpers, all policy hooks gated
-on its presence (pattern shared with Scorpion/Lion/Phoenix).
+## Exact card-count plan
 
-- **Card volume**: while a cards-played payoff character participates
-  (Togashi Mitsu 5+ → ring resolve, Teacher of Empty Thought 3+ → draw,
-  Togashi Ichi 10+ attacking → auto-break), the conflict window keeps
-  playing cards past the "already winning/lost" pass gates
-  (`cardEngineParticipating`). Mitsu / the stronghold / Teacher are clicked
-  every window — the engine rejects them until the card count is reached,
-  and each played card changes the prompt signature so the clicks retry.
-- **Void recursion**: Keeper Initiate returns from the dynasty discard when
-  void is claimed; each copy waiting there adds +20 to the void ring's score.
-  Revered Bonshō stacks fate on rings, and the generic fate-pile priority
-  (1000+) chases the stacked ring automatically.
-- **Togashi Tadakatsu**: conflicts declared against him let US pick the
-  element — the policy hands the attacker the WORST-scored ring
-  (`dragon-worst-ring-for-attacker`).
-- **Dual-mode monks** (Ancient Master, Tattooed Wanderer, Togashi Acolyte):
-  the Play menu picks "as an attachment" whenever offered.
-- **In Service to My Lord** (Lion splash): plays from hand AND the conflict
-  discard (the playable pool now includes `conflictDiscardPile` cards with
-  `isPlayableByMe` — engine-verified, so it is safe for every deck), readying
-  Mitsu; the target steering bows the weakest ready non-unique.
-- **Dynasty events** (A Season of War, Cycle of Rebirth): the dynasty window
-  now plays faceup dynasty EVENTS from provinces, not just characters.
-- **Sacred Sanctuary** under the stronghold (`dragon-sacred-sanctuary`
-  override); its ready-a-monk reaction is steered to a BOWED monk.
-- **Way of the Dragon / Finger of Jade** attach to Mitsu first
-  (`keyCharacters` ranking).
-- **Bids**: round 1 bids 5, then 2 — the deck draws through its own engine
-  (Imperial Storehouse, Hurricane Punch, Teacher, Ancient Master) and the
-  dial difference pays honor in; duels bid 2.
-- `attackCommitment: 'all'` — the payoffs count the cards played by
-  PARTICIPANTS, so every cheap body goes in.
+The bot reads `cardsPlayedThisConflict` before every play. That engine value
+already includes Shintao Monastery's passive `+1 card played`, once for every
+Monastery in play.
 
-## Bugs found by the utilization audit
+Live thresholds are:
 
-- **Defend Your Honor was clicked 722×/40 games as a proactive play** — it
-  is an interrupt; each activation ran a duel whose bids bled the deck into
-  dishonor losses (Crane dishonor won 40% of games). `shouldPlay: () =>
-  false` blocks the hand-play; the interrupt path (which ignores shouldPlay)
-  still fires it.
-- **In Service to My Lord never played** — its gate checked the LION unique
-  ids; the Dragon key monks were added to the list.
+- Teacher of Empty Thought: 3 own cards.
+- High House of Light: 5 own cards while an own Monk participates.
+- Togashi Mitsu: 5 own cards while Mitsu participates.
+- Togashi Ichi: 10 cards total between both players, only while Ichi attacks a
+  non-stronghold province.
 
-## Results vs the Crane precon (alternating seats, N=40 each)
+Before starting, the policy counts cards that are currently playable and pass
+their playbook gates. It chooses the highest reachable live threshold. If the
+Ichi threshold is not reachable but a 5- or 3-card payoff is, it falls back to
+that exact lower threshold. If no live threshold is reachable, it preserves
+the hand for the next conflict.
 
-| Config | Result |
-|--------|--------|
-| First cut | 10-30 / 12-28 (~28%), 10-round games, dishonor bleed |
-| + DYH interrupt-only, In Service fix, duel bid 2 | 16-24 / 16-24 (40%) |
-| + attackCommitment 'all' | 17-23 (42.5%), dishonor losses 16→10 |
-| + low draw bids (final) | seed 1 17-23 + 10-30 (pooled 34%), seed 4 16-24 (40%) |
+At the threshold, board abilities are activated first. When all live payoff
+abilities are exhausted, the bot passes instead of playing a sixth, seventh,
+or later unnecessary card. High House is never bowed early for its small
+skill-only effect.
 
-Final band: **~35-40% both seeds**, with brutal run-to-run variance (17-23
-and 10-30 on the same config). Dragon's engine stalls games to 9-11 rounds
-and the mirror's long honor war favors Crane — same structural story as the
-Crab wall. Against a human the card-volume payoffs (Mitsu double ring
-resolutions, Void Fist removals, In Service recursion) play far better than
-the mirror number suggests.
+Centipede Tattoo is the save-plan exception: in a losing non-stronghold
+conflict, it may be attached to a ready participant even when the threshold is
+unreachable, preserving that character for another conflict.
 
-The deck stalls games to ~9-10 rounds by nature (cheap bodies, engine turns);
-the remaining losses split between Crane's conquest race and the long honor
-war. All cards, actions, and reactions verified firing — the only zero-click
-cards are Shintao Monastery (a pure passive "+1 card played" aura) and the
-role/passives with nothing to click.
+## Conflict card ordering
+
+For a 5+ card plan the preferred order is:
+
+1. Togashi Acolyte as an attachment, so every later card grants its bonus.
+2. Hurricane Punch, gaining skill and drawing a replacement.
+3. Void Fist after the count reaches 2, targeting the strongest legal enemy
+   participant.
+4. Swell of Seafoam after another Kiho, gaining its honor rider.
+5. Iron Foundations Stance after another Kiho, gaining its draw rider.
+
+If no enabling Kiho is available yet, ordinary playable cards are used before
+Swell and Iron so Void Fist can become legal. Once the exact threshold is met,
+remaining cards stay in hand.
+
+## Card-specific steering
+
+- Way of the Dragon targets, in order: Togashi Mitsu, Tranquil Philosopher,
+  Teacher of Empty Thought, Kitsuki Investigator. The bot uses the granted
+  second activation; Teacher's targetless second use has an explicit guard.
+- Mitsu receives 4 additional fate when the prompt allows it. Other printed
+  cost 3-4 characters receive 2.
+- Cycle of Rebirth targets an own weak province card and preserves Mitsu,
+  Ichi, Tadakatsu, Teacher, Tranquil Philosopher, and Kitsuki Investigator.
+- Ancient Master prefers Togashi Acolyte, then Hurricane Punch, Void Fist,
+  Swell, Iron Foundations Stance, and the remaining Tattoos.
+- Let Go and Miya Mystic remove an attachment from the strongest enemy tower.
+- Buff attachments and helpful effects target own characters. Harmful effects
+  target enemy characters. Void Fist never deliberately targets an own Monk.
+- Court Games compares eligible glory: honor the own high-glory participant,
+  or dishonor the enemy when its glory is higher.
+- Favorable Ground reinforces a losing defense normally. For this Dragon
+  profile only, it instead rescues the strongest ready participant from a
+  losing non-stronghold conflict when another conflict remains. Other decks
+  retain the old reinforcement behavior.
+- Dual-mode Ancient Master, Tattooed Wanderer, and Togashi Acolyte are played
+  as attachments when that mode is offered.
+- In Service to My Lord can be played from hand or the conflict discard and
+  readies a key Dragon tower.
+
+## Other deck behavior
+
+- Keeper Initiate in the dynasty discard adds a large Void-ring priority.
+- Togashi Tadakatsu gives the attacking opponent the lowest-valued legal ring.
+- Sacred Sanctuary is placed under the stronghold and readies a bowed Monk.
+- Round 1 honor bid is 5, later draw bids are 2, and duel bids are 2 unless
+  own honor is near the loss floor.
+- Defend Your Honor is interrupt-only and is never clicked proactively.
+
+## Verification, 2026-07-14
+
+Self-play alternated seats against the Crane precon, 100 games, seed 1.
+
+| Run | Result | Decided win rate | Avg rounds |
+| --- | ---: | ---: | ---: |
+| Dragon baseline | 55-45 | 55.0% | 7.7 |
+| Dragon exact-threshold logic | 65-34, 1 undecided | 65.7% | 7.8 |
+| Phoenix control baseline | 69-30, 1 undecided | 69.7% | 6.2 |
+| Phoenix after Dragon-scoped Favorable Ground | 69-30, 1 undecided | 69.7% | 6.6 |
+
+An initial generic Favorable Ground retreat rule reduced the Phoenix control to
+57-43. That version was rejected. Retreat is now Dragon-only; the final Phoenix
+control exactly matches its baseline result.
+
+Focused bot suite: 140 specs passed. TypeScript compilation also passed.

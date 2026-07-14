@@ -1,8 +1,8 @@
 'use strict';
 
 // One-stop win-rate board for every piloted bot deck vs the Crane precon.
-// Each deck runs in its OWN child process (see _deckWorker.js) so a rare
-// synchronous engine loop or an out-of-memory game kills only that child; the
+// All decks run in parallel, each in its OWN child process (see _deckWorker.js),
+// so a rare synchronous engine loop or out-of-memory game kills only that child; the
 // parent keeps every game that already streamed and prints the board anyway,
 // marking a deck whose child died before finishing. Usage:
 //   node tools/selfplay/winRates.js [gamesPerDeck] [botSeed]
@@ -12,7 +12,7 @@
 const path = require('path');
 const { spawn } = require('child_process');
 
-const DECKS = ['Unicorn', 'Scorpion', 'Lion', 'Phoenix', 'Dragon', 'CraneDuels', 'Crab'];
+const DECKS = ['Unicorn', 'Scorpion', 'Lion', 'Phoenix', 'PhoenixShugenja', 'Dragon', 'CraneDuels', 'Crab'];
 const WORKER = path.join(__dirname, '_deckWorker.js');
 
 // Per-game wall budget; the deck child is killed if it exceeds games * this.
@@ -67,10 +67,10 @@ async function main() {
     const games = parseInt(process.argv[2], 10) || 30;
     const botSeed = process.argv[3] === '4' ? 4 : 1;
 
+    process.stderr.write(`running ${DECKS.length} deck simulations in parallel (${games} games each)\n`);
+    const deckRuns = await Promise.all(DECKS.map((label) => runDeckChild(label, games, botSeed)));
     const rows = [];
-    for(const label of DECKS) {
-        process.stderr.write(`running ${label} (${games} games) `);
-        const { results, died } = await runDeckChild(label, games, botSeed);
+    for(const { label, results, died } of deckRuns) {
         let wins = 0;
         let losses = 0;
         let other = 0;
@@ -106,7 +106,7 @@ async function main() {
         }
         console.log(`${row.label.padEnd(12)}  ${record.padEnd(9)}  ${pct}%   ${String(row.played).padStart(3)}/${games}  ${note}`);
     }
-    console.log('\n(each deck runs in its own process; a deck marked "child ..." hit a hang/OOM and shows partial results.)');
+    console.log('\n(all decks run in parallel in isolated processes; a deck marked "child ..." hit a hang/OOM and shows partial results.)');
 }
 
 main().catch((err) => {

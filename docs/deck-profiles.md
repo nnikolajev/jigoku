@@ -64,7 +64,12 @@ the Scorpion Poison Mill deck, `lion?: LionProfile` (`LionTactics.ts`, doc
 `glory?: GloryProfile` (`GloryTactics.ts`, doc `glory-bot.md`) for the Phoenix
 honor engine's board-driven ring choice and glory pumps, and
 `dragon?: DragonProfile` (`DragonTactics.ts`, doc `dragon-bot.md`) for the
-Dragon monk card engine around Togashi Mitsu. Same gating rule:
+Dragon monk card engine around Togashi Mitsu, and
+`shugenja?: ShugenjaProfile` (`ShugenjaTactics.ts`, doc
+`phoenix-shugenja-bot.md`) for the Phoenix ring/Spell/Disguised engine, and
+`attachmentTower?: DragonAttachmentProfile` (`DragonAttachmentTactics.ts`, doc
+`dragon-attachments-bot.md`) for the Iron Mountain Castle Restricted-attachment
+tower deck. Same gating rule:
 the sub-profile exists only for decks whose strategy/override derives it, and
 every policy hook checks its presence.
 
@@ -195,16 +200,20 @@ for Pilgrimage / Elemental Fury / Ancestral Lands / Meditations:
 Utilization audit of the new list: every card fires, zero-clicks empty.
 Band unchanged: 26-14 (65%, N=40) vs Crane.
 
-## Case study: Lion Bushi Swarm (EmeraldDB e3feb31b)
+## Case study: Lion Swarm v0.3 (EmeraldDB 27a913d1)
 
-Onboarded on top of the Unicorn learnings: its swarm markers derive
-`aggressive`, the `lion-bushi-swarm` override (matched on the
-`hayaken-no-shiro` stronghold) applies the anti-Crane defensive fixes but
-keeps `attackCommitment: 'all'` (the swarm buffs want every body in), and a
-`LionTactics` sub-profile handles the bid dials (draw 2 / duel 3 / first
-round 5) and the stronghold's ready-a-cheap-Bushi click. Full write-up and
-sweep table: `lion-bot.md`. Final: **~70% both seeds (seed 1 34-14 pooled
-N=48, seed 4 28-12)** vs the Crane precon.
+This list replaces the older c99f60e2/e3feb31b Lion fixture. The
+`lion-ashigaru-rush` override is matched by Hayaken no Shiro + Ashigaru Levy,
+so older Lion and every other aggressive deck remain isolated. It trades
+ordinary provinces (`win-only`, no conflict cards on ordinary defense), buys
+cheap bodies before towers, and preserves them with Feeding an Army / For
+Greater Glory. Only Toturi, Commander of the Legions, and Honored General get
+two additional fate.
+
+Alternating-seat comparison across eight opponents, N=192 per deck: old Lion
+75-117 (39.1%); Lion Swarm 102-90 (53.1%). The +27 wins / +14.1-point result
+cleared the replacement bar. Full card logic, matchup table, rules divergence,
+and 1120-game non-Lion regression check: `lion-bot.md`.
 
 ## Generic stronghold and province logic (all decks, 2026-07-10)
 

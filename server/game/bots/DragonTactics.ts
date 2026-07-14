@@ -36,6 +36,8 @@ export interface DragonProfile {
     // ranked targets for the build-around attachments (Way of the Dragon,
     // Finger of Jade) and ready effects
     keyCharacters: string[];
+    wayTargets: string[];
+    towerCharacters: string[];
 }
 
 export const DRAGON_DEFAULTS: DragonProfile = {
@@ -44,7 +46,12 @@ export const DRAGON_DEFAULTS: DragonProfile = {
     duelBid: 2,
     voidRecursionBonus: 20,
     cardEngineIds: ['togashi-mitsu-2', 'togashi-ichi', 'teacher-of-empty-thought'],
-    keyCharacters: ['togashi-mitsu-2', 'togashi-ichi', 'togashi-tadakatsu', 'teacher-of-empty-thought']
+    keyCharacters: ['togashi-mitsu-2', 'togashi-ichi', 'togashi-tadakatsu', 'teacher-of-empty-thought'],
+    wayTargets: ['togashi-mitsu-2', 'tranquil-philosopher', 'teacher-of-empty-thought', 'kitsuki-investigator'],
+    towerCharacters: [
+        'togashi-mitsu-2', 'togashi-ichi', 'togashi-tadakatsu',
+        'teacher-of-empty-thought', 'tranquil-philosopher', 'kitsuki-investigator'
+    ]
 };
 
 // Decision helpers the policy delegates to when (and only when) the deck's
@@ -73,28 +80,69 @@ export class DragonTactics {
             card.inConflict && card.id && this.profile.cardEngineIds.includes(card.id));
     }
 
-    // How many cards the bot should aim to play this conflict: 10 only when
-    // Togashi Ichi participates AND we are ATTACKING (his 10-card auto-break
-    // only works on the attack — chasing 10 on defense just burns cards),
-    // otherwise 5 (Togashi Mitsu's ring resolve works in any conflict; Teacher
-    // at 3 and Void Fist at 2 are covered on the way). The engine count already
-    // folds in Shintao Monastery's +1, so this is the raw target.
-    cardTarget(myCharacters: any[], amAttacker: boolean): number {
-        const ichiAttacking = amAttacker && myCharacters.some((card) =>
-            card.inConflict && card.id === 'togashi-ichi');
-        return ichiAttacking ? 10 : 5;
+    hasParticipatingMonk(myCharacters: any[]): boolean {
+        const monkIds = new Set([
+            'ancient-master', 'teacher-of-empty-thought', 'togashi-acolyte',
+            'togashi-ichi', 'togashi-initiate', 'togashi-mitsu-2',
+            'togashi-tadakatsu', 'tranquil-philosopher', 'tattooed-wanderer'
+        ]);
+        return myCharacters.some((card) => card.inConflict && (
+            monkIds.has(card.id) ||
+            (Array.isArray(card.traits) && card.traits.some((trait: string) => trait.toLowerCase() === 'monk')) ||
+            (typeof card.traits === 'string' && /\bmonk\b/i.test(card.traits))
+        ));
     }
 
-    // High House of Light gives skill any time; its 5-cards-played half moves a
-    // RING's fate onto the bearer, which only matters when a ring actually
-    // holds fate. With no ring fate to steal, fire it immediately for the
-    // skill. Otherwise wait for the 5th card while we can still reach it, and
-    // fall back to using it now once no further card can raise the count.
-    strongholdReady(cardsPlayed: number, moreCardsPlayable: boolean, ringsHaveFate: boolean): boolean {
-        if(!ringsHaveFate) {
-            return true;
+    // Highest live exact threshold. Ichi counts both players' cards; defense
+    // and stronghold attacks do not chase his illegal auto-break. The engine
+    // count already folds in every Shintao Monastery's virtual card.
+    cardTarget(
+        myCharacters: any[],
+        amAttacker: boolean,
+        myCardsPlayed = 0,
+        opponentCardsPlayed = 0,
+        highHouseAvailable = false,
+        attackingStronghold = false
+    ): number {
+        return this.cardTargets(
+            myCharacters,
+            amAttacker,
+            myCardsPlayed,
+            opponentCardsPlayed,
+            highHouseAvailable,
+            attackingStronghold
+        )[0] ?? 0;
+    }
+
+    cardTargets(
+        myCharacters: any[],
+        amAttacker: boolean,
+        myCardsPlayed = 0,
+        opponentCardsPlayed = 0,
+        highHouseAvailable = false,
+        attackingStronghold = false
+    ): number[] {
+        const participating = (id: string) => myCharacters.some((card) => card.inConflict && card.id === id);
+        const targets: number[] = [];
+        if(participating('teacher-of-empty-thought')) {
+            targets.push(3);
         }
-        return cardsPlayed >= 5 || !moreCardsPlayable;
+        if(participating('togashi-mitsu-2') || highHouseAvailable) {
+            targets.push(5);
+        }
+        if(amAttacker && !attackingStronghold && participating('togashi-ichi')) {
+            targets.push(Math.max(myCardsPlayed, 10 - opponentCardsPlayed));
+        }
+        return [...new Set(targets)].sort((a, b) => b - a);
+    }
+
+    // Preserve High House until its full five-card effect is live.
+    strongholdReady(cardsPlayed: number): boolean {
+        return cardsPlayed >= 5;
+    }
+
+    canReachTarget(cardsPlayed: number, playableCards: number, target: number): boolean {
+        return target > cardsPlayed && cardsPlayed + playableCards >= target;
     }
 
     desiredDuelBid(myHonor: number): number {
@@ -120,5 +168,46 @@ export class DragonTactics {
             .filter((card) => card.id && ranking.includes(card.id))
             .sort((a, b) => ranking.indexOf(a.id) - ranking.indexOf(b.id));
         return ranked[0] || null;
+    }
+
+    pickWayCharacter(mine: any[]): any {
+        const ranking = this.profile.wayTargets;
+        const ranked = mine
+            .filter((card) => card.id && ranking.includes(card.id) && !this.hasWayOfTheDragon(card))
+            .sort((a, b) => ranking.indexOf(a.id) - ranking.indexOf(b.id));
+        return ranked[0] || null;
+    }
+
+    hasWayOfTheDragon(card: any): boolean {
+        return (card?.attachments || []).some((attachment: any) => attachment.id === 'way-of-the-dragon');
+    }
+
+    shouldPreserveProvinceCharacter(card: any): boolean {
+        return !!card?.id && this.profile.towerCharacters.includes(card.id);
+    }
+
+    desiredAdditionalFate(cardId: string | undefined, printedCost: number | undefined): number | null {
+        if(cardId === 'togashi-mitsu-2') {
+            return 4;
+        }
+        if(printedCost !== undefined && printedCost >= 3 && printedCost <= 4) {
+            return 2;
+        }
+        return null;
+    }
+
+    pickAncientMasterCard(cards: any[]): any {
+        const ranking = [
+            'togashi-acolyte', 'hurricane-punch', 'void-fist',
+            'swell-of-seafoam', 'iron-foundations-stance',
+            'centipede-tattoo', 'hawk-tattoo'
+        ];
+        return cards
+            .filter((card) => card?.id)
+            .sort((a, b) => {
+                const ai = ranking.indexOf(a.id);
+                const bi = ranking.indexOf(b.id);
+                return (ai < 0 ? ranking.length : ai) - (bi < 0 ? ranking.length : bi);
+            })[0] || null;
     }
 }

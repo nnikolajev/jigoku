@@ -54,26 +54,59 @@ describe('DragonTactics', function() {
             expect(tactics.desiredDuelBid(3)).toBe(1);
         });
 
-        it('targets 5 cards normally, 10 only when Togashi Ichi attacks', function() {
+        it('uses the exact live threshold and counts both players for Togashi Ichi', function() {
             expect(tactics.cardTarget([{ id: 'togashi-mitsu-2', inConflict: true }], true)).toBe(5);
+            expect(tactics.cardTarget([{ id: 'teacher-of-empty-thought', inConflict: true }], true)).toBe(3);
             expect(tactics.cardTarget([{ id: 'togashi-ichi', inConflict: true }], true)).toBe(10);
-            expect(tactics.cardTarget([{ id: 'togashi-ichi', inConflict: true }], false)).toBe(5); // defending: no 10-chase
-            expect(tactics.cardTarget([{ id: 'togashi-ichi', inConflict: false }], true)).toBe(5);
+            expect(tactics.cardTarget([{ id: 'togashi-ichi', inConflict: true }], true, 2, 3)).toBe(7);
+            expect(tactics.cardTarget([{ id: 'togashi-ichi', inConflict: true }], false)).toBe(0);
+            expect(tactics.cardTarget([{ id: 'togashi-ichi', inConflict: false }], true)).toBe(0);
+            expect(tactics.cardTarget([{ id: 'togashi-initiate', inConflict: true }], true, 0, 0, true)).toBe(5);
+            expect(tactics.cardTarget([{ id: 'togashi-ichi', inConflict: true }], true, 0, 0, false, true)).toBe(0);
         });
 
-        it('holds High House of Light for the 5th card only when a ring has fate', function() {
-            // Ring fate to steal: wait for the 5th card while reachable.
-            expect(tactics.strongholdReady(5, true, true)).toBe(true); // threshold met
-            expect(tactics.strongholdReady(3, true, true)).toBe(false); // wait, more cards to play
-            expect(tactics.strongholdReady(3, false, true)).toBe(true); // cannot reach 5: use now
-            // No ring fate: the 5-card half is useless, activate immediately.
-            expect(tactics.strongholdReady(1, true, false)).toBe(true);
+        it('only fires High House at five and starts a plan only when reachable', function() {
+            expect(tactics.strongholdReady(5)).toBe(true);
+            expect(tactics.strongholdReady(4)).toBe(false);
+            expect(tactics.strongholdReady(1)).toBe(false);
+            // cardsPlayed includes Shintao Monastery's virtual card.
+            expect(tactics.canReachTarget(1, 4, 5)).toBe(true);
+            expect(tactics.canReachTarget(1, 3, 5)).toBe(false);
         });
 
         it('build-around attachments go to Mitsu first', function() {
             const mine = [{ id: 'togashi-tadakatsu' }, { id: 'togashi-mitsu-2' }];
             expect(tactics.pickKeyCharacter(mine).id).toBe('togashi-mitsu-2');
             expect(tactics.pickKeyCharacter([{ id: 'togashi-initiate' }])).toBeNull();
+        });
+
+        it('puts Way of the Dragon only on repeatable high-value abilities', function() {
+            const mine = [
+                { id: 'togashi-ichi' },
+                { id: 'teacher-of-empty-thought' },
+                { id: 'togashi-mitsu-2', attachments: [{ id: 'way-of-the-dragon' }] },
+                { id: 'tranquil-philosopher' }
+            ];
+            expect(tactics.pickWayCharacter(mine).id).toBe('tranquil-philosopher');
+            expect(tactics.pickWayCharacter([{ id: 'togashi-ichi' }])).toBeNull();
+        });
+
+        it('invests fate in towers and preserves them while Cycle digs', function() {
+            expect(tactics.desiredAdditionalFate('togashi-mitsu-2', 4)).toBe(4);
+            expect(tactics.desiredAdditionalFate('togashi-ichi', 4)).toBe(2);
+            expect(tactics.desiredAdditionalFate('teacher-of-empty-thought', 3)).toBe(2);
+            expect(tactics.desiredAdditionalFate('togashi-initiate', 1)).toBeNull();
+            expect(tactics.shouldPreserveProvinceCharacter({ id: 'kitsuki-investigator' })).toBe(true);
+            expect(tactics.shouldPreserveProvinceCharacter({ id: 'togashi-initiate' })).toBe(false);
+        });
+
+        it('orders Ancient Master finds for the card-count engine', function() {
+            const pick = tactics.pickAncientMasterCard([
+                { id: 'iron-foundations-stance' },
+                { id: 'void-fist' },
+                { id: 'togashi-acolyte' }
+            ]);
+            expect(pick.id).toBe('togashi-acolyte');
         });
     });
 });

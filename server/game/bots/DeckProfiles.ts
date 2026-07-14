@@ -27,6 +27,10 @@ import { DRAGON_DEFAULTS } from './DragonTactics.js';
 import type { DragonProfile } from './DragonTactics';
 import { DUEL_DEFAULTS } from './DuelTactics.js';
 import type { DuelProfile } from './DuelTactics';
+import { SHUGENJA_DEFAULTS } from './ShugenjaTactics.js';
+import type { ShugenjaProfile } from './ShugenjaTactics';
+import { DRAGON_ATTACHMENT_DEFAULTS } from './DragonAttachmentTactics.js';
+import type { DragonAttachmentProfile } from './DragonAttachmentTactics';
 
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
@@ -114,6 +118,17 @@ export interface DeckProfile {
     // Tsuma so the sparring Crane precon stays generic). Knobs in
     // DuelTactics.
     duelist?: DuelProfile;
+
+    // ---- spell/ring-control playstyle (Phoenix Shugenja Spells) ----
+    // Present only for Kyuden Isawa decks. It steers ring manipulation,
+    // Display-of-Power province trades, spell recursion, and practical-tower
+    // targets without changing the older Phoenix glory deck.
+    shugenja?: ShugenjaProfile;
+
+    // ---- Dragon attachment-tower playstyle (Iron Mountain Castle) ----
+    // Deep-fate tower buying, a three-slot Restricted cap, attachment search,
+    // and Niten Master / Togashi Yokuni ability steering.
+    attachmentTower?: DragonAttachmentProfile;
 }
 
 // Generic baseline = a deck with no strategy flags (e.g. Crane, unknown). These
@@ -176,6 +191,12 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         // lives in the DuelTactics knobs.
         profile.duelist = { ...DUEL_DEFAULTS };
     }
+    if(strategy.shugenja) {
+        profile.shugenja = { ...SHUGENJA_DEFAULTS };
+    }
+    if(strategy.attachmentTower) {
+        profile.attachmentTower = { ...DRAGON_ATTACHMENT_DEFAULTS };
+    }
     if(strategy.dishonor) {
         // Dishonor/mill deck: generic attack/defense knobs stay — measured:
         // keeping bodies home ('breakable-or-pressure' + attackKeepHome 2)
@@ -198,6 +219,32 @@ interface ProfileOverride {
 }
 
 const OVERRIDES: ProfileOverride[] = [
+    {
+        // Dragon Arsenal (EmeraldDB 46aaa220): the political +5 province is
+        // the hardest final target; the rest of the playstyle is data-gated
+        // by Iron Mountain Castle in DragonAttachmentTactics.
+        name: 'dragon-attachments-ancestral-lands',
+        match: (ids, strategy) => strategy.attachmentTower && ids.has('ancestral-lands'),
+        apply: {
+            strongholdProvinceId: 'ancestral-lands',
+            reserveDynastyFate: true,
+            attackCommitment: 'all-but-one',
+            attackKeepHome: 1,
+            chumpBlock: true,
+            defenseSkillBuffer: 2
+        }
+    },
+    {
+        // Phoenix Shugenja Spells (EmeraldDB b260d778): keep Offerings to the
+        // Kami in an outer province so its free ring accelerates the Water/
+        // Void plan early. Vassal Fields is persistent value on the final
+        // province and drains the attacker during the game-deciding conflict.
+        name: 'phoenix-shugenja-vassal-fields',
+        match: (ids, strategy) => strategy.shugenja && ids.has('vassal-fields'),
+        apply: {
+            strongholdProvinceId: 'vassal-fields'
+        }
+    },
     {
         // Crab "Kaiu Wall" defense precon. The strategy-derived defensive+holding
         // profile turtled itself to death: it HELD every attack it could not
@@ -343,6 +390,25 @@ const OVERRIDES: ProfileOverride[] = [
             // dynasty reserve so the conflict phase can arm and ready that tower
             // (attachments, Right Hand of the Emperor) BEFORE it commits.
             reserveDynastyFate: true,
+            lion: { ...LION_DEFAULTS }
+        }
+    },
+    {
+        // Lion Swarm v0.3 (EmeraldDB 27a913d1): a true province-trading rush.
+        // Flood 0-2 cost bodies, spend no cards on ordinary defense, and let
+        // Feeding an Army / For Greater Glory preserve the wide board. The
+        // Ashigaru Levy marker makes this override exclusive to the new list.
+        name: 'lion-ashigaru-rush',
+        match: (ids, strategy) => strategy.aggressive && ids.has('hayaken-no-shiro') && ids.has('ashigaru-levy'),
+        apply: {
+            defenseCommitment: 'win-only',
+            spendCardsOnDefense: false,
+            attackCommitment: 'all',
+            aggressiveFate: false,
+            reserveDynastyFate: false,
+            digWithActions: true,
+            digMinBoardCharacters: 0,
+            strongholdProvinceId: 'weight-of-duty',
             lion: { ...LION_DEFAULTS }
         }
     },

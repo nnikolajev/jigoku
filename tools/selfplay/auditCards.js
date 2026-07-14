@@ -6,7 +6,7 @@
 // output — they are either passive (stat sticks, granted reactions handled by
 // the engine) or silently blocked by a policy gate (the Softskin/Spyglass
 // class of bug). Usage:
-//   node tools/selfplay/auditCards.js <unicorn|crab|scorpion|lion|phoenix|dragon|craneduel> [games]
+//   node tools/selfplay/auditCards.js <unicorn|crab|scorpion|lion|phoenix|phoenix-shugenja|dragon|dragon-attachments|craneduel> [games]
 
 const fs = require('fs');
 const path = require('path');
@@ -28,13 +28,17 @@ function loadDeckByName(name) {
 async function main() {
     const deckName = process.argv[2];
     const games = parseInt(process.argv[3], 10) || 20;
-    if(!['unicorn', 'crab', 'scorpion', 'lion', 'phoenix', 'dragon', 'craneduel'].includes(deckName)) {
-        console.error('usage: node tools/selfplay/auditCards.js <unicorn|crab|scorpion|lion|phoenix|dragon|craneduel> [games]');
+    if(!['unicorn', 'crab', 'scorpion', 'lion', 'phoenix', 'phoenix-shugenja', 'dragon', 'dragon-attachments', 'craneduel'].includes(deckName)) {
+        console.error('usage: node tools/selfplay/auditCards.js <unicorn|crab|scorpion|lion|phoenix|phoenix-shugenja|dragon|dragon-attachments|craneduel> [games]');
         process.exit(1);
     }
 
     const { decklist, cardsArray } = loadDeckByName(deckName);
-    const botLabel = deckName[0].toUpperCase() + deckName.slice(1);
+    const botLabel = deckName === 'phoenix-shugenja'
+        ? 'Phoenix Shugenja'
+        : deckName === 'dragon-attachments'
+            ? 'Dragon Attachments'
+            : deckName[0].toUpperCase() + deckName.slice(1);
 
     // name -> { total, reasons: { reason: count } } from successful decisions.
     const usage = {};

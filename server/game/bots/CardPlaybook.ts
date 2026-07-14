@@ -36,12 +36,23 @@ export interface PlaybookContext {
     fate?: number;
     canPayHonor?: boolean; // dishonor decks: own honor is above the profile floor
     conflictDiscard?: any[]; // own conflict discard pile (weapon recursion gates)
+    hand?: any[]; // own conflict hand (spell-recursion and setup gates)
+    rings?: any[]; // live rings (ring-manipulation action gates)
+    opponentHandSize?: number; // public hidden-card count for Tadaka's discard gate
     cardsPlayed?: number; // cards played this conflict (Dragon count-payoff gates)
-    moreCardsPlayable?: boolean; // a playable hand card remains (High House escape)
+    opponentCardsPlayed?: number; // Ichi counts cards played by both players
+    moreCardsPlayable?: boolean; // a playable hand card remains (diagnostics/compatibility)
+    conflictsRemaining?: number; // own future conflicts after the current one
+    strongholdConflict?: boolean; // do not retreat from the game-ending defense
+    preferFavorableRetreat?: boolean; // Dragon preserves its tower for another conflict
 }
 
 export interface PlaybookEntry extends CardHint {
     inPlayAction?: boolean;
+    // Fire this board Action in a conflict-PHASE action window even when no
+    // conflict is active (Adept grants Water-conflict Covert for the phase;
+    // Meddling Mediator collects after the opponent declares two conflicts).
+    conflictPhaseAction?: boolean;
     dynastyAction?: boolean;
     // Fire this in-play/dynasty action at most once per round — for unlimited
     // actions that reverse their own effect and would otherwise loop.
@@ -96,6 +107,12 @@ export interface DeckStrategy {
     // Duel-centric (upgraded Crane Duels): few durable honored duelists,
     // every duel bid to win, payoffs on every resolved duel.
     duelist: boolean;
+    // Phoenix spell/ring control: Kyuden Isawa recursion, Display of Power
+    // province trades, ring manipulation, and Disguised Isawa Tadaka.
+    shugenja: boolean;
+    // Dragon attachment tower: Iron Mountain Castle, three Restricted slots,
+    // deep-fate towers, attachment search, and Niten/Yokuni ready loops.
+    attachmentTower: boolean;
 }
 
 const entry = (cardId: string, overrides: Partial<PlaybookEntry>): PlaybookEntry => Object.assign({
@@ -110,6 +127,9 @@ const entry = (cardId: string, overrides: Partial<PlaybookEntry>): PlaybookEntry
 
 const participating = (cards: any[]) => cards.filter((card) => card.inConflict);
 const readyParticipants = (cards: any[]) => cards.filter((card) => card.inConflict && !card.bowed);
+const fiveFiresTarget = (card: any) => (Number(card.fate) || 0) > 0 &&
+    !(card.attachments || []).some((attachment: any) =>
+        attachment.id === 'pacifism' || attachment.id === 'stolen-breath');
 
 const PLAYBOOK: Record<string, PlaybookEntry> = {
     // +2 military to a participating character, optionally twice for 1 honor.
@@ -819,7 +839,9 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'strongest',
         priority: 9,
         summary: 'enemy character cannot join military conflicts',
-        preConflict: true
+        preConflict: true,
+        shouldPlay: (ctx) => ctx.opponentCharacters.some((card) =>
+            !(card.attachments || []).some((attachment: any) => attachment.id === 'pacifism'))
     }),
 
     // Pre-conflict only: the bearer cannot join political conflicts.
@@ -829,7 +851,9 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'strongest',
         priority: 8,
         summary: 'enemy character cannot join political conflicts',
-        preConflict: true
+        preConflict: true,
+        shouldPlay: (ctx) => ctx.opponentCharacters.some((card) =>
+            !(card.attachments || []).some((attachment: any) => attachment.id === 'stolen-breath'))
     }),
 
     // Poison: -2/-2 on the strongest enemy — the deck's tutorable answer.
@@ -853,7 +877,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 7,
         summary: 'enemy character cannot ready without milling 3',
         abilityValue: true,
-        shouldPlay: (ctx) => ctx.opponentCharacters.some((card) => card.bowed)
+        shouldPlay: (ctx) => ctx.opponentCharacters.some((card) => card.bowed &&
+            !(card.attachments || []).some((attachment: any) => attachment.id === 'softskin'))
     }),
 
     // Sticky -1/-1 that re-homes itself when the bearer leaves play.
@@ -1082,7 +1107,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 8,
         summary: 'bow a cheap non-unique to ready a unique character',
         shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.bowed &&
-            ['akodo-toturi', 'unified-company', 'ikoma-ujiaki-2', 'master-tactician', 'honored-general',
+            ['akodo-toturi', 'commander-of-the-legions', 'unified-company', 'ikoma-ujiaki-2', 'master-tactician', 'honored-general',
                 'akodo-toshiro', 'ikoma-tsanuri', 'akodo-makoto', 'matsu-beiona',
                 // Dragon (Lion splash): ready the card-engine monks.
                 'togashi-mitsu-2', 'togashi-ichi', 'togashi-tadakatsu',
@@ -1106,6 +1131,36 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         conflictTypes: ['military'],
         priority: 9,
         summary: 'break reaction: 1 fate on each of our Bushi'
+    }),
+
+    // Conflict-phase opener: trade one faceup province for a fate on every
+    // printed-cost-3-or-lower body. LionTactics gates the reaction at 5 bodies.
+    'feeding-an-army': entry('feeding-an-army', {
+        priority: 9,
+        summary: 'break a friendly province; fate on each cheap character'
+    }),
+
+    // Two fate buys the strongest character in the dynasty discard for this
+    // military conflict. Targeting is tower-first in LionTactics.
+    'forebearer-s-echoes': entry('forebearer-s-echoes', {
+        conflictTypes: ['military'],
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 9,
+        summary: 'put the strongest dynasty-discard character into this conflict',
+        shouldPlay: (ctx) => ctx.dynastyDiscard.some((card) => card.type === 'character')
+    }),
+
+    // Political tempo: only spend it while behind and an opposing participant
+    // can be bowed, dishonored, and sent home to reverse the conflict.
+    'ujiaki-s-offer': entry('ujiaki-s-offer', {
+        conflictTypes: ['political'],
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 9,
+        summary: 'bow, dishonor, and send home an enemy political participant',
+        shouldPlay: (ctx) => ctx.losing &&
+            participating(ctx.opponentCharacters).some((card) => !card.bowed)
     }),
 
     // Reaction after losing a political conflict: free Weapon from hand or
@@ -1305,6 +1360,14 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: 'on-play: refill the province faceup'
     }),
 
+    // Free body multiplication: always pull another copy from a province or
+    // dynasty discard when its enter-play reaction is legal.
+    'ashigaru-levy': entry('ashigaru-levy', {
+        targetSide: 'self',
+        priority: 9,
+        summary: 'on-enter: put another Ashigaru Levy into play'
+    }),
+
     // Reaction after claiming a ring in his military conflict: resolve the
     // ring effect AGAIN.
     'akodo-toturi': entry('akodo-toturi', {
@@ -1328,6 +1391,15 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'matsu-beiona': entry('matsu-beiona', {
         priority: 7,
         summary: 'on-enter reaction: 2 fate with 3+ other Bushi'
+    }),
+
+    // Conflict character whose printed defense jumps from 3 to 6 political.
+    'political-rival': entry('political-rival', {
+        conflictTypes: ['political'],
+        targetSide: 'self',
+        priority: 8,
+        summary: 'covert political defender with +3 political while defending',
+        shouldPlay: (ctx) => !ctx.amAttacker
     }),
 
     // After dials reveal with our (lower) bid: draw 1 — pairs with the
@@ -1407,13 +1479,13 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'isawa-ujina': entry('isawa-ujina', {
         targetSide: 'enemy',
         targetPreference: 'strongest',
-        priority: 8,
+        priority: 10,
         summary: 'void claimed: remove a no-fate character from the game'
     }),
 
     // End of conflict phase: resolve up to 2 unclaimed rings as attacker.
     'shiba-tsukune': entry('shiba-tsukune', {
-        priority: 8,
+        priority: 10,
         summary: 'phase end: resolve 2 unclaimed rings as the attacker'
     }),
 
@@ -1421,6 +1493,71 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'ethereal-dreamer': entry('ethereal-dreamer', {
         priority: 7,
         summary: 'phase start: +2/+2 while the chosen ring is contested'
+    }),
+
+    // Restricted +1/+1. Its on-enter ready is the point: attach only when a
+    // bowed printed-cost-2-or-lower Lion body is available.
+    'elegant-tessen': entry('elegant-tessen', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        summary: '+1/+1 and ready a cheap attached character',
+        abilityValue: true,
+        preConflict: true,
+        shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.bowed &&
+            ['ashigaru-levy', 'matsu-berserker', 'akodo-gunso', 'ikoma-tsanuri',
+                'ikoma-tsanuri-2', 'matsu-gohei', 'samurai-of-integrity',
+                'niten-adept', 'stoic-rival', 'keen-warrior', 'doomed-shugenja',
+                'agasha-swordsmith', 'kitsuki-counselor', 'inventive-mirumoto',
+                'hiruma-skirmisher'].includes(card.id)) ||
+            ctx.myCharacters.some((card) => card.id === 'niten-master')
+    }),
+
+    // Kyuden Isawa recasts a high-impact Spell event from the conflict
+    // discard by discarding a lower-value Spell from hand.
+    'kyuden-isawa': entry('kyuden-isawa', {
+        priority: 10,
+        summary: 'discard a Spell to play a Spell event from conflict discard'
+    }),
+
+    // Reveal reaction: resolve and claim a free ring as the attacker.
+    'offerings-to-the-kami': entry('offerings-to-the-kami', {
+        priority: 10,
+        summary: 'reveal: resolve and claim an unclaimed ring for free'
+    }),
+
+    // Spell-play reaction: Shiba Tetsu grows for every Spell played while he
+    // participates. No target and no cost, so always take it.
+    'shiba-tetsu': entry('shiba-tetsu', {
+        priority: 9,
+        summary: 'after a Spell is played while participating: gain +1/+1'
+    }),
+
+    // Protect an own Shugenja from an opponent-triggered ability.
+    'shiba-yojimbo': entry('shiba-yojimbo', {
+        priority: 10,
+        summary: 'cancel an opponent ability that targets an own Shugenja'
+    }),
+
+    // Air-claim economy reaction, up to twice each round.
+    'kudaka': entry('kudaka', {
+        priority: 9,
+        summary: 'claim air: gain 1 fate and draw 1 card'
+    }),
+
+    // Enters-play tutor: keep the best Spell/Kiho from the top three.
+    'shrine-maiden': entry('shrine-maiden', {
+        priority: 9,
+        summary: 'enter play: take a Spell or Kiho from the top three'
+    }),
+
+    // Leaving-play recursion: put the strongest Phoenix dynasty character in
+    // the discard into play with 1 fate.
+    'fushicho': entry('fushicho', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 10,
+        summary: 'leaves play: return strongest Phoenix dynasty character with 1 fate'
     }),
 
     // ---- in-play Actions ----
@@ -1446,6 +1583,60 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
             card.id === 'prodigy-of-the-waves' && card.bowed)
     }),
 
+    // Grant Covert during Water conflicts. It is useful before a conflict is
+    // declared and targets the deck's practical large-body towers.
+    'adept-of-the-waves': entry('adept-of-the-waves', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        summary: 'grant an own tower Covert during Water conflicts this phase',
+        inPlayAction: true,
+        conflictPhaseAction: true,
+        oncePerRound: true
+    }),
+
+    // Once the opponent has declared two conflicts, repeatedly take fate; if
+    // none remains, take honor. The card implementation has no printed limit.
+    'meddling-mediator': entry('meddling-mediator', {
+        priority: 10,
+        summary: 'after opponent declares two conflicts: take fate, else honor',
+        inPlayAction: true,
+        conflictPhaseAction: true
+    }),
+
+    // Participating ring swap: take fate from an unclaimed ring and move Water
+    // into the claimed pool for the deck's Water payoffs.
+    'asako-togama': entry('asako-togama', {
+        priority: 9,
+        summary: 'participating: swap a claimed ring for an unclaimed ring and take its fate',
+        inPlayAction: true,
+        oncePerRound: true,
+        shouldUseAction: (ctx) => ctx.myCharacters.some((card) => card.id === 'asako-togama' && card.inConflict)
+    }),
+
+    // Conflict character with Disguised Shugenja. Its board action removes one
+    // weak dynasty-discard character to discard one random opponent hand card.
+    'isawa-tadaka-2': entry('isawa-tadaka-2', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 10,
+        summary: 'Disguised Shugenja; trade one weak dynasty-discard character for one enemy hand card',
+        inPlayAction: true,
+        shouldUseAction: (ctx) => (ctx.opponentHandSize ?? 1) > 0 &&
+            ctx.dynastyDiscard.some((card) => card.type === 'character'),
+        shouldPlay: (ctx) => {
+            if(ctx.myCharacters.some((card) => card.id === 'isawa-tadaka-2')) {
+                return false;
+            }
+            const fate = ctx.fate ?? 0;
+            if(fate >= 5) {
+                return true;
+            }
+            return ctx.myCharacters.some((card) => card.id && TADAKA_DISGUISE_COSTS[card.id] !== undefined &&
+                fate >= Math.max(5 - TADAKA_DISGUISE_COSTS[card.id], 1));
+        }
+    }),
+
     // Void conflict: +1/+1 to all our participants, -1/-1 to all theirs.
     'isawa-atsuko': entry('isawa-atsuko', {
         priority: 8,
@@ -1462,10 +1653,13 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 7,
-        summary: 'sacrifice: move a home character into a losing defense',
+        summary: 'sacrifice: reinforce a defense or rescue a tower for the next conflict',
         inPlayAction: true,
-        shouldUseAction: (ctx) => !ctx.amAttacker && ctx.losing &&
-            ctx.myCharacters.some((card) => !card.bowed && !card.inConflict)
+        shouldUseAction: (ctx) => ctx.losing && (
+            (!ctx.amAttacker && ctx.myCharacters.some((card) => !card.bowed && !card.inConflict)) ||
+            (ctx.preferFavorableRetreat && !ctx.strongholdConflict && (ctx.conflictsRemaining ?? 0) >= 1 &&
+                ctx.myCharacters.some((card) => !card.bowed && card.inConflict))
+        )
     }),
 
     // ---- conflict events ----
@@ -1481,10 +1675,57 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'against-the-waves': entry('against-the-waves', {
         targetSide: 'self',
         targetPreference: 'strongest',
-        priority: 6,
+        priority: 9,
         summary: 'ready an own bowed Shugenja',
         shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.bowed &&
-            GLORY_SHUGENJA.includes(card.id))
+            PHOENIX_SHUGENJA.includes(card.id))
+    }),
+
+    // Win an unopposed conflict by 5+ to gain 2 fate. The policy extends the
+    // attack margin while this is in hand, then always fires the reaction.
+    'the-path-of-man': entry('the-path-of-man', {
+        priority: 10,
+        summary: 'win an unopposed conflict by 5 or more: gain 2 fate',
+        shouldPlay: () => false
+    }),
+
+    // Tower protection: the target cannot be bowed by the opponent and does
+    // not bow after a political conflict.
+    'clarity-of-purpose': entry('clarity-of-purpose', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 9,
+        summary: 'protect an own tower from bowing and political resolution',
+        shouldPlay: (ctx) => participating(ctx.myCharacters).some((card) => !card.bowed)
+    }),
+
+    // Reaction after an enemy character readies: bow that same enemy again.
+    'earth-becomes-sky': entry('earth-becomes-sky', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 10,
+        summary: 'after an enemy character readies: bow it again',
+        shouldPlay: () => false
+    }),
+
+    // Main province-trade card: cancel an unopposed ring effect, resolve it as
+    // attacker, then claim the ring.
+    'display-of-power': entry('display-of-power', {
+        priority: 10,
+        summary: 'lose unopposed: cancel, resolve, and claim the contested ring',
+        shouldPlay: () => false
+    }),
+
+    // Five-fate tower answer: remove up to five fate from enemy characters.
+    'consumed-by-five-fires': entry('consumed-by-five-fires', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 10,
+        abilityValue: true,
+        summary: 'remove up to 5 fate from the opponent\'s tower',
+        shouldPlay: (ctx) => (ctx.fate ?? 0) >= 5 &&
+            ctx.opponentCharacters.filter(fiveFiresTarget)
+                .reduce((total, card) => total + (Number(card.fate) || 0), 0) >= 5
     }),
 
     // Bow an own home Shugenja to honor a participant.
@@ -1494,7 +1735,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 7,
         summary: 'bow a home Shugenja: honor a participant',
         shouldPlay: (ctx) => ctx.myCharacters.some((card) => !card.bowed && !card.inConflict &&
-            GLORY_SHUGENJA.includes(card.id)) &&
+            PHOENIX_SHUGENJA.includes(card.id)) &&
             participating(ctx.myCharacters).some((card) => !card.isHonored)
     }),
 
@@ -1537,7 +1778,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 8,
         summary: '+X/+X on a participant, X = own Shugenja count',
         shouldPlay: (ctx) => ctx.myCharacters.filter((card) =>
-            GLORY_SHUGENJA.includes(card.id)).length >= 2
+            PHOENIX_SHUGENJA.includes(card.id)).length >= 2
     }),
 
     // ---- attachments ----
@@ -1580,6 +1821,229 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     }),
 
     // ==================================================================
+    // Dragon "Attachments" / Arsenal (EmeraldDB 46aaa220).
+    // Build two deep-fate towers, search and recycle attachments, and use
+    // Weapon plays to ready Niten Master repeatedly. Target selection and
+    // three-slot Restricted handling live in DragonAttachmentTactics.
+    // ==================================================================
+
+    'iron-mountain-castle': entry('iron-mountain-castle', {
+        priority: 10,
+        summary: 'three Restricted slots; reduce an attachment cost by 1'
+    }),
+
+    // ---- tower actions and reactions ----
+
+    'togashi-yokuni': entry('togashi-yokuni', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 10,
+        summary: 'copy the best printed triggered ability on another character',
+        inPlayAction: true,
+        conflictPhaseAction: true
+    }),
+
+    'niten-master': entry('niten-master', {
+        priority: 10,
+        summary: 'after a Weapon attaches: ready this tower, twice per round'
+    }),
+
+    'mirumoto-raitsugu': entry('mirumoto-raitsugu', {
+        targetSide: 'enemy',
+        targetPreference: 'weakest',
+        priority: 9,
+        summary: 'military duel: discard the loser or remove one fate',
+        inPlayAction: true,
+        oncePerRound: true,
+        shouldUseAction: (ctx) => participating(ctx.myCharacters).some((card) => card.id === 'mirumoto-raitsugu') &&
+            participating(ctx.opponentCharacters).length > 0
+    }),
+
+    'niten-adept': entry('niten-adept', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 9,
+        summary: 'bow an attachment to bow an unattached enemy participant',
+        inPlayAction: true,
+        oncePerRound: true,
+        shouldUseAction: (ctx) => participating(ctx.myCharacters).some((card) =>
+            card.id === 'niten-adept' && (card.attachments || []).length > 0) &&
+            participating(ctx.opponentCharacters).some((card) => !card.bowed && (card.attachments || []).length === 0)
+    }),
+
+    'stoic-rival': entry('stoic-rival', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        summary: 'dishonor an enemy participant with fewer attachments',
+        inPlayAction: true,
+        oncePerRound: true,
+        shouldUseAction: (ctx) => participating(ctx.myCharacters).some((card) => card.id === 'stoic-rival') &&
+            participating(ctx.opponentCharacters).some((card) => !card.isDishonored)
+    }),
+
+    'solitary-hero': entry('solitary-hero', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 9,
+        summary: 'while alone, remove fate from other weaker participants',
+        inPlayAction: true,
+        oncePerRound: true,
+        shouldUseAction: (ctx) => participating(ctx.myCharacters).filter((card) => card.id === 'solitary-hero').length === 1 &&
+            participating(ctx.myCharacters).length === 1 && participating(ctx.opponentCharacters).length > 0
+    }),
+
+    'agasha-sumiko-2': entry('agasha-sumiko-2', {
+        priority: 10,
+        summary: 'leaves play: strip enemy honor, fate, and cards where ahead'
+    }),
+
+    'kitsuki-yuikimi': entry('kitsuki-yuikimi', {
+        priority: 8,
+        summary: 'ring fate gained: become immune to enemy triggered targeting'
+    }),
+
+    'keen-warrior': entry('keen-warrior', {
+        priority: 9,
+        summary: 'after seeing enemy hand: draw two, bottom one card'
+    }),
+
+    'hiruma-skirmisher': entry('hiruma-skirmisher', {
+        priority: 9,
+        summary: 'after play: gain covert for the phase'
+    }),
+
+    // ---- attachment search / recursion ----
+
+    'agasha-swordsmith': entry('agasha-swordsmith', {
+        priority: 9,
+        summary: 'search the top five conflict cards for an attachment',
+        inPlayAction: true,
+        conflictPhaseAction: true,
+        oncePerRound: true
+    }),
+
+    'inventive-mirumoto': entry('inventive-mirumoto', {
+        priority: 9,
+        summary: 'with Water claimed: play an attachment from discard on itself',
+        inPlayAction: true,
+        conflictPhaseAction: true,
+        oncePerRound: true,
+        shouldUseAction: (ctx) => (ctx.conflictDiscard || []).some((card) => card.type === 'attachment')
+    }),
+
+    'illustrious-forge': entry('illustrious-forge', {
+        priority: 10,
+        summary: 'reveal: put the best top-five attachment into play'
+    }),
+
+    // ---- attachments ----
+
+    'tetsubo-of-blood': entry('tetsubo-of-blood', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 10,
+        summary: '+4 military tower Weapon; use cost reduction',
+        abilityValue: true,
+        preConflict: true
+    }),
+
+    'jade-tetsubo': entry('jade-tetsubo', {
+        targetSide: 'enemy',
+        attachSide: 'self',
+        targetPreference: 'strongest',
+        priority: 10,
+        summary: '+3 military; bow it to return all fate from a weaker participant',
+        abilityValue: true,
+        preConflict: true,
+        inPlayAction: true,
+        oncePerRound: true,
+        shouldUseAction: (ctx) => participating(ctx.myCharacters).some((card) =>
+            (card.attachments || []).some((attachment: any) => attachment.id === 'jade-tetsubo')) &&
+            participating(ctx.opponentCharacters).some((card) => (Number(card.fate) || 0) > 0)
+    }),
+
+    'adopted-kin': entry('adopted-kin', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 10,
+        summary: 'other attachments on the tower gain ancestral',
+        abilityValue: true,
+        preConflict: true
+    }),
+
+    'daimyo-s-favor': entry('daimyo-s-favor', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 10,
+        summary: 'bow: next attachment on this character costs 1 less',
+        abilityValue: true,
+        preConflict: true,
+        inPlayAction: true,
+        conflictPhaseAction: true,
+        oncePerRound: true,
+        shouldUseAction: (ctx) => (ctx.hand || []).some((card: any) =>
+            card.type === 'attachment' && card.id !== 'daimyo-s-favor' &&
+            Number(card.cost ?? card.printedCost) > 0)
+    }),
+
+    'ancestral-daisho': entry('ancestral-daisho', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 8,
+        summary: 'ancestral Restricted +2 military Weapon',
+        preConflict: true
+    }),
+
+    'kitsuki-s-method': entry('kitsuki-s-method', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 7,
+        summary: 'ancestral Restricted +2 political attachment',
+        preConflict: true
+    }),
+
+    'inscribed-tanto': entry('inscribed-tanto', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 7,
+        summary: '+1 military Weapon; Void ring grants ring-effect immunity',
+        abilityValue: true,
+        preConflict: true
+    }),
+
+    'two-heavens-technique': entry('two-heavens-technique', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 8,
+        summary: '+1 military; exactly two Weapons grant covert',
+        abilityValue: true,
+        preConflict: true
+    }),
+
+    'pathfinder-s-blade': entry('pathfinder-s-blade', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 9,
+        summary: 'cancel the attacked province ability',
+        abilityValue: true,
+        preConflict: true
+    }),
+
+    // Holding moved onto the stronghold province: sacrifice to send home a
+    // cheap attacker on the final defense.
+    'mountaintop-statuary': entry('mountaintop-statuary', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 9,
+        summary: 'at the stronghold: send a cost-2-or-less attacker home',
+        inPlayAction: true,
+        oncePerRound: true,
+        shouldUseAction: (ctx) => !ctx.amAttacker && ctx.strongholdConflict &&
+            participating(ctx.opponentCharacters).some((card) => !card.bowed)
+    }),
+
+    // ==================================================================
     // Dragon "Monks In Da High House" (EmeraldDB 4fb91e58, Lion splash).
     // Play many cheap cards per conflict; Togashi Mitsu converts the card
     // volume into extra ring resolutions. See DragonTactics.
@@ -1606,7 +2070,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 7,
         summary: '10+ cards played attacking: break the province',
         inPlayAction: true,
-        shouldUseAction: (ctx) => ctx.amAttacker && (ctx.cardsPlayed ?? 0) >= 10 &&
+        shouldUseAction: (ctx) => ctx.amAttacker &&
+            (ctx.cardsPlayed ?? 0) + (ctx.opponentCardsPlayed ?? 0) >= 10 &&
             ctx.myCharacters.some((card) => card.id === 'togashi-ichi' && card.inConflict)
     }),
 
@@ -1710,7 +2175,9 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'strongest',
         priority: 7,
         summary: 'discard an attachment',
-        abilityValue: true
+        abilityValue: true,
+        shouldPlay: (ctx) => ctx.opponentCharacters.some((card) =>
+            (card.attachments || []).length > 0)
     }),
 
     // Interrupt: cancel an enemy event by winning a military duel. It is an
@@ -1740,6 +2207,25 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: 'refill all provinces faceup; extra dynasty phase'
     }),
 
+    // Dynasty-phase card flow. Reveal up to two facedown province cards once
+    // each round so the rush can keep buying bodies.
+    'staging-ground': entry('staging-ground', {
+        priority: 8,
+        summary: 'turn up to two facedown province cards faceup',
+        dynastyAction: true,
+        oncePerRound: true
+    }),
+
+    // Rally event played directly from a province. LionTactics waits until a
+    // newly played positive-glory Bushi exists; generic honor targeting then
+    // chooses tower first and highest glory next.
+    'honored-veterans': entry('honored-veterans', {
+        priority: 8,
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        summary: 'honor a Bushi played during this dynasty phase'
+    }),
+
     // ---- attachments ----
 
     // Free +1/+1-per-card engine (played as an attachment by preference).
@@ -1763,7 +2249,9 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 7,
-        summary: 'attachment mode: bearer gains covert'
+        summary: 'attachment mode: bearer gains covert',
+        abilityValue: true,
+        preConflict: true
     }),
 
     // Move the bearer to the conflict (or home) + stats.
@@ -1794,7 +2282,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'most-fate',
         priority: 6,
         summary: 'cancels a debuff on the bearer (sacrifice)',
-        abilityValue: true
+        abilityValue: true,
+        preConflict: true
     }),
 
     // Trigger the bearer's ability a second time — Mitsu resolves two rings.
@@ -1900,7 +2389,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         conflictTypes: ['military'],
         targetSide: 'enemy',
         targetPreference: 'weakest',
-        priority: 7,
+        priority: 9,
         summary: 'military duel: move the loser home',
         inPlayAction: true,
         shouldUseAction: (ctx) => ctx.myCharacters.some((card) =>
@@ -1945,7 +2434,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         conflictTypes: ['military'],
         targetSide: 'enemy',
         targetPreference: 'strongest',
-        priority: 7,
+        priority: 10,
         summary: 'bow an enemy with lower military',
         inPlayAction: true,
         shouldUseAction: (ctx) => ctx.myCharacters.some((card) =>
@@ -1976,7 +2465,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
 
     // Interrupt on losing a conflict: duel — a win nullifies the conflict.
     'kakita-toshimoko': entry('kakita-toshimoko', {
-        priority: 9,
+        priority: 10,
         summary: 'losing interrupt: duel to nullify the conflict'
     }),
 
@@ -1985,7 +2474,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'tengu-sensei': entry('tengu-sensei', {
         targetSide: 'enemy',
         targetPreference: 'strongest',
-        priority: 8,
+        priority: 10,
         summary: 'covert their strongest; reaction locks it out of attacking'
     }),
 
@@ -2085,7 +2574,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'enemy',
         targetPreference: 'weakest',
         attachSide: 'self',
-        priority: 7,
+        priority: 9,
         summary: 'grants a military duel action',
         abilityValue: true,
         inPlayAction: true,
@@ -2161,10 +2650,18 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
 
 // Own Shugenja printed ids for the Phoenix glory deck — card summaries carry
 // no traits, so gates count by id (kept in sync with GLORY_DEFAULTS).
-const GLORY_SHUGENJA = [
-    'asako-tsuki', 'ethereal-dreamer', 'isawa-atsuko', 'isawa-kaede',
-    'isawa-ujina', 'prodigy-of-the-waves', 'solemn-scholar'
+const PHOENIX_SHUGENJA = [
+    'adept-of-the-waves', 'asako-tsuki', 'ethereal-dreamer', 'isawa-atsuko',
+    'isawa-kaede', 'isawa-tadaka-2', 'isawa-ujina', 'kudaka',
+    'prodigy-of-the-waves', 'solemn-scholar', 'young-philosopher'
 ];
+
+const TADAKA_DISGUISE_COSTS: Record<string, number> = {
+    'prodigy-of-the-waves': 4,
+    'adept-of-the-waves': 2,
+    'young-philosopher': 2,
+    'ethereal-dreamer': 1
+};
 
 // Cards that mark a wall/holding engine: the Kaiu Wall holdings plus the
 // stronghold that digs for characters. Two or more (or the stronghold) flips
@@ -2249,7 +2746,13 @@ export function deriveDeckStrategy(cardIds: Iterable<string>): DeckStrategy {
         // Keyed on Tsuma alone: the SPARRING Crane precon shares the whole
         // duel package with the upgraded list, and the baseline opponent
         // must keep its generic behavior (bands stay comparable).
-        duelist: ids.has('tsuma')
+        duelist: ids.has('tsuma'),
+        // Kyuden Isawa uniquely identifies the Spell recursion/ring-control
+        // deck without changing the older Phoenix glory strategy.
+        shugenja: ids.has('kyuden-isawa'),
+        // Iron Mountain Castle uniquely identifies the attachment-tower list
+        // without changing the separate High House monk deck.
+        attachmentTower: ids.has('iron-mountain-castle')
     };
 }
 

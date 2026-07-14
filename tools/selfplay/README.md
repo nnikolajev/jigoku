@@ -62,6 +62,12 @@ per-click round trip.
   heuristic, decays ε, and keeps the best weights. This is what lifts the bot
   from "imitates heuristic" toward "beats heuristic".
 
+- `botRoundRobin.js` compares every available deck against every other deck,
+  alternating seats and writing a matchup matrix plus per-deck averages to
+  Markdown and JSON. Small isolated jobs run through a bounded parallel pool.
+  The `DragonAttachments` label loads the cached EmeraldDB 46aaa220 Arsenal
+  fixture and its dedicated Iron Mountain Castle tower profile.
+
 ### Seed-3 controller design (why it does not just argmax raw options)
 
 A win-probability model is a good *ranker* but a poor *controller* — it has no
@@ -94,7 +100,18 @@ node tools/selfplay/runTrajectories.js 400 --out tools/selfplay/out/trajectories
 python tools/selfplay/train.py --data tools/selfplay/out/trajectories.jsonl --out tools/selfplay/out/weights.json
 node tools/selfplay/checkParity.js tools/selfplay/out/weights.json
 node tools/selfplay/evalMatch.js 40 --weights tools/selfplay/out/weights.json
+
+# all deck pairs, 100 games per matchup (default), parallel workers auto-sized
+node tools/selfplay/botRoundRobin.js
+
+# larger sample or explicit concurrency
+node tools/selfplay/botRoundRobin.js --games 500 --workers 6
 ```
+
+Round-robin reports default to `tools/selfplay/out/round-robin-latest.md` and
+`.json`. Use `--out <path-prefix>` to preserve named runs, `--decks A,B,C` for a
+subset, and `--help` for all options. Win rates exclude undecided games;
+`average vs opponents` gives each opposing deck equal weight.
 
 Full loop: `runTrajectories` → `train.py` → `checkParity` → `evalMatch`. Iterate
 by regenerating data, retraining, and re-matching; optionally record seed-3

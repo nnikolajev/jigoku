@@ -1,123 +1,117 @@
-# Lion "Bushi swarm" bot deck (EmeraldDB e3feb31b)
+# Lion Swarm bot deck (EmeraldDB 27a913d1)
 
-Precon15 Lion Bushi: an extremely aggressive military deck that floods the
-board with cheap Bushi characters and attacks every window. The swarm buffs
-itself in numbers, profits from every won conflict, and re-readies its bodies
-to attack again.
+`Lion Swarm (v0.3)` replaces the older Lion Bushi list after an alternating-seat
+self-play comparison. It is a true rush deck: buy many 0-2 cost characters,
+trade ordinary provinces, preserve the wide board with fate events, ready the
+best bodies, and attack again.
 
-## How the deck plays
+## Exact deck fixture
 
-- **Numbers first.** Cheap efficient Bushi (Matsu Berserker 1-cost 3-military)
-  hit the board with real fate, then attack together: Honored General gives
-  every other Lion participant +1 military, Ikoma Tsanuri pumps the whole
-  board with 3+ Bushi participating, Matsu Gohei does not bow when attacking
-  with 2+ other Bushi.
-- **Win-conflict payoffs.** Gifted Tactician draws on military wins, Akodo
-  Makoto strips participating Courtiers, For Greater Glory puts a fate on
-  every Bushi after a break, Unified Company reinforces from the discard.
-- **Ready and attack again.** Hayaken no Shiro (stronghold) readies a
-  cost-2-or-lower Bushi; In Service to My Lord bows a cheap non-unique to
-  ready a unique; Right Hand of the Emperor readies 6 cost worth of Bushi —
-  both events recycle from the discard. Shori on the Champion grants an
-  extra military conflict each phase; Ikoma Ujiaki switches a political
-  conflict into a military one.
-- **Duels bow the loser.** True Strike Kenjutsu duels on BASE military (Way
-  of the Lion doubles base); Honorable Challenger's winner does not bow from
-  resolution.
-- **Card engine.** Tactical Ingenuity (on a Commander) digs the conflict deck
-  for events every conflict; Tactician's Apprentice draws when our honor bid
-  is lower than the opponent's.
+- Stronghold/role: Hayaken no Shiro, Seeker of Air.
+- Provinces: City of the Rich Frog, Dishonorable Assault, Emperor's Summons,
+  The Art of War, Weight of Duty.
+- Dynasty: 40 cards. Three copies of every character, three Honored Veterans,
+  two A Season of War, two Staging Ground.
+- Conflict: 40 cards. Three copies of every listed card except Banzai (2),
+  Daidoji Yari (2), and Political Rival (3).
+- Crane splash supplies Daidoji Yari and Political Rival.
 
-## Bot implementation
+The offline fixture is the source used by self-play; it contains 5 provinces,
+40 dynasty cards, 40 conflict cards, one stronghold, and one role.
 
-Same layering as the other decks (see `deck-profiles.md`):
+## Bot plan
 
-1. **Strategy flags**: the Lion swarm markers (Way of the Lion, For Greater
-   Glory, In Service to My Lord, Shori, Hayaken no Shiro, ...) were added to
-   `AGGRESSIVE_MARKERS`, so the deck derives `aggressive` — the same rush
-   base profile as Unicorn.
-2. **`lion-bushi-swarm` override** (`DeckProfiles.ts`), matched on
-   `aggressive` + the `hayaken-no-shiro` stronghold so no other deck picks it
-   up. It applies the Unicorn-proven anti-Crane fixes (`prevent-break`
-   defense, `spendCardsOnDefense`, real fate on characters) but keeps
-   `attackCommitment: 'all'` — the swarm's buffs want every body in the
-   conflict (measured: 'all' 27-13 vs 'all-but-one' 26-14).
-3. **`LionTactics` sub-profile** (`LionTactics.ts`, hung off
-   `DeckProfile.lion`) for the quirks the generic knobs cannot express:
-   - draw dials bid **2** after round 1 (Tactician's Apprentice triggers when
-     outbid, and the dial's honor difference flows IN; bidding 4 bled 7/40
-     games into dishonor losses),
-   - duel dials bid **3** (enough to win most duels without the honor drain
-     of bid 5; duel prompts are recognized by their "Choose your bid for the
-     duel" menu title),
-   - both collapse to 1 at the honor floor (4),
-   - Hayaken no Shiro is clicked in conflict windows whenever one of the
-     deck's cheap Bushi (by printed id) sits bowed.
-4. **~30 playbook entries** (`CardPlaybook.ts`): every ability card in the
-   deck. Notable machinery added for this deck:
-   - `abilityValue` flag: True Strike Kenjutsu and Sashimono are +0-stat
-     attachments whose granted ability is the point — without the flag the
-     zero-contribution filter never played them.
-   - `attachSide: 'self'`: True Strike's ABILITY targets the enemy (the
-     duel), but the attachment itself must land on our own character.
-   - In Service to My Lord target steering: stage 1 bows the WEAKEST ready
-     non-unique (preferring one outside the conflict), stage 2 falls through
-     to the generic strongest-bowed-unique pick.
-   - Battlefield attachments (Prepared Ambush, Makeshift War Camp) are
-     played while defending and steered onto the attacked own province.
-   - Akodo Toshiro's +5 (provinces cannot break) fires only to STEAL a
-     losing conflict — never when the break is already on — and only with a
-     Commander in play (or he discards himself).
+### Dynasty and fate
 
-## Results (self-play vs Crane precon, alternating seats)
+- Play cheap bodies first. Akodo Gunso refills its province; Ashigaru Levy's
+  enter-play reaction always pulls another available copy.
+- Matsu Beiona waits for **three other Bushi**, then takes its two-fate
+  reaction. This intentionally differs from the requested two-Bushi threshold:
+  Jigoku's authoritative card implementation requires three other Bushi.
+- Only Akodo Toturi, Commander of the Legions, and Honored General are towers.
+  They receive exactly two additional fate. Every other character receives 0.
+- Honored Veterans is used only when a newly played, positive-glory Bushi can
+  be honored. Tower first, then highest glory.
+- A Season of War requires at least two fate before play, leaving resources to
+  buy a body in the extra no-income dynasty phase.
+- Staging Ground reveals facedown province cards after visible purchases are
+  exhausted and fate remains.
 
-| Config (all seed 1, N=40 unless noted) | Result |
-|--------|--------|
-| First cut (bid 4 / duel 5 / all-but-one) | 24-16 (60%), 7 dishonor losses |
-| drawBid 2 | 26-14 (65%), 4 dishonor losses |
-| drawBid 3 | 26-14 (65%), 6 dishonor losses |
-| drawBid 2 + duelBid 3 | 26-14 (65%), 1 dishonor loss |
-| + attackCommitment 'all' | 27-13; pooled with 60 more: 66-34 N=100 (66%) |
-| + abilityValue filter fix (final) | **seed 1: 34-14 pooled N=48 (~71%), seed 4: 28-12 (70%)** |
+### Province trading and board persistence
 
-The last row is the shipped build: the `abilityValue` fix put True Strike
-Kenjutsu (13 plays / 8 games) and Sashimono into the game. Wins are almost
-all by conquest around round 6. The remaining losses are Crane conquest
-races; the dishonor leak (Ujiaki's 2-honor switches, duel and dial payments,
-Assassination) was closed by the low-bid tuning (2 dishonor losses / 40).
+- The Art of War retains the existing concede-for-three-cards logic.
+- Dishonorable Assault requires a discard and an undishonored positive-glory
+  attacker; targets favor towers/highest glory.
+- Weight of Duty is used only with a cheap participating sacrifice and a ready
+  enemy participant. The sacrifice target is the lowest-fate cheap body.
+- Feeding an Army is triggered at five or more printed-cost-3-or-lower bodies.
+- For Greater Glory always fires after a military province break.
+- The rush uses `win-only` ordinary defense and does not spend conflict cards
+  defending. Stronghold defense still remains all-in.
 
-Regression checks on the final build: Unicorn, Crab, and Scorpion vs Crane
-all within their established bands (see `deck-profiles.md`).
+### Conflict tools
 
-Trace verification (6 traced games): Tactical Ingenuity 49×, For Greater
-Glory 29×, Shori 25×, Time for War 23×, Hayaken no Shiro 15×, Right Hand of
-the Emperor 13×, Way of the Lion 8×, In Service to My Lord bow-steering 6×,
-battlefield-own-province 5×, lion-honor-bid 68×.
+- Forebearer's Echoes retrieves the strongest discarded character, preferring
+  one of the three towers.
+- In Service to My Lord bows a cheap/home body and readies Toturi, Commander,
+  Honored General, or Matsu Beiona first.
+- Ujiaki's Offer is held for a losing political conflict and targets a ready
+  enemy participant so bow + dishonor + send-home can reverse the result.
+- Political Rival is reserved for political defense.
+- True Strike Kenjutsu attaches to a listed tower; its action starts the duel
+  while a ready enemy participates.
+- Elegant Tessen is played to ready a bowed printed-cost-2-or-lower Lion body.
+- Fine Katana and Daidoji Yari use normal military-attachment scoring.
+- Hayaken no Shiro readies a bowed cheap Bushi so the swarm can fight again.
 
-## Deck update (2026-07-11, EmeraldDB c99f60e2)
+## Shared bot improvements
 
-All five provinces swapped: Pilgrimage / Elemental Fury / Fertile Fields /
-Ancestral Lands / Meditations out; in:
+Two requested rules apply to every deck:
 
-- **Manicured Garden** — stronghold province (`lion-manicured-garden`
-  override): +1 fate in every conflict fought there.
-- **Illustrious Forge** — reveal digs the top 5 conflict cards for an
-  attachment. The "Choose an attachment" menu picks by the
-  `forgeAttachmentRanking` in the Lion profile (Shori > Kamayari >
-  Fine Katana > ...); the attach target goes through the fate-weighted
-  generic targeting so it lands on a persistent character. 38 digs/40 games.
-- **The Art of War** — draws 3 when broken. The bot concedes it (no
-  defenders, no cards) while at most one own province is broken; later every
-  break walks the attacker toward the stronghold, so it defends normally.
-  Measured: concede ~44-47% vs never-concede 37.5% — the concede is right.
-- **City of the Rich Frog** — Eminent, holds 3 dynasty cards; the generic
-  dynasty window plays from it (no bot change needed).
-- **Shameful Display** — generic steering from the Crab update applies.
+1. Honor targets: a multi-fate tower first, then the character with the highest
+   glory. Dishonor targets: the enemy character with highest glory. Ready and
+   current-conflict state break ties.
+2. Restricted attachments: count existing Restricted attachments by printed
+   id, reject characters already at the two-card cap when alternatives exist,
+   and prefer the character with the fewest Restricted attachments. Immediate
+   conflict-saving targets still take precedence while losing.
 
-Utilization audit: every card fires, zero-clicks empty. **Band moved DOWN:
-~45% vs Crane (seed 1 pooled 53-107 across configs N=160, seed 4 18-22),
-was ~65-72% with the old provinces.** Root cause is not a bot gap: Crane
-still runs Fertile Fields / Meditations / Ancestral Lands while this list
-gave them up — the draw/fate-strip provinces are simply strong in the
-mirror. Against humans the new toolbox (Forge weapons, Rich Frog tempo,
-Art of War refills) plays differently than the raw mirror number suggests.
+## Performance decision
+
+Seed 1, 24 games per opponent, seats alternating (192 games per deck):
+
+| Opponent | old Lion | Lion Swarm |
+|---|---:|---:|
+| Crane | 11-13 | 11-13 |
+| Crane Duels | 18-6 | 18-6 |
+| Crab | 14-10 | 21-3 |
+| Dragon | 9-15 | 14-10 |
+| Phoenix | 7-17 | 7-17 |
+| Phoenix Shugenja | 7-17 | 13-11 |
+| Scorpion | 3-21 | 3-21 |
+| Unicorn | 6-18 | 15-9 |
+| **Overall** | **75-117 (39.1%)** | **102-90 (53.1%)** |
+
+The new list gains 27 wins and 14.1 percentage points, so it replaces the old
+Lion fixture.
+
+## Non-Lion regression check
+
+The pre-change 100-game-per-matchup round robin was reduced to the seven
+non-Lion opponents for each deck (about 700 results per deck). The current
+build ran every non-Lion pairing for 40 games (about 280 results per deck,
+1120 games total). Seats alternated; all jobs completed.
+
+| Deck | before | after | delta |
+|---|---:|---:|---:|
+| Crane | 37.8% | 37.7% | -0.0 |
+| Crane Duels | 32.1% | 30.7% | -1.4 |
+| Crab | 31.4% | 30.1% | -1.3 |
+| Dragon | 44.8% | 46.9% | +2.1 |
+| Phoenix | 60.6% | 65.2% | +4.6 |
+| Phoenix Shugenja | 53.3% | 54.7% | +1.4 |
+| Scorpion | 93.0% | 91.8% | -1.2 |
+| Unicorn | 47.3% | 42.4% | -4.8 |
+
+Changes are mixed and every deck remains within 4.8 points of its much larger
+baseline. This check found no systematic shared-logic degradation.

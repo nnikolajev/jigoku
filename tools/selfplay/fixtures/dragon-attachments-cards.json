@@ -1,0 +1,2027 @@
+[
+    {
+        "id": "let-go",
+        "name": "Let Go",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "conflict",
+        "type": "event",
+        "is_unique": false,
+        "text": "<b>Action:</b> Choose an attachment – discard it.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [],
+        "cost": "0",
+        "deck_limit": 3,
+        "influence_cost": 2,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "let-go",
+                "pack_id": "core",
+                "flavor": "The material world is but a distraction.",
+                "illustrator": "Felipe Gaona",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_155.jpg",
+                "position": "155",
+                "quantity": 1,
+                "rotated": true
+            },
+            {
+                "card_id": "let-go",
+                "pack_id": "emerald-core-set",
+                "flavor": "The Dragon's strike was not meant to kill, but to teach — and in that single moment of contact, his enemy's sword learned the lesson of impermanence.",
+                "illustrator": "Rob Smith",
+                "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs079.jpg",
+                "position": "79",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "ornate-fan",
+        "name": "Ornate Fan",
+        "name_extra": null,
+        "faction": "neutral",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "Restricted. <i>(No more than two restricted attachments per character.)</i>",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "item"
+        ],
+        "cost": "0",
+        "deck_limit": 3,
+        "influence_cost": 0,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+0",
+        "political_bonus": "+2",
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "ornate-fan",
+                "pack_id": "core",
+                "flavor": "At times, the ornamentation is the point. At others, it is merely a distraction.",
+                "illustrator": "Ancor Gil Hernandez",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_201.jpg",
+                "position": "201",
+                "quantity": 2,
+                "rotated": true
+            },
+            {
+                "card_id": "ornate-fan",
+                "pack_id": "emerald-core-set",
+                "flavor": "“There is another kind of artist, who sets more soberly about his work, striving to give real beauty to the things which men actually use and to give to them the shape which tradition has ordained.” \n— Murasaki Shikibu",
+                "illustrator": "Thulsa Doom",
+                "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs260.jpg",
+                "position": "260",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "pilgrimage",
+        "name": "Pilgrimage",
+        "name_extra": null,
+        "faction": "neutral",
+        "side": "province",
+        "type": "province",
+        "is_unique": false,
+        "text": "During conflicts at this province, cancel all ring effects. <i>(If this province breaks, resolve ring effects as normal.)</i>",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [],
+        "cost": null,
+        "deck_limit": 1,
+        "influence_cost": null,
+        "elements": [
+            "void"
+        ],
+        "strength": "5",
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "pilgrimage",
+                "pack_id": "core",
+                "flavor": null,
+                "illustrator": "Nele Diel",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_22.jpg",
+                "position": "22",
+                "quantity": 2,
+                "rotated": true
+            },
+            {
+                "card_id": "pilgrimage",
+                "pack_id": "emerald-core-set",
+                "flavor": "“Faith is the greatest armor. The Seppun understand this as they guard the Empress — and as they brave the mountain's elemental trials.”\n— Teachings of the Imperial Guard",
+                "illustrator": "Thulsa Doom",
+                "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs226.jpg",
+                "position": "226",
+                "quantity": 1,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "adopted-kin",
+        "name": "Adopted Kin",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "<em>Fire</em> role only. Limit 1 per character.\nEach other attachment on attached character gains ancestral.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "condition"
+        ],
+        "cost": "0",
+        "deck_limit": 3,
+        "influence_cost": 1,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+0",
+        "political_bonus": "+0",
+        "splash_banned_in": null,
+        "role_restrictions": [
+            "fire"
+        ],
+        "versions": [
+            {
+                "card_id": "adopted-kin",
+                "pack_id": "tainted-lands",
+                "flavor": "Facing a crisis of children, the Dragon were willing to turn even to the peasantry to find new heirs.",
+                "illustrator": "Joyce Maureira",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C10_33.jpg",
+                "position": "33",
+                "quantity": 3,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "fine-katana",
+        "name": "Fine Katana",
+        "name_extra": null,
+        "faction": "neutral",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "Restricted. <i>(No more than two restricted attachments per character.)</i>",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "weapon"
+        ],
+        "cost": "0",
+        "deck_limit": 3,
+        "influence_cost": 0,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+2",
+        "political_bonus": "+0",
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "fine-katana",
+                "pack_id": "core",
+                "flavor": "Immortal steel waits\nVenerated divine blade\nThe fires of the soul",
+                "illustrator": "Brent Chumley",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_200.jpg",
+                "position": "200",
+                "quantity": 2,
+                "rotated": true
+            },
+            {
+                "card_id": "fine-katana",
+                "pack_id": "emerald-core-set",
+                "flavor": "“Just as a horse must have endurance and no defects, so it is with weapons. Horses should walk strongly, and swords and companion swords should cut strongly.”\n— Miyamoto Musashi",
+                "illustrator": "Thulsa Doom",
+                "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs257.jpg",
+                "position": "257",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "niten-adept",
+        "name": "Niten Adept",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": false,
+        "text": "<b>Conflict Action:</b> If you control an attachment on this character, choose a participating character without attachments - bow that character.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "bushi"
+        ],
+        "cost": "2",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 1,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "2",
+        "political": "1",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": [],
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "niten-adept",
+                "pack_id": "core",
+                "flavor": null,
+                "illustrator": "Niten",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_58.jpg",
+                "position": "58",
+                "quantity": 1,
+                "rotated": true
+            },
+            {
+                "card_id": "niten-adept",
+                "pack_id": "emerald-core-set",
+                "flavor": "Two swords danced as one, the high cut drawing the parry while the low strike found flesh beneath raised steel.",
+                "illustrator": "Steve Argyle",
+                "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs072.jpg",
+                "position": "72",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "stoic-rival",
+        "name": "Stoic Rival",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": false,
+        "text": "Rally. <i>(After this card is revealed in a province, add the top card of your dynasty deck to the province, faceup.)</i>\n<b>Action:</b> During a conflict in which this character is participating, choose another participating character with fewer attachments than this character - dishonor that character.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "bushi",
+            "duelist"
+        ],
+        "cost": "2",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 1,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "2",
+        "political": "1",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "stoic-rival",
+                "pack_id": "campaigns-of-conquest",
+                "flavor": "",
+                "illustrator": "Marius Bota",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C32_77.jpg",
+                "position": "77",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "jade-tetsubo",
+        "name": "Jade Tetsubō",
+        "name_extra": null,
+        "faction": "crab",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "Attach to a character you control. Restricted.\n<b>Action:</b> While attached character is participating in a conflict, bow this attachment. Choose a participating character with lower [conflict-military] skill than attached character – return all fate on that character to its owner's fate pool.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "jade",
+            "weapon"
+        ],
+        "cost": "2",
+        "deck_limit": 3,
+        "influence_cost": 2,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+3",
+        "political_bonus": "+0",
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "jade-tetsubo",
+                "pack_id": "core",
+                "flavor": null,
+                "illustrator": "Lukas Banas",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_134.jpg",
+                "position": "134",
+                "quantity": 1,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "keen-warrior",
+        "name": "Keen Warrior",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": false,
+        "text": "Sincerity.\n<b>Reaction:</b> After you look at 1 or more cards in an opponent's hand (or those are revealed) - draw 2 cards, then place 1 card from your hand on the bottom of your conflict deck.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "bushi"
+        ],
+        "cost": "2",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 1,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "2",
+        "political": "1",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "keen-warrior",
+                "pack_id": "twisted-loyalties",
+                "flavor": "",
+                "illustrator": "Immar Palomera",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C36_6.jpg",
+                "position": "6",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "niten-master",
+        "name": "Niten Master",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": false,
+        "text": "<b>Reaction:</b> After you attach a <em>Weapon</em> attachment to this character – ready this character. (Limit twice per round.)",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "bushi"
+        ],
+        "cost": "4",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 2,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "3",
+        "political": "3",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "niten-master",
+                "pack_id": "core",
+                "flavor": null,
+                "illustrator": "Drew Baker",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_64.jpg",
+                "position": "64",
+                "quantity": 1,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "solitary-hero",
+        "name": "Solitary Hero",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": false,
+        "text": "This character cannot be evaded by the covert keyword.\n<b>Action:</b> During a conflict in which this character is participating on your side alone - remove 1 fate from each other participating character with equal or lower [conflict-military] skill.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "bushi",
+            "duelist"
+        ],
+        "cost": "3",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 1,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "3",
+        "political": "1",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "solitary-hero",
+                "pack_id": "the-temptation-of-the-scorpion",
+                "flavor": "",
+                "illustrator": "Neno Vecia",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C39_70.jpg",
+                "position": "70",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "daimyo-s-favor",
+        "name": "Daimyō's Favor",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "Attach to a character you control.\n<b>Action:</b> Bow this attachment – reduce the cost of the next attachment you play on this character this phase by 1.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "condition"
+        ],
+        "cost": "0",
+        "deck_limit": 3,
+        "influence_cost": 2,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+0",
+        "political_bonus": "+0",
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "daimyo-s-favor",
+                "pack_id": "core",
+                "flavor": null,
+                "illustrator": "Lukas Banas",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_152.jpg",
+                "position": "152",
+                "quantity": 1,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "elegant-tessen",
+        "name": "Elegant Tessen",
+        "name_extra": null,
+        "faction": "neutral",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "Restricted. <i>(No more than two restricted attachments per character.)</i>\n<b>Reaction:</b> After this attachments enters play, if it is on a character with printed cost 2 or less - ready attached character.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "weapon"
+        ],
+        "cost": "1",
+        "deck_limit": 3,
+        "influence_cost": 0,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+1",
+        "political_bonus": "+1",
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "elegant-tessen",
+                "pack_id": "seekers-of-wisdom",
+                "flavor": "",
+                "illustrator": "Isuardi Therianto",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C25_27.jpg",
+                "position": "27",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "finger-of-jade",
+        "name": "Finger of Jade",
+        "name_extra": null,
+        "faction": "neutral",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "Attach to a character you control.\n<b>Interrupt:</b> When the effects of a card ability that targets attached character would initiate, sacrifice this attachment – cancel those effects.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "item",
+            "jade"
+        ],
+        "cost": "1",
+        "deck_limit": 3,
+        "influence_cost": 0,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+0",
+        "political_bonus": "+0",
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "finger-of-jade",
+                "pack_id": "tears-of-amaterasu",
+                "flavor": null,
+                "illustrator": "Ray Greaves",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C02_20.jpg",
+                "position": "20",
+                "quantity": 3,
+                "rotated": true
+            },
+            {
+                "card_id": "finger-of-jade",
+                "pack_id": "emerald-core-set",
+                "flavor": "“The tears of Amaterasu, crystallized into protection against the darkness that seeps from Jigoku.”",
+                "illustrator": "Thulsa Doom",
+                "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs258.jpg",
+                "position": "258",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "seeker-of-fire",
+        "name": "Seeker of Fire",
+        "name_extra": null,
+        "faction": "neutral",
+        "side": "role",
+        "type": "role",
+        "is_unique": false,
+        "text": "You may replace 1 province of any element with an additional [element-fire] province while deckbuilding.\n<b>Reaction:</b> After a [element-fire] province you control is revealed – gain 1 fate.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "seeker",
+            "fire"
+        ],
+        "cost": null,
+        "deck_limit": 1,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "seeker-of-fire",
+                "pack_id": "core",
+                "flavor": "",
+                "illustrator": "–",
+                "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs268.jpg",
+                "position": "216B",
+                "quantity": 1,
+                "rotated": true
+            },
+            {
+                "card_id": "seeker-of-fire",
+                "pack_id": "emerald-core-set",
+                "flavor": "",
+                "illustrator": "",
+                "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs268.jpg",
+                "position": "268",
+                "quantity": 1,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "togashi-yokuni",
+        "name": "Togashi Yokuni",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": true,
+        "text": "<b>Action:</b> Choose a triggered ability printed on another character – this character gains that ability until the end of the phase. (Max 1 per round.)",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "bushi",
+            "shugenja",
+            "champion"
+        ],
+        "cost": "5",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 3,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "5",
+        "political": "5",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "togashi-yokuni",
+                "pack_id": "core",
+                "flavor": "\"What transpires in our mountains is a mere pebble against the avalanche that is coming.\"",
+                "illustrator": "Shawn Ignatius Tan and Le Vuong",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_65.jpg",
+                "position": "65",
+                "quantity": 1,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "agasha-sumiko-2",
+        "name": "Agasha Sumiko",
+        "name_extra": "(2)",
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": true,
+        "text": "<b>Interrupt:</b> When this character leaves play, choose an opponent - if that player is more honorable than you, they lose 2 honor. If that player has more fate than you, they lose 2 fate. If that players has more cards in hand than you, they discard 2 cards from their hand.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "bushi",
+            "champion",
+            "imperial"
+        ],
+        "cost": "4",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 2,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "4",
+        "political": "4",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "agasha-sumiko-2",
+                "pack_id": "atonement",
+                "flavor": "",
+                "illustrator": "Asep Ariyanto",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C34_120.jpg",
+                "position": "120",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "ancestral-lands",
+        "name": "Ancestral Lands",
+        "name_extra": null,
+        "faction": "neutral",
+        "side": "province",
+        "type": "province",
+        "is_unique": false,
+        "text": "This province gets +5 strength during [conflict-political] conflicts.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [],
+        "cost": null,
+        "deck_limit": 1,
+        "influence_cost": null,
+        "elements": [
+            "earth"
+        ],
+        "strength": "5",
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "ancestral-lands",
+                "pack_id": "core",
+                "flavor": "\"Our claim on these lands stretches back to the dawn of the Empire.\"",
+                "illustrator": "Nele Diel",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_15.jpg",
+                "position": "15",
+                "quantity": 2,
+                "rotated": true
+            },
+            {
+                "card_id": "ancestral-lands",
+                "pack_id": "emerald-core-set",
+                "flavor": "“We cannot know if the sun has set forever on the Emerald Empire, but its remembered glory will shine through our long nights of exile.”",
+                "illustrator": "Ryan Nock",
+                "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs211.jpg",
+                "position": "211",
+                "quantity": 1,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "doomed-shugenja",
+        "name": "Doomed Shugenja",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": false,
+        "text": "Limited. <i>(No more than one limited card can be played by each player each round.)</i>\nYou cannot place fate on this character when it is played from one of your provinces.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "shugenja",
+            "fire"
+        ],
+        "cost": "1",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 0,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "3",
+        "political": "3",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "doomed-shugenja",
+                "pack_id": "core",
+                "flavor": null,
+                "illustrator": "Smirtouille",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_54.jpg",
+                "position": "54",
+                "quantity": 1,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "inscribed-tanto",
+        "name": "Inscribed Tantō",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "While you have claimed the [element-void] ring, attached character is immune to opponents' ring effects.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "weapon"
+        ],
+        "cost": "0",
+        "deck_limit": 3,
+        "influence_cost": 1,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+1",
+        "political_bonus": "+0",
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "inscribed-tanto",
+                "pack_id": "clan-war",
+                "flavor": "\"Words of wisdom are nice, but sometimes you just need a sharpened claw.\"",
+                "illustrator": "Gong Studios",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C28_72.jpg",
+                "position": "72",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "kitsuki-yuikimi",
+        "name": "Kitsuki Yuikimi",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": true,
+        "text": "<b>Reaction:</b> After you gain a fate from a ring during a conflict in which this character is participating - this character cannot be chosen as the target of your opponent's triggered abilities until the end of the conflict.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "bushi",
+            "champion"
+        ],
+        "cost": "3",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 1,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "3",
+        "political": "3",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "kitsuki-yuikimi",
+                "pack_id": "bonds-of-blood",
+                "flavor": "",
+                "illustrator": "Jorge Matar",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C20_27.jpg",
+                "position": "27",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "ancestral-daisho",
+        "name": "Ancestral Daishō",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "Ancestral. <i>(When attached card leaves play, return this card to your hand.)</i>\nRestricted. <i>(No more than two restricted attachments per character.)</i>",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "weapon"
+        ],
+        "cost": "1",
+        "deck_limit": 3,
+        "influence_cost": 2,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+2",
+        "political_bonus": "+0",
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "ancestral-daisho",
+                "pack_id": "core",
+                "flavor": null,
+                "illustrator": "Jason Juta",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_151.jpg",
+                "position": "151",
+                "quantity": 1,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "kitsuki-s-method",
+        "name": "Kitsuki's Method",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "Ancestral. <i>(When attached card leaves play, return this card to your hand.)</i>\nRestricted. <i>(No more than two restricted attachments per character.)</i>",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "technique"
+        ],
+        "cost": "1",
+        "deck_limit": 3,
+        "influence_cost": 2,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+0",
+        "political_bonus": "+2",
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "kitsuki-s-method",
+                "pack_id": "core",
+                "flavor": "Every detail, no matter how small, carries its own implications of the truth.",
+                "illustrator": "Stu Barnes",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_153.jpg",
+                "position": "153",
+                "quantity": 1,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "manicured-garden",
+        "name": "Manicured Garden",
+        "name_extra": null,
+        "faction": "neutral",
+        "side": "province",
+        "type": "province",
+        "is_unique": false,
+        "text": "<b>Conflict Action:</b> Gain 1 fate.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [],
+        "cost": null,
+        "deck_limit": 1,
+        "influence_cost": null,
+        "elements": [
+            "air"
+        ],
+        "strength": "4",
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": [],
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "manicured-garden",
+                "pack_id": "core",
+                "flavor": "The perfect garden maintains all five elements in harmony.",
+                "illustrator": "Stefano Baldo",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_19.jpg",
+                "position": "19",
+                "quantity": 2,
+                "rotated": true
+            },
+            {
+                "card_id": "manicured-garden",
+                "pack_id": "emerald-core-set",
+                "flavor": "“In equilibrium, beauty is revealed.”",
+                "illustrator": "Ryan Nock",
+                "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs223.jpg",
+                "position": "223",
+                "quantity": 1,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "tetsubo-of-blood",
+        "name": "Tetsubō of Blood",
+        "name_extra": null,
+        "faction": "crab",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "This card's fate cost can only be paid for with fate on characters you control.\nLimited. Restricted.\nAttached character cannot be honored.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "maho",
+            "spell",
+            "earth",
+            "weapon"
+        ],
+        "cost": "1",
+        "deck_limit": 3,
+        "influence_cost": 1,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+4",
+        "political_bonus": "+0",
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "tetsubo-of-blood",
+                "pack_id": "a-crimson-offering",
+                "flavor": "",
+                "illustrator": "Piotr Arendzikowski",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C38_58.jpg",
+                "position": "58",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "agasha-swordsmith",
+        "name": "Agasha Swordsmith",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": false,
+        "text": "<b>Action:</b> Search the top 5 cards of your conflict deck for an attachment, reveal it, and add it to your hand. Shuffle.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "shugenja",
+            "fire"
+        ],
+        "cost": "2",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 1,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "1",
+        "political": "2",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "agasha-swordsmith",
+                "pack_id": "emerald-core-set",
+                "flavor": "“Other smiths forge with strength alone, but the Agasha way teaches patience and precision. We do not simply make swords — we awaken the potential sleeping within the metal.”",
+                "illustrator": "Héctor Herrera",
+                "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs065.jpg",
+                "position": "65",
+                "quantity": 3,
+                "rotated": false
+            },
+            {
+                "card_id": "agasha-swordsmith",
+                "pack_id": "core",
+                "flavor": null,
+                "illustrator": "Stanislav Dikolenko",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_56.jpg",
+                "position": "56",
+                "quantity": 1,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "hiruma-skirmisher",
+        "name": "Hiruma Skirmisher",
+        "name_extra": null,
+        "faction": "crab",
+        "side": "conflict",
+        "type": "character",
+        "is_unique": false,
+        "text": "<b>Reaction:</b> After you play this character – it gains covert until the end of the phase.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "bushi",
+            "scout"
+        ],
+        "cost": "1",
+        "deck_limit": 3,
+        "influence_cost": 2,
+        "elements": [],
+        "strength": null,
+        "glory": 1,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "1",
+        "political": null,
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "hiruma-skirmisher",
+                "pack_id": "into-the-forbidden-city",
+                "flavor": "\"My lord, I bring grave tidings from beyond the Wall.\"",
+                "illustrator": "Pavel Tomashevskiy",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C04_50.jpg",
+                "position": "50",
+                "quantity": 3,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "illustrious-forge",
+        "name": "Illustrious Forge",
+        "name_extra": null,
+        "faction": "neutral",
+        "side": "province",
+        "type": "province",
+        "is_unique": false,
+        "text": "<b>Reaction:</b> After this province is revealed - search the top 5 cards of your conflict deck for an attachment and put it into play attached to a character you control. Shuffle.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [],
+        "cost": null,
+        "deck_limit": 1,
+        "influence_cost": null,
+        "elements": [
+            "fire"
+        ],
+        "strength": "4",
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "illustrious-forge",
+                "pack_id": "children-of-the-empire",
+                "flavor": "",
+                "illustrator": "Matt Zeilinger",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_2.jpg",
+                "position": "2",
+                "quantity": 1,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "kitsuki-counselor",
+        "name": "Kitsuki Counselor",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": false,
+        "text": "Composure - This character gets +1[conflict-military] and +1[conflict-political]. <i>(You have composure if your honor bid is lower than an opponent's.)</i>",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "courtier"
+        ],
+        "cost": "1",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 1,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "1",
+        "political": "1",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "kitsuki-counselor",
+                "pack_id": "children-of-the-empire",
+                "flavor": "\"What is there to learn from a book that cannot be taught by a flower?\"",
+                "illustrator": "Lin Hsiang",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_16.jpg",
+                "position": "16",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "mirumoto-raitsugu",
+        "name": "Mirumoto Raitsugu",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": true,
+        "text": "<b>Action:</b> While this character is participating in a conflict, choose a participating character controlled by your opponent – challenge that character to a [conflict-military] duel. If the loser of the duel has no fate on it, discard it. Otherwise remove 1 fate from it.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "bushi",
+            "duelist"
+        ],
+        "cost": "3",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 1,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "3",
+        "political": "2",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "mirumoto-raitsugu",
+                "pack_id": "core",
+                "flavor": null,
+                "illustrator": "Brock Grossman",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_62.jpg",
+                "position": "62",
+                "quantity": 1,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "tattooed-wanderer",
+        "name": "Tattooed Wanderer",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "conflict",
+        "type": "character",
+        "is_unique": false,
+        "text": "You may play this character as an attachment with the text: \"Attached character gains covert.\"",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "monk",
+            "tattooed"
+        ],
+        "cost": "1",
+        "deck_limit": 3,
+        "influence_cost": 2,
+        "elements": [],
+        "strength": null,
+        "glory": 0,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "2",
+        "political": "1",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "tattooed-wanderer",
+                "pack_id": "core",
+                "flavor": "It is said that Dragon shugenja and courtiers are warriors, their warriors are monks, and their monks are inexplicable.",
+                "illustrator": "Kevin Zamir Goeke",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_149.jpg",
+                "position": "149",
+                "quantity": 1,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "inventive-mirumoto",
+        "name": "Inventive Mirumoto",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "character",
+        "is_unique": false,
+        "text": "<b>Action:</b> If you have claimed the [element-water] ring, choose an attachment in your discard pile - play that attachment on this character <i>(paying all costs)</i>.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "bushi",
+            "duelist"
+        ],
+        "cost": "1",
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": 1,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": "1",
+        "political": "1",
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "inventive-mirumoto",
+                "pack_id": "clan-war",
+                "flavor": "\"When you understand the path of the sword, your adversary can do nothing you cannot forsee.\" - Mirumoto's Niten",
+                "illustrator": "Eli Ring",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C28_35.jpg",
+                "position": "35",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "pathfinder-s-blade",
+        "name": "Pathfinder's Blade",
+        "name_extra": null,
+        "faction": "crab",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "<em>Seeker</em> role only.\n<b>Interrupt:</b> When the effects of a triggered ability on the attacked province would initiate, if attached character is attacking, sacrifice this attachment – cancel those effects.",
+        "restricted_in": [
+            "standard"
+        ],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "weapon"
+        ],
+        "cost": "0",
+        "deck_limit": 3,
+        "influence_cost": 1,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+1",
+        "political_bonus": "+0",
+        "splash_banned_in": null,
+        "role_restrictions": [
+            "seeker"
+        ],
+        "versions": [
+            {
+                "card_id": "pathfinder-s-blade",
+                "pack_id": "for-honor-and-glory",
+                "flavor": null,
+                "illustrator": "Giby Joseph",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C03_31.jpg",
+                "position": "31",
+                "quantity": 3,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "riot-in-the-streets",
+        "name": "Riot in the Streets",
+        "name_extra": null,
+        "faction": "neutral",
+        "side": "province",
+        "type": "province",
+        "is_unique": false,
+        "text": "<b>Action:</b> During a conflict at this province, if you control 3 or more participating <em>Bushi</em> characters, choose a participating character – bow that character.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [],
+        "cost": null,
+        "deck_limit": 1,
+        "influence_cost": null,
+        "elements": [
+            "water"
+        ],
+        "strength": "4",
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "riot-in-the-streets",
+                "pack_id": "for-honor-and-glory",
+                "flavor": null,
+                "illustrator": "Kevin Zamir Goeke",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C03_22.jpg",
+                "position": "22",
+                "quantity": 3,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "iron-mountain-castle",
+        "name": "Iron Mountain Castle",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "province",
+        "type": "stronghold",
+        "is_unique": true,
+        "text": "Each [clan-dragon] character you control can have an additional restricted attachment.\n<b>Interrupt:</b> When you play an attachment on a character you control, bow this stronghold - reduce the cost to play that attachment by 1.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "castle"
+        ],
+        "cost": null,
+        "deck_limit": 1,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": 7,
+        "honor": 10,
+        "influence_pool": 10,
+        "strength_bonus": "+2",
+        "military": null,
+        "political": null,
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "iron-mountain-castle",
+                "pack_id": "atonement",
+                "flavor": "",
+                "illustrator": "Nele Diel",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C34_115.jpg",
+                "position": "115",
+                "quantity": 1,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "mountaintop-statuary",
+        "name": "Mountaintop Statuary",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "holding",
+        "is_unique": false,
+        "text": "<b>Reaction:</b> After this holding is turned faceup – move it onto your stronghold province.\n<b>Action:</b> During a conflict at this province, sacrifice this holding. Choose an attacking character with printed cost 2 or lower – move that character home.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "temple"
+        ],
+        "cost": null,
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": "+1",
+        "military": null,
+        "political": null,
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "mountaintop-statuary",
+                "pack_id": "the-chrysanthemum-throne",
+                "flavor": null,
+                "illustrator": "Charles Urbach",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C05_66.jpg",
+                "position": "66",
+                "quantity": 3,
+                "rotated": true
+            }
+        ]
+    },
+    {
+        "id": "alchemical-laboratory",
+        "name": "Alchemical Laboratory",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "dynasty",
+        "type": "holding",
+        "is_unique": false,
+        "text": "While you have claimed the [element-fire] ring, each attachment you control on another player's character gains ancestral.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "dragon"
+        ],
+        "traits": [
+            "laboratory"
+        ],
+        "cost": null,
+        "deck_limit": 3,
+        "influence_cost": null,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": "+1",
+        "military": null,
+        "political": null,
+        "military_bonus": null,
+        "political_bonus": null,
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "alchemical-laboratory",
+                "pack_id": "clan-war",
+                "flavor": "\"I have seen no interest among the fire kami for keihi bark - except when ground to paste, which seems to bring them great delight.\" - from the journals of Agasha Shunsen",
+                "illustrator": "Carlos Palma Cruchaga",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C28_39.jpg",
+                "position": "39",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    },
+    {
+        "id": "two-heavens-technique",
+        "name": "Two-Heavens Technique",
+        "name_extra": null,
+        "faction": "dragon",
+        "side": "conflict",
+        "type": "attachment",
+        "is_unique": false,
+        "text": "Attach to a <em>Bushi</em> character.\nWhile there are exactly 2 <em>Weapon</em> attachments on attached character, attached character gains covert.",
+        "restricted_in": [],
+        "banned_in": [],
+        "allowed_clans": [
+            "crab",
+            "crane",
+            "dragon",
+            "lion",
+            "phoenix",
+            "scorpion",
+            "unicorn",
+            "mantis"
+        ],
+        "traits": [
+            "technique"
+        ],
+        "cost": "1",
+        "deck_limit": 3,
+        "influence_cost": 2,
+        "elements": [],
+        "strength": null,
+        "glory": null,
+        "fate": null,
+        "honor": null,
+        "influence_pool": null,
+        "strength_bonus": null,
+        "military": null,
+        "political": null,
+        "military_bonus": "+1",
+        "political_bonus": "+0",
+        "splash_banned_in": null,
+        "role_restrictions": [],
+        "versions": [
+            {
+                "card_id": "two-heavens-technique",
+                "pack_id": "bonds-of-blood",
+                "flavor": "\"One man, one sword, one strike.\" - Kakita\n \"Two hands.\" - Mirumoto",
+                "illustrator": "Mario Wibisono",
+                "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C20_38.jpg",
+                "position": "38",
+                "quantity": 3,
+                "rotated": false
+            }
+        ]
+    }
+]

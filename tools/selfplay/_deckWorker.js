@@ -13,9 +13,11 @@ const { runGame } = require('./harness.js');
 const {
     loadCrabDeck,
     loadCraneDuelDeck,
+    loadDragonAttachmentsDeck,
     loadDragonDeck,
     loadLionDeck,
     loadPhoenixDeck,
+    loadPhoenixShugenjaDeck,
     loadScorpionDeck,
     loadUnicornDeck,
     loadCraneDeck
@@ -26,7 +28,9 @@ const LOADERS = {
     Scorpion: loadScorpionDeck,
     Lion: loadLionDeck,
     Phoenix: loadPhoenixDeck,
+    PhoenixShugenja: loadPhoenixShugenjaDeck,
     Dragon: loadDragonDeck,
+    DragonAttachments: loadDragonAttachmentsDeck,
     CraneDuels: loadCraneDuelDeck,
     Crab: loadCrabDeck
 };

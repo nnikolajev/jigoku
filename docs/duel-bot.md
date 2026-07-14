@@ -1,9 +1,27 @@
 # Upgraded Crane Duels bot deck (EmeraldDB e2e443b5)
 
-The duel deck: a FEW durable, honored duelists (Toshimoko, Kaezin, Kuwanan,
-Iron Crane Legion, Tengu Sensei) carry stacked duel attachments and grind
-value out of every duel — the stronghold honors the winner, Proving Ground
-draws, Kakita Blade gains honor, Policy Debate strips the hand.
+The duel deck now follows the human tower plan: establish up to two durable
+characters from **Tengu Sensei, Doji Kuwanan, Kakita Kaezin, and Kakita
+Toshimoko**, invest 3-5 additional fate, honor them, and put duel tools on
+them. One or two cheap supporting bodies defend or take unopposed conflicts.
+
+## Why the old policy underperformed
+
+`_deckWorker.js` is only the self-play loader/runner; it contains no deck
+decisions. The decisions live in `JigokuBotPolicy`, `CardPlaybook`, and
+`DuelTactics`. Before this pass, the duel module steered duel prompts but did
+not actually implement the deck's economic plan:
+
+- dynasty deployment still bought the cheapest affordable faceup character;
+- generic fate placement normally gave a character only 0-2 extra fate;
+- regroup could discard one of the four desired towers;
+- attachment selection did not count the two Restricted slots;
+- Shukujo could be attached to a non-Champion, losing its granted Action.
+
+This produced a wide, short-lived board instead of the persistent duel engine
+the deck is built around. The comparison deck also shares the same dynasty
+character roster and most of the conflict deck, so CraneDuels has no automatic
+large matchup advantage merely from using the linked list.
 
 ## How the bot plays it
 
@@ -20,10 +38,17 @@ opponent must stay on its generic profile or every measured band shifts.
   mapped to the axis it compares. A prompt offering OUR characters sends our
   strongest on that axis; a prompt offering THEIRS duels their weakest
   (`duel-own-strongest` / `duel-enemy-weakest`).
-- **Attachment stacking**: Duelist Training, Daimyo's Gunbai, Kakita Blade,
-  Iaijutsu Master, Shukujo land on the ranked `keyCharacters`
-  (`duel-attach-key-character`), so one durable body carries several duel
-  actions.
+- **Tower deployment**: buy one of the four preferred characters only when it
+  can receive at least 3 fate; place 3-5 fate on it; retain an unfunded tower
+  faceup through regroup; keep at most two cheap support characters.
+- **Attachment stacking**: Duelist Training and the deck's other duel/stat
+  attachments land on the four towers. Restricted attachments are spread to
+  characters with fewer occupied slots and never exceed two. **Shukujo only
+  attaches to Doji Kuwanan**. Invalid tower attachments are skipped before
+  their target prompt, preventing the old cancel/retry loop.
+- **Honor plan**: while a tower is unhonored, Fire gains enough ring priority
+  to beat the ordinary Earth/Void ordering (rings carrying 2+ fate still win
+  the global economic priority).
 - **Vassal Fields under the stronghold** (`crane-duel-vassal-fields`
   override): drains 1 attacker fate every conflict fought there.
 - Tsuma (characters enter honored), Magistrate Station (ready an honored
@@ -47,9 +72,13 @@ every deck's vs-Crane band downward. See deck-profiles.md.
 | Config | Result |
 |--------|--------|
 | duelBid 3 | seed 1: 15-23 (+2 stalls), Crane honor wins 6; seed 4: 13-27, honor wins 6 |
-| duelBid 2 (final) | seed 1: 18-22 + 16-24 (pooled 42.5%), seed 4: 18-22 (45%); honor leak closed (6→2) |
+| duelBid 2 (old policy) | seed 1: 18-22 + 16-24 (pooled 42.5%), seed 4: 18-22 (45%); honor leak closed (6→2) |
+| tower policy (final, four independent N=20 batches) | 11-9, 9-11, 10-10, 9-11; pooled **39-41 (48.75%)** |
+| forced Shukujo switching experiment (rejected) | pooled 29-51 (36.25%); switching without full conflict forecasting helped the opponent too often |
 
-The mirror is nearly a true mirror (41 shared cards + the same playbook), so
-~45-50% is the expected ceiling; the edge comes from DuelTactics (bids,
-steering, stacking) and the 6 swapped provinces. Utilization audit: every
-card fires, zero-clicks list EMPTY on the first audit pass.
+The matchup is nearly a true mirror (the same dynasty characters, roughly 41
+shared cards, and the same global card playbook). The tower change moved the
+observed result from 42.5-45% to 48.75%, but 80 games is not enough evidence
+that the true rate is above 50%. The six swapped provinces/conflict cards, seat
+order, and self-play variance still matter. Utilization audit: every card
+fires; zero-clicks list was empty on the first audit pass.

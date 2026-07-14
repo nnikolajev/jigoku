@@ -1,3 +1,5 @@
 *.jsonl
 *.log
 *.schema.json
+round-robin-*.json
+round-robin-*.md

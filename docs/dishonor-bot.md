@@ -29,6 +29,9 @@ behavior changes (the fine-tuned Unicorn default is untouched).
   cannot be played during a conflict, so the bot plays them in the
   conflict-phase action window BEFORE declaring), Fiery Madness (-2/-2,
   tutored by Shosuro Hametsu), Softskin, Tainted Koku, Compromised Secrets.
+  Pacifism, Stolen Breath, and Softskin never repeat on the same bearer: extra
+  copies spread to the best character missing that printed attachment, or stay
+  in hand when every enemy already has one.
   Make an Opening's -X/-X uses the honor-dial difference — our permanent low
   bids make X large against a value bidder.
 - Defense stays generic `prevent-break`: losing a conflict is fine as long as

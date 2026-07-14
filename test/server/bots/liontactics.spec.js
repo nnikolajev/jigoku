@@ -33,6 +33,16 @@ describe('LionTactics', function() {
             expect(resolveDeckProfile(['cavalry-reserves'], AGGRO).lion).toBeUndefined();
             expect(resolveDeckProfile(['hayaken-no-shiro'], { holdingEngine: false, defensive: false, aggressive: false, dishonor: false }).lion).toBeUndefined();
         });
+
+        it('gives the Ashigaru list its province-trading rush profile', function() {
+            const p = resolveDeckProfile(['hayaken-no-shiro', 'ashigaru-levy', 'for-greater-glory', 'in-service-to-my-lord'], AGGRO);
+            expect(p.lion).toEqual(LION_DEFAULTS);
+            expect(p.defenseCommitment).toBe('win-only');
+            expect(p.spendCardsOnDefense).toBe(false);
+            expect(p.reserveDynastyFate).toBe(false);
+            expect(p.digWithActions).toBe(true);
+            expect(p.strongholdProvinceId).toBe('weight-of-duty');
+        });
     });
 
     describe('honor dial', function() {
@@ -58,6 +68,56 @@ describe('LionTactics', function() {
             // Akodo Toturi costs 5 — not a legal stronghold target.
             expect(tactics.shouldReadyWithStronghold([{ id: 'akodo-toturi', bowed: true }])).toBe(false);
             expect(tactics.shouldReadyWithStronghold([])).toBe(false);
+        });
+    });
+
+    describe('swarm economy', function() {
+        const card = (id, uuid = id) => ({ id, uuid, type: id === 'a-season-of-war' || id === 'honored-veterans' ? 'event' : 'character' });
+
+        it('places exactly 2 fate only on the three selected towers', function() {
+            expect(tactics.desiredAdditionalFate('akodo-toturi')).toBe(2);
+            expect(tactics.desiredAdditionalFate('commander-of-the-legions')).toBe(2);
+            expect(tactics.desiredAdditionalFate('honored-general')).toBe(2);
+            expect(tactics.desiredAdditionalFate('matsu-beiona')).toBe(0);
+            expect(tactics.desiredAdditionalFate('matsu-berserker')).toBe(0);
+        });
+
+        it('buys cheap bodies before towers and waits for Beiona rules legality', function() {
+            const costs = { cheap: 1, beiona: 3, tower: 5 };
+            expect(tactics.pickDynastyCard([
+                card('akodo-toturi', 'tower'), card('matsu-berserker', 'cheap')
+            ], costs, 7, []).id).toBe('matsu-berserker');
+
+            const beiona = card('matsu-beiona', 'beiona');
+            expect(tactics.pickDynastyCard([beiona], costs, 3, [
+                { id: 'matsu-berserker' }, { id: 'akodo-gunso' }
+            ])).toBeNull();
+            expect(tactics.pickDynastyCard([beiona], costs, 3, [
+                { id: 'matsu-berserker' }, { id: 'akodo-gunso' }, { id: 'matsu-gohei' }
+            ])).toBe(beiona);
+        });
+
+        it('uses Feeding an Army only with five eligible cheap bodies', function() {
+            const four = ['matsu-berserker', 'akodo-gunso', 'matsu-gohei', 'matsu-beiona'].map((id) => ({ id }));
+            expect(tactics.shouldUseFeedingArmy(four)).toBe(false);
+            expect(tactics.shouldUseFeedingArmy(four.concat([{ id: 'ashigaru-levy' }]))).toBe(true);
+        });
+
+        it('uses A Season of War only with fate left for the extra phase', function() {
+            const season = card('a-season-of-war', 'season');
+            expect(tactics.pickDynastyCard([season], { season: 1 }, 1, [])).toBeNull();
+            expect(tactics.pickDynastyCard([season], { season: 1 }, 2, [])).toBe(season);
+        });
+    });
+
+    describe('targeting', function() {
+        it('sacrifices cheap bodies and retrieves listed towers first', function() {
+            const bodies = [
+                { id: 'honored-general', uuid: 'tower', fate: 2, militarySkillSummary: { stat: '4' } },
+                { id: 'ashigaru-levy', uuid: 'levy', fate: 0, militarySkillSummary: { stat: '0' } }
+            ];
+            expect(tactics.pickCheapSacrifice(bodies, (card) => Number(card.militarySkillSummary.stat)).uuid).toBe('levy');
+            expect(tactics.pickTower(bodies, (card) => Number(card.militarySkillSummary.stat)).uuid).toBe('tower');
         });
     });
 });

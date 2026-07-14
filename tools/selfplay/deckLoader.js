@@ -102,6 +102,7 @@ function loadScorpionDeck() {
     return buildDeck(decklist, cardsById);
 }
 
+// Lion Swarm v0.3 (EmeraldDB 27a913d1) — cheap-body province-trading rush.
 function loadLionDeck() {
     const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'lion-decklist.json'), 'utf8'));
     const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'lion-cards.json'), 'utf8'));
@@ -122,9 +123,33 @@ function loadPhoenixDeck() {
     return buildDeck(decklist, cardsById);
 }
 
+// Phoenix "Shugenja Spells" (EmeraldDB b260d778) — Kyuden Isawa spell
+// recursion, ring manipulation, and Display of Power province trades.
+function loadPhoenixShugenjaDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'phoenix-shugenja-decklist.json'), 'utf8'));
+    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'phoenix-shugenja-cards.json'), 'utf8'));
+    const cardsById = {};
+    for(const card of cardsArray) {
+        cardsById[card.id] = card;
+    }
+    return buildDeck(decklist, cardsById);
+}
+
 function loadDragonDeck() {
     const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-decklist.json'), 'utf8'));
     const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-cards.json'), 'utf8'));
+    const cardsById = {};
+    for(const card of cardsArray) {
+        cardsById[card.id] = card;
+    }
+    return buildDeck(decklist, cardsById);
+}
+
+// Dragon "Attachments" (EmeraldDB 46aaa220) — Iron Mountain Castle tower
+// deck with Crab splash.
+function loadDragonAttachmentsDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-attachments-decklist.json'), 'utf8'));
+    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-attachments-cards.json'), 'utf8'));
     const cardsById = {};
     for(const card of cardsArray) {
         cardsById[card.id] = card;
@@ -142,4 +167,4 @@ function loadCraneDuelDeck() {
     return buildDeck(decklist, cardsById);
 }
 
-module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadCraneDeck, loadCrabDeck, loadScorpionDeck, loadLionDeck, loadPhoenixDeck, loadDragonDeck, loadCraneDuelDeck, FIXTURES };
+module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadCraneDeck, loadCrabDeck, loadScorpionDeck, loadLionDeck, loadPhoenixDeck, loadPhoenixShugenjaDeck, loadDragonDeck, loadDragonAttachmentsDeck, loadCraneDuelDeck, FIXTURES };

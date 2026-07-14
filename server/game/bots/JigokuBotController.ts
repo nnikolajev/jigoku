@@ -354,6 +354,7 @@ class JigokuBotController {
                     roundNumber: (this.game as any).roundNumber,
                     targetHint: targetHint,
                     playCost: this.currentPlayCost(player),
+                    playCardId: this.currentPlayCardId(player),
                     handStats: this.handStatsHint(player),
                     // Hand-written playbook knowledge outranks the cached LLM
                     // analysis for the same card.
@@ -1176,6 +1177,14 @@ class JigokuBotController {
 
         const cost = step.properties?.source?.printedCost;
         return typeof cost === 'number' && !isNaN(cost) ? cost : undefined;
+    }
+
+    private currentPlayCardId(player: Player): string | undefined {
+        const step = this.currentPromptStep(player);
+        if(step?.properties?.activePromptTitle !== 'Choose additional fate') {
+            return undefined;
+        }
+        return step.properties?.source?.cardData?.id || step.properties?.source?.id;
     }
 
     // Hand card skill values are hidden from player-state summaries (showStats

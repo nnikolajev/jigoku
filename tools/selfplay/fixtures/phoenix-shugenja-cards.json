@@ -1,0 +1,2344 @@
+[
+    {
+        "id":  "adept-of-the-waves",
+        "name":  "Adept of the Waves",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eAction:\u003c/b\u003e Choose a character – for this phase, that character gains covert during [element-water] conflicts. \u003ci\u003e(Whenever you declare a conflict with one or more attackers with covert, choose a character without covert. That character cannot be declared as a defender.)\u003c/i\u003e",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "shugenja",
+                       "water"
+                   ],
+        "cost":  "2",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  2,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "2",
+        "political":  "2",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  [
+
+                             ],
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "adept-of-the-waves",
+                             "pack_id":  "core",
+                             "flavor":  "\"Water is flexible and yielding, yet none can withstand the crashing waves.\"",
+                             "illustrator":  "Jason Engle",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_84.jpg",
+                             "position":  "84",
+                             "quantity":  1,
+                             "rotated":  true
+                         },
+                         {
+                             "card_id":  "adept-of-the-waves",
+                             "pack_id":  "emerald-core-set",
+                             "flavor":  "",
+                             "illustrator":  "Amorao (Daniel G.C.)",
+                             "image_url":  "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs125.jpg",
+                             "position":  "125",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "against-the-waves",
+        "name":  "Against the Waves",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "conflict",
+        "type":  "event",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eAction:\u003c/b\u003e Choose a \u003cem\u003eShugenja\u003c/em\u003e character you control – bow or ready that character.\n\u003ci\u003eErrata from the Imperial Law (2020-01-06)\u003c/i\u003e",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "spell",
+                       "water"
+                   ],
+        "cost":  "1",
+        "deck_limit":  3,
+        "influence_cost":  1,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  [
+
+                             ],
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "against-the-waves",
+                             "pack_id":  "core",
+                             "flavor":  "Water is ever changing. A gentle wave one moment and a torrent of force the next.",
+                             "illustrator":  "Calvin Chua",
+                             "image_url":  "https://gamepedia.cursecdn.com/l5r_gamepedia_en/7/7c/Against_the_Waves.png",
+                             "position":  "177",
+                             "quantity":  1,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "asako-togama",
+        "name":  "Asako Togama",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  true,
+        "text":  "\u003cb\u003eAction:\u003c/b\u003e During a conflict in which this character is participating, choose an unclaimed ring - switch that ring with a ring in your claimed ring pool and gain all fate on it. \u003ci\u003e(Retain the ring\u0027s conflict type.)\u003c/i\u003e",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "courtier",
+                       "daimyo",
+                       "scholar"
+                   ],
+        "cost":  "4",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  2,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "2",
+        "political":  "5",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "asako-togama",
+                             "pack_id":  "seekers-of-wisdom",
+                             "flavor":  "\"Never overlook knowledge when you find it, no matter how lowly its source.\"",
+                             "illustrator":  "Carlos Palma Cruchaga",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C25_15.jpg",
+                             "position":  "15",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "asako-tsuki",
+        "name":  "Asako Tsuki",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  true,
+        "text":  "\u003cb\u003eReaction:\u003c/b\u003e After the [element-water] ring is claimed, choose a \u003cem\u003eScholar\u003c/em\u003e character – honor that character.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "courtier",
+                       "scholar",
+                       "shugenja",
+                       "water"
+                   ],
+        "cost":  "2",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  2,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "1",
+        "political":  "2",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "asako-tsuki",
+                             "pack_id":  "meditations-on-the-ephemeral",
+                             "flavor":  "\"History is fixed, but the future flows.\"",
+                             "illustrator":  "Lin Hsiang",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C07_107.jpg",
+                             "position":  "107",
+                             "quantity":  3,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "assassination",
+        "name":  "Assassination",
+        "name_extra":  null,
+        "faction":  "neutral",
+        "side":  "conflict",
+        "type":  "event",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eConflict Action:\u003c/b\u003e Lose 3 honor. Choose a character with printed cost 2 or lower – discard that character. (Max 1 per round.)",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+
+                   ],
+        "cost":  "0",
+        "deck_limit":  3,
+        "influence_cost":  0,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  [
+
+                             ],
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "assassination",
+                             "pack_id":  "core",
+                             "flavor":  null,
+                             "illustrator":  "Greg Lambrakis",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_203.jpg",
+                             "position":  "203",
+                             "quantity":  2,
+                             "rotated":  true
+                         },
+                         {
+                             "card_id":  "assassination",
+                             "pack_id":  "emerald-core-set",
+                             "flavor":  "Steel whispered through silk and flesh. In the morning, they would find the body and speak of shadows and dishonor — but tonight, the deed was done.",
+                             "illustrator":  "Valentine",
+                             "image_url":  "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs242.jpg",
+                             "position":  "242",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "banzai",
+        "name":  "Banzai!",
+        "name_extra":  null,
+        "faction":  "neutral",
+        "side":  "conflict",
+        "type":  "event",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eAction:\u003c/b\u003e During a conflict, choose a participating character – that character gets +2[conflict-military] until the end of the conflict. You may lose 1 honor to resolve this ability twice. (Max 1 per conflict.)",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+
+                   ],
+        "cost":  "0",
+        "deck_limit":  3,
+        "influence_cost":  0,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "banzai",
+                             "pack_id":  "core",
+                             "flavor":  "",
+                             "illustrator":  "Troy Graham",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_204.jpg",
+                             "position":  "204",
+                             "quantity":  2,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "clarity-of-purpose",
+        "name":  "Clarity of Purpose",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "conflict",
+        "type":  "event",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eAction:\u003c/b\u003e During a conflict, choose a character you control – until the end of that conflict, opponents\u0027 card effects cannot bow that character and it does not bow as a result of conflict resolution during [conflict-political] conflicts.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "spell",
+                       "water"
+                   ],
+        "cost":  "1",
+        "deck_limit":  3,
+        "influence_cost":  3,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "clarity-of-purpose",
+                             "pack_id":  "disciples-of-the-void",
+                             "flavor":  "",
+                             "illustrator":  "Kevin Zamie Goeke",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C08_23.jpg",
+                             "position":  "23",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "consumed-by-five-fires",
+        "name":  "Consumed by Five Fires",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "conflict",
+        "type":  "event",
+        "is_unique":  false,
+        "text":  "\u003cem\u003eSeeker\u003c/em\u003e role only.\n\u003cb\u003eAction:\u003c/b\u003e If you control a \u003cem\u003eShugenja\u003c/em\u003e character – remove up to 5 fate from among characters an opponent controls.",
+        "restricted_in":  [
+                              "standard"
+                          ],
+        "banned_in":  [
+                          "jade-edict"
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "spell",
+                       "fire"
+                   ],
+        "cost":  "5",
+        "deck_limit":  3,
+        "influence_cost":  2,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  [
+
+                             ],
+        "role_restrictions":  [
+                                  "seeker"
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "consumed-by-five-fires",
+                             "pack_id":  "fate-has-no-secrets",
+                             "flavor":  "\"By these fires be cleansed.\" – Isawa Masahiro",
+                             "illustrator":  "Antonio José Manzanedo",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C06_96.jpg",
+                             "position":  "96",
+                             "quantity":  3,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "display-of-power",
+        "name":  "Display of Power",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "conflict",
+        "type":  "event",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eReaction:\u003c/b\u003e After you lose an unopposed conflict – cancel the ring effect of that conflict. Then, you resolve that ring effect as if you had won the conflict as the attacking player. Claim that ring.",
+        "restricted_in":  [
+                              "standard"
+                          ],
+        "banned_in":  [
+                          "jade-edict"
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "spell",
+                       "fire"
+                   ],
+        "cost":  "2",
+        "deck_limit":  3,
+        "influence_cost":  3,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  [
+
+                             ],
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "display-of-power",
+                             "pack_id":  "core",
+                             "flavor":  null,
+                             "illustrator":  "Shen Fei",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_179.jpg",
+                             "position":  "179",
+                             "quantity":  1,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "earth-becomes-sky",
+        "name":  "Earth Becomes Sky",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "conflict",
+        "type":  "event",
+        "is_unique":  false,
+        "text":  "\u003cem\u003eEarth\u003c/em\u003e role only.\n\u003cb\u003eReaction:\u003c/b\u003e After a character an opponent controls is readied - bow that character.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "spell",
+                       "earth"
+                   ],
+        "cost":  "1",
+        "deck_limit":  3,
+        "influence_cost":  1,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+                                  "earth"
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "earth-becomes-sky",
+                             "pack_id":  "bonds-of-blood",
+                             "flavor":  "\"I used to look up to the heavens, but the earth seems to have decided it wants that position.\"",
+                             "illustrator":  "Lukas Banas",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C20_41.jpg",
+                             "position":  "41",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "ethereal-dreamer",
+        "name":  "Ethereal Dreamer",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eReaction:\u003c/b\u003e After the conflict phase begins, choose a ring – until the end of this phase, this character gets +2[conflict-military] and +2[conflict-political] while that ring is being contested.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "shugenja",
+                       "void"
+                   ],
+        "cost":  "1",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  0,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "1",
+        "political":  "1",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "ethereal-dreamer",
+                             "pack_id":  "all-and-nothing",
+                             "flavor":  "",
+                             "illustrator":  "Christine Mitzuk",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C13_89.jpg",
+                             "position":  "89",
+                             "quantity":  3,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "feral-ningyo",
+        "name":  "Feral Ningyo",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "conflict",
+        "type":  "character",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eAction:\u003c/b\u003e During a [element-water] conflict – put this character into play from your hand in the conflict. At the end of the conflict, shuffle it into your conflict deck.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "creature"
+                   ],
+        "cost":  "3",
+        "deck_limit":  3,
+        "influence_cost":  3,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  0,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "3",
+        "political":  "2",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "feral-ningyo",
+                             "pack_id":  "tainted-lands",
+                             "flavor":  "The sea\u0027s embrace is cold and sharp.",
+                             "illustrator":  "Antonio Jose Manzanedo",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C10_36.jpg",
+                             "position":  "36",
+                             "quantity":  3,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "forgotten-library",
+        "name":  "Forgotten Library",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "holding",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eReaction:\u003c/b\u003e After the draw phase begins – draw 1 card.",
+        "restricted_in":  [
+                              "jade-edict"
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "library",
+                       "shrine"
+                   ],
+        "cost":  null,
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  "+0",
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  [
+
+                             ],
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "forgotten-library",
+                             "pack_id":  "core",
+                             "flavor":  "Truth cannot be lost, only forgotten.",
+                             "illustrator":  "Lino Drieghe",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_94.jpg",
+                             "position":  "94",
+                             "quantity":  1,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "fushicho",
+        "name":  "Fushichō",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  true,
+        "text":  "No attachments.\n\u003cb\u003eInterrupt:\u003c/b\u003e When this character leaves play, choose a [clan-phoenix] character in your dynasty pile – put that character into play with 1 fate on it.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "creature",
+                       "fire",
+                       "mythic",
+                       "spirit"
+                   ],
+        "cost":  "6",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  0,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "6",
+        "political":  "6",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "fushicho",
+                             "pack_id":  "disciples-of-the-void",
+                             "flavor":  "",
+                             "illustrator":  "IFS",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C08_11.jpg",
+                             "position":  "11",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "isawa-tadaka-2",
+        "name":  "Isawa Tadaka",
+        "name_extra":  "(2)",
+        "faction":  "phoenix",
+        "side":  "conflict",
+        "type":  "character",
+        "is_unique":  true,
+        "text":  "[clan-crab] and [clan-phoenix] only.\nDisguised \u003cem\u003eShugenja\u003c/em\u003e.\n\u003cb\u003eAction:\u003c/b\u003e During a conflict, remove one or more characters in your dynasty discard pile from the game - look at that many random cards from your opponent\u0027s hand. Choose and discard one of those cards.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "shugenja",
+                       "earth",
+                       "elemental-master"
+                   ],
+        "cost":  "5",
+        "deck_limit":  3,
+        "influence_cost":  2,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  2,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "5",
+        "political":  "3",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  [
+
+                             ],
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "isawa-tadaka-2",
+                             "pack_id":  "bonds-of-blood",
+                             "flavor":  "",
+                             "illustrator":  "Pius Pranoto",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C20_40.jpg",
+                             "position":  "40",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "isawa-ujina",
+        "name":  "Isawa Ujina",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  true,
+        "text":  "\u003cb\u003eForced Reaction:\u003c/b\u003e After the [element-void] ring is claimed, choose a character with no fate - remove that character from the game. (Unlimited.)",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "shugenja",
+                       "void",
+                       "elemental-master"
+                   ],
+        "cost":  "4",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  2,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "2",
+        "political":  "4",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "isawa-ujina",
+                             "pack_id":  "children-of-the-empire",
+                             "flavor":  "Had she killed him? But there was not blood on the ninjato\u0027s blade. Nor was there a body... He was gone-- whoever he was.",
+                             "illustrator":  "Arif Wijawa",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_29.jpg",
+                             "position":  "29",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "kirei-ko",
+        "name":  "Kirei-ko",
+        "name_extra":  null,
+        "faction":  "scorpion",
+        "side":  "conflict",
+        "type":  "event",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eReaction:\u003c/b\u003e After a character your opponent controls triggers an ability - bow that character.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "poison"
+                   ],
+        "cost":  "1",
+        "deck_limit":  3,
+        "influence_cost":  3,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "kirei-ko",
+                             "pack_id":  "children-of-the-empire",
+                             "flavor":  "\"The deadliest poison produces the most beautiful shade.\"",
+                             "illustrator":  "Tawny Fritz",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_70.jpg",
+                             "position":  "70",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "kudaka",
+        "name":  "Kudaka",
+        "name_extra":  null,
+        "faction":  "neutral",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  true,
+        "text":  "\u003cb\u003eReaction:\u003c/b\u003e After you claim the [element-air] ring – gain 1 fate and draw 1 card. (Limit twice per round.)",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "shugenja",
+                       "air",
+                       "mantis-clan"
+                   ],
+        "cost":  "4",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  1,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "3",
+        "political":  "4",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "kudaka",
+                             "pack_id":  "breath-of-the-kami",
+                             "flavor":  "\"It\u0027s tradition, this, just askin\u0027 the kami for their aid.\"",
+                             "illustrator":  "Le Vuong",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C09_13.jpg",
+                             "position":  "13",
+                             "quantity":  3,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "kyuden-isawa",
+        "name":  "Kyūden Isawa",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "province",
+        "type":  "stronghold",
+        "is_unique":  true,
+        "text":  "\u003cb\u003eAction:\u003c/b\u003e During a conflict, bow this stronghold and discard a \u003cem\u003eSpell\u003c/em\u003e event from your hand – play a \u003cem\u003eSpell\u003c/em\u003e event from your conflict discard pile as if it were in your hand. Remove that event from the game.\n\u003ci\u003eErrata from the Imperial Law (2020-01-06)\u003c/i\u003e",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "library",
+                       "palace"
+                   ],
+        "cost":  null,
+        "deck_limit":  1,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  7,
+        "honor":  11,
+        "influence_pool":  10,
+        "strength_bonus":  "+1",
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "kyuden-isawa",
+                             "pack_id":  "disciples-of-the-void",
+                             "flavor":  "",
+                             "illustrator":  "Nele Diel",
+                             "image_url":  "https://images-cdn.fantasyflightgames.com/filer_public/38/17/38175254-627f-43a4-b130-d1700e88856b/l5c01_errata_card_kyuden-isawa.png",
+                             "position":  "1",
+                             "quantity":  1,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "manicured-garden",
+        "name":  "Manicured Garden",
+        "name_extra":  null,
+        "faction":  "neutral",
+        "side":  "province",
+        "type":  "province",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eConflict Action:\u003c/b\u003e Gain 1 fate.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+
+                   ],
+        "cost":  null,
+        "deck_limit":  1,
+        "influence_cost":  null,
+        "elements":  [
+                         "air"
+                     ],
+        "strength":  "4",
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  [
+
+                             ],
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "manicured-garden",
+                             "pack_id":  "core",
+                             "flavor":  "The perfect garden maintains all five elements in harmony.",
+                             "illustrator":  "Stefano Baldo",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_19.jpg",
+                             "position":  "19",
+                             "quantity":  2,
+                             "rotated":  true
+                         },
+                         {
+                             "card_id":  "manicured-garden",
+                             "pack_id":  "emerald-core-set",
+                             "flavor":  "“In equilibrium, beauty is revealed.”",
+                             "illustrator":  "Ryan Nock",
+                             "image_url":  "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs223.jpg",
+                             "position":  "223",
+                             "quantity":  1,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "meddling-mediator",
+        "name":  "Meddling Mediator",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eAction:\u003c/b\u003e If an opponent has declared 2 or more conflicts against you this phase, select one – take 1 fate or 1 honor from that opponent.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "courtier"
+                   ],
+        "cost":  "2",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  1,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "0",
+        "political":  "3",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "meddling-mediator",
+                             "pack_id":  "core",
+                             "flavor":  null,
+                             "illustrator":  "Drew Baker",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_86.jpg",
+                             "position":  "86",
+                             "quantity":  1,
+                             "rotated":  true
+                         },
+                         {
+                             "card_id":  "meddling-mediator",
+                             "pack_id":  "emerald-core-set",
+                             "flavor":  "“Among the Phoenix peace is a highly-valued commodity, and I its humble merchant.”",
+                             "illustrator":  "Brian Ricks",
+                             "image_url":  "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs132.jpg",
+                             "position":  "132",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "meditations-on-the-tao",
+        "name":  "Meditations on the Tao",
+        "name_extra":  null,
+        "faction":  "neutral",
+        "side":  "province",
+        "type":  "province",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eConflict Action:\u003c/b\u003e Choose an attacking character – remove 1 fate from that character.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+
+                   ],
+        "cost":  null,
+        "deck_limit":  1,
+        "influence_cost":  null,
+        "elements":  [
+                         "fire"
+                     ],
+        "strength":  "4",
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  [
+
+                             ],
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "meditations-on-the-tao",
+                             "pack_id":  "core",
+                             "flavor":  "\"Appreciation of beauty is the beginning of wisdom.\" - Tao of Shinsei",
+                             "illustrator":  "Eli Ring",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_20.jpg",
+                             "position":  "20",
+                             "quantity":  2,
+                             "rotated":  true
+                         },
+                         {
+                             "card_id":  "meditations-on-the-tao",
+                             "pack_id":  "emerald-core-set",
+                             "flavor":  "\"The motion of the Tao is the return\nThe way of the Tao is yielding\nAll things under the Sky come from existence\nAll that exists comes out of Nothing\"\n— Laozi",
+                             "illustrator":  "Thulsa Doom",
+                             "image_url":  "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs224.jpg",
+                             "position":  "224",
+                             "quantity":  1,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "offerings-to-the-kami",
+        "name":  "Offerings to the Kami",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "province",
+        "type":  "province",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eReaction:\u003c/b\u003e After this province is revealed, choose a ring in the unclaimed ring pool - resolve that ring\u0027s effects and claim it as a [conflict-political] ring, gaining all fate on it.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "shrine"
+                   ],
+        "cost":  null,
+        "deck_limit":  1,
+        "influence_cost":  null,
+        "elements":  [
+                         "void"
+                     ],
+        "strength":  "4",
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "offerings-to-the-kami",
+                             "pack_id":  "coils-of-power",
+                             "flavor":  "",
+                             "illustrator":  "Carlos Palma Cruchaga",
+                             "image_url":  "https://emerald-legacy.github.io/emeralddb-images/ffg/coils-of-power/cop088.jpg",
+                             "position":  "88",
+                             "quantity":  1,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "oracle-of-stone",
+        "name":  "Oracle of Stone",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "conflict",
+        "type":  "event",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eAction:\u003c/b\u003e Each player draws 2 cards. Then, each player discards 2 cards from his or her hand.\n\u003ci\u003eErrata from RRG v1.7\u003c/i\u003e",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "spell",
+                       "earth"
+                   ],
+        "cost":  "0",
+        "deck_limit":  3,
+        "influence_cost":  2,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "oracle-of-stone",
+                             "pack_id":  "tainted-lands",
+                             "flavor":  "Pray it does not foretell disaster.",
+                             "illustrator":  "Stanislav Dikolenko",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C10_37.jpg",
+                             "position":  "37",
+                             "quantity":  3,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "pacifism",
+        "name":  "Pacifism",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "conflict",
+        "type":  "attachment",
+        "is_unique":  false,
+        "text":  "Peaceful. \u003ci\u003e(This card cannot be played during a conflict.)\u003c/i\u003e\n\nAttached character cannot participate in [conflict-military] conflicts.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "condition"
+                   ],
+        "cost":  "2",
+        "deck_limit":  3,
+        "influence_cost":  2,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  "+0",
+        "political_bonus":  "+0",
+        "splash_banned_in":  [
+
+                             ],
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "pacifism",
+                             "pack_id":  "core",
+                             "flavor":  "A peaceful environment leads to a peaceful mind.",
+                             "illustrator":  "Carlos Palma Cruchaga",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_174.jpg",
+                             "position":  "174",
+                             "quantity":  1,
+                             "rotated":  true
+                         },
+                         {
+                             "card_id":  "pacifism",
+                             "pack_id":  "emerald-core-set",
+                             "flavor":  "In Crane courts and Phoenix temples alike, the gentle path is honored above all.",
+                             "illustrator":  "Brian Ricks",
+                             "image_url":  "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs148.jpg",
+                             "position":  "148",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "prodigy-of-the-waves",
+        "name":  "Prodigy of the Waves",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eAction:\u003c/b\u003e While the [element-water] ring is claimed – ready this character.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "shugenja",
+                       "water"
+                   ],
+        "cost":  "4",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  2,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "3",
+        "political":  "3",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "prodigy-of-the-waves",
+                             "pack_id":  "into-the-forbidden-city",
+                             "flavor":  "\"To adapt and flow around any problem, this is the lesson of water.\" – Isawa’s Elements",
+                             "illustrator":  "Le Vuong",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C04_46.jpg",
+                             "position":  "46",
+                             "quantity":  3,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "public-forum",
+        "name":  "Public Forum",
+        "name_extra":  null,
+        "faction":  "neutral",
+        "side":  "province",
+        "type":  "province",
+        "is_unique":  false,
+        "text":  "Cannot be a stronghold province.\n\u003cb\u003eInterrupt:\u003c/b\u003e When this province would be broken, if there are no honor tokens on it – place 1 honor token on it instead.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+
+                   ],
+        "cost":  null,
+        "deck_limit":  1,
+        "influence_cost":  null,
+        "elements":  [
+                         "earth"
+                     ],
+        "strength":  "3",
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "public-forum",
+                             "pack_id":  "into-the-forbidden-city",
+                             "flavor":  null,
+                             "illustrator":  "Pavel Kolomeyets",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C04_42.jpg",
+                             "position":  "42",
+                             "quantity":  3,
+                             "rotated":  true
+                         },
+                         {
+                             "card_id":  "public-forum",
+                             "pack_id":  "emerald-core-set",
+                             "flavor":  "In the silent courtyard, one can almost hear the clamor of history — a thousand years of Hantei rule, now calling out for young Botan.",
+                             "illustrator":  "Tariq Ali / Ryan Nock",
+                             "image_url":  "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs227.jpg",
+                             "position":  "227",
+                             "quantity":  1,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "seeker-of-earth",
+        "name":  "Seeker of Earth",
+        "name_extra":  null,
+        "faction":  "neutral",
+        "side":  "role",
+        "type":  "role",
+        "is_unique":  false,
+        "text":  "You may replace 1 province of any element with an additional [element-earth] province while deckbuilding.\n\u003cb\u003eReaction:\u003c/b\u003e After an [element-earth] province you control is revealed – gain 1 fate.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "seeker",
+                       "earth"
+                   ],
+        "cost":  null,
+        "deck_limit":  1,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "seeker-of-earth",
+                             "pack_id":  "core",
+                             "flavor":  "",
+                             "illustrator":  "–",
+                             "image_url":  "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs267.jpg",
+                             "position":  "215B",
+                             "quantity":  1,
+                             "rotated":  true
+                         },
+                         {
+                             "card_id":  "seeker-of-earth",
+                             "pack_id":  "emerald-core-set",
+                             "flavor":  "",
+                             "illustrator":  "",
+                             "image_url":  "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs267.jpg",
+                             "position":  "267",
+                             "quantity":  1,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "shiba-tetsu",
+        "name":  "Shiba Tetsu",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  true,
+        "text":  "\u003cb\u003eReaction:\u003c/b\u003e After you play a \u003cem\u003eSpell\u003c/em\u003e card during a conflict – until the end of the conflict, this character gets +1[conflict-military] and +1[conflict-political]. (Unlimited.)",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "bushi"
+                   ],
+        "cost":  "2",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  1,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "2",
+        "political":  "1",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "shiba-tetsu",
+                             "pack_id":  "disciples-of-the-void",
+                             "flavor":  "All that matters is that I server my clan as best I am able.",
+                             "illustrator":  "Ignatius Budi",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C08_6.jpg",
+                             "position":  "6",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "shiba-tsukune",
+        "name":  "Shiba Tsukune",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  true,
+        "text":  "\u003cb\u003eInterrupt:\u003c/b\u003e When the conflict phase ends – resolve the ring effects of up to 2 unclaimed rings as if you were the attacking player.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "bushi",
+                       "champion"
+                   ],
+        "cost":  "5",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  4,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "4",
+        "political":  "4",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "shiba-tsukune",
+                             "pack_id":  "core",
+                             "flavor":  "\"I will do my best.\"",
+                             "illustrator":  "Shawn Ignatius Tan",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_93.jpg",
+                             "position":  "93",
+                             "quantity":  1,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "shiba-yojimbo",
+        "name":  "Shiba Yōjimbō",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eInterrupt:\u003c/b\u003e When the effects of a triggered ability that targets a \u003cem\u003eShugenja\u003c/em\u003e you control would initiate – cancel those effects.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "bushi",
+                       "yojimbo"
+                   ],
+        "cost":  "3",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  2,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "3",
+        "political":  "2",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "shiba-yojimbo",
+                             "pack_id":  "core",
+                             "flavor":  null,
+                             "illustrator":  "Mario Wibisono",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_89.jpg",
+                             "position":  "89",
+                             "quantity":  1,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "shrine-maiden",
+        "name":  "Shrine Maiden",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "conflict",
+        "type":  "character",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eReaction:\u003c/b\u003e After this character enters play, reveal the top 3 cards of your conflict deck – add each \u003cem\u003eSpell\u003c/em\u003e and each \u003cem\u003eKihō\u003c/em\u003e card revealed by this ability to your hand and discard the rest.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "monk"
+                   ],
+        "cost":  "1",
+        "deck_limit":  3,
+        "influence_cost":  1,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  0,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  "1",
+        "political":  "1",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "shrine-maiden",
+                             "pack_id":  "for-honor-and-glory",
+                             "flavor":  "\"My family has protected this shrine for generations, and we shall protect it for generations more.\"",
+                             "illustrator":  "Shen Fei",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C03_36.jpg",
+                             "position":  "36",
+                             "quantity":  3,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "stolen-breath",
+        "name":  "Stolen Breath",
+        "name_extra":  null,
+        "faction":  "scorpion",
+        "side":  "conflict",
+        "type":  "attachment",
+        "is_unique":  false,
+        "text":  "This attachment cannot be played during a conflict.\nAttached character cannot participate in [conflict-political] conflicts.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "poison"
+                   ],
+        "cost":  "2",
+        "deck_limit":  3,
+        "influence_cost":  2,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  "+0",
+        "political_bonus":  "+0",
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "stolen-breath",
+                             "pack_id":  "underhand-of-the-emperor",
+                             "flavor":  "\"You truly have nothing to say on the matter?\"",
+                             "illustrator":  "Felipe Gaona",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C15_21.jpg",
+                             "position":  "21",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "supernatural-storm",
+        "name":  "Supernatural Storm",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "conflict",
+        "type":  "event",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eAction:\u003c/b\u003e Choose a participating character – that character gets +X[conflict-military] and +X[conflict-political] until the end of the conflict. X is equal to the number of \u003cem\u003eShugenja\u003c/em\u003e characters you control.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "spell",
+                       "water"
+                   ],
+        "cost":  "0",
+        "deck_limit":  3,
+        "influence_cost":  1,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "supernatural-storm",
+                             "pack_id":  "core",
+                             "flavor":  null,
+                             "illustrator":  "Stephanie Law",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_175.jpg",
+                             "position":  "175",
+                             "quantity":  1,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "the-imperial-palace",
+        "name":  "The Imperial Palace",
+        "name_extra":  null,
+        "faction":  "neutral",
+        "side":  "dynasty",
+        "type":  "holding",
+        "is_unique":  true,
+        "text":  "Limit 1 per deck.\nThis holding adds +3 to your side during each glory count.",
+        "restricted_in":  [
+                              "standard"
+                          ],
+        "banned_in":  [
+                          "jade-edict",
+                          "skirmish"
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "imperial"
+                   ],
+        "cost":  null,
+        "deck_limit":  1,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  "+2",
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  [
+
+                             ],
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "the-imperial-palace",
+                             "pack_id":  "the-chrysanthemum-throne",
+                             "flavor":  "",
+                             "illustrator":  "Chris Ostrowski",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C05_72.jpg",
+                             "position":  "72",
+                             "quantity":  3,
+                             "rotated":  true
+                         }
+                     ]
+    },
+    {
+        "id":  "the-path-of-man",
+        "name":  "The Path of Man",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "conflict",
+        "type":  "event",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eReaction:\u003c/b\u003e After you win a conflict by 5 or more skill – gain 2 fate.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+                       "kiho",
+                       "philosophy"
+                   ],
+        "cost":  "0",
+        "deck_limit":  3,
+        "influence_cost":  4,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "the-path-of-man",
+                             "pack_id":  "disciples-of-the-void",
+                             "flavor":  "\"It is the nature of man to walk the path. It is the nature of man to turn from the path. This is the nature of man.\"\n- Shinsei\u0027s Gift, apocryphal",
+                             "illustrator":  "Scott Wade",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C08_21.jpg",
+                             "position":  "21",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "vassal-fields",
+        "name":  "Vassal Fields",
+        "name_extra":  null,
+        "faction":  "neutral",
+        "side":  "province",
+        "type":  "province",
+        "is_unique":  false,
+        "text":  "\u003cb\u003eAction:\u003c/b\u003e During a conflict at this province - your opponent loses 1 fate.",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "crab",
+                              "crane",
+                              "dragon",
+                              "lion",
+                              "phoenix",
+                              "scorpion",
+                              "unicorn",
+                              "mantis"
+                          ],
+        "traits":  [
+
+                   ],
+        "cost":  null,
+        "deck_limit":  1,
+        "influence_cost":  null,
+        "elements":  [
+                         "earth"
+                     ],
+        "strength":  "4",
+        "glory":  null,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  null,
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "vassal-fields",
+                             "pack_id":  "children-of-the-empire",
+                             "flavor":  "\"New daimyō, same tax.\"",
+                             "illustrator":  "IFS",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_5.jpg",
+                             "position":  "5",
+                             "quantity":  1,
+                             "rotated":  false
+                         }
+                     ]
+    },
+    {
+        "id":  "young-philosopher",
+        "name":  "Young Philosopher",
+        "name_extra":  null,
+        "faction":  "phoenix",
+        "side":  "dynasty",
+        "type":  "character",
+        "is_unique":  false,
+        "text":  "",
+        "restricted_in":  [
+
+                          ],
+        "banned_in":  [
+
+                      ],
+        "allowed_clans":  [
+                              "phoenix"
+                          ],
+        "traits":  [
+                       "shugenja",
+                       "air",
+                       "scholar"
+                   ],
+        "cost":  "2",
+        "deck_limit":  3,
+        "influence_cost":  null,
+        "elements":  [
+
+                     ],
+        "strength":  null,
+        "glory":  2,
+        "fate":  null,
+        "honor":  null,
+        "influence_pool":  null,
+        "strength_bonus":  null,
+        "military":  null,
+        "political":  "4",
+        "military_bonus":  null,
+        "political_bonus":  null,
+        "splash_banned_in":  null,
+        "role_restrictions":  [
+
+                              ],
+        "versions":  [
+                         {
+                             "card_id":  "young-philosopher",
+                             "pack_id":  "the-temptation-of-the-scorpion",
+                             "flavor":  "\"Does the child not have a right to define the future they wish to see?\"",
+                             "illustrator":  "Isuardi Therianto",
+                             "image_url":  "http://lcg-cdn.fantasyflightgames.com/l5r/L5C39_72.jpg",
+                             "position":  "72",
+                             "quantity":  3,
+                             "rotated":  false
+                         }
+                     ]
+    }
+]

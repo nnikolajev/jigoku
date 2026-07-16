@@ -1,4 +1,4 @@
-# Dishonor / mill bot deck — Scorpion "Poison Mill" (EmeraldDB 5eb874cc)
+# Dishonor / mill bot deck — Scorpion "Poison Mill" v0.6 ([EmeraldDB 914dc4d4](https://www.emeralddb.org/decks/914dc4d4-a63b-4a86-af15-e46ba55361fc))
 
 A deck with a fundamentally different win condition: drive the **opponent to 0
 honor** instead of breaking provinces. The bot logic for it lives in its own
@@ -19,6 +19,13 @@ behavior changes (the fine-tuned Unicorn default is untouched).
   Licensed Quarter (1 per won conflict, unlimited), Master Whisperer
   (discard 3 / draw 3), Midnight Prowler, Oracle of Stone, Softskin. An
   emptied conflict deck costs 5 honor on the reshuffle.
+- **Bayushi Shoju is the priority dynasty engine.** His forced reaction at the
+  start of every conflict phase makes both players draw 2 and lose 1 honor.
+  That directly advances dishonor and forces the opponent through its conflict
+  deck faster. All bot seeds buy Shoju before generic bodies when they can pay
+  his 5 cost plus 2 additional fate. With less fate, normal dynasty logic takes
+  over instead of forcing a short-lived copy. A second copy is not bought while
+  the unique Shoju is already in play. He is important, but not treated as a tower.
 - **Live in the low-honor band (3..6 own honor).** Shadow Stalker, Yogo
   Outcast, Compromised Secrets and friends turn on at 6-or-fewer / while less
   honorable. City of the Open Hand climbs back toward the band; honor-cost
@@ -60,8 +67,8 @@ behavior changes (the fine-tuned Unicorn default is untouched).
 
 | Piece | File | What it does |
 |---|---|---|
-| `DishonorProfile` + `DISHONOR_DEFAULTS` | `DishonorTactics.ts` | every tuning knob (bids, honor floor/ceiling, air-ring bonus, pre-conflict fate gate) |
-| `DishonorTactics` class | `DishonorTactics.ts` | the decisions: `desiredBid`, `preferTakeHonor`, `preferDishonorEnemy`, `shouldGainStrongholdHonor`, `canPayHonor`, `pickDeckButton`, `pickOpponentButton`, `canPlayPreConflict` |
+| `DishonorProfile` + `DISHONOR_DEFAULTS` | `DishonorTactics.ts` | every tuning knob (bids, honor floor/ceiling, air-ring bonus, pre-conflict fate gate, important characters) |
+| `DishonorTactics` class | `DishonorTactics.ts` | dishonor decisions plus `pickImportantDynastyCharacter` and `desiredAdditionalFate` for Shoju |
 | `dishonor` strategy flag | `CardPlaybook.ts` | derived from `DISHONOR_MARKERS` (keystone: City of the Open Hand) |
 | `dishonor?: DishonorProfile` knob | `DeckProfiles.ts` | attached by `profileFromStrategy` only when the flag is set |
 | policy hooks | `JigokuBotPolicy.ts` | every branch is gated on the profile carrying the tactics: honor-bid override, deck/player select prompts, air-ring score bonus, fire/air resolution preference, stronghold honor gate, pre-conflict attachment plays, negative-stat debuff attachments allowed enemy-side |
@@ -83,6 +90,28 @@ policy hook on the profile's presence — no `if(deckX)` in shared code.
 Both are inert unless a card carries an enemy-side playbook hint.
 
 ## Results vs the Crane precon (self-play, seats alternate)
+
+Current comparison uses N=100 per seed, same-seed Crane, alternating seats:
+
+| Bot seed | old v0.5 (Insolent Rival) | v0.6 Shoju, untuned | v0.6 + Shoju priority |
+|---:|---:|---:|---:|
+| 1 fate-aware | 75% | 93% | 94% |
+| 2 old heuristic | 94% | 92% | 99% |
+| 5 omniscient | 78% | 91% | 95% |
+
+The deck swap is the large gain: 247/300 to 276/300 (+9.7 points). The final
+standardized client sweep was 288/300 (94%, 99%, 95%). Larger N=300 validation
+of the final persistence-gated policy produced 278/300 (92.7%) for seed 1 and
+272/300 (90.7%) for seed 5. Shoju therefore restores both fate-aware bots to
+the old 90% Scorpion band; seed 2 was already there.
+
+Shoju's reaction is a `forcedReaction` in the game engine. It resolves without
+bot input and has no `inPlayAction` playbook hint. The 60-game tuning audit plus
+a 30-game final-policy audit covered every opponent on seeds 1, 2, and 5 and
+recorded 26,303 clicks with zero rejected clicks, cycles, or decision-budget
+exhaustions; Shoju clicks were normal purchases and conflict commits.
+
+### Historical tuning results
 
 | | win rate | sample |
 |---|---|---|
@@ -117,7 +146,9 @@ Tuning attempts, measured:
 
 ```
 cd jigoku && npx tsc
-node tools/selfplay/matchScorpion.js <games> <1|4> [--trace]
+node tools/selfplay/matchScorpion.js <games> <1|2|5> [--trace]
+node tools/selfplay/winRates.js 100 <seed> <same-seed>
+node tools/selfplay/validateBotInteractions.js --decks Scorpion --opponents all --seeds 1,2,5
 ```
 
 `--trace` prints the Scorpion seat's decision-reason histogram. Unit tests:

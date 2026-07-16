@@ -36,14 +36,15 @@ describe('Jigoku heuristic bot', function() {
             properties: { gameAction: { name: 'discardFromPlay' } },
             context: {
                 player: { name: 'Jigoku Bot' },
-                source: { type: 'event', cardData: { id: 'let-go' } }
+                source: { uuid: 'let-go-source', type: 'event', cardData: { id: 'let-go' } }
             }
         });
         expect(controller.currentTargetHint({ name: 'Jigoku Bot' })).toEqual({
             gameActions: ['discardFromPlay'],
             sourceIsMine: true,
             sourceType: 'event',
-            sourceCardId: 'let-go'
+            sourceCardId: 'let-go',
+            sourceUuid: 'let-go-source'
         });
     });
 
@@ -72,6 +73,35 @@ describe('Jigoku heuristic bot', function() {
             sourceIsMine: true,
             sourceType: 'event',
             sourceCardId: 'in-service-to-my-lord'
+        });
+    });
+
+    it('exposes free-fate metadata from a nested playCard action', function() {
+        const controller = Object.create(JigokuBotController.prototype);
+        controller.currentPromptStep = () => ({
+            properties: {
+                gameAction: {
+                    name: '',
+                    properties: {
+                        gameActions: [{
+                            name: 'playCard',
+                            properties: { ignoreFateCost: true }
+                        }]
+                    }
+                }
+            },
+            context: {
+                player: { name: 'Jigoku Bot' },
+                source: { type: 'attachment', cardData: { id: 'kunshu' } }
+            }
+        });
+
+        expect(controller.currentTargetHint({ name: 'Jigoku Bot' })).toEqual({
+            gameActions: ['playCard'],
+            sourceIsMine: true,
+            sourceType: 'attachment',
+            sourceCardId: 'kunshu',
+            playCardFateCostIgnored: true
         });
     });
 

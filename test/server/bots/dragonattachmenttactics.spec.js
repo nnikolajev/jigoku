@@ -171,6 +171,58 @@ describe('DragonAttachmentTactics', function() {
             expect(tactics.ringBonus('water', board, discard)).toBeGreaterThan(0);
             expect(tactics.ringBonus('earth', board, discard)).toBe(0);
         });
+
+        it('applies normal attachment target limits to Inventive Mirumoto replay', function() {
+            const inventive = {
+                id: 'inventive-mirumoto', uuid: 'inventive', type: 'character',
+                location: 'play area',
+                attachments: [
+                    { id: 'ancestral-daisho' },
+                    { id: 'elegant-tessen' },
+                    { id: 'ornate-fan' }
+                ]
+            };
+            const blockedTetsubo = {
+                id: 'tetsubo-of-blood', uuid: 'aaa-tetsubo', type: 'attachment',
+                location: 'conflict discard pile', selectable: true
+            };
+            const legalJade = {
+                id: 'finger-of-jade', uuid: 'zzz-jade', type: 'attachment',
+                location: 'conflict discard pile', selectable: true
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', promptTitle: 'Inventive Mirumoto',
+                        menuTitle: 'Choose an attachment',
+                        buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+                        stats: { fate: 3 },
+                        cardPiles: {
+                            cardsInPlay: [inventive], hand: [],
+                            conflictDiscardPile: [blockedTetsubo, legalJade]
+                        }
+                    },
+                    Opponent: { name: 'Opponent', cardPiles: { cardsInPlay: [], hand: [] } }
+                }
+            };
+
+            const decision = new JigokuBotPolicy('inventive-shared-target-gate').decide(
+                state,
+                'Jigoku Bot',
+                {
+                    strategy: ATTACHMENTS,
+                    cardHint: getPlaybookEntry,
+                    targetHint: {
+                        sourceCardId: 'inventive-mirumoto', sourceUuid: 'inventive',
+                        sourceIsMine: true, gameActions: ['playCard']
+                    },
+                    conflictCosts: { 'aaa-tetsubo': 2, 'zzz-jade': 0 }
+                }
+            );
+
+            expect(decision.reason).toBe('replay-card-shared-play-intent');
+            expect(decision.args[0]).toBe('zzz-jade');
+        });
     });
 
     describe('policy integration', function() {
@@ -714,6 +766,59 @@ describe('DragonAttachmentTactics', function() {
             });
             expect(decision.reason).toBe('attachment-tower-target');
             expect(decision.args[0]).toBe('yokuni');
+        });
+
+        it('vetoes a targeted attachment that returns to hand instead of retrying it', function() {
+            const tower = {
+                uuid: 'tower', id: 'kitsuki-yuikimi', type: 'character',
+                location: 'play area', selectable: false, fate: 3, attachments: []
+            };
+            const tetsubo = {
+                uuid: 'tetsubo', id: 'tetsubo-of-blood', type: 'attachment', cost: '1',
+                location: 'hand', isPlayableByMe: true
+            };
+            const bot = {
+                name: 'Jigoku Bot', phase: 'conflict', promptTitle: 'Action Window',
+                menuTitle: 'Initiate an action',
+                buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                stats: { honor: 10, fate: 3 },
+                cardPiles: { cardsInPlay: [tower], hand: [tetsubo] }
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': bot,
+                    Opponent: { name: 'Opponent', cardPiles: { cardsInPlay: [], hand: [] } }
+                }
+            };
+            const policy = new JigokuBotPolicy('returned-attachment');
+            const context = { strategy: ATTACHMENTS, cardHint: getPlaybookEntry };
+
+            const play = policy.decide(state, 'Jigoku Bot', context);
+            expect(play.reason).toBe('attachment-tower-preconflict');
+            expect(play.target).toBe('tetsubo');
+
+            tower.selectable = true;
+            bot.promptTitle = 'Tetsubo of Blood';
+            bot.menuTitle = 'Choose a character';
+            bot.buttons = [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }];
+            const target = policy.decide(state, 'Jigoku Bot', {
+                ...context,
+                targetHint: {
+                    sourceCardId: 'tetsubo-of-blood', sourceIsMine: true, gameActions: ['attach']
+                }
+            });
+            expect(target.reason).toBe('attachment-tower-target');
+            expect(target.target).toBe('tower');
+
+            // Simulate a later play restriction rejecting the attachment: the
+            // prompt returns to the action window while the same UUID is still
+            // playable in hand. It must be ignored for the rest of the round.
+            tower.selectable = false;
+            bot.promptTitle = 'Action Window';
+            bot.menuTitle = 'Initiate an action';
+            bot.buttons = [{ text: 'Pass', arg: 'pass', uuid: 'pass' }];
+            const afterRejection = policy.decide(state, 'Jigoku Bot', context);
+            expect(afterRejection.reason).toBe('pass-window');
         });
     });
 });

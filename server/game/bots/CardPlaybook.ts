@@ -8,8 +8,9 @@ import { getCardModel } from './DeckAnalysis.js';
  * lookup), so a playbook entry simply outranks whatever the LLM analysis
  * cached for the same card. On top of the hint fields it can carry:
  *
- * - `shouldPlay(ctx)`  — extra gate for playing the card from hand during a
- *   conflict action window (e.g. Assassination only with honor to spare).
+ * - `shouldPlay(ctx)`  — zone-neutral gate for normally playing the card,
+ *   including paid plays from discard (e.g. Assassination only with honor to
+ *   spare). Free put-into-play effects remain source-specific.
  * - `inPlayAction`     — the card has an Action ability worth clicking while
  *   it is on the board (holdings, attachments, characters). The policy
  *   clicks these during conflict windows after stronghold/province powers.
@@ -45,6 +46,8 @@ export interface PlaybookContext {
     conflictsRemaining?: number; // own future conflicts after the current one
     strongholdConflict?: boolean; // do not retreat from the game-ending defense
     preferFavorableRetreat?: boolean; // Dragon preserves its tower for another conflict
+    conflictCosts?: Record<string, number>; // live printed costs for hand/discard cards
+    canPlayConflictCard?: (card: any) => boolean; // shared normal-play intent gate for replay sources
 }
 
 export interface PlaybookEntry extends CardHint {
@@ -841,7 +844,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     }),
 
     // ==================================================================
-    // Scorpion "Poison Mill" dishonor deck (EmeraldDB 5eb874cc).
+    // Scorpion "Poison Mill" dishonor deck (EmeraldDB 914dc4d4).
     // Win condition: opponent at 0 honor. Disrupt, debuff, mill their
     // conflict deck, farm honor off every dial and the air ring.
     // ==================================================================

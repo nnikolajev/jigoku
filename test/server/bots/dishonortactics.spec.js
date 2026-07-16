@@ -72,6 +72,26 @@ describe('DishonorTactics', function() {
         });
     });
 
+    describe('important dynasty characters', function() {
+        it('prioritizes Bayushi Shoju when he can receive two fate unless one is already in play', function() {
+            const shoju = { uuid: 'shoju', id: 'bayushi-shoju-2' };
+            const cheap = { uuid: 'cheap', id: 'palace-guard' };
+            const costs = { shoju: 5, cheap: 1 };
+
+            expect(tactics.pickImportantDynastyCharacter([cheap, shoju], costs, 7, [])).toBe(shoju);
+            expect(tactics.pickImportantDynastyCharacter([cheap, shoju], costs, 5, [])).toBeNull();
+            expect(tactics.pickImportantDynastyCharacter([cheap, shoju], costs, 4, [])).toBeNull();
+            expect(tactics.pickImportantDynastyCharacter(
+                [cheap, shoju], costs, 7, [{ id: 'bayushi-shoju-2' }]
+            )).toBeNull();
+        });
+
+        it('keeps Bayushi Shoju for two extra rounds without treating him as a tower', function() {
+            expect(tactics.desiredAdditionalFate('bayushi-shoju-2')).toBe(2);
+            expect(tactics.desiredAdditionalFate('shosuro-hametsu')).toBeNull();
+        });
+    });
+
     describe('select prompts', function() {
         it('mills the opponent conflict deck with Deserted Shrine', function() {
             const buttons = [

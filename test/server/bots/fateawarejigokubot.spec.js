@@ -252,10 +252,44 @@ describe('fate-aware Jigoku bot policy', function() {
             conflictDiscardPile: [
                 { uuid: 'discard-paid', printedCost: 3, cardData: { cost: '8' } },
                 { uuid: 'invalid', cardData: { cost: 'X' } }
-            ]
+            ],
+            opponent: {
+                conflictDiscardPile: [
+                    { uuid: 'opponent-paid', printedCost: 1, cardData: { cost: '7' } }
+                ]
+            }
         });
 
-        expect(costs).toEqual({ free: 0, paid: 2, 'discard-paid': 3 });
+        expect(costs).toEqual({ free: 0, paid: 2, 'discard-paid': 3, 'opponent-paid': 1 });
+    });
+
+    it('reads UUID-specific printed skill from hand and conflict discard', function() {
+        const controller = new JigokuBotController({}, { playerName, seed: 1 }, () => true);
+        const stats = controller.handStatsHint({
+            hand: [{
+                uuid: 'hand-attachment',
+                cardData: { military_bonus: '2', political_bonus: '0' },
+                getType: () => 'attachment'
+            }],
+            conflictDiscardPile: [{
+                uuid: 'discard-attachment',
+                cardData: { military_bonus: '0', political_bonus: '3' },
+                getType: () => 'attachment'
+            }],
+            opponent: {
+                conflictDiscardPile: [{
+                    uuid: 'opponent-attachment',
+                    cardData: { military_bonus: '-1', political_bonus: '-2' },
+                    getType: () => 'attachment'
+                }]
+            }
+        });
+
+        expect(stats).toEqual({
+            'hand-attachment': { military: 2, political: 0 },
+            'discard-attachment': { military: 0, political: 3 },
+            'opponent-attachment': { military: -1, political: -2 }
+        });
     });
 
     it('buys one visible strong character, funds it, then passes', function() {

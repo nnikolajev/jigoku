@@ -476,6 +476,30 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
             phase: 'conflict', cardPiles: { hand: [attachment('pacifism')] }
         }, { cardPiles: { cardsInPlay: [character('enemy')] } }));
 
+        const shoju = character('shoju', 'bayushi-shoju-2', {
+            isDynasty: true, facedown: false, location: 'province 1'
+        });
+        const cheap = character('cheap', 'palace-guard', {
+            isDynasty: true, facedown: false, location: 'province 1'
+        });
+        const dynasty = decideWithEveryPolicy(profile, makeState({
+            phase: 'dynasty', stats: { fate: 7 },
+            provinces: { one: [cheap, shoju], two: [], three: [], four: [] }
+        }), { dynastyCosts: { cheap: 1, shoju: 5 }, roundNumber: 1 });
+        expectEveryPolicy(dynasty, (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('scorpion-play-important-character');
+            expect(decision.target).withContext(policyCase.label).toBe('bayushi-shoju-2');
+        });
+
+        const shojuFate = decideWithEveryPolicy(profile, makeState({
+            phase: 'dynasty', promptTitle: 'Deploy', menuTitle: 'Choose additional fate',
+            buttons: FATE, stats: { fate: 7 }
+        }), { playCardId: 'bayushi-shoju-2', playCost: 5, roundNumber: 1 });
+        expectEveryPolicy(shojuFate, (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('scorpion-important-character-fate');
+            expect(decision.target).withContext(policyCase.label).toBe('2');
+        });
+
         expectComplete(spies);
     });
 
@@ -1093,9 +1117,154 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         kyudenSpellPrompt.conflict.type = 'political';
         expectEveryPolicy(decideWithEveryPolicy(profile, kyudenSpellPrompt, kyudenContext),
             (decision, policyCase) => {
-                expect(decision.reason).withContext(policyCase.label).toBe('kyuden-recast-spell');
+                expect(decision.reason).withContext(policyCase.label).toBe('replay-card-shared-play-intent');
                 expect(decision.args[0]).withContext(policyCase.label).toBe('clarity-choice');
             });
+    });
+
+    it('uses identical direct-play intent for hand and inherently playable discard cards in every seed', function() {
+        const profile = profileFromStrategy(flags());
+        const readyCost = character('ready-cost', 'matsu-berserker', {
+            isUnique: false, bowed: false, inConflict: true
+        });
+        const bowedUnique = character('bowed-unique', 'akodo-toturi', {
+            isUnique: true, bowed: true, inConflict: false
+        });
+        const makeWindow = (pile) => makeState({
+            promptTitle: 'Conflict Action Window',
+            menuTitle: 'Military conflict', buttons: [PASS], stats: { fate: 0 },
+            cardPiles: {
+                hand: pile === 'hand' ? [event('service-hand', 'in-service-to-my-lord', {
+                    location: 'hand', isPlayableByMe: true
+                })] : [],
+                conflictDiscardPile: pile === 'discard' ? [event('service-discard', 'in-service-to-my-lord', {
+                    location: 'conflict discard pile', isPlayableByMe: true
+                })] : [],
+                cardsInPlay: [readyCost, bowedUnique]
+            }
+        }, {}, {
+            conflict: {
+                type: 'military', attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                attackerSkill: 2, defenderSkill: 4
+            }
+        });
+
+        for(const pile of ['hand', 'discard']) {
+            expectEveryPolicy(decideWithEveryPolicy(profile, makeWindow(pile)),
+                (decision, policyCase) => {
+                    expect(decision.reason).withContext(`${policyCase.label} ${pile}`).toBe('play-conflict-card');
+                    expect(decision.args[0]).withContext(`${policyCase.label} ${pile}`)
+                        .toBe(pile === 'hand' ? 'service-hand' : 'service-discard');
+                });
+        }
+    });
+
+    it('uses normal play intent for Bayushi Kachiko cards in the opponent discard in every seed', function() {
+        const profile = profileFromStrategy(flags({ dishonor: true }));
+        const participant = character('kachiko', 'bayushi-kachiko-2', {
+            bowed: false, inConflict: true
+        });
+        const discardedEvent = event('opponent-oracle', 'oracle-of-stone', {
+            location: 'conflict discard pile', isPlayableByMe: true
+        });
+        const state = makeState({
+            promptTitle: 'Conflict Action Window',
+            menuTitle: 'Political conflict', buttons: [PASS], stats: { fate: 1 },
+            cardPiles: { cardsInPlay: [participant], hand: [], conflictDiscardPile: [] }
+        }, {
+            cardPiles: { cardsInPlay: [], conflictDiscardPile: [discardedEvent] }
+        }, {
+            conflict: {
+                type: 'political', attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                attackerSkill: 3, defenderSkill: 3
+            }
+        });
+
+        expectEveryPolicy(decideWithEveryPolicy(profile, state, {
+            conflictCosts: { 'opponent-oracle': 0 }
+        }), (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('play-conflict-card');
+            expect(decision.args[0]).withContext(policyCase.label).toBe('opponent-oracle');
+        });
+    });
+
+    it('uses shared intent for generic paid replay but leaves free put-into-play effects specialized', function() {
+        const genericProfile = profileFromStrategy(flags());
+        const participant = character('participant', 'adept-of-the-waves', {
+            bowed: false, inConflict: true
+        });
+        const paidReplay = makeState({
+            promptTitle: 'Warm Welcome', menuTitle: 'Choose a conflict card',
+            buttons: [CANCEL], stats: { fate: 2 },
+            cardPiles: {
+                cardsInPlay: [participant],
+                conflictDiscardPile: [
+                    event('dead-fires', 'consumed-by-five-fires', { location: 'conflict discard pile' }),
+                    event('useful-oracle', 'oracle-of-stone', { location: 'conflict discard pile' })
+                ]
+            }
+        }, {}, {
+            conflict: {
+                type: 'military', attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                attackerSkill: 1, defenderSkill: 3
+            }
+        });
+        expectEveryPolicy(decideWithEveryPolicy(genericProfile, paidReplay, {
+            targetHint: {
+                sourceCardId: 'warm-welcome', sourceIsMine: true, gameActions: ['playCard']
+            },
+            conflictCosts: { 'dead-fires': 5, 'useful-oracle': 0 }
+        }), (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('replay-card-shared-play-intent');
+            expect(decision.args[0]).withContext(policyCase.label).toBe('useful-oracle');
+        });
+
+        const freeReplay = makeState({
+            promptTitle: 'Kunshu', menuTitle: 'Choose an opponent conflict card',
+            buttons: [], stats: { fate: 0 },
+            cardPiles: { cardsInPlay: [participant] }
+        }, {
+            cardPiles: {
+                cardsInPlay: [character('fated-enemy', 'enemy-tower', { fate: 5 })],
+                conflictDiscardPile: [
+                    event('free-fires', 'consumed-by-five-fires', { location: 'conflict discard pile' }),
+                    event('free-oracle', 'oracle-of-stone', { location: 'conflict discard pile' })
+                ]
+            }
+        }, {
+            conflict: {
+                type: 'military', attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                attackerSkill: 1, defenderSkill: 3
+            }
+        });
+        expectEveryPolicy(decideWithEveryPolicy(genericProfile, freeReplay, {
+            targetHint: {
+                sourceCardId: 'kunshu', sourceIsMine: true, gameActions: ['playCard'],
+                playCardFateCostIgnored: true
+            },
+            conflictCosts: { 'free-fires': 5, 'free-oracle': 0 }
+        }), (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('replay-card-shared-play-intent');
+            expect(decision.args[0]).withContext(policyCase.label).toBe('free-fires');
+        });
+
+        const shugenjaProfile = profileFromStrategy(flags({ shugenja: true }));
+        const freeResurrection = makeState({
+            promptTitle: 'Fushicho', menuTitle: 'Choose a character', buttons: [CANCEL],
+            cardPiles: {
+                dynastyDiscardPile: [character('tsukune', 'shiba-tsukune', {
+                    cost: 5, location: 'dynasty discard pile'
+                })]
+            }
+        });
+        expectEveryPolicy(decideWithEveryPolicy(shugenjaProfile, freeResurrection, {
+            targetHint: {
+                sourceCardId: 'fushicho', sourceIsMine: true, gameActions: ['putIntoPlay']
+            }
+        }), (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('fushicho-five-cost-character');
+            expect(decision.args[0]).withContext(policyCase.label).toBe('tsukune');
+        });
     });
 
     it('executes every Dragon attachment tactic method', function() {

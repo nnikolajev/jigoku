@@ -1,5 +1,5 @@
 // Dishonor/mill playstyle for the heuristic bot (Scorpion "Poison Mill",
-// EmeraldDB 5eb874cc). The deck wins by driving the OPPONENT to 0 honor while
+// EmeraldDB 914dc4d4). The deck wins by driving the OPPONENT to 0 honor while
 // deliberately keeping its OWN honor low-but-alive:
 //
 // - bid LOW on every honor dial (draw phase and duels) so a value-bidding
@@ -37,6 +37,8 @@ export interface DishonorProfile {
                                      // attachments (Pacifism, Stolen Breath)
                                      // in conflict-phase action windows
     preConflictMinFate: number; // only spend on those while at/above this fate
+    importantCharacterIds: string[]; // engine characters bought before generic bodies
+    importantCharacterAdditionalFate: number; // persistence without tower stacking
 }
 
 export const DISHONOR_DEFAULTS: DishonorProfile = {
@@ -48,7 +50,9 @@ export const DISHONOR_DEFAULTS: DishonorProfile = {
     takeHonorWithAirRing: true,
     preferDishonorWithFireRing: true,
     preConflictAttachments: true,
-    preConflictMinFate: 3
+    preConflictMinFate: 3,
+    importantCharacterIds: ['bayushi-shoju-2'],
+    importantCharacterAdditionalFate: 2
 };
 
 // Decision helpers the policy delegates to when (and only when) the deck's
@@ -127,6 +131,40 @@ export class DishonorTactics {
     // window while fate allows.
     canPlayPreConflict(myFate: number): boolean {
         return this.profile.preConflictAttachments && myFate >= this.profile.preConflictMinFate;
+    }
+
+    // Shoju's forced start-of-conflict reaction is this deck's cleanest
+    // engine: repeatable honor pressure plus two cards for both players
+    // accelerates dishonor and conflict-deck reshuffles. Buy him before
+    // generic bodies only when he can receive his two persistence fate, and
+    // never buy a redundant unique copy while one lives.
+    pickImportantDynastyCharacter(
+        cards: any[],
+        costs: Record<string, number>,
+        fate: number,
+        board: any[]
+    ): any | null {
+        for(const id of this.profile.importantCharacterIds) {
+            if(board.some((card) => card.id === id)) {
+                continue;
+            }
+            const candidate = cards.find((card) => card.id === id);
+            if(!candidate) {
+                continue;
+            }
+            const cost = Number(costs[candidate.uuid]);
+            const persistentCost = cost + Math.max(0, this.profile.importantCharacterAdditionalFate);
+            if(Number.isFinite(cost) && cost >= 0 && persistentCost <= fate) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    desiredAdditionalFate(cardId?: string): number | null {
+        return !!cardId && this.profile.importantCharacterIds.includes(cardId)
+            ? this.profile.importantCharacterAdditionalFate
+            : null;
     }
 
     get airRingBonus(): number {

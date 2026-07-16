@@ -261,7 +261,15 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         // feeds on won conflicts (Licensed Quarter mill, unopposed drains),
         // so full pressure beats turtling. The playstyle difference lives in
         // the DishonorTactics knobs (low bids, air ring, honor band).
-        profile.dishonor = { ...DISHONOR_DEFAULTS };
+        profile.dishonor = {
+            ...DISHONOR_DEFAULTS,
+            importantCharacterIds: [...DISHONOR_DEFAULTS.importantCharacterIds]
+        };
+        profile.fateAwareEconomy = {
+            ...profile.fateAwareEconomy,
+            preferDeckCharacters: true,
+            preferDeckAdditionalFate: true
+        };
     }
     return profile;
 }

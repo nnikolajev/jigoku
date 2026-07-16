@@ -246,5 +246,45 @@ describe('DuelTactics', function() {
             });
             expect(decision.reason).toBe('duel-cancel-shukujo-without-kuwanan');
         });
+
+        it('does not repeat Kuwanan\'s Duelist Training into an already-bowed target', function() {
+            const bowed = {
+                uuid: 'bowed', id: 'purifier-apprentice', name: 'Purifier Apprentice',
+                type: 'character', location: 'play area', selectable: true,
+                bowed: true, inConflict: true, military: 1, political: 1
+            };
+            const ready = {
+                uuid: 'ready', id: 'kaiu-shugosha', name: 'Kaiu Shugosha',
+                type: 'character', location: 'play area', selectable: true,
+                bowed: false, inConflict: true, military: 3, political: 1
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', promptTitle: 'Doji Kuwanan',
+                        menuTitle: 'Choose a character',
+                        buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+                        cardPiles: { cardsInPlay: [] }
+                    },
+                    Opponent: {
+                        name: 'Opponent',
+                        cardPiles: { cardsInPlay: [bowed, ready] }
+                    }
+                }
+            };
+            const context = {
+                strategy: DUELIST,
+                targetHint: {
+                    sourceCardId: 'doji-kuwanan', sourceIsMine: true, gameActions: ['duel']
+                }
+            };
+            const decision = new JigokuBotPolicy('duelist-training-ready').decide(state, 'Jigoku Bot', context);
+            expect(decision.reason).toBe('duelist-training-ready-enemy');
+            expect(decision.args[0]).toBe('ready');
+
+            ready.bowed = true;
+            const cancel = new JigokuBotPolicy('duelist-training-cancel').decide(state, 'Jigoku Bot', context);
+            expect(cancel.reason).toBe('cancel-duelist-training-no-ready-enemy');
+        });
     });
 });

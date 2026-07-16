@@ -366,7 +366,19 @@ export class ShugenjaTactics {
     }
 
     pickKyudenSpell(cards: any[], playCtx: any): any {
-        return this.pickSpell((cards || []).filter((card) => this.canRecastWithKyuden(card, playCtx)));
+        const fate = Number(playCtx?.fate) || 0;
+        const sharedPlayIntent = playCtx?.canPlayConflictCard;
+        return this.pickSpell((cards || []).filter((card) => {
+            if(!card || card.type !== 'event' || KYUDEN_ACTION_COSTS[card.id] === undefined) {
+                return false;
+            }
+            const hintedCost = card.uuid && playCtx?.conflictCosts &&
+                Object.prototype.hasOwnProperty.call(playCtx.conflictCosts, card.uuid)
+                ? Number(playCtx.conflictCosts[card.uuid])
+                : KYUDEN_ACTION_COSTS[card.id];
+            return fate >= hintedCost &&
+                (typeof sharedPlayIntent !== 'function' || sharedPlayIntent(card));
+        }));
     }
 
     pickKyudenDiscard(cards: any[]): any {
@@ -385,7 +397,7 @@ export class ShugenjaTactics {
         return hand.some((card: any) => card.id === 'display-of-power');
     }
 
-    hasStrategicAction(me: any, opponent: any, conflictType?: string): boolean {
+    hasStrategicAction(me: any, opponent: any, conflictType?: string, canPlayConflictCard?: (card: any) => boolean, conflictCosts?: Record<string, number>): boolean {
         const fate = Number(me?.stats?.fate) || 0;
         const hand = me?.cardPiles?.hand || [];
         const conflictDiscard = me?.cardPiles?.conflictDiscardPile || [];
@@ -409,7 +421,9 @@ export class ShugenjaTactics {
             fate,
             conflictType,
             myCharacters: mine,
-            opponentCharacters: theirs
+            opponentCharacters: theirs,
+            conflictCosts,
+            canPlayConflictCard
         })) {
             return true;
         }
@@ -427,38 +441,6 @@ export class ShugenjaTactics {
             return false;
         }
         return !!this.pickKyudenSpell(discard, playCtx);
-    }
-
-    private canRecastWithKyuden(card: any, playCtx: any): boolean {
-        if(!card || card.type !== 'event' || KYUDEN_ACTION_COSTS[card.id] === undefined) {
-            return false;
-        }
-        const fate = Number(playCtx?.fate) || 0;
-        if(fate < KYUDEN_ACTION_COSTS[card.id]) {
-            return false;
-        }
-        const mine = playCtx?.myCharacters || [];
-        const theirs = playCtx?.opponentCharacters || [];
-        switch(card.id) {
-            case 'consumed-by-five-fires':
-                return mine.some((character: any) => this.isShugenja(character)) &&
-                    this.fiveFiresTargetFate(theirs) >= 5;
-            case 'against-the-waves':
-                return mine.some((character: any) => character.bowed && this.isShugenja(character));
-            case 'supernatural-storm':
-                return mine.some((character: any) => this.isShugenja(character)) &&
-                    mine.some((character: any) => character.inConflict);
-            case 'clarity-of-purpose':
-                // Recasting also discards a Spell from hand. Pay that premium
-                // only for Clarity's full political no-bow payoff, and never
-                // fall back to protecting a character sitting at home.
-                return playCtx?.conflictType === 'political' &&
-                    mine.some((character: any) => character.inConflict && !character.bowed);
-            case 'oracle-of-stone':
-                return true;
-            default:
-                return false;
-        }
     }
 
     canPlayPreConflict(myFate: number): boolean {

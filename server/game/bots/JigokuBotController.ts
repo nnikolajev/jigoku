@@ -1182,7 +1182,7 @@ class JigokuBotController {
     // When the current prompt is an ability target selection, expose the game
     // actions it will resolve (bow, honor, removeFate, ...) so the policy can
     // aim harmful effects at the opponent and helpful ones at its own cards.
-    private currentTargetHint(player: Player): { gameActions: string[]; sourceIsMine: boolean; sourceType?: string; sourceCardId?: string } | undefined {
+    private currentTargetHint(player: Player): { gameActions: string[]; sourceIsMine: boolean; sourceType?: string; sourceCardId?: string; sourceUuid?: string; playCardFateCostIgnored?: boolean } | undefined {
         const step = this.currentPromptStep(player);
         const configuredActions = step?.properties?.gameAction;
         const gameActions = Array.isArray(configuredActions)
@@ -1198,6 +1198,7 @@ class JigokuBotController {
         // have no useful name on their wrapper. Expose their leaf actions so
         // specialized target logic sees the real effect instead of an empty
         // action list.
+        let playCardFateCostIgnored = false;
         const actionNames = (action: any, seen = new Set<any>()): string[] => {
             if(!action || seen.has(action)) {
                 return [];
@@ -1212,6 +1213,10 @@ class JigokuBotController {
                     // own name remains a safe fallback for the bot hint.
                 }
             }
+            if(action.name === 'playCard' &&
+                (properties?.ignoreFateCost || action.defaultProperties?.ignoreFateCost)) {
+                playCardFateCostIgnored = true;
+            }
             const nested = properties?.gameActions || action.defaultProperties?.gameActions;
             if(Array.isArray(nested) && nested.length > 0) {
                 return nested.flatMap((child: any) => actionNames(child, seen));
@@ -1223,7 +1228,12 @@ class JigokuBotController {
             gameActions: [...new Set(gameActions.flatMap((action: any) => actionNames(action)))],
             sourceIsMine: step.context?.player?.name === player.name,
             sourceType: step.context?.source?.type,
-            sourceCardId: step.context?.source?.cardData?.id
+            sourceCardId: step.context?.source?.cardData?.id,
+            // Replay effects such as Inventive Mirumoto force the replayed
+            // attachment onto the exact character that started the action.
+            // Card id alone is ambiguous when two copies are in play.
+            ...(step.context?.source?.uuid ? { sourceUuid: step.context.source.uuid } : {}),
+            ...(playCardFateCostIgnored ? { playCardFateCostIgnored: true } : {})
         };
     }
 
@@ -1303,34 +1313,48 @@ class JigokuBotController {
         return source?.cardData?.id || source?.id;
     }
 
-    // Hand card skill values are hidden from player-state summaries (showStats
-    // is false outside the play area), so read the printed values off the game
-    // objects. The policy uses them to skip cards that contribute nothing to
-    // the current conflict type (e.g. a military attachment in a political
-    // conflict).
+    private conflictPlayPiles(player: Player): any[] {
+        // Bayushi Kachiko can make public cards in the opponent's conflict
+        // discard directly playable. Include that pile in the same live hint
+        // source; the policy still filters candidates through isPlayableByMe.
+        return [
+            (player as any).hand,
+            (player as any).conflictDiscardPile,
+            (player as any).opponent?.conflictDiscardPile
+        ].filter((pile) => pile && typeof pile.map === 'function');
+    }
+
+    // Conflict-card skill values are hidden from player-state summaries
+    // (showStats is false outside the play area), so read printed values from
+    // all zones that can supply a normal card play.
     private handStatsHint(player: Player): Record<string, { military: number | null; political: number | null }> | undefined {
-        const hand: any = (player as any).hand;
-        if(!hand || typeof hand.map !== 'function') {
+        const piles = this.conflictPlayPiles(player);
+        if(piles.length === 0) {
             return undefined;
         }
 
         const stats: Record<string, { military: number | null; political: number | null }> = {};
-        for(const card of hand.map((card: any) => card)) {
-            if(!card?.uuid || !card.cardData) {
-                continue;
-            }
+        // A card played from conflict discard has the same printed skill as
+        // the same card in hand. Expose both piles so replay selection can use
+        // the normal value/contribution path instead of a zone-specific guess.
+        for(const pile of piles) {
+            for(const card of pile.map((entry: any) => entry)) {
+                if(!card?.uuid || !card.cardData) {
+                    continue;
+                }
 
-            const type = card.getType();
-            if(type === 'attachment') {
-                stats[card.uuid] = {
-                    military: this.parseStat(card.cardData.military_bonus),
-                    political: this.parseStat(card.cardData.political_bonus)
-                };
-            } else if(type === 'character') {
-                stats[card.uuid] = {
-                    military: this.parseStat(card.cardData.military),
-                    political: this.parseStat(card.cardData.political)
-                };
+                const type = card.getType();
+                if(type === 'attachment') {
+                    stats[card.uuid] = {
+                        military: this.parseStat(card.cardData.military_bonus),
+                        political: this.parseStat(card.cardData.political_bonus)
+                    };
+                } else if(type === 'character') {
+                    stats[card.uuid] = {
+                        military: this.parseStat(card.cardData.military),
+                        political: this.parseStat(card.cardData.political)
+                    };
+                }
             }
         }
 
@@ -1371,9 +1395,7 @@ class JigokuBotController {
     }
 
     private conflictCostsHint(player: Player): Record<string, number> | undefined {
-        const hand: any = (player as any).hand;
-        const discard: any = (player as any).conflictDiscardPile;
-        const piles = [hand, discard].filter((pile) => pile && typeof pile.map === 'function');
+        const piles = this.conflictPlayPiles(player);
         if(piles.length === 0) {
             return undefined;
         }

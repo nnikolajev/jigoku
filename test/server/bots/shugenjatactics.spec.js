@@ -162,7 +162,96 @@ describe('Phoenix Shugenja tactics', function() {
         expect(tactics.pickKyudenSpell([spell('display-of-power', 2)], context)).toBeNull();
     });
 
-    it('does not spend Kyuden Isawa on Clarity of Purpose without a ready conflict participant', function() {
+    it('uses the normal hand playbook gate when Kyuden selects a spell from discard', function() {
+        const storm = {
+            id: 'supernatural-storm', uuid: 'storm-discard', type: 'event',
+            location: 'conflict discard pile', selectable: true
+        };
+        const shugenja = {
+            id: 'adept-of-the-waves', uuid: 'adept', type: 'character',
+            bowed: false, inConflict: true
+        };
+        const state = stateFor({
+            id: 'phoenix-id', promptTitle: 'Kyuden Isawa',
+            menuTitle: 'Choose a Spell event',
+            buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+            stats: { fate: 1 },
+            cardPiles: {
+                hand: [], cardsInPlay: [shugenja], conflictDiscardPile: [storm]
+            }
+        }, { id: 'crane-id', cardPiles: { cardsInPlay: [] } });
+        state.conflict = {
+            type: 'military', attackingPlayerId: 'phoenix-id', defendingPlayerId: 'crane-id',
+            attackerSkill: 1, defenderSkill: 3
+        };
+        const context = {
+            profile,
+            cardHint: (cardId) => getPlaybookEntry(cardId),
+            targetHint: {
+                sourceCardId: 'kyuden-isawa', sourceUuid: 'kyuden',
+                sourceIsMine: true, gameActions: ['playCard']
+            },
+            conflictCosts: { 'storm-discard': 0 }
+        };
+
+        const oneShugenja = new JigokuBotPolicy('kyuden-shared-storm-gate-one')
+            .decide(state, 'Phoenix', context);
+        expect(oneShugenja.command).toBe('menuButton');
+        expect(oneShugenja.target).toBe('Cancel');
+
+        state.players.Phoenix.cardPiles.cardsInPlay.push({
+            id: 'ethereal-dreamer', uuid: 'dreamer', type: 'character',
+            bowed: false, inConflict: false
+        });
+        const twoShugenja = new JigokuBotPolicy('kyuden-shared-storm-gate-two')
+            .decide(state, 'Phoenix', context);
+        expect(twoShugenja.reason).toBe('replay-card-shared-play-intent');
+        expect(twoShugenja.args[0]).toBe('storm-discard');
+    });
+
+    it('uses normal hand play intent for generic paid replay prompts', function() {
+        const deadFiveFires = {
+            id: 'consumed-by-five-fires', uuid: 'aaa-dead-five-fires', type: 'event',
+            location: 'conflict discard pile', selectable: true
+        };
+        const oracle = {
+            id: 'oracle-of-stone', uuid: 'zzz-oracle', type: 'event',
+            location: 'conflict discard pile', selectable: true
+        };
+        const state = stateFor({
+            id: 'phoenix-id', promptTitle: 'Warm Welcome',
+            menuTitle: 'Choose a conflict card',
+            buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+            stats: { fate: 2 },
+            cardPiles: {
+                hand: [],
+                cardsInPlay: [{
+                    id: 'adept-of-the-waves', uuid: 'adept', type: 'character',
+                    bowed: false, inConflict: true
+                }],
+                conflictDiscardPile: [deadFiveFires, oracle]
+            }
+        }, { id: 'crane-id', cardPiles: { cardsInPlay: [] } });
+        state.conflict = {
+            type: 'military', attackingPlayerId: 'phoenix-id', defendingPlayerId: 'crane-id',
+            attackerSkill: 0, defenderSkill: 2
+        };
+
+        const decision = new JigokuBotPolicy('generic-paid-replay')
+            .decide(state, 'Phoenix', {
+                cardHint: (cardId) => getPlaybookEntry(cardId),
+                targetHint: {
+                    sourceCardId: 'warm-welcome', sourceUuid: 'welcome',
+                    sourceIsMine: true, gameActions: ['playCard']
+                },
+                conflictCosts: { 'aaa-dead-five-fires': 5, 'zzz-oracle': 0 }
+            });
+
+        expect(decision.reason).toBe('replay-card-shared-play-intent');
+        expect(decision.args[0]).toBe('zzz-oracle');
+    });
+
+    it('uses Clarity of Purpose hand intent for Kyuden instead of a replay-only duplicate', function() {
         const clarity = { id: 'clarity-of-purpose', cost: 1, type: 'event', traits: ['spell'] };
         const context = {
             fate: 1,
@@ -173,10 +262,14 @@ describe('Phoenix Shugenja tactics', function() {
             ],
             opponentCharacters: []
         };
+        context.canPlayConflictCard = (card) => {
+            const gate = getPlaybookEntry(card.id).shouldPlay;
+            return !gate || gate(context);
+        };
 
         expect(tactics.pickKyudenSpell([clarity], context)).toBeNull();
         context.myCharacters[0].inConflict = true;
-        expect(tactics.pickKyudenSpell([clarity], context)).toBeNull();
+        expect(tactics.pickKyudenSpell([clarity], context)).toBe(clarity);
         context.conflictType = 'political';
         expect(tactics.pickKyudenSpell([clarity], context)).toBe(clarity);
     });
@@ -216,7 +309,7 @@ describe('Phoenix Shugenja tactics', function() {
         expect(decision.args[0]).toBe('clarity');
     });
 
-    it('selects Clarity of Purpose from Kyuden Isawa only for a political participant', function() {
+    it('selects Clarity of Purpose from Kyuden with the same participant gate as hand', function() {
         const clarity = {
             id: 'clarity-of-purpose', uuid: 'clarity-discard', type: 'event',
             location: 'conflict discard pile', selectable: true
@@ -240,16 +333,19 @@ describe('Phoenix Shugenja tactics', function() {
         };
         const context = {
             profile,
-            targetHint: { sourceCardId: 'kyuden-isawa', sourceIsMine: true, gameActions: [] }
+            cardHint: (cardId) => getPlaybookEntry(cardId),
+            conflictCosts: { 'clarity-discard': 1 },
+            targetHint: { sourceCardId: 'kyuden-isawa', sourceIsMine: true, gameActions: ['playCard'] }
         };
 
         const political = new JigokuBotPolicy('kyuden-clarity-political').decide(state, 'Phoenix', context);
-        expect(political.reason).toBe('kyuden-recast-spell');
+        expect(political.reason).toBe('replay-card-shared-play-intent');
         expect(political.args[0]).toBe('clarity-discard');
 
         state.conflict.type = 'military';
         const military = new JigokuBotPolicy('kyuden-clarity-military').decide(state, 'Phoenix', context);
-        expect(military.target).toBe('Cancel');
+        expect(military.reason).toBe('replay-card-shared-play-intent');
+        expect(military.args[0]).toBe('clarity-discard');
     });
 
     it('cancels a Clarity of Purpose target prompt rather than protecting a home character', function() {

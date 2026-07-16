@@ -91,7 +91,7 @@ function loadCrabDeck() {
     return buildDeck(decklist, cardsById);
 }
 
-// Scorpion "Poison Mill" (EmeraldDB 5eb874cc) — dishonor/mill deck.
+// Scorpion "Poison Mill" v0.6 (EmeraldDB 914dc4d4) — dishonor/mill deck.
 function loadScorpionDeck() {
     const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'scorpion-decklist.json'), 'utf8'));
     const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'scorpion-cards.json'), 'utf8'));

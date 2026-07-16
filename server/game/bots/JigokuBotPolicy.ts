@@ -79,6 +79,8 @@ interface TargetHint {
     sourceIsMine?: boolean;
     sourceType?: string;
     sourceCardId?: string;
+    sourceUuid?: string;
+    playCardFateCostIgnored?: boolean;
 }
 
 type HandStats = Record<string, { military: number | null; political: number | null }>;
@@ -189,6 +191,17 @@ class JigokuBotPolicy {
     // bot burns its whole decision budget re-clicking the same dead reaction
     // (Assassination/Higashi Kaze: 200+ clicks per match before the gate).
     private cancelledSources = new Map<string, number>();
+    // A play can pass the engine's initial legality check and target prompt,
+    // then be reset to its original zone when a later play requirement fails.
+    // Prompt changes clear `attempted`, so remember that returned UUID for the
+    // round instead of replaying the same card/target forever.
+    private failedPlayCards = new Set<string>();
+    private pendingPlay: {
+        uuid: string;
+        id?: string;
+        location?: string;
+        targetSelected: boolean;
+    } | null = null;
     // Asako Diplomat picks a target, THEN a separate honor/dishonor menu
     // opens (a new prompt signature) — remember which way the target went.
     private diplomatChoice: 'honor' | 'dishonor' = 'honor';
@@ -235,6 +248,8 @@ class JigokuBotPolicy {
             return null;
         }
 
+        this.recordReturnedFailedPlay(playerState, me);
+
         if(this.usesFateAwareEconomy()) {
             const roundNumber = context.roundNumber ?? (this.fateAwareRoundNumber || 1);
             if(roundNumber !== this.fateAwareRoundNumber || me.promptTitle === 'Honor Bid') {
@@ -270,6 +285,8 @@ class JigokuBotPolicy {
         // let the once-per-round board abilities fire again.
         if(me.promptTitle === 'Honor Bid') {
             this.cancelledSources.clear();
+            this.failedPlayCards.clear();
+            this.pendingPlay = null;
             this.boardAbilityUsed.clear();
             this.dragonAbilityUses.clear();
             this.dragonAbilityConflictKey = '';
@@ -291,8 +308,46 @@ class JigokuBotPolicy {
         if(decision?.reason === 'tadaka-disguise-base') {
             this.tadakaDisguiseAttempted = true;
         }
+        if(this.pendingPlay && decision?.command === 'cardClicked' &&
+            context.targetHint?.sourceCardId === this.pendingPlay.id) {
+            this.pendingPlay.targetSelected = true;
+        }
+        if(decision?.command === 'cardClicked' && [
+            'play-conflict-card',
+            'play-preconflict-attachment',
+            'attachment-tower-preconflict',
+            'replay-card-shared-play-intent',
+            'replay-card-forced-fallback'
+        ].includes(decision.reason)) {
+            const card = this.findVisibleCards(playerState).find((candidate) =>
+                candidate.uuid === decision.args[0]);
+            this.pendingPlay = {
+                uuid: decision.args[0],
+                id: card?.id,
+                location: card?.location,
+                targetSelected: false
+            };
+        }
 
         return decision;
+    }
+
+    private recordReturnedFailedPlay(playerState: any, me: any): void {
+        if(!this.pendingPlay) {
+            return;
+        }
+        const backInActionWindow = me?.promptTitle === 'Conflict Action Window' ||
+            me?.menuTitle === 'Initiate an action';
+        if(!backInActionWindow) {
+            return;
+        }
+        const pending = this.pendingPlay;
+        const card = this.findVisibleCards(playerState).find((candidate) => candidate.uuid === pending.uuid);
+        const sameZone = !!card && String(card.location || '') === String(pending.location || '');
+        if(pending.targetSelected && sameZone && card.isPlayableByMe !== false) {
+            this.failedPlayCards.add(pending.uuid);
+        }
+        this.pendingPlay = null;
     }
 
     // A source ability whose targeting canceled twice this round is dead —
@@ -583,6 +638,7 @@ class JigokuBotPolicy {
                     profile.fateAwareEconomy,
                     context,
                     me,
+                    dishonor,
                     lion,
                     dragon,
                     duelist,
@@ -597,6 +653,13 @@ class JigokuBotPolicy {
             );
             if(fateAwareButton) {
                 return this.buttonDecision(fateAwareButton, fateAwareOverride?.reason || 'fate-aware-additional-fate');
+            }
+            const dishonorFate = dishonor?.desiredAdditionalFate(context.playCardId) ?? null;
+            if(dishonorFate !== null) {
+                return this.buttonDecision(
+                    this.closestBidButton(buttons, dishonorFate),
+                    'scorpion-important-character-fate'
+                );
             }
             if(lion) {
                 return this.buttonDecision(this.closestBidButton(buttons, lion.desiredAdditionalFate(context.playCardId)), 'lion-character-fate');
@@ -859,7 +922,24 @@ class JigokuBotPolicy {
         // synthetic prompt with no buttons keeps the legacy card fallback.
         const maySelectCard = me.selectCard !== false;
         const cardDecision = maySelectCard
-            ? this.cardDecision(playerState, me, title, buttons, context.targetHint, context.cardHint, glory, lion, dragon, duelist, shugenja, attachmentTower)
+            ? this.cardDecision(
+                playerState,
+                me,
+                title,
+                buttons,
+                context.targetHint,
+                context.cardHint,
+                profile,
+                context.handStats,
+                context.conflictCosts,
+                dishonor,
+                glory,
+                lion,
+                dragon,
+                duelist,
+                shugenja,
+                attachmentTower
+            )
             : null;
         if(cardDecision) {
             return cardDecision;
@@ -1185,6 +1265,7 @@ class JigokuBotPolicy {
         economy: FateAwareEconomyProfile,
         context: DecideContext,
         me: any,
+        dishonor: DishonorTactics | null,
         lion: LionTactics | null,
         dragon: DragonTactics | null,
         duelist: DuelTactics | null,
@@ -1193,6 +1274,10 @@ class JigokuBotPolicy {
     ): FateAwareAdditionalFateOverride | null {
         if(!economy.preferDeckAdditionalFate) {
             return null;
+        }
+        const dishonorFate = dishonor?.desiredAdditionalFate(context.playCardId) ?? null;
+        if(dishonorFate !== null) {
+            return { desired: dishonorFate, reason: 'scorpion-important-character-fate' };
         }
         if(lion) {
             return { desired: lion.desiredAdditionalFate(context.playCardId), reason: 'lion-character-fate' };
@@ -1880,8 +1965,7 @@ class JigokuBotPolicy {
             highHouseRelevant,
             strongholdAssault
         ) : [];
-        const dragonPool = (me?.cardPiles?.hand || [])
-            .concat((me?.cardPiles?.conflictDiscardPile || []).filter((card: any) => card.isPlayableByMe));
+        const dragonPool = this.normalConflictPlayCandidates(me, opponent);
         const dragonPlayableCount = (target: number) => dragonPool.filter((card: any) => {
             if(!card.isPlayableByMe || !card.uuid || this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id)) {
                 return false;
@@ -1936,9 +2020,21 @@ class JigokuBotPolicy {
             opponentCharacters,
             me?.stats?.fate ?? 0
         );
+        const sharedPlayCtx = this.playbookContext(playerState, me, dishonor);
+        sharedPlayCtx.conflictCosts = conflictCosts || {};
+        const canPlayConflictCard = (card: any) => this.conflictCardHasPlayIntent(
+            card,
+            sharedPlayCtx,
+            cardHint,
+            handStats,
+            false,
+            duelist,
+            attachmentTower
+        );
+        sharedPlayCtx.canPlayConflictCard = canPlayConflictCard;
         const shugenjaPlan = !!shugenja &&
             (pathMargin || !!preparedFiveFires || !!preparedTadaka ||
-                shugenja.hasStrategicAction(me, opponent, conflictType));
+                shugenja.hasStrategicAction(me, opponent, conflictType, canPlayConflictCard, conflictCosts));
         if(standing.amAttacker) {
             const provinceStrength = this.attackedProvinceStrength(opponent, 4);
             const requiredLead = pathMargin ? Math.max(provinceStrength, 5) : provinceStrength;
@@ -1964,7 +2060,7 @@ class JigokuBotPolicy {
         }
 
         const myHonor = me?.stats?.honor ?? 10;
-        const playCtx = {
+        const playCtx: any = {
             conflictType,
             losing: standing.losing,
             amAttacker: standing.amAttacker,
@@ -1995,6 +2091,8 @@ class JigokuBotPolicy {
             strongholdConflict: strongholdDefense || strongholdAssault,
             preferFavorableRetreat: !!dragon
         };
+        playCtx.canPlayConflictCard = canPlayConflictCard;
+        playCtx.conflictCosts = conflictCosts || {};
 
         // Prepared five-fate plays must happen before Kyuden Isawa and other
         // board abilities. Kyuden can spend conflict fate on a recast and
@@ -2077,9 +2175,7 @@ class JigokuBotPolicy {
         // With no ready character of ours in the conflict, events and
         // attachments cannot change its outcome — only a fresh character
         // (which can enter the conflict when played) is worth playing.
-        const hasReadyParticipant = this.myCharactersInPlay(me).some((card) => card.inConflict && !card.bowed);
-        let playable = (me?.cardPiles?.hand || [])
-            .concat((me?.cardPiles?.conflictDiscardPile || []).filter((card: any) => card.isPlayableByMe))
+        let playable = this.normalConflictPlayCandidates(me, opponent)
             .filter((card: any) => {
                 if(!card.isPlayableByMe || !card.uuid || !this.isDirectCardLegal(card, legalDirectCardUuids) || this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id)) {
                     return false;
@@ -2087,6 +2183,10 @@ class JigokuBotPolicy {
                 if(saveDragonCards && card.id !== 'centipede-tattoo') {
                     return false;
                 }
+                // GloryTactics owns this deck-specific count so its injected
+                // specialization remains observable through every seed. The
+                // shared playbook gate below applies the same threshold to
+                // replayed copies.
                 if(glory && card.id === 'supernatural-storm' && glory.shugenjaCount(myCharacters) < 2) {
                     return false;
                 }
@@ -2096,63 +2196,15 @@ class JigokuBotPolicy {
                 // Do not start a duel-deck attachment that cannot land on its
                 // intended tower. Canceling the target prompt returns the card
                 // to hand and otherwise causes an action-window retry loop.
-                if(duelist?.isTowerAttachment(card.id) &&
-                    !duelist.pickAttachmentTarget(playCtx.myCharacters, card.id)) {
-                    return false;
-                }
-                if(attachmentTower?.isAttachment(card.id) &&
-                    !attachmentTower.pickAttachmentTarget(
-                        playCtx.myCharacters,
-                        card.id,
-                        undefined,
-                        this.yokuniCopiedNiten
-                    )) {
-                    return false;
-                }
-                if(!hasReadyParticipant && card.type !== 'character' &&
-                    !(shugenja && card.id === 'consumed-by-five-fires') &&
-                    !(attachmentTower && attachmentTower.isAttachment(card.id))) {
-                    return false;
-                }
-                // LLM hint gates first: 'never'/'winning' cards stay in hand
-                // while losing, and cards hinted for the other conflict type
-                // are skipped.
-                const hint = card.id && cardHint ? cardHint(card.id) : undefined;
-                if(hint) {
-                    if(hint.useWhen === 'never' || hint.useWhen === 'winning') {
-                        return false;
-                    }
-                    if(hint.conflictTypes.length > 0 && !hint.conflictTypes.includes(conflictType)) {
-                        return false;
-                    }
-                    // Playbook entries can carry a hand-written situational
-                    // gate (e.g. Assassination only with honor to spare).
-                    const shouldPlay = (hint as any).shouldPlay;
-                    if(typeof shouldPlay === 'function' && !shouldPlay(playCtx)) {
-                        return false;
-                    }
-                    const maxCopiesPerTarget = (hint as any).maxCopiesPerTarget;
-                    if(maxCopiesPerTarget && hint.targetSide === 'self' &&
-                        !myCharacters.some((target) => this.attachmentCopyCount(target, card.id) < maxCopiesPerTarget)) {
-                        return false;
-                    }
-                }
-                // Skip cards that are dead weight in this conflict type (e.g.
-                // a military attachment during a political conflict) — except
-                // enemy-aimed attachments, whose printed bonuses are NEGATIVE
-                // on purpose (Fiery Madness's -2/-2 debuff), and zero-stat
-                // cards whose playbook entry says the granted ABILITY is the
-                // point (True Strike Kenjutsu's duel, Sashimono's no-bow).
-                const contribution = this.handContribution(card, conflictType, handStats);
-                if(contribution !== null && contribution < 0) {
-                    return !!hint && hint.targetSide === 'enemy';
-                }
-                if(contribution === 0) {
-                    // Dragon feeding its card-count target plays even zero-skill
-                    // cards — the point is the number played, not the skill.
-                    return feedCards || (!!hint && !!(hint as any).abilityValue);
-                }
-                return contribution === null || contribution > 0;
+                return this.conflictCardHasPlayIntent(
+                    card,
+                    playCtx,
+                    cardHint,
+                    handStats,
+                    feedCards,
+                    duelist,
+                    attachmentTower
+                );
             })
             .sort((a: any, b: any) => {
                 if(attachmentTower) {
@@ -2301,6 +2353,105 @@ class JigokuBotPolicy {
         }
 
         return stronghold.concat(attacked, playbookSources);
+    }
+
+    // One zone-neutral context for normal hand plays and paid replay effects.
+    // Effect-specific costs/destinations stay with the source card; whether the
+    // chosen card is useful and has a useful target is decided here once.
+    private playbookContext(playerState: any, me: any, dishonor: DishonorTactics | null = null): any {
+        const opponent = this.opponentPlayer(playerState, me);
+        const standing = this.conflictStanding(playerState, me);
+        return {
+            conflictType: playerState?.conflict?.type === 'political' ? 'political' : 'military',
+            losing: standing?.losing ?? false,
+            amAttacker: standing?.amAttacker ?? false,
+            honor: me?.stats?.honor ?? 10,
+            fate: me?.stats?.fate ?? 0,
+            canPayHonor: dishonor ? dishonor.canPayHonor(me?.stats?.honor ?? 10) : undefined,
+            myCharacters: this.myCharactersInPlay(me),
+            opponentCharacters: this.myCharactersInPlay(opponent),
+            opponentHandSize: (opponent?.cardPiles?.hand || []).length,
+            dynastyDiscard: me?.cardPiles?.dynastyDiscardPile || [],
+            hand: me?.cardPiles?.hand || [],
+            conflictDiscard: me?.cardPiles?.conflictDiscardPile || [],
+            rings: Object.values(playerState?.rings || {}),
+            cardsPlayed: me?.cardsPlayedThisConflict ?? 0,
+            opponentCardsPlayed: opponent?.cardsPlayedThisConflict ?? 0,
+            conflictsRemaining: me?.stats?.conflictsRemaining ?? 0
+        };
+    }
+
+    private normalConflictPlayCandidates(me: any, opponent: any): any[] {
+        const playableDiscard = (pile: any[]) => (pile || []).filter((card: any) => card.isPlayableByMe);
+        return (me?.cardPiles?.hand || [])
+            .concat(playableDiscard(me?.cardPiles?.conflictDiscardPile))
+            .concat(playableDiscard(opponent?.cardPiles?.conflictDiscardPile))
+            .filter((card: any) => !this.failedPlayCards.has(card.uuid));
+    }
+
+    private conflictCardHasPlayIntent(
+        card: any,
+        playCtx: any,
+        cardHint?: CardHintLookup,
+        handStats?: HandStats,
+        feedCards = false,
+        duelist: DuelTactics | null = null,
+        attachmentTower: DragonAttachmentTactics | null = null,
+        forcedAttachmentBearerUuid?: string,
+        allowWithoutReadyParticipant = false
+    ): boolean {
+        const myCharacters = playCtx?.myCharacters || [];
+        if(duelist?.isTowerAttachment(card.id) &&
+            !duelist.pickAttachmentTarget(myCharacters, card.id)) {
+            return false;
+        }
+        if(attachmentTower?.isAttachment(card.id)) {
+            const target = attachmentTower.pickAttachmentTarget(
+                myCharacters,
+                card.id,
+                forcedAttachmentBearerUuid,
+                this.yokuniCopiedNiten
+            );
+            if(!target || (forcedAttachmentBearerUuid && target.uuid !== forcedAttachmentBearerUuid)) {
+                return false;
+            }
+        }
+
+        const hasReadyParticipant = myCharacters.some((candidate: any) =>
+            candidate.inConflict && !candidate.bowed);
+        if(!allowWithoutReadyParticipant && !hasReadyParticipant && card.type !== 'character' &&
+            card.id !== 'consumed-by-five-fires' &&
+            !(attachmentTower && attachmentTower.isAttachment(card.id))) {
+            return false;
+        }
+
+        const hint: any = card.id && cardHint ? cardHint(card.id) : undefined;
+        if(hint) {
+            if(hint.useWhen === 'never' || hint.useWhen === 'winning') {
+                return false;
+            }
+            if(hint.conflictTypes.length > 0 && !hint.conflictTypes.includes(playCtx.conflictType)) {
+                return false;
+            }
+            if(typeof hint.shouldPlay === 'function' && !hint.shouldPlay(playCtx)) {
+                return false;
+            }
+            const maxCopiesPerTarget = hint.maxCopiesPerTarget;
+            if(maxCopiesPerTarget && hint.targetSide === 'self' &&
+                !myCharacters.some((target: any) =>
+                    this.attachmentCopyCount(target, card.id) < maxCopiesPerTarget)) {
+                return false;
+            }
+        }
+
+        const contribution = this.handContribution(card, playCtx.conflictType, handStats);
+        if(contribution !== null && contribution < 0) {
+            return !!hint && hint.targetSide === 'enemy';
+        }
+        if(contribution === 0) {
+            return feedCards || (!!hint && !!hint.abilityValue);
+        }
+        return contribution === null || contribution > 0;
     }
 
     // null = unknown contribution (events and cards the controller sent no
@@ -2466,7 +2617,8 @@ class JigokuBotPolicy {
             const preConflict = hand
                 .filter((card: any) => {
                     if(!card.uuid || !card.id || !card.isPlayableByMe || !this.isDirectCardLegal(card, legalDirectCardUuids) ||
-                        this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id)) {
+                        this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id) ||
+                        this.failedPlayCards.has(card.uuid)) {
                         return false;
                     }
                     if(attachmentTower.shouldHoldWeapon(card.id, mine, this.yokuniCopiedNiten)) {
@@ -2500,7 +2652,8 @@ class JigokuBotPolicy {
             let preConflict = enemyCharacters.length === 0 ? [] : (me?.cardPiles?.hand || [])
                 .filter((card: any) => {
                     if(!card.uuid || !card.id || !card.isPlayableByMe || !this.isDirectCardLegal(card, legalDirectCardUuids) ||
-                        this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id)) {
+                        this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id) ||
+                        this.failedPlayCards.has(card.uuid)) {
                         return false;
                     }
                     const hint: any = cardHint(card.id);
@@ -2558,6 +2711,7 @@ class JigokuBotPolicy {
                     playable,
                     dynastyCosts || {},
                     me,
+                    dishonor,
                     lion,
                     duelist,
                     shugenja,
@@ -2586,6 +2740,17 @@ class JigokuBotPolicy {
             const fateAwareOwnsCharacterDecision = this.usesFateAwareEconomy() &&
                 playable.some((card: any) => card.type === 'character');
             if(playable.length > 0 && !fateAwareOwnsCharacterDecision) {
+                if(dishonor) {
+                    const important = dishonor.pickImportantDynastyCharacter(
+                        playable,
+                        dynastyCosts || {},
+                        me?.stats?.fate ?? 0,
+                        this.myCharactersInPlay(me)
+                    );
+                    if(important) {
+                        return this.cardClickDecision(important, 'scorpion-play-important-character');
+                    }
+                }
                 if(shugenja && shugenja.desiredFateReserve(me, this.opponentPlayer(playerState, me)) <= 1) {
                     const setup = shugenja.pickTadakaSetupCharacter(
                         playable,
@@ -2730,6 +2895,7 @@ class JigokuBotPolicy {
         playable: any[],
         costs: Record<string, number>,
         me: any,
+        dishonor: DishonorTactics | null,
         lion: LionTactics | null,
         duelist: DuelTactics | null,
         shugenja: ShugenjaTactics | null,
@@ -2738,6 +2904,16 @@ class JigokuBotPolicy {
     ): FateAwareDynastyPreference | null {
         const fate = me?.stats?.fate ?? 0;
         const board = this.myCharactersInPlay(me);
+        if(dishonor) {
+            const important = dishonor.pickImportantDynastyCharacter(playable, costs, fate, board);
+            if(important) {
+                return {
+                    card: important,
+                    playReason: 'scorpion-play-important-character',
+                    terminal: false
+                };
+            }
+        }
         if(shugenja && dynamicFateReserve <= 1) {
             const setup = shugenja.pickTadakaSetupCharacter(
                 playable,
@@ -3185,7 +3361,146 @@ class JigokuBotPolicy {
         return myPotential < attackerSkill;
     }
 
-    private cardDecision(playerState: any, me: any, title: string, buttons: any[], targetHint?: TargetHint, cardHint?: CardHintLookup, glory: GloryTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): BotDecision | null {
+    private replayCardDecision(
+        playerState: any,
+        me: any,
+        cards: any[],
+        buttons: any[],
+        targetHint?: TargetHint,
+        cardHint?: CardHintLookup,
+        profile: DeckProfile = DEFAULT_PROFILE,
+        handStats?: HandStats,
+        conflictCosts?: Record<string, number>,
+        dishonor: DishonorTactics | null = null,
+        duelist: DuelTactics | null = null,
+        shugenja: ShugenjaTactics | null = null,
+        attachmentTower: DragonAttachmentTactics | null = null
+    ): BotDecision | null {
+        const visibleDiscardCards = (cards || []).filter((card) =>
+            String(card?.location || '').toLowerCase().includes('discard') &&
+            !this.failedPlayCards.has(card.uuid));
+        const sourceId = targetHint?.sourceCardId;
+        const prompt = `${me?.promptTitle || ''} ${me?.menuTitle || ''}`.toLowerCase();
+        const kyudenSpellPrompt = sourceId === 'kyuden-isawa' && prompt.includes('spell event');
+        // Older state adapters can omit `location` on cards in a Kyuden
+        // selector. The source identifies that selector unambiguously.
+        const discardCards = kyudenSpellPrompt ? cards : visibleDiscardCards;
+        if(discardCards.length === 0) {
+            return null;
+        }
+        const playsImmediately = (targetHint?.gameActions || []).includes('playCard') ||
+            // Compatibility for older/custom prompt adapters that expose the
+            // source but not the nested PlayCardAction leaf.
+            kyudenSpellPrompt;
+        // Exposed Courtyard grants direct play from discard for this conflict;
+        // candidate value must be judged now even though the actual playCard
+        // action happens in the following normal action window.
+        const grantsDirectPlay = sourceId === 'exposed-courtyard';
+        if(!playsImmediately && !grantsDirectPlay) {
+            return null;
+        }
+
+        const playCtx = this.playbookContext(playerState, me, dishonor);
+        const fateCostIgnored = !!targetHint?.playCardFateCostIgnored || sourceId === 'kunshu';
+        const effectiveCosts = fateCostIgnored
+            ? Object.fromEntries(discardCards.filter((card) => card.uuid).map((card) => [card.uuid, 0]))
+            : conflictCosts || {};
+        if(fateCostIgnored) {
+            // Preserve every normal strategic/targeting gate, but make gates
+            // whose fate check is solely affordability see the source's free
+            // play. Honor and source costs remain unchanged.
+            playCtx.fate = Number.MAX_SAFE_INTEGER;
+        }
+        playCtx.conflictCosts = effectiveCosts;
+        const forcedBearerUuid = sourceId === 'inventive-mirumoto'
+            ? targetHint?.sourceUuid || playCtx.myCharacters.find((card: any) =>
+                card.id === 'inventive-mirumoto')?.uuid
+            : undefined;
+        const allowWithoutReadyParticipant = sourceId === 'kuro';
+        let candidates = discardCards.filter((card) => this.conflictCardHasPlayIntent(
+            card,
+            playCtx,
+            cardHint,
+            handStats,
+            false,
+            duelist,
+            attachmentTower,
+            forcedBearerUuid,
+            allowWithoutReadyParticipant
+        ));
+
+        let pick: any = null;
+        if(sourceId === 'kyuden-isawa' && shugenja) {
+            playCtx.canPlayConflictCard = (card: any) => candidates.some((candidate) =>
+                candidate.uuid === card.uuid);
+            pick = shugenja.pickKyudenSpell(candidates, playCtx);
+        } else {
+            candidates = candidates.sort((a, b) => {
+                if(attachmentTower) {
+                    const attachmentDiff = attachmentTower.attachmentPriority(b.id) -
+                        attachmentTower.attachmentPriority(a.id);
+                    if(attachmentDiff !== 0) {
+                        return attachmentDiff;
+                    }
+                }
+                const priorityOf = (card: any) =>
+                    (card.id && cardHint ? cardHint(card.id)?.priority : undefined) ?? 5;
+                const priorityDiff = priorityOf(b) - priorityOf(a);
+                if(priorityDiff !== 0) {
+                    return priorityDiff;
+                }
+                const contributionDiff =
+                    (this.handContribution(b, playCtx.conflictType, handStats) ?? -1) -
+                    (this.handContribution(a, playCtx.conflictType, handStats) ?? -1);
+                return contributionDiff !== 0
+                    ? contributionDiff
+                    : String(a.uuid || '').localeCompare(String(b.uuid || ''));
+            });
+            if(!attachmentTower) {
+                candidates = this.conflictCardEconomyOrder(
+                    candidates,
+                    fateCostIgnored ? 0 : playCtx.fate,
+                    profile,
+                    cardHint,
+                    effectiveCosts,
+                    (card) => this.handContribution(card, playCtx.conflictType, handStats)
+                );
+            }
+            pick = candidates[0] || null;
+        }
+
+        if(pick) {
+            return this.cardClickDecision(pick, 'replay-card-shared-play-intent');
+        }
+        const cancel = this.findButton(buttons, ['cancel']);
+        if(cancel) {
+            return this.buttonDecision(cancel, 'replay-no-useful-card');
+        }
+        // Forced replay selectors cannot be cancelled. Resolve one legal card
+        // to advance the game rather than exhausting the bot click cap.
+        return discardCards.length > 0
+            ? this.cardClickDecision(discardCards[0], 'replay-card-forced-fallback')
+            : null;
+    }
+
+    private cardDecision(
+        playerState: any,
+        me: any,
+        title: string,
+        buttons: any[],
+        targetHint?: TargetHint,
+        cardHint?: CardHintLookup,
+        profile: DeckProfile = DEFAULT_PROFILE,
+        handStats?: HandStats,
+        conflictCosts?: Record<string, number>,
+        dishonor: DishonorTactics | null = null,
+        glory: GloryTactics | null = null,
+        lion: LionTactics | null = null,
+        dragon: DragonTactics | null = null,
+        duelist: DuelTactics | null = null,
+        shugenja: ShugenjaTactics | null = null,
+        attachmentTower: DragonAttachmentTactics | null = null
+    ): BotDecision | null {
         const cards = this.findVisibleCards(playerState).filter((card) =>
             card.selectable && card.uuid && !this.isAttempted('cardClicked', [card.uuid]));
         if(cards.length === 0) {
@@ -3196,6 +3511,25 @@ class JigokuBotPolicy {
         }
 
         const skillType = title.includes('political') ? 'political' : 'military';
+
+        const replay = this.replayCardDecision(
+            playerState,
+            me,
+            cards,
+            buttons,
+            targetHint,
+            cardHint,
+            profile,
+            handStats,
+            conflictCosts,
+            dishonor,
+            duelist,
+            shugenja,
+            attachmentTower
+        );
+        if(replay) {
+            return replay;
+        }
 
         // Older/custom prompt adapters may omit the target hint for a single
         // gameAction. Let Go is never allowed to fall through to generic card
@@ -3223,7 +3557,7 @@ class JigokuBotPolicy {
             }
         }
 
-        if(attachmentTower && ['illustrious-forge', 'agasha-swordsmith', 'inventive-mirumoto']
+        if(attachmentTower && ['illustrious-forge', 'agasha-swordsmith']
             .includes(targetHint?.sourceCardId || '')) {
             const attachment = attachmentTower.pickAttachment(cards);
             if(attachment) {
@@ -3509,25 +3843,9 @@ class JigokuBotPolicy {
         }
 
         if(shugenja && targetHint.sourceCardId === 'kyuden-isawa') {
-            const prompt = `${me?.promptTitle || ''} ${me?.menuTitle || ''}`.toLowerCase();
-            const pick = prompt.includes('spell event')
-                ? shugenja.pickKyudenSpell(mine, {
-                    fate: me?.stats?.fate ?? 0,
-                    conflictType: playerState?.conflict?.type,
-                    hand: me?.cardPiles?.hand || [],
-                    myCharacters: this.myCharactersInPlay(me),
-                    opponentCharacters: (this.opponentPlayer(playerState, me)?.cardPiles?.cardsInPlay || [])
-                        .filter((card: any) => card.type === 'character')
-                })
-                : shugenja.pickKyudenDiscard(mine);
+            const pick = shugenja.pickKyudenDiscard(mine);
             if(pick) {
-                return this.cardClickDecision(pick, prompt.includes('spell event') ? 'kyuden-recast-spell' : 'kyuden-discard-spell');
-            }
-            if(prompt.includes('spell event')) {
-                const cancel = this.findButton(buttons, ['cancel']);
-                if(cancel) {
-                    return this.buttonDecision(cancel, 'kyuden-no-useful-spell');
-                }
+                return this.cardClickDecision(pick, 'kyuden-discard-spell');
             }
         }
 
@@ -3665,6 +3983,22 @@ class JigokuBotPolicy {
         // pick our WEAKEST); when we pick the character to CHALLENGE, aim at the
         // opponent's weakest. Axis = the conflict/prompt skill type.
         if((targetHint.gameActions || []).includes('duel')) {
+            // Duelist Training grants its duel to the attached character, so
+            // the prompt source is the bearer rather than the attachment. On
+            // Doji Kuwanan the duel payoff is bowing its loser: do not keep
+            // challenging an already-bowed body after the first duel.
+            if(duelist && targetHint.sourceCardId === 'doji-kuwanan' && theirs.length > 0) {
+                const readyEnemies = this.sortBySkillDesc(
+                    theirs.filter((card) => !card.bowed),
+                    'military'
+                );
+                if(readyEnemies.length > 0) {
+                    return this.cardClickDecision(readyEnemies[readyEnemies.length - 1], 'duelist-training-ready-enemy');
+                }
+                if(cancel) {
+                    return this.buttonDecision(cancel, 'cancel-duelist-training-no-ready-enemy');
+                }
+            }
             if(mine.length > 0) {
                 return this.cardClickDecision(this.sortBySkillDesc(mine, skillType)[0], 'duel-participant-own-strongest');
             }

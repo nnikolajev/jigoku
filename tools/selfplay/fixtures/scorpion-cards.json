@@ -1811,6 +1811,57 @@
   ]
  },
  {
+  "id": "bayushi-shoju-2",
+  "name": "Bayushi Shoju",
+  "name_extra": "(2)",
+  "faction": "scorpion",
+  "side": "dynasty",
+  "type": "character",
+  "is_unique": true,
+  "text": "Your opponents cannot have the Imperial Favor.\n<b>Forced Reaction:</b> After the conflict phase begins - each player draws 2 cards and loses 1 honor.",
+  "restricted_in": [
+   "standard",
+   "jade-edict"
+  ],
+  "banned_in": [],
+  "allowed_clans": [
+   "scorpion"
+  ],
+  "traits": [
+   "courtier",
+   "champion",
+   "imperial"
+  ],
+  "cost": "5",
+  "deck_limit": 3,
+  "influence_cost": null,
+  "elements": [],
+  "strength": null,
+  "glory": 4,
+  "fate": null,
+  "honor": null,
+  "influence_pool": null,
+  "strength_bonus": null,
+  "military": null,
+  "political": "7",
+  "military_bonus": null,
+  "political_bonus": null,
+  "splash_banned_in": [],
+  "role_restrictions": [],
+  "versions": [
+   {
+    "card_id": "bayushi-shoju-2",
+    "pack_id": "shoju-s-duty",
+    "flavor": "In one clear moment, Shoju understood his unspoken duty, though the touch of polished emerald would forever tarnish his soul.",
+    "illustrator": "Pius Pranoto",
+    "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C24_121.jpg",
+    "position": "121",
+    "quantity": 3,
+    "rotated": true
+   }
+  ]
+ },
+ {
   "id": "yogo-outcast",
   "name": "Yogo Outcast",
   "name_extra": null,

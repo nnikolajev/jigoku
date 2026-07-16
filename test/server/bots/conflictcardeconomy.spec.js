@@ -52,4 +52,34 @@ describe('conflict card economy planner', function() {
 
         expect(plan.map((entry) => entry.key)).toEqual(['same-card', 'other-card']);
     });
+
+    it('chooses the smallest exact plan that reaches province-break strength', function() {
+        const plan = planConflictCards([
+            option('large-pump', 9, 0, 0, { contribution: 4 }),
+            option('exact-body', 8, 3, 1, { contribution: 3 }),
+            option('small-pump', 7, 0, 2, { contribution: 2 })
+        ], 3, DEFAULT_CONFLICT_CARD_ECONOMY, 3);
+
+        expect(plan.map((entry) => entry.key)).toEqual(['exact-body']);
+    });
+
+    it('preserves pure strength after the break but keeps extra ability value', function() {
+        const plan = planConflictCards([
+            option('pure-pump', 8, 0, 0, { contribution: 3 }),
+            option('draw-and-pump', 8, 0, 1, { contribution: 2, abilityValue: true }),
+            option('utility', 7, 0, 2, { contribution: null, abilityValue: true })
+        ], 3, DEFAULT_CONFLICT_CARD_ECONOMY, 0);
+
+        expect(plan.map((entry) => entry.key)).toEqual(['draw-and-pump', 'utility']);
+    });
+
+    it('applies strength budgeting even when a swarm keeps legacy value ordering', function() {
+        const legacySwarm = { ...DEFAULT_CONFLICT_CARD_ECONOMY, enabled: false };
+        const plan = planConflictCards([
+            option('large-first', 9, 0, 0, { contribution: 4 }),
+            option('exact-second', 5, 3, 1, { contribution: 3 })
+        ], 3, legacySwarm, 3);
+
+        expect(plan.map((entry) => entry.key)).toEqual(['exact-second']);
+    });
 });

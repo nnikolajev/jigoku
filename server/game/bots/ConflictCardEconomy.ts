@@ -8,6 +8,9 @@
 
 export interface ConflictCardEconomyProfile {
     enabled: boolean;
+    // Independent from `enabled`: Lion/Unicorn keep their proven legacy card
+    // order, but every deck still needs exact province-break budgeting.
+    strengthBudgetEnabled: boolean;
     priorityWeight: number;
     contributionWeight: number;
     abilityValueBonus: number;
@@ -28,6 +31,7 @@ export interface ConflictCardOption<T = any> {
 
 export const DEFAULT_CONFLICT_CARD_ECONOMY: ConflictCardEconomyProfile = {
     enabled: true,
+    strengthBudgetEnabled: true,
     priorityWeight: 4,
     contributionWeight: 2,
     abilityValueBonus: 8,
@@ -54,6 +58,11 @@ interface Plan<T> {
     options: PlannedOption<T>[];
     value: number;
     cost: number;
+}
+
+interface StrengthPlan<T> extends Plan<T> {
+    contribution: number;
+    priority: number;
 }
 
 function optionValue<T>(option: ConflictCardOption<T>, profile: ConflictCardEconomyProfile): number {
@@ -84,6 +93,111 @@ function betterPlan<T>(candidate: Plan<T>, current: Plan<T> | undefined): boolea
     return deterministicKeys(candidate.options).localeCompare(deterministicKeys(current.options)) < 0;
 }
 
+// A break plan is not a value-maximization plan. First avoid excess skill,
+// then spend the fewest cards, then the least fate. Lower summed priority is a
+// final tie-breaker so an equally-good plan preserves more important tricks.
+function betterStrengthPlan<T>(candidate: StrengthPlan<T>, current: StrengthPlan<T> | undefined, target: number): boolean {
+    if(!current) {
+        return true;
+    }
+    const excessDiff = Math.max(candidate.contribution - target, 0) -
+        Math.max(current.contribution - target, 0);
+    if(excessDiff !== 0) {
+        return excessDiff < 0;
+    }
+    if(candidate.options.length !== current.options.length) {
+        return candidate.options.length < current.options.length;
+    }
+    if(candidate.cost !== current.cost) {
+        return candidate.cost < current.cost;
+    }
+    if(candidate.priority !== current.priority) {
+        return candidate.priority < current.priority;
+    }
+    return deterministicKeys(candidate.options).localeCompare(deterministicKeys(current.options)) < 0;
+}
+
+function strengthPlan<T>(
+    legacy: ConflictCardOption<T>[],
+    budget: number,
+    requiredContribution: number,
+    profile: ConflictCardEconomyProfile
+): ConflictCardOption<T>[] | null {
+    if(!profile.strengthBudgetEnabled || !Number.isFinite(requiredContribution)) {
+        return null;
+    }
+
+    const target = Math.max(0, Math.ceil(requiredContribution));
+    if(target === 0) {
+        // A deck-specific strategic plan may keep an already-won action window
+        // open. Preserve pure pumps there; utility/ability cards may continue.
+        return legacy.filter((option) =>
+            option.contribution === null || option.contribution <= 0 || option.abilityValue);
+    }
+
+    const candidates = legacy
+        .filter((option) => option.contribution !== null && option.contribution > 0 &&
+            option.cost !== undefined && Number.isFinite(option.cost) && option.cost >= 0)
+        .map((option) => ({
+            option,
+            cost: Math.floor(option.cost!),
+            contribution: Math.max(0, Math.floor(option.contribution!))
+        }))
+        .filter((entry) => entry.cost <= budget && entry.contribution > 0);
+    if(candidates.reduce((total, entry) => total + entry.contribution, 0) < target) {
+        return null;
+    }
+
+    let states = new Map<string, StrengthPlan<T>>();
+    states.set('0|0', { options: [], value: 0, cost: 0, contribution: 0, priority: 0 });
+    for(const candidate of candidates) {
+        const next = new Map(states);
+        for(const base of states.values()) {
+            const cost = base.cost + candidate.cost;
+            if(cost > budget) {
+                continue;
+            }
+            const contribution = base.contribution + candidate.contribution;
+            const plan: StrengthPlan<T> = {
+                options: base.options.concat({
+                    option: candidate.option,
+                    value: 0,
+                    cost: candidate.cost
+                }),
+                value: 0,
+                cost,
+                contribution,
+                priority: base.priority + candidate.option.priority
+            };
+            const key = `${cost}|${contribution}`;
+            const current = next.get(key);
+            if(!current || betterStrengthPlan(plan, current, target)) {
+                next.set(key, plan);
+            }
+        }
+        states = next;
+    }
+
+    let best: StrengthPlan<T> | undefined;
+    for(const plan of states.values()) {
+        if(plan.contribution >= target && betterStrengthPlan(plan, best, target)) {
+            best = plan;
+        }
+    }
+    if(!best) {
+        return null;
+    }
+
+    return best.options.map((entry) => entry.option).sort((a, b) => {
+        const contributionDiff = (b.contribution || 0) - (a.contribution || 0);
+        if(contributionDiff !== 0) {
+            return contributionDiff;
+        }
+        const costDiff = (a.cost || 0) - (b.cost || 0);
+        return costDiff !== 0 ? costDiff : a.legacyIndex - b.legacyIndex;
+    });
+}
+
 /**
  * Return the whole planned purchase sequence, not merely its first card.
  * Unknown costs, and cards whose printed cost exceeds the live budget despite
@@ -93,7 +207,8 @@ function betterPlan<T>(candidate: Plan<T>, current: Plan<T> | undefined): boolea
 export function planConflictCards<T>(
     options: ConflictCardOption<T>[],
     availableFate: number,
-    profile: ConflictCardEconomyProfile = DEFAULT_CONFLICT_CARD_ECONOMY
+    profile: ConflictCardEconomyProfile = DEFAULT_CONFLICT_CARD_ECONOMY,
+    requiredContribution?: number | null
 ): ConflictCardOption<T>[] {
     const seen = new Set<string>();
     const legacy = options.slice()
@@ -107,11 +222,17 @@ export function planConflictCards<T>(
             seen.add(option.key);
             return true;
         });
+    const budget = Math.max(0, Math.floor(availableFate));
+    if(requiredContribution !== undefined && requiredContribution !== null && Number.isFinite(availableFate)) {
+        const plannedStrength = strengthPlan(legacy, budget, requiredContribution, profile);
+        if(plannedStrength) {
+            return plannedStrength;
+        }
+    }
     if(!profile.enabled || legacy.length < 2 || !Number.isFinite(availableFate)) {
         return legacy;
     }
 
-    const budget = Math.max(0, Math.floor(availableFate));
     const planned: PlannedOption<T>[] = [];
     for(const option of legacy) {
         if(option.cost === undefined || !Number.isFinite(option.cost) || option.cost < 0) {

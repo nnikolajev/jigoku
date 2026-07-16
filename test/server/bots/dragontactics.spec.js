@@ -60,6 +60,7 @@ describe('DragonTactics', function() {
         });
 
         it('only fires High House at five and starts a plan only when reachable', function() {
+            expect(tactics.allowsCardCountOvercommit()).toBe(true);
             expect(tactics.strongholdReady(5)).toBe(true);
             expect(tactics.strongholdReady(4)).toBe(false);
             expect(tactics.strongholdReady(1)).toBe(false);

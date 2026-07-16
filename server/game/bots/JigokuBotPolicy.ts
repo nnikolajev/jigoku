@@ -2005,7 +2005,7 @@ class JigokuBotPolicy {
         const dragonCardTarget = dragonTargets.find((target) =>
             cardsPlayed >= target || dragon?.canReachTarget(cardsPlayed, dragonPlayableCount(target), target)) ?? dragonTargets[0] ?? 0;
         const dragonPlanActive = dragonTargets.length > 0;
-        const feedCards = !!dragon && dragonPlanActive &&
+        const feedCards = !!dragon && dragon.allowsCardCountOvercommit() && dragonPlanActive &&
             dragon.canReachTarget(cardsPlayed, dragonPlayableCount(dragonCardTarget), dragonCardTarget);
         const dragonPayoffReady = dragonPlanActive && cardsPlayed >= dragonCardTarget;
         const saveDragonCards = dragonPlanActive && cardsPlayed < dragonCardTarget && !feedCards;
@@ -2025,6 +2025,9 @@ class JigokuBotPolicy {
             me?.stats?.fate ?? 0
         );
         const sharedPlayCtx = this.playbookContext(playerState, me, dishonor);
+        const strengthNeeded = this.conflictStrengthNeeded(playerState, me, pathMargin ? 5 : 0);
+        sharedPlayCtx.strengthNeeded = strengthNeeded;
+        sharedPlayCtx.allowStrengthOvercommit = feedCards;
         sharedPlayCtx.conflictCosts = conflictCosts || {};
         const canPlayConflictCard = (card: any) => this.conflictCardHasPlayIntent(
             card,
@@ -2094,6 +2097,8 @@ class JigokuBotPolicy {
             conflictsRemaining: me?.stats?.conflictsRemaining ?? 0,
             strongholdConflict: strongholdDefense || strongholdAssault,
             preferFavorableRetreat: !!dragon,
+            strengthNeeded,
+            allowStrengthOvercommit: feedCards,
             stronghold: me?.stronghold,
             yokuniCopiedNiten: this.yokuniCopiedNiten,
             activeConflict: true
@@ -2254,7 +2259,8 @@ class JigokuBotPolicy {
                 if(priorityDiff !== 0) {
                     return priorityDiff;
                 }
-                const statDiff = (this.handContribution(b, conflictType, handStats) ?? -1) - (this.handContribution(a, conflictType, handStats) ?? -1);
+                const statDiff = (this.handContribution(b, conflictType, handStats, cardHint, playCtx) ?? -1) -
+                    (this.handContribution(a, conflictType, handStats, cardHint, playCtx) ?? -1);
                 return statDiff !== 0 ? statDiff : String(a.uuid).localeCompare(String(b.uuid));
             });
         // Specialized Dragon sequences are themselves the deck's value model:
@@ -2267,7 +2273,8 @@ class JigokuBotPolicy {
                 profile,
                 cardHint,
                 conflictCosts,
-                (card) => this.handContribution(card, conflictType, handStats)
+                (card) => this.handContribution(card, conflictType, handStats, cardHint, playCtx),
+                strengthNeeded
             );
         }
         if(playable.length > 0) {
@@ -2391,8 +2398,33 @@ class JigokuBotPolicy {
             rings: Object.values(playerState?.rings || {}),
             cardsPlayed: me?.cardsPlayedThisConflict ?? 0,
             opponentCardsPlayed: opponent?.cardsPlayedThisConflict ?? 0,
-            conflictsRemaining: me?.stats?.conflictsRemaining ?? 0
+            conflictsRemaining: me?.stats?.conflictsRemaining ?? 0,
+            strengthNeeded: this.conflictStrengthNeeded(playerState, me)
         };
+    }
+
+    // Exact skill still needed for the next useful conflict threshold. Attack:
+    // break the province. Defense: first stop a threatened break; otherwise
+    // steal only a cheap (<=3 skill) win. Zero means pure pumps should stay in
+    // hand even if a deck-specific strategic plan keeps the window open.
+    private conflictStrengthNeeded(playerState: any, me: any, minimumAttackLead = 0): number | null {
+        const standing = this.conflictStanding(playerState, me);
+        if(!standing) {
+            return null;
+        }
+        const opponent = this.opponentPlayer(playerState, me);
+        if(standing.amAttacker) {
+            const provinceStrength = this.attackedProvinceStrength(opponent, 4);
+            const requiredLead = Math.max(provinceStrength, minimumAttackLead);
+            return Math.max(requiredLead - (standing.attackerSkill - standing.defenderSkill), 0);
+        }
+
+        const provinceStrength = this.attackedProvinceStrength(me, 3);
+        const preventBreak = standing.attackerSkill - provinceStrength + 1 - standing.defenderSkill;
+        if(preventBreak > 0) {
+            return preventBreak;
+        }
+        return standing.losing && standing.gap <= 3 ? standing.gap : 0;
     }
 
     private normalConflictPlayCandidates(me: any, opponent: any): any[] {
@@ -2458,7 +2490,12 @@ class JigokuBotPolicy {
             }
         }
 
-        const contribution = this.handContribution(card, playCtx.conflictType, handStats);
+        const contribution = this.handContribution(card, playCtx.conflictType, handStats, cardHint, playCtx);
+        const strengthNeeded = Number(playCtx?.strengthNeeded);
+        if(Number.isFinite(strengthNeeded) && strengthNeeded <= 0 && contribution !== null && contribution > 0 &&
+            !hint?.abilityValue && !playCtx?.allowStrengthOvercommit) {
+            return false;
+        }
         if(contribution !== null && contribution < 0) {
             return !!hint && hint.targetSide === 'enemy';
         }
@@ -2470,13 +2507,27 @@ class JigokuBotPolicy {
 
     // null = unknown contribution (events and cards the controller sent no
     // stats for); a known 0 means the card adds nothing to this conflict type.
-    private handContribution(card: any, conflictType: string, handStats?: HandStats): number | null {
+    private handContribution(card: any, conflictType: string, handStats?: HandStats, cardHint?: CardHintLookup, playCtx?: any): number | null {
         const stats = handStats?.[card.uuid];
-        if(!stats) {
-            return null;
+        if(stats) {
+            const value = conflictType === 'political' ? stats.political : stats.military;
+            return value === null || value === undefined ? null : value;
         }
-        const value = conflictType === 'political' ? stats.political : stats.military;
-        return value === null || value === undefined ? null : value;
+
+        const hint: any = card?.id && cardHint ? cardHint(card.id) : undefined;
+        const estimate = hint?.conflictContribution;
+        if(typeof estimate === 'number') {
+            return Number.isFinite(estimate) ? estimate : null;
+        }
+        if(typeof estimate === 'function') {
+            try {
+                const value = estimate(playCtx || {});
+                return typeof value === 'number' && Number.isFinite(value) ? value : null;
+            } catch{
+                return null;
+            }
+        }
+        return null;
     }
 
     // `cards` must already be in the path's legacy order. Missing costs fall
@@ -2488,7 +2539,8 @@ class JigokuBotPolicy {
         profile: DeckProfile,
         cardHint?: CardHintLookup,
         conflictCosts?: Record<string, number>,
-        contributionOf: (card: any) => number | null = () => null
+        contributionOf: (card: any) => number | null = () => null,
+        requiredContribution?: number | null
     ): any[] {
         const options: ConflictCardOption<any>[] = cards.map((card, legacyIndex) => {
             const hint: any = card?.id && cardHint ? cardHint(card.id) : undefined;
@@ -2513,7 +2565,8 @@ class JigokuBotPolicy {
         return planConflictCards(
             options,
             availableFate,
-            profile.conflictCardEconomy || DEFAULT_PROFILE.conflictCardEconomy
+            profile.conflictCardEconomy || DEFAULT_PROFILE.conflictCardEconomy,
+            requiredContribution
         ).map((option) => option.card);
     }
 
@@ -3464,8 +3517,8 @@ class JigokuBotPolicy {
                     return priorityDiff;
                 }
                 const contributionDiff =
-                    (this.handContribution(b, playCtx.conflictType, handStats) ?? -1) -
-                    (this.handContribution(a, playCtx.conflictType, handStats) ?? -1);
+                    (this.handContribution(b, playCtx.conflictType, handStats, cardHint, playCtx) ?? -1) -
+                    (this.handContribution(a, playCtx.conflictType, handStats, cardHint, playCtx) ?? -1);
                 return contributionDiff !== 0
                     ? contributionDiff
                     : String(a.uuid || '').localeCompare(String(b.uuid || ''));
@@ -3477,7 +3530,8 @@ class JigokuBotPolicy {
                     profile,
                     cardHint,
                     effectiveCosts,
-                    (card) => this.handContribution(card, playCtx.conflictType, handStats)
+                    (card) => this.handContribution(card, playCtx.conflictType, handStats, cardHint, playCtx),
+                    playCtx.strengthNeeded
                 );
             }
             pick = candidates[0] || null;

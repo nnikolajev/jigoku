@@ -25,6 +25,9 @@
 export interface DragonProfile {
     firstRoundBid: number; // full hand for the card engine
     drawBid: number; // conservative later dial; still profile-injectable
+    // Card-count payoffs are this deck's win condition. When reachable, their
+    // exact target overrides normal province-break strength budgeting.
+    allowCardCountOvercommit: boolean;
     duelBid: number; // Defend Your Honor duels — enough to win, no more
     voidRecursionBonus: number; // ring-score bonus per Keeper Initiate
                                 // waiting in the dynasty discard
@@ -38,6 +41,7 @@ export interface DragonProfile {
 export const DRAGON_DEFAULTS: DragonProfile = {
     firstRoundBid: 5,
     drawBid: 2,
+    allowCardCountOvercommit: true,
     duelBid: 2,
     voidRecursionBonus: 20,
     keyCharacters: ['togashi-mitsu-2', 'togashi-ichi', 'togashi-tadakatsu', 'teacher-of-empty-thought'],
@@ -112,6 +116,10 @@ export class DragonTactics {
 
     canReachTarget(cardsPlayed: number, playableCards: number, target: number): boolean {
         return target > cardsPlayed && cardsPlayed + playableCards >= target;
+    }
+
+    allowsCardCountOvercommit(): boolean {
+        return this.profile.allowCardCountOvercommit;
     }
 
     desiredDuelBid(myHonor: number): number {

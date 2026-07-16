@@ -262,6 +262,87 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         });
     });
 
+    it('shares exact province-break budgeting through seeds 1, 2, and 5', function() {
+        const lionProfile = resolveDeckProfile(
+            ['hayaken-no-shiro', 'manicured-garden'],
+            flags({ aggressive: true })
+        );
+        const rival = character('rival', 'political-rival', {
+            location: 'hand', isPlayableByMe: true,
+            militarySkillSummary: {}, politicalSkillSummary: {}
+        });
+        const lionState = makeState({
+            promptTitle: 'Conflict Action Window', menuTitle: 'Political Earth Conflict',
+            stats: { fate: 3 },
+            cardPiles: {
+                hand: [rival],
+                cardsInPlay: [character('lion-attacker', 'lion-attacker', { inConflict: true })]
+            }
+        }, {
+            provinces: {
+                one: [{ uuid: 'lion-province', isProvince: true, type: 'province', inConflict: true,
+                    strengthSummary: { stat: '4' } }],
+                two: [], three: [], four: []
+            }
+        }, {
+            conflict: {
+                type: 'political', attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                attackerSkill: 1, defenderSkill: 0
+            }
+        });
+        const rivalDecisions = decideWithEveryPolicy(lionProfile, lionState, {
+            handStats: { rival: { military: 0, political: 3 } },
+            conflictCosts: { rival: 3 }
+        });
+        expectEveryPolicy(rivalDecisions, (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('play-conflict-card');
+            expect(decision.args[0]).withContext(policyCase.label).toBe('rival');
+        });
+
+        const shugenjaProfile = profileFromStrategy(flags({ shugenja: true }));
+        const storm = event('storm-budget', 'supernatural-storm');
+        const shugenjaCards = [
+            character('dreamer-budget', 'ethereal-dreamer', { inConflict: true }),
+            character('kaede-budget', 'isawa-kaede', { inConflict: false }),
+            character('adept-budget', 'adept-of-the-waves', { inConflict: false }),
+            // Keep Shugenja's strategic plan open without exposing a clickable
+            // board action; isolates pure-pump preservation.
+            { id: 'meddling-mediator', type: 'character', bowed: false, inConflict: false }
+        ];
+        const phoenixState = (attackerSkill) => makeState({
+            promptTitle: 'Conflict Action Window', menuTitle: 'Political Earth Conflict',
+            stats: { fate: 3 },
+            cardPiles: { hand: [storm], cardsInPlay: shugenjaCards }
+        }, {
+            provinces: {
+                one: [{ uuid: 'phoenix-province', isProvince: true, type: 'province', inConflict: true,
+                    strengthSummary: { stat: '4' } }],
+                two: [], three: [], four: []
+            }
+        }, {
+            conflict: {
+                type: 'political', attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                attackerSkill, defenderSkill: 0
+            }
+        });
+
+        // Three live Shugenja make Storm +3. Starting at 1 vs 0 leaves an
+        // exact three-skill break deficit against the strength-4 province.
+        const needed = decideWithEveryPolicy(shugenjaProfile, phoenixState(1), {
+            conflictCosts: { 'storm-budget': 0 }
+        });
+        expectEveryPolicy(needed, (decision, policyCase) => {
+            expect(decision.args[0]).withContext(policyCase.label).toBe('storm-budget');
+        });
+
+        const alreadyBreaking = decideWithEveryPolicy(shugenjaProfile, phoenixState(4), {
+            conflictCosts: { 'storm-budget': 0 }
+        });
+        expectEveryPolicy(alreadyBreaking, (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('pass-window');
+        });
+    });
+
     it('targets Pacifism and Stolen Breath by conflict focus through seeds 1, 2, and 5', function() {
         const profile = profileFromStrategy(flags());
         const scenarios = [

@@ -48,6 +48,8 @@ export interface PlaybookContext {
     preferFavorableRetreat?: boolean; // Dragon preserves its tower for another conflict
     conflictCosts?: Record<string, number>; // live printed costs for hand/discard cards
     canPlayConflictCard?: (card: any) => boolean; // shared normal-play intent gate for replay sources
+    strengthNeeded?: number; // exact extra skill needed to break/save the attacked province
+    allowStrengthOvercommit?: boolean; // Dragon card-count payoff exception
 }
 
 export interface PlaybookEntry extends CardHint {
@@ -72,6 +74,10 @@ export interface PlaybookEntry extends CardHint {
     // the point (True Strike Kenjutsu's duel, Sashimono's no-bow) — play it
     // despite a zero stat contribution.
     abilityValue?: boolean;
+    // Printed characters/attachments expose stats through controller hints.
+    // Events do not, so pure/dynamic pumps inject their contribution here for
+    // shared province-break budgeting.
+    conflictContribution?: number | ((ctx: PlaybookContext) => number | null);
     // For attachments whose ABILITY targets the enemy (targetSide 'enemy')
     // but which must be attached to an OWN character (True Strike Kenjutsu:
     // attach to our duelist, duel the enemy).
@@ -158,6 +164,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
+        conflictContribution: 2,
         summary: '+2 military pump on a participating character'
     }),
 
@@ -167,6 +174,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 7,
+        conflictContribution: 2,
+        abilityValue: true,
         summary: '+2 military on a Bushi, honors it on a win'
     }),
 
@@ -220,6 +229,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'ujik-tactics': entry('ujik-tactics', {
         conflictTypes: ['military'],
         priority: 6,
+        conflictContribution: (ctx) => readyParticipants(ctx.myCharacters)
+            .filter((card) => !card.isUnique).length,
         summary: '+1 military to each non-unique character',
         shouldPlay: (ctx) => readyParticipants(ctx.myCharacters).length >= 2
     }),
@@ -939,6 +950,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'enemy',
         targetPreference: 'strongest',
         priority: 8,
+        conflictContribution: 4,
         summary: '-4 political on an enemy participant',
         shouldPlay: (ctx) => ctx.opponentCharacters.some((card) => card.inConflict && !card.bowed)
     }),
@@ -1102,6 +1114,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
+        conflictContribution: 3,
         summary: '+3 (or +6) military on a character fighting alone',
         shouldPlay: (ctx) => participating(ctx.myCharacters).length === 1
     }),
@@ -1418,8 +1431,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         conflictTypes: ['political'],
         targetSide: 'self',
         priority: 8,
-        summary: 'covert political defender with +3 political while defending',
-        shouldPlay: (ctx) => !ctx.amAttacker
+        summary: '3 political conflict body; gains +3 political while defending'
     }),
 
     // After dials reveal with our (lower) bid: draw 1 — pairs with the
@@ -1799,6 +1811,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
+        conflictContribution: (ctx) => ctx.myCharacters.filter((card) =>
+            PHOENIX_SHUGENJA.includes(card.id)).length,
         summary: '+X/+X on a participant, X = own Shugenja count',
         shouldPlay: (ctx) => ctx.myCharacters.filter((card) =>
             PHOENIX_SHUGENJA.includes(card.id)).length >= 2
@@ -2161,6 +2175,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
+        conflictContribution: 2,
+        abilityValue: true,
         summary: '+2 military on a Monk, draw 1'
     }),
 

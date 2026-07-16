@@ -35,6 +35,12 @@ forced rule or legal timing.
   bodies are its tower equivalents. Fushichō is bought only when a printed
   five-cost character (normally Shiba Tsukune) is already in the dynasty
   discard pile for his leaving-play interrupt.
+- **Use Clarity on live participants.** Clarity of Purpose never falls back to
+  a character at home. A hand copy can still protect a military participant
+  from opposing bow effects, while an already-won political conflict remains
+  an active plan because Clarity also prevents resolution bowing. Kyūden Isawa
+  recasts Clarity only for that full political payoff: a ready participant must
+  exist, since the recast also spends another Spell from hand.
 - **Bank for Five Fires.** When a Shugenja is in play and enemy characters have
   at least five actionable fate, Consumed by Five Fires in hand (or recyclable
   through ready Kyūden) makes the dynasty phase preserve five fate. The bot
@@ -55,8 +61,11 @@ forced rule or legal timing.
   enemy characters. Extra copies spread across characters instead of repeating
   the same printed attachment on one bearer. Pacifism and Stolen Breath remain
   independent locks: each printed attachment avoids duplicating itself, while
-  the other lock may legally use the same character. Meddling Mediator takes
-  enemy fate first, then honor.
+  the other lock may legally use the same character. Pacifism prefers military
+  specialists and Stolen Breath political specialists. A capped 30% balance
+  band (4/3 allows 1; 10/7 reaches the cap of 3) lets both different locks land
+  on one strong, balanced character. Meddling Mediator takes enemy fate first,
+  then honor. A lock stays in hand when every enemy has the opposite focus.
   Shiba Yōjimbō always protects an own Shugenja when its interrupt is offered.
 
 Helpful target steering always chooses Phoenix characters; harmful target

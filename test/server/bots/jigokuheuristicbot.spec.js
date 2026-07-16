@@ -2933,10 +2933,12 @@ describe('Jigoku heuristic bot', function() {
                     makeAttachState([], [
                         character('strong-with-copy', 7, {
                             bowed: id === 'softskin',
+                            politicalSkillSummary: { stat: id === 'stolen-breath' ? '7' : '0' },
                             attachments: [{ id: id }]
                         }),
                         character('weaker-without-copy', 3, {
                             bowed: id === 'softskin',
+                            politicalSkillSummary: { stat: id === 'stolen-breath' ? '3' : '0' },
                             attachments: []
                         })
                     ]),
@@ -2951,6 +2953,93 @@ describe('Jigoku heuristic bot', function() {
                 );
                 expect(decision.args[0]).toBe('weaker-without-copy');
             });
+        });
+
+        it('aims conflict locks at matching specialists while treating progressively close stats as balanced', function() {
+            const cases = [
+                {
+                    id: 'pacifism',
+                    axis: 'military',
+                    balanced: character('balanced-4-3', 4, {
+                        politicalSkillSummary: { stat: '3' },
+                        attachments: [{ id: 'stolen-breath' }]
+                    }),
+                    wrongSpecialist: character('political-6-10', 6, {
+                        politicalSkillSummary: { stat: '10' }
+                    })
+                },
+                {
+                    id: 'stolen-breath',
+                    axis: 'political',
+                    balanced: character('balanced-10-7', 10, {
+                        politicalSkillSummary: { stat: '7' },
+                        attachments: [{ id: 'pacifism' }]
+                    }),
+                    wrongSpecialist: character('military-12-8', 12, {
+                        politicalSkillSummary: { stat: '8' }
+                    })
+                }
+            ];
+
+            cases.forEach(({ id, axis, balanced, wrongSpecialist }) => {
+                const decision = new JigokuBotPolicy(`focused-${id}`).decide(
+                    makeAttachState([], [wrongSpecialist, balanced]),
+                    'Jigoku Bot',
+                    {
+                        targetHint: { gameActions: ['attach'], sourceIsMine: true, sourceCardId: id },
+                        cardHint: (cardId) => cardId === id ? {
+                            targetSide: 'enemy', conflictTypes: [axis], targetPreference: 'strongest'
+                        } : undefined
+                    }
+                );
+                expect(decision.args[0]).toBe(balanced.uuid);
+            });
+        });
+
+        it('cancels Stolen Breath rather than attaching it to military-focused Tengu Sensei', function() {
+            const decision = new JigokuBotPolicy('stolen-breath-wrong-focus').decide(
+                makeAttachState([], [
+                    character('tengu-sensei', 4, {
+                        politicalSkillSummary: { stat: '2' }, fate: 2
+                    })
+                ]),
+                'Jigoku Bot',
+                {
+                    targetHint: { gameActions: ['attach'], sourceIsMine: true, sourceCardId: 'stolen-breath' },
+                    cardHint: (id) => id === 'stolen-breath' ? {
+                        targetSide: 'enemy', conflictTypes: ['political'], targetPreference: 'strongest'
+                    } : undefined
+                }
+            );
+            expect(decision.command).toBe('menuButton');
+            expect(decision.target).toBe('Cancel');
+            expect(decision.reason).toBe('cancel-wrong-side-target');
+        });
+
+        it('holds a pre-conflict lock when every enemy has the opposite focus', function() {
+            const tengu = character('tengu-sensei', 4, {
+                politicalSkillSummary: { stat: '2' }, fate: 2
+            });
+            const state = makeAttachState([], [tengu]);
+            state.players['Jigoku Bot'].phase = 'conflict';
+            state.players['Jigoku Bot'].promptTitle = 'Action Window';
+            state.players['Jigoku Bot'].menuTitle = 'Initiate an action';
+            state.players['Jigoku Bot'].stats = { fate: 4 };
+            state.players['Jigoku Bot'].buttons = [{ text: 'Pass', arg: 'pass', uuid: 'pass' }];
+            state.players['Jigoku Bot'].cardPiles.hand = [
+                { uuid: 'stolen-breath-hand', id: 'stolen-breath', isPlayableByMe: true }
+            ];
+
+            const decision = new JigokuBotPolicy('hold-stolen-breath-wrong-focus').decide(
+                state,
+                'Jigoku Bot',
+                {
+                    strategy: deriveDeckStrategy(['kyuden-isawa']),
+                    cardHint: (id) => getPlaybookEntry(id)
+                }
+            );
+            expect(decision.command).toBe('menuButton');
+            expect(decision.target).toBe('Pass');
         });
 
         it('cancels a redundant debuff when every legal enemy already has that attachment', function() {
@@ -2975,7 +3064,10 @@ describe('Jigoku heuristic bot', function() {
         });
 
         it('does not start a saturated pre-conflict debuff from hand', function() {
-            const enemy = character('enemy', 5, { attachments: [{ id: 'pacifism' }] });
+            const enemy = character('enemy', 5, {
+                politicalSkillSummary: { stat: '5' },
+                attachments: [{ id: 'pacifism' }]
+            });
             const state = makeAttachState([], [enemy]);
             state.players['Jigoku Bot'].phase = 'conflict';
             state.players['Jigoku Bot'].promptTitle = 'Action Window';

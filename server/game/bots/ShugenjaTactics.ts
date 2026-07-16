@@ -385,12 +385,20 @@ export class ShugenjaTactics {
         return hand.some((card: any) => card.id === 'display-of-power');
     }
 
-    hasStrategicAction(me: any, opponent: any): boolean {
+    hasStrategicAction(me: any, opponent: any, conflictType?: string): boolean {
         const fate = Number(me?.stats?.fate) || 0;
         const hand = me?.cardPiles?.hand || [];
         const conflictDiscard = me?.cardPiles?.conflictDiscardPile || [];
         const mine = me?.cardPiles?.cardsInPlay || [];
         const theirs = opponent?.cardPiles?.cardsInPlay || [];
+        const readyParticipant = mine.some((card: any) => card.inConflict && !card.bowed);
+        // Clarity's reliable payoff is political resolution: its participant
+        // stays ready for another conflict. Keep this plan active even when the
+        // current conflict is already won, where generic skill math would pass.
+        if(conflictType === 'political' && readyParticipant &&
+            hand.some((card: any) => card.id === 'clarity-of-purpose' && card.isPlayableByMe !== false)) {
+            return true;
+        }
         if(this.pickFiveFiresPlay(hand, mine, theirs, fate)) {
             return true;
         }
@@ -399,6 +407,7 @@ export class ShugenjaTactics {
             hand,
             conflictDiscard,
             fate,
+            conflictType,
             myCharacters: mine,
             opponentCharacters: theirs
         })) {
@@ -440,7 +449,11 @@ export class ShugenjaTactics {
                 return mine.some((character: any) => this.isShugenja(character)) &&
                     mine.some((character: any) => character.inConflict);
             case 'clarity-of-purpose':
-                return mine.length > 0;
+                // Recasting also discards a Spell from hand. Pay that premium
+                // only for Clarity's full political no-bow payoff, and never
+                // fall back to protecting a character sitting at home.
+                return playCtx?.conflictType === 'political' &&
+                    mine.some((character: any) => character.inConflict && !character.bowed);
             case 'oracle-of-stone':
                 return true;
             default:

@@ -31,7 +31,12 @@ behavior changes (the fine-tuned Unicorn default is untouched).
   tutored by Shosuro Hametsu), Softskin, Tainted Koku, Compromised Secrets.
   Pacifism, Stolen Breath, and Softskin never repeat on the same bearer: extra
   copies spread to the best character missing that printed attachment, or stay
-  in hand when every enemy already has one.
+  in hand when every enemy already has one. Pacifism prefers military-focused
+  enemies and Stolen Breath prefers political-focused enemies. A capped 30%
+  balance band treats close dual stats as equally valid for both locks (4/3 is
+  within 1; 10/7 is within the maximum tolerance of 3), so a strong balanced
+  character may legally receive both different attachments. If no matching or
+  balanced enemy exists, the bot keeps that conflict lock in hand.
   Make an Opening's -X/-X uses the honor-dial difference — our permanent low
   bids make X large against a value bidder.
 - Defense stays generic `prevent-break`: losing a conflict is fine as long as

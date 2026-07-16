@@ -58,6 +58,9 @@ const RESTRICTED_ATTACHMENT_IDS = new Set([
 const NON_STACKING_DEBUFF_ATTACHMENT_IDS = new Set([
     'pacifism', 'stolen-breath', 'softskin'
 ]);
+const CONFLICT_LOCK_ATTACHMENT_IDS = new Set([
+    'pacifism', 'stolen-breath'
+]);
 
 // GameAction names classified by whether the resolved effect hurts or helps
 // the card it targets. Drives which side of the board ability targets aim at.
@@ -1934,7 +1937,8 @@ class JigokuBotPolicy {
             me?.stats?.fate ?? 0
         );
         const shugenjaPlan = !!shugenja &&
-            (pathMargin || !!preparedFiveFires || !!preparedTadaka || shugenja.hasStrategicAction(me, opponent));
+            (pathMargin || !!preparedFiveFires || !!preparedTadaka ||
+                shugenja.hasStrategicAction(me, opponent, conflictType));
         if(standing.amAttacker) {
             const provinceStrength = this.attackedProvinceStrength(opponent, 4);
             const requiredLead = pathMargin ? Math.max(provinceStrength, 5) : provinceStrength;
@@ -2500,8 +2504,18 @@ class JigokuBotPolicy {
                         return false;
                     }
                     const hint: any = cardHint(card.id);
-                    return !!hint && hint.preConflict &&
-                        this.attachmentTargetsWithoutDuplicate(enemyCharacters, card.id).length > 0;
+                    if(!hint || !hint.preConflict) {
+                        return false;
+                    }
+                    const usefulTargets = this.attachmentTargetsWithoutDuplicate(enemyCharacters, card.id);
+                    if(usefulTargets.length === 0) {
+                        return false;
+                    }
+                    if(CONFLICT_LOCK_ATTACHMENT_IDS.has(card.id)) {
+                        const axis = hint.conflictTypes.length > 0 ? hint.conflictTypes[0] : 'military';
+                        return !!this.conflictLockTarget(usefulTargets, axis);
+                    }
+                    return true;
                 })
                 .sort((a: any, b: any) => {
                     const priorityOf = (card: any) => (cardHint(card.id) as any)?.priority ?? 5;
@@ -3499,6 +3513,7 @@ class JigokuBotPolicy {
             const pick = prompt.includes('spell event')
                 ? shugenja.pickKyudenSpell(mine, {
                     fate: me?.stats?.fate ?? 0,
+                    conflictType: playerState?.conflict?.type,
                     hand: me?.cardPiles?.hand || [],
                     myCharacters: this.myCharactersInPlay(me),
                     opponentCharacters: (this.opponentPlayer(playerState, me)?.cardPiles?.cardsInPlay || [])
@@ -3507,6 +3522,12 @@ class JigokuBotPolicy {
                 : shugenja.pickKyudenDiscard(mine);
             if(pick) {
                 return this.cardClickDecision(pick, prompt.includes('spell event') ? 'kyuden-recast-spell' : 'kyuden-discard-spell');
+            }
+            if(prompt.includes('spell event')) {
+                const cancel = this.findButton(buttons, ['cancel']);
+                if(cancel) {
+                    return this.buttonDecision(cancel, 'kyuden-no-useful-spell');
+                }
             }
         }
 
@@ -3542,8 +3563,22 @@ class JigokuBotPolicy {
             }
         }
 
-        if(shugenja && ['adept-of-the-waves', 'clarity-of-purpose', 'supernatural-storm'].includes(targetHint.sourceCardId || '')) {
-            const legal = targetHint.sourceCardId === 'clarity-of-purpose' || targetHint.sourceCardId === 'supernatural-storm'
+        if(shugenja && targetHint.sourceCardId === 'clarity-of-purpose') {
+            const legal = mine.filter((card) => card.inConflict && !card.bowed);
+            const tower = shugenja.pickTower(legal,
+                (card) => this.skillValue(card, skillType) || 0);
+            if(tower) {
+                return this.cardClickDecision(tower, 'clarity-of-purpose-tower');
+            }
+            const cancel = this.findButton(buttons, ['cancel']);
+            if(cancel) {
+                return this.buttonDecision(cancel, 'clarity-of-purpose-no-participant');
+            }
+            return null;
+        }
+
+        if(shugenja && ['adept-of-the-waves', 'supernatural-storm'].includes(targetHint.sourceCardId || '')) {
+            const legal = targetHint.sourceCardId === 'supernatural-storm'
                 ? mine.filter((card) => card.inConflict && !card.bowed)
                 : mine;
             const tower = shugenja.pickTower(legal.length > 0 ? legal : mine,
@@ -3930,6 +3965,16 @@ class JigokuBotPolicy {
                             return this.cardClickDecision(bowedEnemy[0], `${targetHint.sourceCardId}-bowed-enemy`);
                         }
                     }
+                    if(CONFLICT_LOCK_ATTACHMENT_IDS.has(targetHint.sourceCardId || '')) {
+                        const conflictLockTarget = this.conflictLockTarget(usefulTargets, axis);
+                        if(conflictLockTarget) {
+                            return this.cardClickDecision(conflictLockTarget, 'attach-debuff-enemy');
+                        }
+                        if(cancel) {
+                            return this.buttonDecision(cancel, 'cancel-wrong-side-target');
+                        }
+                        return null;
+                    }
                     return this.cardClickDecision(this.sortBySkillDesc(usefulTargets, axis)[0], 'attach-debuff-enemy');
                 }
                 if(theirs.length > 0) {
@@ -4294,6 +4339,39 @@ class JigokuBotPolicy {
         }
         return cards.filter((card) => !(card?.attachments || [])
             .some((attachment: any) => attachment?.id === sourceCardId));
+    }
+
+    // Pacifism shuts off military conflicts; Stolen Breath shuts off political.
+    // Prefer a specialist on that axis or a character strong on both axes.
+    // "Balanced" scales with printed/current strength but stops widening at 3:
+    // 4/3 tolerates 1, 10/7 tolerates 3, and 20/16 is still specialized.
+    private conflictLockTarget(cards: any[], axis: string): any | null {
+        if(cards.length === 0) {
+            return null;
+        }
+        const focused = cards.filter((card) => {
+            const military = Math.max(this.skillValue(card, 'military') || 0, 0);
+            const political = Math.max(this.skillValue(card, 'political') || 0, 0);
+            const stronger = Math.max(military, political);
+            const balancedTolerance = Math.min(3, Math.round(stronger * 0.3));
+            return Math.abs(military - political) <= balancedTolerance ||
+                (axis === 'political' ? political > military : military > political);
+        });
+        if(focused.length === 0) {
+            return null;
+        }
+        return focused.slice().sort((a, b) => {
+            const axisDiff = (this.skillValue(b, axis) || 0) - (this.skillValue(a, axis) || 0);
+            if(axisDiff !== 0) {
+                return axisDiff;
+            }
+            const combinedDiff = this.combinedSkillValue(b) - this.combinedSkillValue(a);
+            if(combinedDiff !== 0) {
+                return combinedDiff;
+            }
+            const fateDiff = (Number(b.fate) || 0) - (Number(a.fate) || 0);
+            return fateDiff !== 0 ? fateDiff : String(a.uuid).localeCompare(String(b.uuid));
+        })[0];
     }
 
     private sortByStatusImpact(cards: any[], skillType: string): any[] {

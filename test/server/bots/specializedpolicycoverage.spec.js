@@ -262,6 +262,83 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         });
     });
 
+    it('targets Pacifism and Stolen Breath by conflict focus through seeds 1, 2, and 5', function() {
+        const profile = profileFromStrategy(flags());
+        const scenarios = [
+            {
+                id: 'pacifism',
+                axis: 'military',
+                target: character('balanced-4-3', 'balanced-4-3', {
+                    militarySkillSummary: { stat: '4' }, politicalSkillSummary: { stat: '3' },
+                    attachments: [attachment('breath-copy', 'stolen-breath')]
+                }),
+                wrongFocus: character('political-6-10', 'political-6-10', {
+                    militarySkillSummary: { stat: '6' }, politicalSkillSummary: { stat: '10' }
+                })
+            },
+            {
+                id: 'stolen-breath',
+                axis: 'political',
+                target: character('balanced-10-7', 'balanced-10-7', {
+                    militarySkillSummary: { stat: '10' }, politicalSkillSummary: { stat: '7' },
+                    attachments: [attachment('pacifism-copy', 'pacifism')]
+                }),
+                wrongFocus: character('military-12-8', 'military-12-8', {
+                    militarySkillSummary: { stat: '12' }, politicalSkillSummary: { stat: '8' }
+                })
+            }
+        ];
+
+        for(const scenario of scenarios) {
+            const state = targetState(scenario.id, ['attach'], [], [scenario.wrongFocus, scenario.target]);
+            expectEveryPolicy(decideWithEveryPolicy(profile, state, {
+                targetHint: {
+                    sourceCardId: scenario.id,
+                    sourceIsMine: true,
+                    gameActions: ['attach']
+                },
+                cardHint: getPlaybookEntry
+            }), (decision) => {
+                expect(decision.reason).toBe('attach-debuff-enemy');
+                expect(decision.args[0]).toBe(scenario.target.uuid);
+            });
+        }
+
+        const tengu = character('tengu', 'tengu-sensei', {
+            fate: 2,
+            militarySkillSummary: { stat: '4' },
+            politicalSkillSummary: { stat: '2' }
+        });
+        const wrongFocusTarget = targetState('stolen-breath', ['attach'], [], [tengu]);
+        expectEveryPolicy(decideWithEveryPolicy(profile, wrongFocusTarget, {
+            targetHint: {
+                sourceCardId: 'stolen-breath',
+                sourceIsMine: true,
+                gameActions: ['attach']
+            },
+            cardHint: getPlaybookEntry
+        }), (decision) => {
+            expect(decision.command).toBe('menuButton');
+            expect(decision.target).toBe('Cancel');
+            expect(decision.reason).toBe('cancel-wrong-side-target');
+        });
+
+        const actionWindow = makeState({
+            promptTitle: 'Action Window', menuTitle: 'Initiate an action', buttons: [PASS],
+            stats: { fate: 4 },
+            cardPiles: { hand: [attachment('stolen-breath-hand', 'stolen-breath')] }
+        }, {
+            cardPiles: { cardsInPlay: [tengu] }
+        });
+        const shugenjaProfile = profileFromStrategy(flags({ shugenja: true }));
+        expectEveryPolicy(decideWithEveryPolicy(shugenjaProfile, actionWindow, {
+            cardHint: getPlaybookEntry
+        }), (decision) => {
+            expect(decision.command).toBe('menuButton');
+            expect(decision.target).toBe('Pass');
+        });
+    });
+
     it('executes tacticless Crab profile branches through every shipped heuristic seed', function() {
         const profile = resolveDeckProfile(
             ['kyuden-hida', 'kaiu-shihei'],
@@ -945,6 +1022,80 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         });
 
         expectComplete(spies);
+    });
+
+    it('holds Clarity of Purpose when no ready character participates through seeds 1, 2, and 5', function() {
+        const profile = profileFromStrategy(flags({ shugenja: true }));
+        const homeTower = character('home-tadaka', 'isawa-tadaka-2', {
+            bowed: false, inConflict: false
+        });
+        const state = makeState({
+            promptTitle: 'Conflict Action Window',
+            menuTitle: 'Military Water conflict\nAttacker: 0 Defender: 0',
+            buttons: [PASS],
+            stats: { fate: 1 },
+            strongholdProvince: [{
+                uuid: 'kyuden', id: 'kyuden-isawa', type: 'stronghold',
+                location: 'stronghold province', bowed: false
+            }],
+            cardPiles: {
+                cardsInPlay: [homeTower],
+                hand: [event('oracle-hand', 'oracle-of-stone')],
+                conflictDiscardPile: [event('clarity-discard', 'clarity-of-purpose')]
+            }
+        }, { cardPiles: { cardsInPlay: [] } }, {
+            conflict: {
+                type: 'military', attackingPlayerId: 'opponent-id',
+                defendingPlayerId: 'bot-id', attackerSkill: 0, defenderSkill: 0
+            }
+        });
+
+        expectEveryPolicy(decideWithEveryPolicy(profile, state), (decision, policyCase) => {
+            expect(decision.target).withContext(policyCase.label).toBe('Pass');
+        });
+
+        const targetPrompt = targetState(
+            'clarity-of-purpose', ['cardLastingEffect'], [homeTower], [], 'Choose a character'
+        );
+        expectEveryPolicy(decideWithEveryPolicy(profile, targetPrompt, {
+            targetHint: {
+                sourceCardId: 'clarity-of-purpose', sourceIsMine: true,
+                gameActions: ['cardLastingEffect']
+            }
+        }), (decision, policyCase) => {
+            expect(decision.command).withContext(policyCase.label).toBe('menuButton');
+            expect(decision.target).withContext(policyCase.label).toBe('Cancel');
+        });
+
+        const kyudenSpellPrompt = makeState({
+            promptTitle: 'Kyuden Isawa', menuTitle: 'Choose a Spell event',
+            buttons: [CANCEL], stats: { fate: 1 },
+            cardPiles: {
+                cardsInPlay: [homeTower],
+                conflictDiscardPile: [event('clarity-choice', 'clarity-of-purpose')]
+            }
+        }, {}, {
+            conflict: {
+                type: 'military', attackingPlayerId: 'opponent-id',
+                defendingPlayerId: 'bot-id', attackerSkill: 0, defenderSkill: 0
+            }
+        });
+        const kyudenContext = {
+            targetHint: { sourceCardId: 'kyuden-isawa', sourceIsMine: true, gameActions: [] }
+        };
+        expectEveryPolicy(decideWithEveryPolicy(profile, kyudenSpellPrompt, kyudenContext),
+            (decision, policyCase) => {
+                expect(decision.command).withContext(policyCase.label).toBe('menuButton');
+                expect(decision.target).withContext(policyCase.label).toBe('Cancel');
+            });
+
+        homeTower.inConflict = true;
+        kyudenSpellPrompt.conflict.type = 'political';
+        expectEveryPolicy(decideWithEveryPolicy(profile, kyudenSpellPrompt, kyudenContext),
+            (decision, policyCase) => {
+                expect(decision.reason).withContext(policyCase.label).toBe('kyuden-recast-spell');
+                expect(decision.args[0]).withContext(policyCase.label).toBe('clarity-choice');
+            });
     });
 
     it('executes every Dragon attachment tactic method', function() {

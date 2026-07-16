@@ -43,26 +43,20 @@ describe('DragonTactics', function() {
             expect(tactics.ringBonus('earth', [{ id: 'keeper-initiate' }])).toBe(0);
         });
 
-        it('keeps feeding cards while a payoff character participates', function() {
-            expect(tactics.cardEngineParticipating([{ id: 'togashi-mitsu-2', inConflict: true }])).toBe(true);
-            expect(tactics.cardEngineParticipating([{ id: 'togashi-mitsu-2', inConflict: false }])).toBe(false);
-            expect(tactics.cardEngineParticipating([{ id: 'togashi-initiate', inConflict: true }])).toBe(false);
-        });
-
         it('bids duels until honor runs low', function() {
             expect(tactics.desiredDuelBid(10)).toBe(DRAGON_DEFAULTS.duelBid);
             expect(tactics.desiredDuelBid(3)).toBe(1);
         });
 
         it('uses the exact live threshold and counts both players for Togashi Ichi', function() {
-            expect(tactics.cardTarget([{ id: 'togashi-mitsu-2', inConflict: true }], true)).toBe(5);
-            expect(tactics.cardTarget([{ id: 'teacher-of-empty-thought', inConflict: true }], true)).toBe(3);
-            expect(tactics.cardTarget([{ id: 'togashi-ichi', inConflict: true }], true)).toBe(10);
-            expect(tactics.cardTarget([{ id: 'togashi-ichi', inConflict: true }], true, 2, 3)).toBe(7);
-            expect(tactics.cardTarget([{ id: 'togashi-ichi', inConflict: true }], false)).toBe(0);
-            expect(tactics.cardTarget([{ id: 'togashi-ichi', inConflict: false }], true)).toBe(0);
-            expect(tactics.cardTarget([{ id: 'togashi-initiate', inConflict: true }], true, 0, 0, true)).toBe(5);
-            expect(tactics.cardTarget([{ id: 'togashi-ichi', inConflict: true }], true, 0, 0, false, true)).toBe(0);
+            expect(tactics.cardTargets([{ id: 'togashi-mitsu-2', inConflict: true }], true)).toEqual([5]);
+            expect(tactics.cardTargets([{ id: 'teacher-of-empty-thought', inConflict: true }], true)).toEqual([3]);
+            expect(tactics.cardTargets([{ id: 'togashi-ichi', inConflict: true }], true)).toEqual([10]);
+            expect(tactics.cardTargets([{ id: 'togashi-ichi', inConflict: true }], true, 2, 3)).toEqual([7]);
+            expect(tactics.cardTargets([{ id: 'togashi-ichi', inConflict: true }], false)).toEqual([]);
+            expect(tactics.cardTargets([{ id: 'togashi-ichi', inConflict: false }], true)).toEqual([]);
+            expect(tactics.cardTargets([{ id: 'togashi-initiate', inConflict: true }], true, 0, 0, true)).toEqual([5]);
+            expect(tactics.cardTargets([{ id: 'togashi-ichi', inConflict: true }], true, 0, 0, false, true)).toEqual([]);
         });
 
         it('only fires High House at five and starts a plan only when reachable', function() {

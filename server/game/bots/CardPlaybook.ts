@@ -73,6 +73,10 @@ export interface PlaybookEntry extends CardHint {
     // but which must be attached to an OWN character (True Strike Kenjutsu:
     // attach to our duelist, duel the enemy).
     attachSide?: 'self';
+    // Some attachments replace an existing copy when attached to the same
+    // bearer (Watch Commander is limit one per character). Keep this policy
+    // metadata injectable instead of hard-coding the card in target selection.
+    maxCopiesPerTarget?: number;
     shouldPlay?: (ctx: PlaybookContext) => boolean;
     shouldUseAction?: (ctx: PlaybookContext) => boolean;
 }
@@ -127,6 +131,19 @@ const entry = (cardId: string, overrides: Partial<PlaybookEntry>): PlaybookEntry
 
 const participating = (cards: any[]) => cards.filter((card) => card.inConflict);
 const readyParticipants = (cards: any[]) => cards.filter((card) => card.inConflict && !card.bowed);
+const liveSkill = (card: any, axis: 'military' | 'political'): number => {
+    const summary = axis === 'military' ? card?.militarySkillSummary : card?.politicalSkillSummary;
+    const live = Number(summary?.stat);
+    if(Number.isFinite(live)) {
+        return live;
+    }
+    const printed = Number(card?.[axis]);
+    return Number.isFinite(printed) ? printed : 0;
+};
+const characterValue = (card: any): number =>
+    Math.max(liveSkill(card, 'military'), liveSkill(card, 'political')) +
+    (Number(card?.fate) || 0) * 3 +
+    (card?.attachments || []).length * 2;
 const fiveFiresTarget = (card: any) => (Number(card.fate) || 0) > 0 &&
     !(card.attachments || []).some((attachment: any) =>
         attachment.id === 'pacifism' || attachment.id === 'stolen-breath');
@@ -602,6 +619,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
+        maxCopiesPerTarget: 1,
         summary: 'attach to a defender; opponent loses honor for each card they play'
     }),
 
@@ -1096,23 +1114,15 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
             participating(ctx.opponentCharacters).some((card) => !card.bowed)
     }),
 
-    // Bow a weak non-unique to ready a unique (Toturi, Ujiaki). Playable from
-    // the discard, so it recycles all game. The targeting stages are steered
-    // in the policy (bow the weakest ready non-unique, ready the strongest
-    // bowed unique). Card summaries carry no uniqueness flag, so the gate
-    // checks the deck's own key uniques by printed id.
+    // Bow a weak non-unique to ready a unique. Printed uniqueness is public in
+    // card summaries, so require both halves before paying the first cost.
     'in-service-to-my-lord': entry('in-service-to-my-lord', {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
         summary: 'bow a cheap non-unique to ready a unique character',
-        shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.bowed &&
-            ['akodo-toturi', 'commander-of-the-legions', 'unified-company', 'ikoma-ujiaki-2', 'master-tactician', 'honored-general',
-                'akodo-toshiro', 'ikoma-tsanuri', 'akodo-makoto', 'matsu-beiona',
-                // Dragon (Lion splash): ready the card-engine monks.
-                'togashi-mitsu-2', 'togashi-ichi', 'togashi-tadakatsu',
-                'teacher-of-empty-thought', 'kitsuki-investigator'].includes(card.id)) &&
-            ctx.myCharacters.filter((card) => !card.bowed).length >= 2
+        shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.bowed && card.isUnique) &&
+            ctx.myCharacters.some((card) => !card.bowed && !card.isUnique)
     }),
 
     // Ready up to 6 printed cost of Bushi — the follow-up attack enabler.
@@ -1130,14 +1140,20 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'for-greater-glory': entry('for-greater-glory', {
         conflictTypes: ['military'],
         priority: 9,
-        summary: 'break reaction: 1 fate on each of our Bushi'
+        summary: 'break reaction: 1 fate on each of our Bushi',
+        // This is a Reaction, not a conflict Action. It is still selected by
+        // the triggered-window path; keep the normal hand-play path from
+        // repeatedly clicking it as a no-op.
+        shouldPlay: () => false
     }),
 
     // Conflict-phase opener: trade one faceup province for a fate on every
     // printed-cost-3-or-lower body. LionTactics gates the reaction at 5 bodies.
     'feeding-an-army': entry('feeding-an-army', {
         priority: 9,
-        summary: 'break a friendly province; fate on each cheap character'
+        summary: 'break a friendly province; fate on each cheap character',
+        // Phase-start Reaction; triggeredWindowDecision owns its timing.
+        shouldPlay: () => false
     }),
 
     // Two fate buys the strongest character in the dynasty discard for this
@@ -1290,7 +1306,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         inPlayAction: true,
         shouldUseAction: (ctx) =>
             ctx.myCharacters.some((card) => card.id === 'ikoma-tsanuri' && card.inConflict) &&
-            participating(ctx.myCharacters).length >= 3
+            participating(ctx.myCharacters)
+                .filter((card) => (card.traits || []).includes('bushi')).length >= 3
     }),
 
     // While attacking: bow an enemy character with military skill at or
@@ -1446,7 +1463,10 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // Cancel an enemy event while we have more honored characters.
     'voice-of-honor': entry('voice-of-honor', {
         priority: 8,
-        summary: 'more honored characters: cancel an enemy event'
+        summary: 'more honored characters: cancel an enemy event',
+        // Interrupt-only. It remains available to the hinted interrupt path,
+        // but must never be attempted as an ordinary conflict Action.
+        shouldPlay: () => false
     }),
 
     // ---- reactions ----
@@ -2545,6 +2565,36 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         shouldPlay: (ctx) => participating(ctx.opponentCharacters).some((card) => card.isDishonored)
     }),
 
+    // Honor the highest-glory unhonored Crane, enabling the duel deck's
+    // stronghold stats, Voice of Honor, and Noble Sacrifice setup.
+    'way-of-the-crane': entry('way-of-the-crane', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 9,
+        summary: 'honor our best unhonored Crane character',
+        abilityValue: true,
+        shouldPlay: (ctx) => ctx.myCharacters.some((card) => !card.isHonored)
+    }),
+
+    // Trade the least valuable honored body for a materially better
+    // dishonored enemy. Target sequencing is specialized in the policy:
+    // first its own sacrifice cost, then the opposing discard effect.
+    'noble-sacrifice': entry('noble-sacrifice', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 9,
+        summary: 'trade a cheap honored body for a valuable dishonored enemy',
+        abilityValue: true,
+        shouldPlay: (ctx) => {
+            const sacrifices = ctx.myCharacters.filter((card) => card.isHonored)
+                .sort((a, b) => characterValue(a) - characterValue(b));
+            const victims = ctx.opponentCharacters.filter((card) => card.isDishonored)
+                .sort((a, b) => characterValue(b) - characterValue(a));
+            return sacrifices.length > 0 && victims.length > 0 &&
+                characterValue(victims[0]) > characterValue(sacrifices[0]);
+        }
+    }),
+
     // Duelist in a military conflict does not bow at resolution.
     'kakita-s-final-stance': entry('kakita-s-final-stance', {
         conflictTypes: ['military'],
@@ -2563,11 +2613,19 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         attachSide: 'self',
         priority: 7,
         summary: 'duel action attachment; +2 to duel winners',
-        inPlayAction: true,
-        shouldUseAction: (ctx) => ctx.myCharacters.some((card) =>
-            card.inConflict && !card.bowed &&
-            (card.attachments || []).some((attachment: any) => attachment.id === 'daimyo-s-gunbai')) &&
-            participating(ctx.opponentCharacters).some((card) => !card.bowed)
+        abilityValue: true,
+        // Gunbai's Action exists only while it is in hand. The opponent picks
+        // its duel target and the attachment goes to the winner, so reveal it
+        // only when our best participant beats every target they can choose.
+        shouldPlay: (ctx) => {
+            const mine = readyParticipants(ctx.myCharacters);
+            const theirs = participating(ctx.opponentCharacters).filter((card) => !card.bowed);
+            if(mine.length === 0 || theirs.length === 0) {
+                return false;
+            }
+            return Math.max(...mine.map((card) => liveSkill(card, 'military'))) >
+                Math.max(...theirs.map((card) => liveSkill(card, 'military')));
+        }
     }),
 
     'duelist-training': entry('duelist-training', {
@@ -2600,9 +2658,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: 'duel weapon; +1 honor on duel wins'
     }),
 
-    // Post-reveal bid nudge: fires via the hinted reaction path; the menu
-    // fallback picks the first (increase) option, which converts a tied duel
-    // into a win.
+    // Post-reveal bid nudge. DuelTactics gates the reaction on the actual
+    // post-reveal margin and chooses increase/decrease without wasting honor.
     'iaijutsu-master': entry('iaijutsu-master', {
         targetSide: 'self',
         targetPreference: 'strongest',

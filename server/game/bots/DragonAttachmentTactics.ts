@@ -14,6 +14,7 @@ export interface DragonAttachmentProfile {
     attachments: string[];
     restrictedAttachments: string[];
     weaponAttachments: string[];
+    holdWeaponsForReadyNiten: boolean;
     attachmentPriority: string[];
     yokuniCopyPriority: string[];
 }
@@ -52,8 +53,10 @@ export const DRAGON_ATTACHMENT_DEFAULTS: DragonAttachmentProfile = {
         'tetsubo-of-blood', 'jade-tetsubo', 'ancestral-daisho',
         'elegant-tessen', 'fine-katana', 'inscribed-tanto', 'pathfinder-s-blade'
     ],
+    holdWeaponsForReadyNiten: true,
     attachmentPriority: [
-        'tetsubo-of-blood', 'jade-tetsubo', 'adopted-kin', 'daimyo-s-favor',
+        // Establish the reusable reducer before paying for either Tetsubo.
+        'daimyo-s-favor', 'tetsubo-of-blood', 'jade-tetsubo', 'adopted-kin',
         'ancestral-daisho', 'elegant-tessen', 'finger-of-jade',
         'two-heavens-technique', 'pathfinder-s-blade', 'fine-katana',
         'kitsuki-s-method', 'ornate-fan', 'inscribed-tanto', 'tattooed-wanderer'
@@ -150,6 +153,18 @@ export class DragonAttachmentTactics {
         return !!cardId && this.profile.weaponAttachments.includes(cardId);
     }
 
+    shouldHoldWeapon(cardId: string | undefined, myCharacters: any[], yokuniCopiedNiten = false): boolean {
+        if(!this.profile.holdWeaponsForReadyNiten || !this.isWeapon(cardId)) {
+            return false;
+        }
+        const carriers = (myCharacters || []).filter((card) =>
+            card.id === 'niten-master' || (yokuniCopiedNiten && card.id === 'togashi-yokuni'));
+        // No reaction carrier: play for its printed skill. Any bowed carrier:
+        // play one Weapon now to ready it. Hold only while every carrier is
+        // already ready, preserving later Weapons for later conflicts.
+        return carriers.length > 0 && carriers.every((card) => !card.bowed);
+    }
+
     restrictedCount(card: any): number {
         return (card?.attachments || []).filter((attachment: any) =>
             this.isRestricted(attachment.id)).length;
@@ -214,7 +229,7 @@ export class DragonAttachmentTactics {
                 String(a.uuid || '').localeCompare(String(b.uuid || '')))[0] || null;
     }
 
-    pickAttachmentTarget(mine: any[], attachmentId: string | undefined, preferredBearerUuid?: string): any {
+    pickAttachmentTarget(mine: any[], attachmentId: string | undefined, preferredBearerUuid?: string, yokuniCopiedNiten = false): any {
         if(!this.isAttachment(attachmentId)) {
             return null;
         }
@@ -257,10 +272,14 @@ export class DragonAttachmentTactics {
         }
 
         // A Weapon on bowed Niten Master immediately readies the main tower.
+        // Yokuni becomes an equivalent carrier after copying Niten this round.
         if(this.isWeapon(attachmentId)) {
-            const bowedNiten = candidates.find((card) => card.id === 'niten-master' && card.bowed);
-            if(bowedNiten) {
-                return bowedNiten;
+            const bowedCarrier = candidates.filter((card) => card.bowed &&
+                (card.id === 'niten-master' || (yokuniCopiedNiten && card.id === 'togashi-yokuni')))
+                .sort((a, b) => (a.id === 'niten-master' ? -1 : 1) - (b.id === 'niten-master' ? -1 : 1) ||
+                    (Number(b.fate) || 0) - (Number(a.fate) || 0))[0];
+            if(bowedCarrier) {
+                return bowedCarrier;
             }
         }
 
@@ -317,17 +336,18 @@ export class DragonAttachmentTactics {
             (character.attachments || []).some((attachment: any) => attachment.uuid === source?.uuid))?.uuid;
     }
 
-    pickDaimyoReducedAttachment(hand: any[], myCharacters: any[], bearerUuid: string | undefined): any {
+    pickDaimyoReducedAttachment(hand: any[], myCharacters: any[], bearerUuid: string | undefined, conflictCosts?: Record<string, number>, yokuniCopiedNiten = false): any {
         if(!bearerUuid) {
             return null;
         }
+        const costOf = (card: any) => Number(conflictCosts?.[card.uuid] ?? card.cost ?? card.printedCost);
         return (hand || []).filter((card) =>
             card?.id && card.isPlayableByMe !== false && card.id !== 'daimyo-s-favor' &&
             this.isAttachment(card.id) && this.attachmentPriority(card.id) > 0 &&
-            Number(card.cost ?? card.printedCost) > 0 &&
-            this.pickAttachmentTarget(myCharacters, card.id, bearerUuid)?.uuid === bearerUuid)
+            costOf(card) > 0 &&
+            this.pickAttachmentTarget(myCharacters, card.id, bearerUuid, yokuniCopiedNiten)?.uuid === bearerUuid)
             .sort((a, b) => this.attachmentPriority(b.id) - this.attachmentPriority(a.id) ||
-                Number(b.cost ?? b.printedCost) - Number(a.cost ?? a.printedCost) ||
+                costOf(b) - costOf(a) ||
                 String(a.uuid || '').localeCompare(String(b.uuid || '')))[0] || null;
     }
 
@@ -339,19 +359,25 @@ export class DragonAttachmentTactics {
         const attachment = this.pickDaimyoReducedAttachment(
             ctx?.hand || [],
             ctx?.myCharacters || [],
-            bearerUuid
+            bearerUuid,
+            ctx?.conflictCosts,
+            !!ctx?.yokuniCopiedNiten
         );
         if(!attachment) {
             return false;
         }
 
-        // Iron Mountain Castle is an interrupt during the attachment play.
-        // If Favor reduces a cost-1 card first, the remaining cost is zero and
-        // the engine correctly never offers Castle's interrupt. Reserve ready
-        // Castle for Tetsubo of Blood (the first attachment priority) or any
-        // other cost-1 fallback. Cost-2+ cards still use both reductions.
+        if(this.shouldHoldWeapon(attachment.id, ctx?.myCharacters || [], !!ctx?.yokuniCopiedNiten)) {
+            return false;
+        }
+
+        // A ready Iron Mountain Castle now sees the selected attachment
+        // bearer before costs are paid.  Save Favor when Castle can make a
+        // cost-1 attachment (including Tetsubo of Blood) free; combine both
+        // reducers for cost-2 attachments such as Jade Tetsubo.
         const castle = ctx?.stronghold;
         const castleReady = castle?.id === 'iron-mountain-castle' && !castle.bowed;
-        return !castleReady || Number(attachment.cost ?? attachment.printedCost) > 1;
+        const cost = Number(ctx?.conflictCosts?.[attachment.uuid] ?? attachment.cost ?? attachment.printedCost);
+        return !castleReady || cost > 1;
     }
 }

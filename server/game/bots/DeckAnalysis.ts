@@ -1,4 +1,4 @@
-// Deck analysis for the seed-4 "omniscient" bot.
+// Deck analysis for the seed-5 "omniscient" bot.
 //
 // The omniscient bot sees the human's hand and face-down provinces (it cheats).
 // To turn that knowledge into good decisions it needs to know, for every card
@@ -27,11 +27,13 @@ export interface CardModel {
     polBonus: number; // political skill granted to a participant
     swing: number; // skill-equivalent conflict swing (events: removal/duel/debuff)
     tag: CardTag;
+    conflictTypes?: ('military' | 'political')[];
 }
 
 // One entry per card. Bodies carry printed skill for reference; the controller
-// prefers the live card object's numbers when it can, and overlays the curated
-// swing/buff/tag from here. Events are the reason this table exists.
+// prefers the live card object's printed numbers when it can, and overlays the
+// curated event swing/effect tag from here. Events are the reason this table
+// exists.
 //
 // Analyzed decks:
 //   - Crane Duels (EmeraldDB b59bc6b3): duel/honor archetype. Its threat is
@@ -82,7 +84,7 @@ const ANALYSIS: CardModel[] = [
     { id: 'arbiter-of-authority', type: 'character', side: 'conflict', fate: 2, mil: 0, pol: 2, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
     { id: 'daidoji-iron-warrior', type: 'character', side: 'dynasty', fate: 3, mil: 3, pol: 3, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
     { id: 'disparaging-challenge', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'duel' },
-    { id: 'kakita-s-final-stance', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
+    { id: 'kakita-s-final-stance', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility', conflictTypes: ['military'] },
     { id: 'meditations-on-the-tao', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
     { id: 'local-daimyo-s-retainer', type: 'character', side: 'conflict', fate: 1, mil: 2, pol: 2, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' }
 ];
@@ -113,8 +115,9 @@ export function analyzeDeck(cardIds: string[]): { analyzed: boolean; missing: st
 }
 
 // One card the human holds, as the omniscient bot sees it. The controller fills
-// mil/pol/fate from the live card object (exact for any deck) and overlays
-// swing/buff/tag from the registry (deck-specific curation).
+// mil/pol/fate and flat printed attachment bonuses from the live card object
+// (exact for any deck) and overlays swing/tag from the registry (deck-specific
+// curation).
 export interface KnownCard {
     id: string;
     type: string;
@@ -126,6 +129,22 @@ export interface KnownCard {
     polBonus: number;
     swing: number;
     tag: CardTag;
+    conflictTypes?: ('military' | 'political')[];
+}
+
+export interface HandThreatCard {
+    id: string;
+    value: number;
+    fate: number;
+    kind: 'body' | 'trick';
+}
+
+export interface HandThreatPlan {
+    budget: number;
+    skill: number;
+    spentFate: number;
+    cards: HandThreatCard[];
+    detail: string;
 }
 
 // A single opponent province as the omniscient bot sees it — including the real
@@ -138,13 +157,19 @@ export interface OmniProvince {
     facedown: boolean;
 }
 
-// The complete cheat view handed to the policy for seed 4: the human's fate, the
+// The complete cheat view handed to the policy for seed 5: the human's fate, the
 // real contents of their hand, and the true strength of every province.
 export interface Omniscient {
     oppName: string;
     oppFate: number;
     oppHand: KnownCard[];
     oppProvinces: OmniProvince[];
+    // Best affordable hand plan at every fate budget from 0..oppFate.
+    // Optional keeps synthetic policy callers backwards compatible.
+    handThreatMatrix?: {
+        military: HandThreatPlan[];
+        political: HandThreatPlan[];
+    };
     // Conflict-event ids in the human's deck with no curated model — the tricks
     // the bot is blind to. Empty when the deck is fully analyzed.
     unmodeledEvents: string[];
@@ -161,52 +186,91 @@ export interface Omniscient {
 // This is the number the omniscient bot beats when it commits an attack and the
 // number it respects when it holds: if the human cannot afford to close the gap,
 // the bot presses; if they can swing it out of reach, the bot holds.
-export function estimateHandThreat(
+export function buildHandThreatMatrix(
     hand: KnownCard[],
     fate: number,
     type: 'military' | 'political'
-): { skill: number; detail: string } {
-    const budget = Math.max(fate, 0);
+): HandThreatPlan[] {
+    const maxBudget = Math.max(Math.floor(Number(fate) || 0), 0);
+    const legalForType = (card: KnownCard) => !card.conflictTypes ||
+        card.conflictTypes.length === 0 || card.conflictTypes.includes(type);
 
     const bodies = hand
-        .filter((card) => card.type === 'character' && card.side === 'conflict')
-        .map((card) => ({ card, v: Math.max(type === 'military' ? card.mil : card.pol, 0), cost: Math.max(card.fate, 0) }))
-        .filter((entry) => entry.v > 0);
+        .filter((card) => card.type === 'character' && card.side === 'conflict' && legalForType(card))
+        .map((card): HandThreatCard => ({
+            id: card.id,
+            value: Math.max(type === 'military' ? card.mil : card.pol, 0),
+            fate: Math.max(Math.floor(Number(card.fate) || 0), 0),
+            kind: 'body'
+        }))
+        .filter((entry) => entry.value > 0);
 
     const tricks = hand
-        .map((card) => {
+        .filter((card) => card.type !== 'character' && legalForType(card))
+        .map((card): HandThreatCard => {
             const buff = card.type === 'attachment' ? Math.max(type === 'military' ? card.milBonus : card.polBonus, 0) : 0;
-            return { card, v: buff + card.swing, cost: Math.max(card.fate, 0) };
+            return {
+                id: card.id,
+                value: buff + card.swing,
+                fate: Math.max(Math.floor(Number(card.fate) || 0), 0),
+                kind: 'trick'
+            };
         })
-        .filter((entry) => entry.v > 0 && entry.card.type !== 'character');
+        .filter((entry) => entry.value > 0);
 
-    const bestUnder = (list: { card: KnownCard; v: number; cost: number }[], b: number) =>
-        list.filter((entry) => entry.cost <= b).sort((a, c) => c.v - a.v)[0];
+    const plans: HandThreatCard[][] = [[]];
+    plans.push(...bodies.map((body) => [body]));
+    plans.push(...tricks.map((trick) => [trick]));
+    for(const body of bodies) {
+        for(const trick of tricks) {
+            plans.push([body, trick]);
+        }
+    }
 
-    const bestBody = bestUnder(bodies, budget);
-    const bestTrick = bestUnder(tricks, budget);
+    const score = (cards: HandThreatCard[]) => cards.reduce((total, card) => total + card.value, 0);
+    const spent = (cards: HandThreatCard[]) => cards.reduce((total, card) => total + card.fate, 0);
+    const better = (candidate: HandThreatCard[], current: HandThreatCard[]) => {
+        const skillDiff = score(candidate) - score(current);
+        if(skillDiff !== 0) {
+            return skillDiff > 0;
+        }
+        const fateDiff = spent(candidate) - spent(current);
+        if(fateDiff !== 0) {
+            return fateDiff < 0;
+        }
+        return candidate.length < current.length;
+    };
 
     // The human plays whatever gives the biggest single-conflict swing they can
     // afford: the best body alone, the best trick alone, or — when the fate
     // covers both — the pair. Take the strongest of the three (never more than
     // one body + one trick, so the estimate stays a believable single turn).
-    const pairFeasible = bestBody && bestTrick && bestBody.card !== bestTrick.card
-        && bestBody.cost + bestTrick.cost <= budget;
-    const bodyOnly = bestBody ? bestBody.v : 0;
-    const trickOnly = bestTrick ? bestTrick.v : 0;
-    const pair = pairFeasible ? bestBody.v + bestTrick.v : 0;
-
-    const skill = Math.max(bodyOnly, trickOnly, pair);
-    let detail = 'nothing playable';
-    if(skill > 0) {
-        if(skill === pair) {
-            detail = `${bestBody.card.id}(+${bestBody.v}/${bestBody.cost}f) ${bestTrick.card.id}(+${bestTrick.v}/${bestTrick.cost}f)`;
-        } else if(skill === bodyOnly && bestBody) {
-            detail = `${bestBody.card.id}(+${bestBody.v}/${bestBody.cost}f)`;
-        } else if(bestTrick) {
-            detail = `${bestTrick.card.id}(+${bestTrick.v}/${bestTrick.cost}f)`;
+    return Array.from({ length: maxBudget + 1 }, (_, budget) => {
+        let best: HandThreatCard[] = [];
+        for(const plan of plans) {
+            if(spent(plan) <= budget && better(plan, best)) {
+                best = plan;
+            }
         }
-    }
+        const skill = score(best);
+        return {
+            budget,
+            skill,
+            spentFate: spent(best),
+            cards: best,
+            detail: skill === 0
+                ? 'nothing playable'
+                : best.map((card) => `${card.id}(+${card.value}/${card.fate}f)`).join(' ')
+        };
+    });
+}
 
-    return { skill, detail };
+export function estimateHandThreat(
+    hand: KnownCard[],
+    fate: number,
+    type: 'military' | 'political'
+): { skill: number; detail: string } {
+    const matrix = buildHandThreatMatrix(hand, fate, type);
+    const plan = matrix[matrix.length - 1];
+    return { skill: plan.skill, detail: plan.detail };
 }

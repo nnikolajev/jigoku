@@ -1,6 +1,6 @@
 'use strict';
 
-// Generate per-decision training data for the seed-3 learned evaluator.
+// Generate per-decision training data for the seed-4 learned evaluator.
 // Runs N self-play games and streams one JSONL line per real (>=2-option)
 // decision, each carrying the position features, every legal option's
 // features, the chosen option index, and the game's terminal return for that

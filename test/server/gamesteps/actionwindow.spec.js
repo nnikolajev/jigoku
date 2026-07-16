@@ -84,4 +84,20 @@ describe('ActionWindow', function() {
             });
         });
     });
+
+    describe('canClickCard()', function() {
+        it('uses the same current-player and requirements checks as onCardClicked', function() {
+            const legalAction = {
+                createContext: jasmine.createSpy('createContext').and.returnValue({}),
+                meetsRequirements: jasmine.createSpy('meetsRequirements').and.returnValue('')
+            };
+            const illegalAction = {
+                createContext: jasmine.createSpy('createContext').and.returnValue({}),
+                meetsRequirements: jasmine.createSpy('meetsRequirements').and.returnValue('cannot pay')
+            };
+            expect(this.prompt.canClickCard(this.player2, { getActions: () => [illegalAction, legalAction] })).toBe(true);
+            expect(this.prompt.canClickCard(this.player2, { getActions: () => [illegalAction] })).toBe(false);
+            expect(this.prompt.canClickCard(this.player1, { getActions: () => [legalAction] })).toBe(false);
+        });
+    });
 });

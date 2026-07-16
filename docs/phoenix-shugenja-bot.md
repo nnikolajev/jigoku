@@ -8,22 +8,27 @@ forced rule or legal timing.
 
 ## Game plan
 
-- **Manipulate rings.** Water gets a large live-board bonus for Prodigy of the
-  Waves, Asako Tsuki, Ethereal Dreamer, Feral Ningyo, and Adept of the Waves.
-  Kudaka raises Air; Isawa Ujina raises Void. Offerings to the Kami scores only
-  characters currently in play: lone ready Kudaka selects Air, while a live
-  Water payoff, bowed own character, or ready zero-fate enemy can move Water
-  ahead. Asako Togama swaps toward fate-bearing rings (even one fate) and Water.
+- **Manipulate rings.** Conflict declaration still takes the largest fate pile
+  first, with live Water/Air/Void bonuses for Prodigy of the Waves, Asako
+  Tsuki, Ethereal Dreamer, Feral Ningyo, Adept of the Waves, Kudaka, and Isawa
+  Ujina. Other claim effects now combine fate and immediate payoff instead of
+  using one global order. Offerings to the Kami values each ring's fate plus
+  live character and ring-effect value. Asako Togama takes the largest fate
+  pile first, then uses those same live payoffs to break ties; a home Togama is
+  no longer treated as an available action until he participates. Ujina's Void
+  bonus requires a legal zero-fate enemy target.
 - **Recycle Spell Actions.** Kyūden Isawa discards the weakest Spell while
   protecting Display of Power, Consumed by Five Fires, and The Path of Man.
   It recasts only Spell Actions legal in the current action window; reaction
   events such as Display of Power and Earth Becomes Sky cannot legally be
   played by the stronghold Action and remain available for their reaction
   windows.
-- **Trade provinces.** With Display of Power in hand and two fate available,
-  a normal province may be left undefended. The reaction cancels the enemy ring
-  effect, resolves it for Phoenix, and claims the ring. Stronghold defense is
-  never intentionally conceded.
+- **Trade provinces selectively.** With Display of Power in hand and two fate
+  available, a normal province is left undefended when the contested ring turns
+  on a live Phoenix payoff, or when the available defenders cannot win anyway.
+  A winnable conflict on an irrelevant ring is defended normally. The reaction
+  cancels the enemy ring effect, resolves it for Phoenix, and claims the ring.
+  Stronghold defense is never intentionally conceded.
 - **Build practical towers.** Ready, Water, Clarity of Purpose, Supernatural
   Storm, and Adept of the Waves effects prefer Isawa Tadaka, Fushichō, Shiba
   Tsukune, and Kudaka. This list has few attachments, so these printed-stat
@@ -48,8 +53,10 @@ forced rule or legal timing.
 - **Control the opponent.** Pacifism and Stolen Breath are played before
   conflicts; Kirei-ko, Earth Becomes Sky, and other harmful effects target
   enemy characters. Extra copies spread across characters instead of repeating
-  the same printed attachment on one bearer. Meddling Mediator takes enemy fate
-  first, then honor.
+  the same printed attachment on one bearer. Pacifism and Stolen Breath remain
+  independent locks: each printed attachment avoids duplicating itself, while
+  the other lock may legally use the same character. Meddling Mediator takes
+  enemy fate first, then honor.
   Shiba Yōjimbō always protects an own Shugenja when its interrupt is offered.
 
 Helpful target steering always chooses Phoenix characters; harmful target
@@ -62,7 +69,9 @@ on Cancel.
 
 - `ShugenjaTactics.ts` owns ring bonuses, practical towers, Kyūden legality,
   Tadaka setup/Disguised target ranking, Fushichō gating, spell/discard
-  ordering, Display defense, and the conditional five-fate reserve.
+  ordering, Display defense, and the conditional five-fate reserve. Its
+  `offeringsFateValue`, `togamaFateValue`, `immediateRingPayoffValue`, and
+  `displayRingMinimum` profile fields are injectable tuning knobs.
 - `CardPlaybook.ts` contains the active/reaction metadata for the deck cards.
 - `DeckProfiles.ts` derives the sub-profile from Kyūden Isawa and parks Vassal
   Fields under the stronghold.
@@ -71,11 +80,24 @@ on Cancel.
 - `matchPhoenixShugenja.js` alternates seats against the Crane baseline;
   `auditCards.js phoenix-shugenja` reports every successful card click.
 
-## Verification (2026-07-14)
+## Verification (2026-07-15)
 
 - TypeScript typecheck: pass.
-- Focused Phoenix Shugenja tactics: 18 specs, 0 failures.
-- Full bot unit folder: 232 specs, 0 failures.
+- Focused Phoenix Shugenja tactics: 22 specs, 0 failures.
+- Full bot unit folder: 273 specs, 0 failures. This includes unchanged
+  Pacifism/Stolen Breath spreading and saturation regressions, plus exhaustive
+  seed-1 execution coverage for every specialized tactic method.
+- Deterministic replay (`rng-seed 20260716`) kept the Phoenix conquest win and
+  removed seven invalid ring clicks: five during Kyuden Isawa discard prompts
+  and two during Assassination target prompts. In the same replay, Offerings
+  chose zero-fate Water over one-fate Air because Water immediately bowed an
+  18-skill attacker.
+- Independent alternating-seat N=100 samples against seed-1 Crane moved from
+  the retained pre-change baseline of **64 wins** (2 undecided), to **69 wins**
+  after ring orchestration (1 undecided), then **72 wins** after the
+  participating-only Togama correction (1 undecided). These are unpaired
+  shuffle samples, so treat the +8 points as positive evidence rather than an
+  exact effect size.
 - Live utilization audit: every active card fires. The Imperial Palace is the
   only zero-click card because its Imperial Favor modifier is passive.
 - Ten-game deterministic card audit: 10 prepared-Tadaka play starts and 12
@@ -93,4 +115,5 @@ Commands:
 ```powershell
 node tools/selfplay/matchPhoenixShugenja.js 20 1
 node tools/selfplay/auditCards.js phoenix-shugenja 10
+npx jasmine --config=jasmine-bots.json
 ```

@@ -2,6 +2,8 @@ const { DuelTactics, DUEL_DEFAULTS } = require('../../../build/server/game/bots/
 const { deriveDeckStrategy } = require('../../../build/server/game/bots/CardPlaybook.js');
 const { profileFromStrategy, resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
 const JigokuBotPolicy = require('../../../build/server/game/bots/JigokuBotPolicy.js');
+const { getPlaybookEntry } = require('../../../build/server/game/bots/CardPlaybook.js');
+const { loadCraneDuelDeck } = require('../../../tools/selfplay/deckLoader.js');
 
 // Locks the duel layer (upgraded Crane Duels): strategy derivation keyed on
 // Tsuma (the sparring Crane precon must stay generic), profile gating, and
@@ -11,6 +13,17 @@ describe('DuelTactics', function() {
     const DUELIST = { holdingEngine: false, defensive: false, aggressive: false, dishonor: false, glory: false, monk: false, duelist: true };
 
     describe('strategy derivation', function() {
+        it('loads the exact EmeraldDB v0.3 deck used by self-play', function() {
+            const deck = loadCraneDuelDeck();
+            const count = (pile, id) => pile.find((entry) => entry.card.id === id)?.count || 0;
+            expect(deck.dynastyCards.reduce((sum, entry) => sum + entry.count, 0)).toBe(40);
+            expect(deck.conflictCards.reduce((sum, entry) => sum + entry.count, 0)).toBe(40);
+            expect(count(deck.dynastyCards, 'iron-crane-legion')).toBe(3);
+            expect(count(deck.conflictCards, 'voice-of-honor')).toBe(3);
+            expect(count(deck.conflictCards, 'way-of-the-crane')).toBe(2);
+            expect(count(deck.conflictCards, 'noble-sacrifice')).toBe(2);
+        });
+
         it('keys on Tsuma so the SPARRING Crane precon stays generic', function() {
             expect(deriveDeckStrategy(['tsuma']).duelist).toBe(true);
             // The old Crane precon has the whole duel package but no Tsuma.
@@ -45,24 +58,46 @@ describe('DuelTactics', function() {
             expect(tactics.duelAxis(undefined)).toBeNull();
         });
 
-        it('duel attachments stack on the ranked key duelists', function() {
-            const mine = [{ id: 'tengu-sensei' }, { id: 'kakita-toshimoko' }];
-            expect(tactics.pickKeyCharacter(mine).id).toBe('tengu-sensei');
-            expect(tactics.pickKeyCharacter([{ id: 'kakita-favorite' }])).toBeNull();
-        });
-
-        it('buys only a funded preferred tower and gives it 3-5 fate', function() {
+        it('funds five-cost towers with two fate and gives durable bodies 2-5 fate', function() {
             const playable = [
                 { uuid: 'filler', id: 'cautious-scout', type: 'character' },
                 { uuid: 'kaezin', id: 'kakita-kaezin', type: 'character' },
                 { uuid: 'tengu', id: 'tengu-sensei', type: 'character' }
             ];
             expect(tactics.pickDynastyTower(playable, { filler: 1, kaezin: 3, tengu: 5 }, 7, []).id)
-                .toBe('kakita-kaezin');
-            expect(tactics.pickDynastyTower([playable[2]], { tengu: 5 }, 7, [])).toBeNull();
+                .toBe('tengu-sensei');
+            expect(tactics.pickDynastyTower([playable[2]], { tengu: 5 }, 7, []).id).toBe('tengu-sensei');
             expect(tactics.desiredAdditionalFate('tengu-sensei', 8, 5)).toBe(3);
             expect(tactics.desiredAdditionalFate('tengu-sensei', 12, 5)).toBe(5);
             expect(tactics.desiredAdditionalFate('cautious-scout', 12, 1)).toBeNull();
+        });
+
+        it('treats Iron Crane Legion as durable but never as a duel attachment carrier', function() {
+            const legion = { uuid: 'legion', id: 'iron-crane-legion', type: 'character', fate: 3, attachments: [] };
+            const kaezin = { uuid: 'kaezin', id: 'kakita-kaezin', type: 'character', fate: 2, attachments: [] };
+            expect(tactics.isDurableCharacter(legion.id)).toBe(true);
+            expect(tactics.isTowerCharacter(legion.id)).toBe(false);
+            expect(tactics.pickDynastyTower([legion], { legion: 3 }, 6, [], []).id).toBe('iron-crane-legion');
+            expect(tactics.pickAttachmentTarget([legion, kaezin], 'duelist-training')).toBe(kaezin);
+        });
+
+        it('changes Iaijutsu Master bids only when the live duel margin improves', function() {
+            expect(tactics.iaijutsuBidChoice(-2)).toBeNull();
+            expect(tactics.iaijutsuBidChoice(-1)).toBe('Increase honor bid');
+            expect(tactics.iaijutsuBidChoice(0)).toBe('Increase honor bid');
+            expect(tactics.iaijutsuBidChoice(1)).toBeNull();
+            expect(tactics.iaijutsuBidChoice(2)).toBe('Decrease honor bid');
+        });
+
+        it('honors a persistent tower and trades the cheapest honored body for the best dishonored enemy', function() {
+            const skill = (card) => card.skill;
+            const helper = { uuid: 'helper', id: 'cautious-scout', fate: 0, skill: 1, isHonored: true, attachments: [] };
+            const tower = { uuid: 'tower', id: 'tengu-sensei', fate: 3, skill: 5, isHonored: false, attachments: [] };
+            const weakEnemy = { uuid: 'weak', fate: 0, skill: 2, isDishonored: true, attachments: [] };
+            const enemyTower = { uuid: 'enemy-tower', fate: 3, skill: 5, isDishonored: true, attachments: [{}] };
+            expect(tactics.pickHonorTarget([helper, tower], skill)).toBe(tower);
+            expect(tactics.pickNobleSacrifice([tower, helper], skill)).toBe(helper);
+            expect(tactics.pickNobleVictim([weakEnemy, enemyTower], skill)).toBe(enemyTower);
         });
 
         it('uses Shukujo only on Kuwanan and spreads Restricted attachments', function() {
@@ -92,7 +127,7 @@ describe('DuelTactics', function() {
         const fateButtons = ['0', '1', '2', '3', '4', '5'].map((num) =>
             ({ text: num, arg: num, uuid: 'fate-' + num }));
 
-        it('buys one cheap helper while preserving a visible unfunded tower', function() {
+        it('buys a five-cost tower with two fate at the normal seven-fate opening', function() {
             const state = {
                 players: {
                     'Jigoku Bot': {
@@ -111,8 +146,49 @@ describe('DuelTactics', function() {
                 strategy: DUELIST,
                 dynastyCosts: { tengu: 5, scout: 1 }
             });
-            expect(decision.reason).toBe('duel-play-support');
-            expect(decision.args[0]).toBe('scout');
+            expect(decision.reason).toBe('duel-play-tower');
+            expect(decision.args[0]).toBe('tengu');
+        });
+
+        it('chooses Iaijutsu Master direction from the live margin', function() {
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', promptTitle: 'Iaijutsu Master', menuTitle: 'Choose one',
+                        buttons: [
+                            { text: 'Increase honor bid', arg: 'increase', uuid: 'inc' },
+                            { text: 'Decrease honor bid', arg: 'decrease', uuid: 'dec' },
+                            { text: 'Pass', arg: 'pass', uuid: 'pass' }
+                        ], cardPiles: { cardsInPlay: [] }
+                    }
+                }
+            };
+            const decision = new JigokuBotPolicy('duel-master-direction').decide(state, 'Jigoku Bot', {
+                strategy: DUELIST, duelMargin: 2
+            });
+            expect(decision.reason).toBe('iaijutsu-decrease-bid');
+            expect(decision.args[0]).toBe('decrease');
+        });
+
+        it('never uses Voice of Honor to cancel its own event', function() {
+            const voice = { uuid: 'voice', id: 'voice-of-honor', type: 'event', location: 'hand', selectable: true };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', promptTitle: 'Any interrupts to the effects of Policy Debate?',
+                        menuTitle: 'Any interrupts?', buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stats: { fate: 3 }, cardPiles: { hand: [voice], cardsInPlay: [] }
+                    }
+                }
+            };
+            const own = new JigokuBotPolicy('voice-own').decide(state, 'Jigoku Bot', {
+                strategy: DUELIST, cardHint: getPlaybookEntry, interruptedEventIsMine: true
+            });
+            const enemy = new JigokuBotPolicy('voice-enemy').decide(state, 'Jigoku Bot', {
+                strategy: DUELIST, cardHint: getPlaybookEntry, interruptedEventIsMine: false
+            });
+            expect(own.reason).toBe('pass-window');
+            expect(enemy.args[0]).toBe('voice');
         });
 
         it('places deep fate on tower characters', function() {

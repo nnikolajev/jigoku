@@ -83,7 +83,10 @@ class AbilityTargetCard {
         let buttons: any[] = [];
         let waitingPromptTitle = '';
         if(context.stage === Stages.PreTarget) {
-            if(!targetResults.noCostsFirstButton) {
+            // A target-dependent cost cannot be calculated or reduced until
+            // this target exists. Paying first loses target-specific reducers
+            // (for example Daimyo's Favor on Tetsubo of Blood's bearer).
+            if(!targetResults.noCostsFirstButton && !this.dependentCost) {
                 buttons.push({ text: 'Pay costs first', arg: 'costsFirst' });
             }
             buttons.push({ text: 'Cancel', arg: 'cancel' });

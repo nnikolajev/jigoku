@@ -21,7 +21,7 @@ export interface ActionRequest {
 }
 
 /**
- * The "seed 2" brain: instead of the hand-written heuristics choosing the move,
+ * The "seed 3" brain: instead of the hand-written heuristics choosing the move,
  * the whole legal move set for the current step is handed to the local LLM with
  * the full visible game state, and the model picks which one to execute. The
  * controller validates every option before offering it and keeps the heuristic

@@ -1,5 +1,6 @@
 const JigokuBotController = require('../../../build/server/game/bots/JigokuBotController.js');
 const JigokuBotPolicy = require('../../../build/server/game/bots/JigokuBotPolicy.js');
+const FateAwareJigokuBotPolicy = require('../../../build/server/game/bots/FateAwareJigokuBotPolicy.js');
 const LmStudioClient = require('../../../build/server/game/bots/llm/LmStudioClient.js').default;
 const DeckHintService = require('../../../build/server/game/bots/llm/DeckHintService.js').default;
 const LlmActionPlanner = require('../../../build/server/game/bots/llm/LlmActionPlanner.js').default;
@@ -46,6 +47,34 @@ describe('Jigoku heuristic bot', function() {
         });
     });
 
+    it('expands composite target actions into their named leaf actions', function() {
+        const controller = Object.create(JigokuBotController.prototype);
+        controller.currentPromptStep = () => ({
+            properties: {
+                gameAction: {
+                    name: '',
+                    properties: {
+                        gameActions: [
+                            { name: 'ready' },
+                            { name: 'move' }
+                        ]
+                    }
+                }
+            },
+            context: {
+                player: { name: 'Jigoku Bot' },
+                source: { type: 'event', cardData: { id: 'in-service-to-my-lord' } }
+            }
+        });
+
+        expect(controller.currentTargetHint({ name: 'Jigoku Bot' })).toEqual({
+            gameActions: ['ready', 'move'],
+            sourceIsMine: true,
+            sourceType: 'event',
+            sourceCardId: 'in-service-to-my-lord'
+        });
+    });
+
     it('reads played card metadata from an active interrupt window', function() {
         const controller = Object.create(JigokuBotController.prototype);
         controller.currentPromptStep = () => ({ properties: {} });
@@ -66,6 +95,47 @@ describe('Jigoku heuristic bot', function() {
         };
         expect(controller.currentPlayCost({ name: 'Jigoku Bot' })).toBe(0);
         expect(controller.currentPlayCardId({ name: 'Jigoku Bot' })).toBe('fine-katana');
+    });
+
+    it('reads ownership from the event being interrupted', function() {
+        const controller = Object.create(JigokuBotController.prototype);
+        const bot = { name: 'Jigoku Bot' };
+        controller.currentPromptStep = () => ({
+            events: [{
+                name: 'onInitiateAbilityEffects',
+                card: { getType: () => 'event' },
+                context: { player: bot }
+            }]
+        });
+        expect(controller.currentInterruptedEventIsMine(bot)).toBe(true);
+        expect(controller.currentInterruptedEventIsMine({ name: 'Opponent' })).toBe(false);
+    });
+
+    it('builds a live legal direct-click set instead of trusting card visibility', function() {
+        const prompt = { promptTitle: 'Military Earth Conflict', menuTitle: 'Choose attackers', buttons: [] };
+        const player = makePlayer(prompt);
+        const legal = { uuid: 'legal', type: 'character' };
+        const illegal = { uuid: 'illegal', type: 'character' };
+        const game = makeGame(player, { cards: [legal, illegal] });
+        game.findAnyCardInAnyList = (uuid) => uuid === 'legal' ? legal : illegal;
+        const controller = new JigokuBotController(game, { playerName: player.name, seed: 1 }, jasmine.createSpy('runner'));
+        controller.currentPromptStep = () => ({ checkCardCondition: (card) => card === legal });
+
+        expect(controller.currentLegalDirectCardUuids(player)).toEqual({ legal: true });
+        expect(controller.isLegalCard(player, 'legal')).toBe(true);
+        expect(controller.isLegalCard(player, 'illegal')).toBe(false);
+    });
+
+    it('rejects stale selectable-card state on an explicit menu-only prompt', function() {
+        const prompt = {
+            promptTitle: 'Shosuro Hametsu', menuTitle: 'Select a card to reveal',
+            selectCard: false, buttons: [{ text: 'Take nothing', arg: 'take-nothing' }]
+        };
+        const stale = { uuid: 'stale', type: 'event' };
+        const player = makePlayer(prompt, [stale]);
+        const controller = new JigokuBotController(makeGame(player, { cards: [stale] }), { playerName: player.name, seed: 1 }, jasmine.createSpy('runner'));
+
+        expect(controller.isLegalCard(player, 'stale')).toBe(false);
     });
 
     it('rejects illegal menu commands before calling the game runner', function() {
@@ -1337,6 +1407,167 @@ describe('Jigoku heuristic bot', function() {
         expect(attack.command).toBe('facedownCardClicked');
     });
 
+    it('does not click a selected ring when the live prompt cannot legally toggle its conflict type', function() {
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    promptTitle: 'Political Earth Conflict',
+                    menuTitle: 'Choose province to attack',
+                    buttons: [],
+                    cardPiles: {
+                        cardsInPlay: [{
+                            uuid: 'kaze', name: 'Higashi Kaze Company', type: 'character', location: 'play area',
+                            bowed: false, inConflict: false,
+                            militarySkillSummary: { stat: '6' }, politicalSkillSummary: { stat: '3' }
+                        }]
+                    }
+                },
+                'Human': {
+                    name: 'Human',
+                    provinces: { one: [{ facedown: true, location: 'province 1' }], two: [], three: [], four: [] }
+                }
+            }
+        };
+        const policy = new JigokuBotPolicy('illegal-type-switch');
+        const decision = policy.decide(state, 'Jigoku Bot', { legalRingElements: {} });
+
+        expect(decision.command).toBe('facedownCardClicked');
+        expect(decision.reason).toBe('attack-facedown-province');
+    });
+
+    it('uses a selectable card controller when the player summary omits that own card', function() {
+        const ownTarget = {
+            uuid: 'own-global-target', id: 'togashi-ichi', name: 'Togashi Ichi',
+            type: 'character', location: 'play area', selectable: true,
+            controller: { name: 'Jigoku Bot' },
+            militarySkillSummary: { stat: '4' }, politicalSkillSummary: { stat: '4' }
+        };
+        const state = {
+            selectableCards: [ownTarget],
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Court Games', menuTitle: 'Choose a character',
+                    buttons: [], cardPiles: { cardsInPlay: [] }
+                },
+                Human: { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const decision = new JigokuBotPolicy('controller-owned-target').decide(state, 'Jigoku Bot', {
+            targetHint: {
+                gameActions: ['dishonor'], sourceIsMine: false,
+                sourceType: 'event', sourceCardId: 'court-games'
+            },
+            cardHint: (id) => getPlaybookEntry(id)
+        });
+
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('own-global-target');
+    });
+
+    it('resets attempted targets for a new prompt with the same Court Games title', function() {
+        const ownTarget = {
+            uuid: 'same-court-target', id: 'ethereal-dreamer', name: 'Ethereal Dreamer',
+            type: 'character', location: 'play area', selectable: true,
+            controller: { name: 'Jigoku Bot' },
+            militarySkillSummary: { stat: '1' }, politicalSkillSummary: { stat: '3' }
+        };
+        const state = {
+            selectableCards: [ownTarget],
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Court Games', menuTitle: 'Choose a character',
+                    buttons: [], cardPiles: { cardsInPlay: [] }
+                },
+                Human: { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+        const targetHint = {
+            gameActions: ['dishonor'], sourceIsMine: false,
+            sourceType: 'event', sourceCardId: 'court-games'
+        };
+        const policy = new JigokuBotPolicy('court-prompt-identity');
+
+        expect(policy.decide(state, 'Jigoku Bot', { promptIdentity: 'court-one', targetHint }).args[0]).toBe('same-court-target');
+        expect(policy.decide(state, 'Jigoku Bot', { promptIdentity: 'court-one', targetHint })).toBe(null);
+        expect(policy.decide(state, 'Jigoku Bot', { promptIdentity: 'court-two', targetHint }).args[0]).toBe('same-court-target');
+    });
+
+    it('finishes a multi-card prompt after the live selector reaches its limit', function() {
+        const state = {
+            selectableCards: [{
+                uuid: 'extra-card', id: 'banzai', name: 'Banzai!', type: 'event',
+                location: 'hand', selectable: true
+            }],
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Daidoji Harrier',
+                    menuTitle: 'Choose two cards to reveal', selectCard: true,
+                    buttons: [{ text: 'Done', arg: 'done', uuid: 'done-prompt' }],
+                    cardPiles: { cardsInPlay: [] }
+                },
+                Human: { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+
+        const decision = new JigokuBotPolicy('selection-limit').decide(state, 'Jigoku Bot', {
+            promptIdentity: 'restoration-prompt', selectionReachedLimit: true
+        });
+
+        expect(decision.command).toBe('menuButton');
+        expect(decision.target).toBe('Done');
+        expect(decision.reason).toBe('finish-card-selection-limit');
+    });
+
+    it('ignores stale selectable cards on a button-only prompt', function() {
+        const state = {
+            selectableCards: [{
+                uuid: 'stale-card', id: 'togashi-ichi', name: 'Togashi Ichi',
+                type: 'character', location: 'play area', selectable: true
+            }],
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Declare Conflict',
+                    menuTitle: 'Do you wish to declare a conflict?', selectCard: false,
+                    buttons: [{ text: 'Declare a conflict', arg: 0, uuid: 'declare-prompt' }],
+                    cardPiles: { cardsInPlay: [] }
+                },
+                Human: { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+
+        const decision = new JigokuBotPolicy('stale-selectable').decide(state, 'Jigoku Bot');
+
+        expect(decision.command).toBe('menuButton');
+        expect(decision.target).toBe('Declare a conflict');
+    });
+
+    it('does not use reveal-card handling on Shosuro Hametsu menu choices', function() {
+        const state = {
+            selectableCards: [{
+                uuid: 'stale-hand-card', id: 'fiery-madness', name: 'Fiery Madness',
+                type: 'attachment', location: 'hand', selectable: true
+            }],
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Shosuro Hametsu',
+                    menuTitle: 'Select a card to reveal', selectCard: false,
+                    buttons: [
+                        { text: 'Fiery Madness (3)', arg: 'fiery-madness', uuid: 'hametsu-prompt' },
+                        { text: 'Take nothing', arg: 'take-nothing', uuid: 'hametsu-prompt' }
+                    ],
+                    cardPiles: { cardsInPlay: [] }
+                },
+                Human: { name: 'Human', cardPiles: { cardsInPlay: [] } }
+            }
+        };
+
+        const decision = new JigokuBotPolicy('hametsu-menu').decide(state, 'Jigoku Bot');
+
+        expect(decision.command).toBe('menuButton');
+        expect(decision.command).not.toBe('cardClicked');
+    });
+
     it('attacks a facedown province through facedownCardClicked', function() {
         const state = {
             players: {
@@ -1642,6 +1873,7 @@ describe('Jigoku heuristic bot', function() {
                         cardPiles: {
                             hand: options.hand || [],
                             dynastyDiscardPile: options.dynastyDiscard || [],
+                            conflictDiscardPile: options.conflictDiscard || [],
                             // Events/attachments are only played while a ready
                             // participant can benefit; give states one unless
                             // the test overrides.
@@ -1680,6 +1912,287 @@ describe('Jigoku heuristic bot', function() {
             }), 'Jigoku Bot');
             expect(decision.command).toBe('cardClicked');
             expect(decision.args[0]).toBe('event-1');
+        });
+
+        [
+            { name: 'heuristic', Policy: JigokuBotPolicy },
+            { name: 'fate-aware', Policy: FateAwareJigokuBotPolicy }
+        ].forEach(({ name, Policy }) => {
+            const conflictCard = (uuid, id) => ({
+                uuid: uuid,
+                id: id,
+                name: id,
+                type: 'event',
+                location: 'hand',
+                isPlayableByMe: true
+            });
+            const hint = (priority) => (cardId) => ({
+                cardId: cardId,
+                useWhen: 'always',
+                conflictTypes: [],
+                targetSide: 'self',
+                targetPreference: 'any',
+                priority: priority,
+                summary: ''
+            });
+
+            it(`prefers an equal-value free conflict card over a cost-2 card (${name})`, function() {
+                const paid = conflictCard('aaa-paid', 'paid-pump');
+                const free = conflictCard('zzz-free', 'free-pump');
+                const decision = new Policy(`window-cost-efficiency-${name}`).decide(
+                    makeConflictWindowState({
+                        amAttacker: false,
+                        attackerSkill: 4,
+                        defenderSkill: 2,
+                        fate: 2,
+                        hand: [paid, free]
+                    }),
+                    'Jigoku Bot',
+                    {
+                        cardHint: hint(7),
+                        conflictCosts: { 'aaa-paid': 2, 'zzz-free': 0 },
+                        handStats: {
+                            'aaa-paid': { military: 2, political: 2 },
+                            'zzz-free': { military: 2, political: 2 }
+                        }
+                    }
+                );
+
+                expect(decision.command).toBe('cardClicked');
+                expect(decision.args[0]).toBe('zzz-free');
+            });
+
+            it(`plans two efficient conflict cards instead of exhausting fate on one lower-total-value card (${name})`, function() {
+                const expensive = conflictCard('aaa-expensive', 'expensive-pump');
+                const cheapOne = conflictCard('bbb-cheap-one', 'cheap-pump-one');
+                const cheapTwo = conflictCard('ccc-cheap-two', 'cheap-pump-two');
+                const priorities = {
+                    'expensive-pump': 8,
+                    'cheap-pump-one': 7,
+                    'cheap-pump-two': 7
+                };
+                const decision = new Policy(`window-multi-card-budget-${name}`).decide(
+                    makeConflictWindowState({
+                        amAttacker: false,
+                        attackerSkill: 5,
+                        defenderSkill: 1,
+                        fate: 4,
+                        hand: [expensive, cheapOne, cheapTwo]
+                    }),
+                    'Jigoku Bot',
+                    {
+                        cardHint: (cardId) => hint(priorities[cardId])(cardId),
+                        conflictCosts: {
+                            'aaa-expensive': 4,
+                            'bbb-cheap-one': 2,
+                            'ccc-cheap-two': 2
+                        },
+                        handStats: {
+                            'aaa-expensive': { military: 2, political: 2 },
+                            'bbb-cheap-one': { military: 2, political: 2 },
+                            'ccc-cheap-two': { military: 2, political: 2 }
+                        }
+                    }
+                );
+
+                expect(decision.command).toBe('cardClicked');
+                expect(decision.args[0]).toBe('bbb-cheap-one');
+            });
+
+            it(`keeps a priority-9 cost-2 answer ahead of weak free filler (${name})`, function() {
+                const strategic = conflictCard('zzz-strategic', 'strategic-answer');
+                const filler = conflictCard('aaa-filler', 'free-filler');
+                const priorities = { 'strategic-answer': 9, 'free-filler': 5 };
+                const decision = new Policy(`window-protect-value-${name}`).decide(
+                    makeConflictWindowState({
+                        amAttacker: false,
+                        attackerSkill: 4,
+                        defenderSkill: 2,
+                        fate: 2,
+                        hand: [filler, strategic]
+                    }),
+                    'Jigoku Bot',
+                    {
+                        cardHint: (cardId) => hint(priorities[cardId])(cardId),
+                        conflictCosts: { 'zzz-strategic': 2, 'aaa-filler': 0 },
+                        handStats: {
+                            'zzz-strategic': { military: 2, political: 2 },
+                            'aaa-filler': { military: 1, political: 1 }
+                        }
+                    }
+                );
+
+                expect(decision.command).toBe('cardClicked');
+                expect(decision.args[0]).toBe('zzz-strategic');
+            });
+
+            it(`values an enemy skill debuff by its beneficial magnitude (${name})`, function() {
+                const pump = { ...conflictCard('aaa-pump', 'small-pump'), type: 'attachment' };
+                const debuff = { ...conflictCard('zzz-debuff', 'enemy-debuff'), type: 'attachment' };
+                const decision = new Policy(`window-enemy-debuff-value-${name}`).decide(
+                    makeConflictWindowState({
+                        amAttacker: false,
+                        attackerSkill: 4,
+                        defenderSkill: 2,
+                        fate: 1,
+                        hand: [pump, debuff]
+                    }),
+                    'Jigoku Bot',
+                    {
+                        cardHint: (cardId) => ({
+                            ...hint(8)(cardId),
+                            targetSide: cardId === 'enemy-debuff' ? 'enemy' : 'self'
+                        }),
+                        conflictCosts: { 'aaa-pump': 1, 'zzz-debuff': 1 },
+                        handStats: {
+                            'aaa-pump': { military: 1, political: 1 },
+                            'zzz-debuff': { military: -2, political: -2 }
+                        }
+                    }
+                );
+
+                expect(decision.command).toBe('cardClicked');
+                expect(decision.args[0]).toBe('zzz-debuff');
+            });
+
+            it(`preserves the five-fate Consumed by Five Fires tower answer (${name})`, function() {
+                const fiveFires = conflictCard('zzz-five-fires', 'consumed-by-five-fires');
+                const free = conflictCard('aaa-free', 'banzai');
+                const decision = new Policy(`window-five-fires-${name}`).decide(
+                    makeConflictWindowState({
+                        amAttacker: true,
+                        attackerSkill: 1,
+                        defenderSkill: 6,
+                        fate: 5,
+                        hand: [free, fiveFires],
+                        strongholdProvince: [{
+                            uuid: 'kyuden', id: 'kyuden-isawa', type: 'stronghold',
+                            location: 'stronghold province', bowed: false
+                        }],
+                        conflictDiscard: [{
+                            uuid: 'clarity-discard', id: 'clarity-of-purpose', type: 'event',
+                            location: 'conflict discard pile', isPlayableByMe: true
+                        }],
+                        cardsInPlay: [{
+                            uuid: 'adept', id: 'adept-of-the-waves', type: 'character',
+                            bowed: false, inConflict: true,
+                            militarySkillSummary: { stat: '2' }, politicalSkillSummary: { stat: '2' }
+                        }],
+                        opponentCardsInPlay: [{
+                            uuid: 'enemy-tower', id: 'enemy-tower', type: 'character',
+                            fate: 5, inConflict: true,
+                            militarySkillSummary: { stat: '6' }, politicalSkillSummary: { stat: '6' }
+                        }]
+                    }),
+                    'Jigoku Bot',
+                    {
+                        strategy: {
+                            holdingEngine: false, defensive: false, aggressive: false,
+                            dishonor: false, glory: false, monk: false, duelist: false,
+                            shugenja: true, attachmentTower: false
+                        },
+                        cardHint: (cardId) => getPlaybookEntry(cardId),
+                        conflictCosts: { 'zzz-five-fires': 5, 'aaa-free': 0 }
+                    }
+                );
+
+                expect(decision.reason).toBe('five-fires-tower-removal');
+                expect(decision.args[0]).toBe('zzz-five-fires');
+            });
+
+            it(`triggers priority-10 Display of Power before a lower-priority reaction (${name})`, function() {
+                const lowerPriorityReaction = {
+                    uuid: 'aaa-reaction',
+                    id: 'minor-reaction',
+                    name: 'Minor Reaction',
+                    type: 'event',
+                    location: 'hand',
+                    selectable: true
+                };
+                const displayOfPower = {
+                    uuid: 'zzz-display',
+                    id: 'display-of-power',
+                    name: 'Display of Power',
+                    type: 'event',
+                    location: 'hand',
+                    selectable: true
+                };
+                const state = {
+                    players: {
+                        'Jigoku Bot': {
+                            name: 'Jigoku Bot',
+                            promptTitle: 'Triggered Abilities',
+                            menuTitle: 'Any reactions?',
+                            selectCard: true,
+                            buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                            stats: { fate: 2 },
+                            cardPiles: { hand: [lowerPriorityReaction, displayOfPower] }
+                        }
+                    }
+                };
+                const hints = {
+                    'minor-reaction': hint(6)('minor-reaction'),
+                    'display-of-power': hint(10)('display-of-power')
+                };
+                const decision = new Policy(`trigger-display-first-${name}`).decide(
+                    state,
+                    'Jigoku Bot',
+                    {
+                        cardHint: (cardId) => hints[cardId],
+                        conflictCosts: { 'aaa-reaction': 0, 'zzz-display': 2 }
+                    }
+                );
+
+                expect(decision.command).toBe('cardClicked');
+                expect(decision.args[0]).toBe('zzz-display');
+            });
+
+            it(`does not pretend an in-play reaction has zero fate cost (${name})`, function() {
+                const boardReaction = {
+                    uuid: 'aaa-board-reaction',
+                    id: 'board-reaction',
+                    name: 'Board Reaction',
+                    type: 'character',
+                    location: 'play area',
+                    selectable: true
+                };
+                const displayOfPower = {
+                    uuid: 'zzz-display',
+                    id: 'display-of-power',
+                    name: 'Display of Power',
+                    type: 'event',
+                    location: 'hand',
+                    selectable: true
+                };
+                const state = {
+                    players: {
+                        'Jigoku Bot': {
+                            name: 'Jigoku Bot',
+                            promptTitle: 'Triggered Abilities',
+                            menuTitle: 'Any reactions?',
+                            selectCard: true,
+                            buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                            stats: { fate: 2 },
+                            cardPiles: { hand: [displayOfPower], cardsInPlay: [boardReaction] }
+                        }
+                    }
+                };
+                const hints = {
+                    'board-reaction': hint(9)('board-reaction'),
+                    'display-of-power': hint(10)('display-of-power')
+                };
+                const decision = new Policy(`trigger-unknown-board-cost-${name}`).decide(
+                    state,
+                    'Jigoku Bot',
+                    {
+                        cardHint: (cardId) => hints[cardId],
+                        conflictCosts: { 'zzz-display': 2 }
+                    }
+                );
+
+                expect(decision.command).toBe('cardClicked');
+                expect(decision.args[0]).toBe('zzz-display');
+            });
         });
 
         it('passes when already winning', function() {
@@ -2485,6 +2998,67 @@ describe('Jigoku heuristic bot', function() {
             expect(decision.args[0]).toBe('stolen-breath-hand');
         });
 
+        it('vetoes a pre-conflict debuff after its narrower legal target prompt cancels twice', function() {
+            const policy = new JigokuBotPolicy('preconflict-cancel-veto');
+            const parent = makeAttachState([], [character('apparently-open', 5)]);
+            parent.players['Jigoku Bot'].phase = 'conflict';
+            parent.players['Jigoku Bot'].promptTitle = 'Action Window';
+            parent.players['Jigoku Bot'].menuTitle = 'Initiate an action';
+            parent.players['Jigoku Bot'].stats = { fate: 4 };
+            parent.players['Jigoku Bot'].buttons = [{ text: 'Pass', arg: 'pass', uuid: 'pass' }];
+            parent.players['Jigoku Bot'].cardPiles.hand = [
+                { uuid: 'pacifism-hand', id: 'pacifism', name: 'Pacifism', isPlayableByMe: true }
+            ];
+            const playContext = {
+                strategy: deriveDeckStrategy(['city-of-the-open-hand']),
+                cardHint: (id) => getPlaybookEntry(id)
+            };
+            const saturatedTarget = makeAttachState([], [character('only-legal-target', 5, {
+                attachments: [{ id: 'pacifism' }]
+            })]);
+            const targetContext = {
+                targetHint: { gameActions: ['attach'], sourceIsMine: true, sourceCardId: 'pacifism' },
+                cardHint: (id) => getPlaybookEntry(id)
+            };
+
+            expect(policy.decide(parent, 'Jigoku Bot', playContext).target).toBe('Pacifism');
+            expect(policy.decide(saturatedTarget, 'Jigoku Bot', targetContext).reason).toBe('cancel-redundant-debuff-attachment');
+            expect(policy.decide(parent, 'Jigoku Bot', playContext).target).toBe('Pacifism');
+            expect(policy.decide(saturatedTarget, 'Jigoku Bot', targetContext).reason).toBe('cancel-redundant-debuff-attachment');
+
+            const finalDecision = policy.decide(parent, 'Jigoku Bot', playContext);
+            expect(finalDecision.command).toBe('menuButton');
+            expect(finalDecision.target).toBe('Pass');
+        });
+
+        it('keeps paid Pacifism ahead of a weak free pre-conflict attachment', function() {
+            const state = makeAttachState([], [character('enemy', 5)]);
+            state.players['Jigoku Bot'].phase = 'conflict';
+            state.players['Jigoku Bot'].promptTitle = 'Action Window';
+            state.players['Jigoku Bot'].menuTitle = 'Initiate an action';
+            state.players['Jigoku Bot'].stats = { fate: 3 };
+            state.players['Jigoku Bot'].buttons = [{ text: 'Pass', arg: 'pass', uuid: 'pass' }];
+            state.players['Jigoku Bot'].cardPiles.hand = [
+                { uuid: 'free-filler', id: 'free-filler', isPlayableByMe: true },
+                { uuid: 'pacifism', id: 'pacifism', isPlayableByMe: true }
+            ];
+            const decision = new JigokuBotPolicy('preconflict-protect-pacifism').decide(
+                state,
+                'Jigoku Bot',
+                {
+                    strategy: deriveDeckStrategy(['city-of-the-open-hand']),
+                    cardHint: (id) => id === 'free-filler' ? {
+                        cardId: id, useWhen: 'always', conflictTypes: [], targetSide: 'enemy',
+                        targetPreference: 'strongest', priority: 5, summary: '', preConflict: true
+                    } : getPlaybookEntry(id),
+                    conflictCosts: { 'free-filler': 0, pacifism: 2 }
+                }
+            );
+
+            expect(decision.command).toBe('cardClicked');
+            expect(decision.args[0]).toBe('pacifism');
+        });
+
         it('spreads Restricted attachments across characters', function() {
             const policy = new JigokuBotPolicy('attach-restricted-spread');
             const decision = policy.decide(
@@ -3049,7 +3623,7 @@ describe('Jigoku heuristic bot', function() {
         expect(clicks).toBe(2);
     });
 
-    describe('seed 2 LLM-driven policy', function() {
+    describe('seed 3 LLM-driven policy', function() {
         it('rejects a hallucinated option id and accepts a real one', async function() {
             const options = [{ id: 'opt0', label: 'a' }, { id: 'opt1', label: 'b' }];
             const request = { question: 'q', state: {}, hand: [], board: {}, options: options };
@@ -3089,7 +3663,7 @@ describe('Jigoku heuristic bot', function() {
             const onStateChange = jasmine.createSpy('onStateChange');
             const controller = new JigokuBotController(
                 game,
-                { playerName: 'Jigoku Bot', seed: 2, llm: { enabled: false, consultTimeoutMs: 200 } },
+                { playerName: 'Jigoku Bot', seed: 3, llm: { enabled: false, consultTimeoutMs: 200 } },
                 runner,
                 { planner: planner, onStateChange: onStateChange }
             );
@@ -3152,7 +3726,7 @@ describe('Jigoku heuristic bot', function() {
             });
             const controller = new JigokuBotController(
                 game,
-                { playerName: 'Jigoku Bot', seed: 2, llm: { enabled: false, consultTimeoutMs: 200 } },
+                { playerName: 'Jigoku Bot', seed: 3, llm: { enabled: false, consultTimeoutMs: 200 } },
                 runner,
                 { planner: { chooseAction: () => Promise.resolve(null) } }
             );

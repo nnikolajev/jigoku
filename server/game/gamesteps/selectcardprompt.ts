@@ -211,6 +211,8 @@ class SelectCardPrompt extends UiPrompt {
             return false;
         } else if(this.selectedCards.includes(card)) {
             return true;
+        } else if(this.selector.hasReachedLimit(this.selectedCards, this.context)) {
+            return false;
         }
 
         return (

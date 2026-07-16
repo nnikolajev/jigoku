@@ -13,6 +13,15 @@ describe('DeckProfiles', function() {
         expect(profileFromStrategy(undefined)).toEqual(DEFAULT_PROFILE);
     });
 
+    it('clones injectable conflict economy knobs per resolved profile', function() {
+        const first = profileFromStrategy(GENERIC);
+        const second = profileFromStrategy(GENERIC);
+        first.conflictCardEconomy.priorityWeight = 99;
+
+        expect(second.conflictCardEconomy.priorityWeight).toBe(DEFAULT_PROFILE.conflictCardEconomy.priorityWeight);
+        expect(DEFAULT_PROFILE.conflictCardEconomy.priorityWeight).not.toBe(99);
+    });
+
     it('aggressive (Unicorn) keeps the rush knobs', function() {
         const p = profileFromStrategy(AGGRO);
         expect(p.aggressiveFate).toBe(true);
@@ -37,6 +46,7 @@ describe('DeckProfiles', function() {
         expect(p.digMinBoardCharacters).toBe(3);
         // still a holding deck
         expect(p.mulliganForHoldings).toBe(true);
+        expect(p.fateAwareEconomy.deferPassForDynastyActions).toBe(true);
     });
 
     it('does NOT apply the Crab override to aggressive or generic decks', function() {
@@ -50,8 +60,17 @@ describe('DeckProfiles', function() {
         expect(p.spendCardsOnDefense).toBe(true);
         expect(p.attackCommitment).toBe('all-but-one');
         expect(p.aggressiveFate).toBe(false);
+        expect(p.conflictCardEconomy.enabled).toBe(false);
         // The rush attack identity stays.
         expect(p.forceMilitaryConflict).toBe(true);
+    });
+
+    it('clones injectable economy objects from matched deck overrides', function() {
+        const first = resolveDeckProfile(['cavalry-reserves', 'ride-on'], AGGRO);
+        const second = resolveDeckProfile(['cavalry-reserves', 'ride-on'], AGGRO);
+        first.conflictCardEconomy.priorityWeight = 99;
+
+        expect(second.conflictCardEconomy.priorityWeight).toBe(DEFAULT_PROFILE.conflictCardEconomy.priorityWeight);
     });
 
     it('does NOT apply the Unicorn override without the marker card or flag', function() {

@@ -263,6 +263,14 @@ describe('the SelectCardPrompt', function() {
                         this.prompt.onCardClicked(this.player, this.card);
                         expect(this.properties.onSelect).not.toHaveBeenCalled();
                     });
+
+                    it('should stop exposing unselected cards after reaching the selector limit', function() {
+                        this.prompt.selectedCards = [this.card, this.card2];
+                        const extra = createCardSpy({ controller: this.player });
+
+                        expect(this.prompt.checkCardCondition(extra)).toBe(false);
+                        expect(this.prompt.checkCardCondition(this.card)).toBe(true);
+                    });
                 });
 
                 describe('selecting a card owned by another player', function() {

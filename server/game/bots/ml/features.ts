@@ -1,7 +1,7 @@
-// Feature extraction for the seed-3 learned evaluator.
+// Feature extraction for the seed-4 learned evaluator.
 //
 // Shipped (not tooling) so the exact same code produces the features the
-// harness logs for training AND the features seed-3 scores at inference — no
+// harness logs for training AND the features seed-4 scores at inference — no
 // drift between the two. Everything is a fixed-order named numeric vector.
 //
 // Input is the serialized player-perspective state (`game.getState(meName)`),

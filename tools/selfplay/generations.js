@@ -79,7 +79,7 @@ async function playDataGames(count, evaluator, epsilon, sink) {
         // enter the data on-policy, while the heuristic seat contributes
         // competent, province-breaking trajectories to learn from.
         const modelFirst = i % 2 === 0;
-        const seeds = modelFirst ? [3, 1] : [1, 3];
+        const seeds = modelFirst ? [4, 1] : [1, 4];
         const evals = modelFirst ? [evaluator, undefined] : [undefined, evaluator];
         const explore = modelFirst ? [epsilon, 0] : [0, epsilon];
         const r = await runGame({
@@ -95,7 +95,7 @@ async function evalVsHeuristic(count, evaluator, rounds) {
     let evalWins = 0, decided = 0;
     for(let i = 0; i < count; i++) {
         const evalSeat = i % 2;
-        const seeds = evalSeat === 0 ? [3, 1] : [1, 3];
+        const seeds = evalSeat === 0 ? [4, 1] : [1, 4];
         const evals = evalSeat === 0 ? [evaluator, undefined] : [undefined, evaluator];
         const r = await runGame({ names: NAMES, seeds: seeds, evaluators: evals, maxRounds: rounds });
         if(!r.winner) continue;

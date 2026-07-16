@@ -1,6 +1,6 @@
 'use strict';
 
-// Measure the trained evaluator (seed 3) against the heuristic (seed 1): the
+// Measure the trained evaluator (seed 4) against fate-aware seed 1: the
 // real test of whether learning improved play. Plays N games, alternating which
 // seat is the evaluator so first-player advantage cancels, and reports the
 // evaluator's win rate. >50% means the learned bot beats the heuristic.
@@ -35,7 +35,7 @@ async function main() {
     for(let i = 0; i < args.count; i++) {
         // Alternate the evaluator seat each game.
         const evalSeat = i % 2; // 0 => BotA is eval, 1 => BotB is eval
-        const seeds = evalSeat === 0 ? [3, 1] : [1, 3];
+        const seeds = evalSeat === 0 ? [4, 1] : [1, 4];
         const evaluators = evalSeat === 0 ? [evaluator, undefined] : [undefined, evaluator];
         const evalName = names[evalSeat];
 
@@ -66,7 +66,7 @@ async function main() {
     }
 
     const decided = evalWins + heurWins;
-    console.log('\n===== eval match: seed 3 (learned) vs seed 1 (heuristic) =====');
+    console.log('\n===== eval match: seed 4 (learned) vs seed 1 (fate-aware) =====');
     console.log(`games=${args.count} decided=${decided} undecided=${undecided} wallclock=${((Date.now() - started) / 1000).toFixed(1)}s`);
     console.log(`evaluator wins: ${evalWins}/${decided} = ${decided ? (100 * evalWins / decided).toFixed(1) : 0}%`);
     console.log(`  (as first seat: ${evalFirstWins}/${evalAsFirst}; as second seat: ${evalWins - evalFirstWins}/${decided - evalAsFirst})`);

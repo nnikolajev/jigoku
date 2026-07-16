@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train the seed-3 move evaluator from self-play trajectories.
+"""Train the seed-4 move evaluator from self-play trajectories.
 
 Reads the per-decision JSONL produced by runTrajectories.js. Each decision has
 the position (`state`), every legal option (`options[i]`), the chosen index, and

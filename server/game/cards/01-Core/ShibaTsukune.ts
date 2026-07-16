@@ -15,6 +15,11 @@ class ShibaTsukune extends DrawCard {
                 activePromptTitle: 'Choose a ring to resolve',
                 context: context,
                 ringCondition: ring => ring.isUnclaimed(),
+                // "Up to 2" includes zero. When every ring is claimed the
+                // mandatory empty prompt otherwise has no button or legal ring
+                // and can never complete (bots and human clients both stall).
+                optional: true,
+                hideIfNoLegalTargets: true,
                 onSelect: (player, firstRing) => {
                     if(Object.values(this.game.rings).filter(ring => ring.isUnclaimed()).length > 1) {
                         this.game.promptForRingSelect(player, {

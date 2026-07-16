@@ -1,5 +1,5 @@
 const { LionTactics, LION_DEFAULTS } = require('../../../build/server/game/bots/LionTactics.js');
-const { deriveDeckStrategy } = require('../../../build/server/game/bots/CardPlaybook.js');
+const { deriveDeckStrategy, getPlaybookEntry } = require('../../../build/server/game/bots/CardPlaybook.js');
 const { resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
 
 // Locks the bushi-swarm layer (Lion precon): strategy derivation, profile
@@ -27,6 +27,16 @@ describe('LionTactics', function() {
             expect(p.attackCommitment).toBe('all');
             expect(p.aggressiveFate).toBe(false);
             expect(p.forceMilitaryConflict).toBe(true);
+            expect(p.conflictCardEconomy.enabled).toBe(false);
+            expect(p.fateAwareEconomy).toEqual(jasmine.objectContaining({
+                prioritizeBodies: false,
+                passAfterDurable: false,
+                bodySpendCapEarly: 6,
+                bodySpendCapLate: 5,
+                bodyAdditionalFateForCostThree: 0,
+                bodyBudgetIncludesDurableSpend: false,
+                bodyFateReserve: 1
+            }));
         });
 
         it('does NOT apply to Unicorn or generic decks', function() {
@@ -37,11 +47,12 @@ describe('LionTactics', function() {
         it('gives the Ashigaru list its province-trading rush profile', function() {
             const p = resolveDeckProfile(['hayaken-no-shiro', 'ashigaru-levy', 'for-greater-glory', 'in-service-to-my-lord'], AGGRO);
             expect(p.lion).toEqual(LION_DEFAULTS);
-            expect(p.defenseCommitment).toBe('win-only');
-            expect(p.spendCardsOnDefense).toBe(false);
+            expect(p.defenseCommitment).toBe('prevent-break');
+            expect(p.spendCardsOnDefense).toBe(true);
             expect(p.reserveDynastyFate).toBe(false);
             expect(p.digWithActions).toBe(true);
             expect(p.strongholdProvinceId).toBe('weight-of-duty');
+            expect(p.conflictCardEconomy.enabled).toBe(false);
         });
     });
 
@@ -118,6 +129,37 @@ describe('LionTactics', function() {
             ];
             expect(tactics.pickCheapSacrifice(bodies, (card) => Number(card.militarySkillSummary.stat)).uuid).toBe('levy');
             expect(tactics.pickTower(bodies, (card) => Number(card.militarySkillSummary.stat)).uuid).toBe('tower');
+        });
+
+        it('requires three participating Bushi for Ikoma Tsanuri', function() {
+            const gate = getPlaybookEntry('ikoma-tsanuri').shouldUseAction;
+            const context = (traits) => ({
+                myCharacters: [
+                    { id: 'ikoma-tsanuri', inConflict: true, traits: ['bushi'] },
+                    ...traits.map((cardTraits) => ({ inConflict: true, traits: cardTraits }))
+                ]
+            });
+            expect(gate(context([['bushi'], ['courtier']]))).toBe(false);
+            expect(gate(context([['bushi'], ['bushi']]))).toBe(true);
+        });
+
+        it('starts In Service only with a ready non-unique cost and bowed unique target', function() {
+            const gate = getPlaybookEntry('in-service-to-my-lord').shouldPlay;
+            const base = { opponentCharacters: [], dynastyDiscard: [], honor: 10, conflictType: 'military' };
+            expect(gate({ ...base, myCharacters: [
+                { bowed: false, isUnique: false }, { bowed: true, isUnique: true }
+            ] })).toBe(true);
+            expect(gate({ ...base, myCharacters: [
+                { bowed: false, isUnique: false }, { bowed: true, isUnique: false }
+            ] })).toBe(false);
+            expect(gate({ ...base, myCharacters: [
+                { bowed: false, isUnique: true }, { bowed: true, isUnique: true }
+            ] })).toBe(false);
+        });
+
+        it('keeps phase-start and break reactions out of ordinary Action selection', function() {
+            expect(getPlaybookEntry('feeding-an-army').shouldPlay({})).toBe(false);
+            expect(getPlaybookEntry('for-greater-glory').shouldPlay({})).toBe(false);
         });
     });
 });

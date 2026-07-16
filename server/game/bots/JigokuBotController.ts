@@ -1,4 +1,5 @@
 import JigokuBotPolicy from './JigokuBotPolicy.js';
+import FateAwareJigokuBotPolicy from './FateAwareJigokuBotPolicy.js';
 import LmStudioClient from './llm/LmStudioClient.js';
 import DeckHintService from './llm/DeckHintService.js';
 import LiveConsultant from './llm/LiveConsultant.js';
@@ -8,7 +9,7 @@ import { getPlaybookEntry, deriveDeckStrategy } from './CardPlaybook.js';
 import type { DeckStrategy } from './CardPlaybook';
 import { resolveDeckProfile } from './DeckProfiles.js';
 import type { DeckProfile } from './DeckProfiles';
-import { getCardModel } from './DeckAnalysis.js';
+import { buildHandThreatMatrix, getCardModel } from './DeckAnalysis.js';
 import type { KnownCard, OmniProvince, Omniscient } from './DeckAnalysis';
 import { stateFeatures, optionFeatures } from './ml/features.js';
 import type { MoveEvaluator } from './ml/evaluator';
@@ -41,7 +42,7 @@ interface BotTraceEntry {
 
 type CommandRunner = (command: string, playerName: string, args: any[]) => boolean;
 
-// Per-decision training record for the seed-3 learned evaluator. Captures the
+// Per-decision training record for the seed-4 learned evaluator. Captures the
 // position + every legal option (as feature vectors) + which one was taken, so
 // an offline trainer can assign a return to each and learn to score options.
 interface DecisionRecord {
@@ -80,7 +81,12 @@ class JigokuBotController {
 
     constructor(private game: Game, readonly config: JigokuBotConfig, private runCommand: CommandRunner,
         services: { hintService?: DeckHintService; consultant?: LiveConsultant; planner?: LlmActionPlanner; onStateChange?: () => void; recorder?: DecisionRecorder; evaluator?: MoveEvaluator } = {}) {
-        this.policy = new JigokuBotPolicy(config.seed || 1);
+        const seed = config.seed || 1;
+        const isFateAware = config.policy === 'fate-aware' ||
+            (config.policy === undefined && (seed === 1 || seed === '1' || seed === 5 || seed === '5'));
+        this.policy = isFateAware
+            ? new FateAwareJigokuBotPolicy(seed)
+            : new JigokuBotPolicy(seed);
         this.onStateChange = services.onStateChange;
         this.recorder = services.recorder;
         this.evaluator = services.evaluator;
@@ -102,43 +108,51 @@ class JigokuBotController {
         }
     }
 
-    // Seed 2 is the LLM-driven brain: at every step the model chooses among the
+    // Seed 3 is the LLM-driven brain: at every step the model chooses among the
     // legal moves, with the heuristic policy demoted to a guide/fall-back. Any
     // other seed keeps the heuristic policy in charge (seed 1). Needs an LLM
     // planner; without one the bot silently stays on the heuristic policy.
     private isLlmDriven(): boolean {
-        return (this.config.seed === 2 || this.config.seed === '2') && !!this.planner;
+        return (this.config.seed === 3 || this.config.seed === '3') && !!this.planner;
     }
 
-    // Seed 3 is the learned-evaluator brain: the self-play-trained model scores
-    // every legal move and the bot takes the argmax. Unlike seed 2 this is a
+    // Seed 4 is the learned-evaluator brain: the self-play-trained model scores
+    // every legal move and the bot takes the argmax. Unlike seed 3 this is a
     // synchronous in-process dot/tree walk — no round trip, no break/resume.
     // Needs a loaded evaluator; without one the seat stays on the heuristic.
     private isEvaluatorDriven(): boolean {
-        return (this.config.seed === 3 || this.config.seed === '3') && !!this.evaluator;
+        return (this.config.seed === 4 || this.config.seed === '4') && !!this.evaluator;
     }
 
-    // Seed 4 is the omniscient (cheating) brain: it keeps the whole seed-1
+    // Seed 5 is the omniscient (cheating) brain: it keeps seed 1's fate-aware
     // heuristic but is fed the human's true hand, fate and face-down province
-    // strengths so the policy can target the weakest province, size an attack to
-    // beat exactly what the human can afford to defend with, press when they
-    // cannot fight back, and hold a conflict it cannot win. No LLM, no model —
-    // just perfect information layered onto the heuristic.
+    // strengths so the policy can target the weakest province, use its real
+    // break strength, account for affordable hand boosts when choosing a
+    // conflict type, and avoid wasteful defenses. No LLM — just perfect
+    // information layered onto the fate-aware heuristic.
     private isOmniscient(): boolean {
-        return this.config.seed === 4 || this.config.seed === '4';
+        return this.config.seed === 5 || this.config.seed === '5';
     }
 
     // Translate one live card the human holds into the model the policy reasons
-    // over. Skill/cost come from the live object (exact for ANY deck); the
-    // curated registry overlays what the object cannot express — an event's
-    // conflict swing, an attachment's granted skill, the effect tag.
+    // over. Printed skill/cost/flat attachment bonuses come from live card data
+    // (exact for any deck); the curated registry supplies what printed data
+    // cannot express — chiefly an event's conflict swing and effect tag.
     private knownCard(card: any): KnownCard {
         const model = getCardModel(card.id);
-        const type: string = card.type || (typeof card.getType === 'function' ? card.getType() : '') || '';
-        const side = card.isConflict ? 'conflict' : card.isDynasty ? 'dynasty' : (model?.side || '');
-        const cost = Number(typeof card.getCost === 'function' ? card.getCost() : card.printedCost);
-        const mil = type === 'character' && typeof card.getMilitarySkill === 'function' ? card.getMilitarySkill() : 0;
-        const pol = type === 'character' && typeof card.getPoliticalSkill === 'function' ? card.getPoliticalSkill() : 0;
+        const data = card.cardData || {};
+        const type: string = card.type || (typeof card.getType === 'function' ? card.getType() : '') || data.type || model?.type || '';
+        const side = card.isConflict ? 'conflict' : card.isDynasty ? 'dynasty' : (data.side || model?.side || '');
+        const rawCost = typeof card.getCost === 'function' ? card.getCost() : (card.printedCost ?? data.cost);
+        const cost = Number(rawCost);
+        const mil = type === 'character'
+            ? (typeof card.getMilitarySkill === 'function' ? card.getMilitarySkill() : this.parseStat(data.military))
+            : 0;
+        const pol = type === 'character'
+            ? (typeof card.getPoliticalSkill === 'function' ? card.getPoliticalSkill() : this.parseStat(data.political))
+            : 0;
+        const milBonus = this.parseStat(data.military_bonus);
+        const polBonus = this.parseStat(data.political_bonus);
         return {
             id: card.id,
             type,
@@ -146,11 +160,20 @@ class JigokuBotController {
             fate: isNaN(cost) ? (model?.fate ?? 0) : Math.max(cost, 0),
             mil: Math.max(Number(mil) || 0, 0),
             pol: Math.max(Number(pol) || 0, 0),
-            milBonus: model?.milBonus ?? 0,
-            polBonus: model?.polBonus ?? 0,
+            milBonus: milBonus ?? model?.milBonus ?? 0,
+            polBonus: polBonus ?? model?.polBonus ?? 0,
             swing: model?.swing ?? 0,
-            tag: model?.tag ?? 'utility'
+            tag: model?.tag ?? 'utility',
+            conflictTypes: model?.conflictTypes || []
         };
+    }
+
+    private liveProvinceStrength(card: any): number {
+        const rawStrength = typeof card.getStrength === 'function'
+            ? card.getStrength()
+            : (card.strength ?? card.printedStrength ?? card.cardData?.strength);
+        const strength = Number(rawStrength);
+        return Number.isFinite(strength) ? Math.max(strength, 0) : 0;
     }
 
     // The true strength of every one of the human's provinces, including the
@@ -165,7 +188,10 @@ class JigokuBotController {
             out.push({
                 location: card.location || '',
                 name: card.name || card.id || '',
-                strength: typeof card.getStrength === 'function' ? Number(card.getStrength()) || 0 : 0,
+                // Do not read strengthSummary: it is intentionally empty while
+                // a province is face down. getStrength() still returns the live
+                // value including holdings, stronghold bonuses and effects.
+                strength: this.liveProvinceStrength(card),
                 broken: !!card.isBroken,
                 facedown: !!card.facedown
             });
@@ -173,7 +199,7 @@ class JigokuBotController {
         return out;
     }
 
-    // Assemble the seed-4 cheat view from the live opponent Player. Recomputed
+    // Assemble the seed-5 cheat view from the live opponent Player. Recomputed
     // each tick (cheap) so it always reflects the current hand/fate/board.
     private buildOmniscient(me: Player): Omniscient | undefined {
         if(!this.isOmniscient()) {
@@ -185,19 +211,24 @@ class JigokuBotController {
         }
         const handCards: any[] = typeof (opp as any).hand?.toArray === 'function' ? (opp as any).hand.toArray() : [];
         const oppHand = handCards.map((card) => this.knownCard(card));
+        const oppFate = Math.max(Number((opp as any).fate) || 0, 0);
         const unmodeledEvents = Array.from(new Set(
             oppHand.filter((card) => card.type === 'event' && !getCardModel(card.id)).map((card) => card.id)
         ));
         return {
             oppName: (opp as any).name,
-            oppFate: Number((opp as any).fate) || 0,
+            oppFate,
             oppHand,
             oppProvinces: this.opponentProvinces(opp),
+            handThreatMatrix: {
+                military: buildHandThreatMatrix(oppHand, oppFate, 'military'),
+                political: buildHandThreatMatrix(oppHand, oppFate, 'political')
+            },
             unmodeledEvents
         };
     }
 
-    // One-time deck-analysis gate for seed 4 (satisfies "analyze the deck before
+    // One-time deck-analysis gate for seed 5 (satisfies "analyze the deck before
     // the omniscient bot works"). Scans the human's whole deck for conflict
     // events with no curated model and reports coverage. The bot still plays if
     // some events are unmodeled — it is simply blind to those specific tricks.
@@ -261,7 +292,7 @@ class JigokuBotController {
     // self-scheduled budget-exhaustion follow-ups — run outside the human
     // command path (GameServer.onGameMessage) that normally broadcasts state
     // after the bot acts. Without pushing state here the human's board freezes
-    // at the last human command while the bot silently plays on (seed 2 makes
+    // at the last human command while the bot silently plays on (seed 3 makes
     // every step async, so this is the difference between a live and a frozen
     // opponent).
     private resumeTick(): void {
@@ -350,10 +381,15 @@ class JigokuBotController {
                 }
 
                 const targetHint = this.currentTargetHint(player);
+                const promptStep = this.currentPromptStep(player);
                 this.ensureDeckAnalyzed(player);
                 const playerState = this.game.getState(player.name);
                 let decision = this.policy.decide(playerState, player.name, {
                     roundNumber: (this.game as any).roundNumber,
+                    promptIdentity: promptStep?.uuid,
+                    selectionReachedLimit: typeof promptStep?.selector?.hasReachedLimit === 'function'
+                        ? promptStep.selector.hasReachedLimit(promptStep.selectedCards || [], promptStep.context)
+                        : false,
                     targetHint: targetHint,
                     playCost: this.currentPlayCost(player),
                     playCardId: this.currentPlayCardId(player),
@@ -365,16 +401,24 @@ class JigokuBotController {
                     profile: this.currentDeckProfile(player),
                     // Live duel skill gap (our side - their side) for the bid.
                     duelGap: this.currentDuelGap(player),
+                    // Effective post-reveal margin, including bid modifiers.
+                    duelMargin: this.currentDuelMargin(player),
+                    interruptedEventIsMine: this.currentInterruptedEventIsMine(player),
+                    legalDirectCardUuids: this.currentLegalDirectCardUuids(player),
+                    legalRingElements: this.currentLegalRingElements(player),
                     // Printed fate cost of dynasty province cards (reserve 1 fate).
                     dynastyCosts: this.dynastyCostsHint(player),
-                    // Seed 4 only: the cheat view (human hand/fate/true province
+                    // Player-state hand summaries omit printed conflict-card
+                    // costs. Deck profiles need these to sequence reducers.
+                    conflictCosts: this.conflictCostsHint(player),
+                    // Seed 5 only: the cheat view (human hand/fate/true province
                     // strengths). Undefined for every other seed, so the policy's
-                    // omniscient branches stay dormant and seed 1 is unchanged.
+                    // omniscient branches stay dormant for every other seed.
                     omniscient: this.buildOmniscient(player)
                 });
                 const mandatoryStrongholdAssault = this.isMandatoryStrongholdAssault(playerState, player.name, beforePrompt);
 
-                // Seed 2: let the LLM choose the move. Whenever the step is a
+                // Seed 3: let the LLM choose the move. Whenever the step is a
                 // real choice (more than one legal option), hand the whole
                 // option set to the model and break to resolve it asynchronously
                 // — the heuristic decision rides along as the labelled fall-back.
@@ -394,12 +438,12 @@ class JigokuBotController {
                     }
                 }
 
-                // Seed 3: the learned evaluator scores every legal move and the
+                // Seed 4: the learned evaluator scores every legal move and the
                 // bot takes the argmax. Synchronous, so it just replaces the
                 // decision and falls through to the normal execute path. The
                 // heuristic pick rides along as the enumerator fall-back, so a
                 // degenerate model can never produce an illegal move.
-                // Seed 3 only steers the phases where choices carry strategic
+                // Seed 4 only steers the phases where choices carry strategic
                 // weight (conflict and dynasty). Setup, mulligan, bidding and
                 // the end-of-round phases are left to the heuristic — the
                 // evaluator adds no value there and the setup province prompts
@@ -810,7 +854,7 @@ class JigokuBotController {
     }
 
     // ==================================================================
-    // Seed 2 — LLM-driven move selection.
+    // Seed 3 — LLM-driven move selection.
     // ==================================================================
 
     // Every legal move for the current prompt as {id,label,decision} triples.
@@ -836,7 +880,7 @@ class JigokuBotController {
         };
 
         // Do not expose strategic alternatives that violate the win condition.
-        // This also keeps seed-3 training records free of pointless fourth-
+        // This also keeps seed-4 training records free of pointless fourth-
         // province targets during the forced stronghold assault sequence.
         if(this.isMandatoryStrongholdAssault(state, player.name, prompt)) {
             add(fallback, `Mandatory stronghold assault (${fallback?.target || fallback?.reason || 'advance'})`);
@@ -1150,8 +1194,33 @@ class JigokuBotController {
             return undefined;
         }
 
+        // Composite actions (for example `multiple([ready(), moveCard()])`)
+        // have no useful name on their wrapper. Expose their leaf actions so
+        // specialized target logic sees the real effect instead of an empty
+        // action list.
+        const actionNames = (action: any, seen = new Set<any>()): string[] => {
+            if(!action || seen.has(action)) {
+                return [];
+            }
+            seen.add(action);
+            let properties = action.properties;
+            if(!properties && typeof action.getProperties === 'function') {
+                try {
+                    properties = action.getProperties(step?.context);
+                } catch(_error) {
+                    // A dynamic action may need resolution-only context. Its
+                    // own name remains a safe fallback for the bot hint.
+                }
+            }
+            const nested = properties?.gameActions || action.defaultProperties?.gameActions;
+            if(Array.isArray(nested) && nested.length > 0) {
+                return nested.flatMap((child: any) => actionNames(child, seen));
+            }
+            return action.name ? [action.name] : [];
+        };
+
         return {
-            gameActions: gameActions.map((action: any) => action?.name).filter(Boolean),
+            gameActions: [...new Set(gameActions.flatMap((action: any) => actionNames(action)))],
             sourceIsMine: step.context?.player?.name === player.name,
             sourceType: step.context?.source?.type,
             sourceCardId: step.context?.source?.cardData?.id
@@ -1183,6 +1252,29 @@ class JigokuBotController {
         const mySkill = challengerIsMine ? skillOf(duel.challenger) : sumTargets;
         const oppSkill = challengerIsMine ? sumTargets : skillOf(duel.challenger);
         return mySkill - oppSkill;
+    }
+
+    private currentDuelMargin(player: Player): number | undefined {
+        const skillGap = this.currentDuelGap(player);
+        if(skillGap === undefined || !player.opponent) {
+            return undefined;
+        }
+        return skillGap + player.honorBid - player.opponent.honorBid;
+    }
+
+    private currentInterruptedEventIsMine(player: Player): boolean | undefined {
+        const step = this.currentPromptStep(player);
+        const events: any[] = step?.events || step?.window?.events || [];
+        const event = events.find((candidate: any) => {
+            if(candidate?.name !== 'onInitiateAbilityEffects') {
+                return false;
+            }
+            const source = candidate?.card || candidate?.context?.source;
+            const type = source?.type || (typeof source?.getType === 'function' ? source.getType() : undefined);
+            return type === 'event';
+        });
+        const eventPlayer = event?.context?.player || event?.player;
+        return eventPlayer?.name ? eventPlayer.name === player.name : undefined;
     }
 
     // The 'Choose additional fate' cost prompt does not expose the printed
@@ -1255,16 +1347,43 @@ class JigokuBotController {
     // tell whether playing a character would spend the bot's last fate. Used to
     // keep a 1-fate reserve for conflict-phase hand plays.
     private dynastyCostsHint(player: Player): Record<string, number> | undefined {
-        const getProvinces = (player as any).getProvinces;
-        if(typeof getProvinces !== 'function') {
+        const getDynastyCards = (player as any).getDynastyCardsInProvince;
+        const getProvinceArray = (this.game as any).getProvinceArray;
+        if(typeof getDynastyCards !== 'function' || typeof getProvinceArray !== 'function') {
             return undefined;
         }
         const costs: Record<string, number> = {};
-        const cards: any[] = getProvinces.call(player, (card: any) =>
-            typeof card.isFaceup === 'function' && card.isFaceup());
+        // Rally and other stacking effects can leave several dynasty cards in
+        // one province. Flatten every real province slot so each playable card
+        // gets its own UUID-keyed cost hint.
+        const locations: string[] = getProvinceArray.call(this.game);
+        const cards: any[] = locations.flatMap((location) =>
+            getDynastyCards.call(player, location) || []);
         for(const card of cards) {
-            if(card?.uuid && card.cardData) {
+            if(card?.uuid && card.cardData && typeof card.isFaceup === 'function' && card.isFaceup()) {
                 const cost = this.parseStat(card.cardData.cost);
+                if(cost !== null) {
+                    costs[card.uuid] = cost;
+                }
+            }
+        }
+        return Object.keys(costs).length > 0 ? costs : undefined;
+    }
+
+    private conflictCostsHint(player: Player): Record<string, number> | undefined {
+        const hand: any = (player as any).hand;
+        const discard: any = (player as any).conflictDiscardPile;
+        const piles = [hand, discard].filter((pile) => pile && typeof pile.map === 'function');
+        if(piles.length === 0) {
+            return undefined;
+        }
+        const costs: Record<string, number> = {};
+        for(const pile of piles) {
+            for(const card of pile.map((entry: any) => entry)) {
+                if(!card?.uuid) {
+                    continue;
+                }
+                const cost = this.parseStat(card.printedCost ?? card.cardData?.cost);
                 if(cost !== null) {
                     costs[card.uuid] = cost;
                 }
@@ -1305,20 +1424,59 @@ class JigokuBotController {
     }
 
     private isLegalCard(player: Player, cardUuid: string): boolean {
-        if(player.promptState.selectableCards.some((card: BaseCard) => card.uuid === cardUuid)) {
-            return true;
-        }
-
         // Conflict declaration, defender selection, and action windows validate
         // clicks through the prompt's own checkCardCondition/onCardClicked path
-        // instead of promptState.selectableCards. Allow any card visible in the
-        // bot's own perspective there; the game pipeline still rejects illegal
-        // clicks without mutating state.
-        if(!this.isDirectClickPrompt(player.currentPrompt())) {
+        // instead of promptState.selectableCards. Prefer that live check before
+        // stale prompt-state flags inherited from an earlier selector.
+        if(this.isDirectClickPrompt(player.currentPrompt())) {
+            const liveLegal = this.currentLegalDirectCardUuids(player);
+            if(liveLegal) {
+                return !!liveLegal[cardUuid];
+            }
+            return this.findVisibleCards(this.game.getState(player.name)).some((card) => card.uuid === cardUuid);
+        }
+
+        if(player.currentPrompt()?.selectCard !== true) {
             return false;
         }
 
-        return this.findVisibleCards(this.game.getState(player.name)).some((card) => card.uuid === cardUuid);
+        return player.promptState.selectableCards.some((card: BaseCard) => card.uuid === cardUuid);
+    }
+
+    private currentLegalDirectCardUuids(player: Player): Record<string, true> | undefined {
+        if(!this.isDirectClickPrompt(player.currentPrompt())) {
+            return undefined;
+        }
+        const step = this.currentPromptStep(player);
+        const checker = typeof step?.canClickCard === 'function'
+            ? (card: any) => step.canClickCard(player, card)
+            : typeof step?.checkCardCondition === 'function'
+                ? (card: any) => step.checkCardCondition(card)
+                : null;
+        if(!checker) {
+            return undefined;
+        }
+
+        const legal: Record<string, true> = {};
+        const visible = this.findVisibleCards(this.game.getState(player.name));
+        for(const summary of visible) {
+            if(!summary?.uuid) {
+                continue;
+            }
+            const card = (this.game as any).findAnyCardInAnyList(summary.uuid);
+            if(!card) {
+                continue;
+            }
+            try {
+                if(checker(card)) {
+                    legal[summary.uuid] = true;
+                }
+            } catch{
+                // A custom prompt checker may require state not exposed here;
+                // omit that card and let the normal pass/fallback advance.
+            }
+        }
+        return legal;
     }
 
     private isDirectClickPrompt(prompt: any): boolean {
@@ -1374,6 +1532,20 @@ class JigokuBotController {
 
     private isLegalRing(player: Player, ringElement: string): boolean {
         return player.promptState.selectableRings.some((ring: Ring) => ring.element === ringElement);
+    }
+
+    private currentLegalRingElements(player: Player): Record<string, true> | undefined {
+        if(player.currentPrompt()?.selectRing !== true) {
+            return undefined;
+        }
+
+        const legal: Record<string, true> = {};
+        for(const ring of player.promptState.selectableRings || []) {
+            if(ring?.element) {
+                legal[ring.element] = true;
+            }
+        }
+        return legal;
     }
 
     private isLegalCardMenuItem(player: Player, cardUuid: string, menuItem: any): boolean {

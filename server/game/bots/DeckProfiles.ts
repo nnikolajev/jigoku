@@ -21,6 +21,10 @@ import { DISHONOR_DEFAULTS } from './DishonorTactics.js';
 import type { DishonorProfile } from './DishonorTactics';
 import { LION_DEFAULTS } from './LionTactics.js';
 import type { LionProfile } from './LionTactics';
+import { DEFAULT_FATE_AWARE_ECONOMY, SWARM_FATE_AWARE_ECONOMY } from './FateAwareEconomy.js';
+import type { FateAwareEconomyProfile } from './FateAwareEconomy';
+import { DEFAULT_CONFLICT_CARD_ECONOMY, SWARM_CONFLICT_CARD_ECONOMY } from './ConflictCardEconomy.js';
+import type { ConflictCardEconomyProfile } from './ConflictCardEconomy';
 import { GLORY_DEFAULTS } from './GloryTactics.js';
 import type { GloryProfile } from './GloryTactics';
 import { DRAGON_DEFAULTS } from './DragonTactics.js';
@@ -51,6 +55,8 @@ export type DefenseCommitment = 'win-only' | 'prevent-break';
 
 export interface DeckProfile {
     // ---- dynasty / economy ----
+    fateAwareEconomy: FateAwareEconomyProfile; // injectable dynasty spending policy used by seeds 1 and 5
+    conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1, 2, and 5
     mulliganForHoldings: boolean; // dig opening provinces toward holdings
     digWithActions: boolean; // fire dynasty Action diggers (Kyuden Hida, engineers)
     digMinBoardCharacters: number; // only dig once this many own characters are already in play
@@ -134,6 +140,8 @@ export interface DeckProfile {
 // Generic baseline = a deck with no strategy flags (e.g. Crane, unknown). These
 // are the values the policy used for a flag-less deck before the refactor.
 export const DEFAULT_PROFILE: DeckProfile = {
+    fateAwareEconomy: { ...DEFAULT_FATE_AWARE_ECONOMY },
+    conflictCardEconomy: { ...DEFAULT_CONFLICT_CARD_ECONOMY },
     mulliganForHoldings: false,
     digWithActions: false,
     digMinBoardCharacters: 0,
@@ -154,13 +162,21 @@ export const DEFAULT_PROFILE: DeckProfile = {
 // practice (their marker sets do not overlap), but holdingEngine can combine
 // with defensive (Crab).
 export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
-    const profile: DeckProfile = { ...DEFAULT_PROFILE };
+    const profile: DeckProfile = {
+        ...DEFAULT_PROFILE,
+        fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },
+        conflictCardEconomy: { ...DEFAULT_PROFILE.conflictCardEconomy }
+    };
     if(!strategy) {
         return profile;
     }
     if(strategy.holdingEngine) {
         profile.mulliganForHoldings = true;
         profile.digWithActions = true;
+        profile.fateAwareEconomy = {
+            ...profile.fateAwareEconomy,
+            deferPassForDynastyActions: true
+        };
     }
     if(strategy.defensive) {
         profile.attackCommitment = 'breakable-or-hold';
@@ -184,18 +200,59 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         // the playstyle (play many cards, void recursion, Mitsu steering)
         // lives in the DragonTactics knobs.
         profile.dragon = { ...DRAGON_DEFAULTS };
+        profile.fateAwareEconomy = {
+            ...profile.fateAwareEconomy,
+            preferDeckAdditionalFate: true,
+            durableAdditionalFateEarly: 3,
+            durableAdditionalFateLate: 2
+        };
     }
     if(strategy.duelist) {
         // Duel deck: few durable bodies, balanced generic attack/defense;
         // the playstyle (duel bids, duel target axes, attachment stacking)
         // lives in the DuelTactics knobs.
         profile.duelist = { ...DUEL_DEFAULTS };
+        profile.fateAwareEconomy = {
+            ...profile.fateAwareEconomy,
+            preferDeckCharacters: true,
+            preferDeckAdditionalFate: true,
+            durableCostThreshold: 0,
+            durableCharacterIds: [...DUEL_DEFAULTS.durableCharacters],
+            // Continue buying cheap support after establishing a tower; the
+            // DuelTactics support cap stops once the board is complete.
+            passAfterDurable: false,
+            durableSpendCapEarly: Number.POSITIVE_INFINITY,
+            durableSpendCapLate: Number.POSITIVE_INFINITY,
+            durableAdditionalFateEarly: 3,
+            durableAdditionalFateLate: 2,
+            bodySpendCapLate: 6,
+            bodySpendCapWithPersistent: 5,
+            bodyMaxCost: 5,
+            bodyAdditionalFateForCostThree: 0
+        };
     }
     if(strategy.shugenja) {
         profile.shugenja = { ...SHUGENJA_DEFAULTS };
+        profile.fateAwareEconomy = {
+            ...profile.fateAwareEconomy,
+            preferDeckCharacters: true,
+            preferDeckAdditionalFate: true
+        };
     }
     if(strategy.attachmentTower) {
         profile.attachmentTower = { ...DRAGON_ATTACHMENT_DEFAULTS };
+        profile.fateAwareEconomy = {
+            ...profile.fateAwareEconomy,
+            preferDeckCharacters: true,
+            preferDeckAdditionalFate: true,
+            durableCostThreshold: 0,
+            durableCharacterIds: [...DRAGON_ATTACHMENT_DEFAULTS.towerCharacters],
+            durableSpendCapEarly: Number.POSITIVE_INFINITY,
+            durableSpendCapLate: Number.POSITIVE_INFINITY,
+            durableAdditionalFateEarly: DRAGON_ATTACHMENT_DEFAULTS.towerFateMax,
+            durableAdditionalFateLate: DRAGON_ATTACHMENT_DEFAULTS.towerFateMax,
+            bodyAdditionalFateForCostThree: 0
+        };
     }
     if(strategy.dishonor) {
         // Dishonor/mill deck: generic attack/defense knobs stay — measured:
@@ -280,7 +337,7 @@ const OVERRIDES: ProfileOverride[] = [
     {
         // Unicorn "Cavalry Rush" precon (EmeraldDB ef93bae2). The pure rush
         // (concede every defense, disposable 0-1-fate bodies, commit every
-        // body) was tuned in the seed-4 mirror and got rolled by the Crane
+        // body) was tuned in the former seed-4 (now seed-5) mirror and got rolled by the Crane
         // precon (~23%): Crane defends to prevent breaks, so the all-in
         // attacks bounced, while every Crane counterattack was conceded.
         // Keep the military pressure (forced military conflicts, cheap-body
@@ -295,7 +352,9 @@ const OVERRIDES: ProfileOverride[] = [
             attackCommitment: 'all-but-one',
             aggressiveFate: false,
             // Body-flood rush: every fate belongs on the board, not reserved.
-            reserveDynastyFate: false
+            reserveDynastyFate: false,
+            fateAwareEconomy: { ...SWARM_FATE_AWARE_ECONOMY },
+            conflictCardEconomy: { ...SWARM_CONFLICT_CARD_ECONOMY }
         }
     },
     {
@@ -390,25 +449,42 @@ const OVERRIDES: ProfileOverride[] = [
             // dynasty reserve so the conflict phase can arm and ready that tower
             // (attachments, Right Hand of the Emperor) BEFORE it commits.
             reserveDynastyFate: true,
+            fateAwareEconomy: {
+                ...SWARM_FATE_AWARE_ECONOMY,
+                preferDeckCharacters: true,
+                preferDeckAdditionalFate: true,
+                durableCharacterIds: [...LION_DEFAULTS.towerCharacters],
+            },
+            conflictCardEconomy: { ...SWARM_CONFLICT_CARD_ECONOMY },
             lion: { ...LION_DEFAULTS }
         }
     },
     {
         // Lion Swarm v0.3 (EmeraldDB 27a913d1): a true province-trading rush.
-        // Flood 0-2 cost bodies, spend no cards on ordinary defense, and let
-        // Feeding an Army / For Greater Glory preserve the wide board. The
-        // Ashigaru Levy marker makes this override exclusive to the new list.
+        // Flood 0-2 cost bodies, but protect provinces that are actually at
+        // risk of breaking. Feeding an Army / For Greater Glory preserve the
+        // wide board; throwing every defense left too many free breaks and
+        // made those persistence tools arrive too late. The Ashigaru Levy
+        // marker makes this override exclusive to the new list.
         name: 'lion-ashigaru-rush',
         match: (ids, strategy) => strategy.aggressive && ids.has('hayaken-no-shiro') && ids.has('ashigaru-levy'),
         apply: {
-            defenseCommitment: 'win-only',
-            spendCardsOnDefense: false,
+            defenseCommitment: 'prevent-break',
+            spendCardsOnDefense: true,
             attackCommitment: 'all',
             aggressiveFate: false,
             reserveDynastyFate: false,
             digWithActions: true,
             digMinBoardCharacters: 0,
             strongholdProvinceId: 'weight-of-duty',
+            fateAwareEconomy: {
+                ...SWARM_FATE_AWARE_ECONOMY,
+                preferDeckCharacters: true,
+                preferDeckAdditionalFate: true,
+                deferPassForDynastyActions: true,
+                durableCharacterIds: [...LION_DEFAULTS.towerCharacters]
+            },
+            conflictCardEconomy: { ...SWARM_CONFLICT_CARD_ECONOMY },
             lion: { ...LION_DEFAULTS }
         }
     },
@@ -433,7 +509,21 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
     const ids = cardIds instanceof Set ? cardIds : new Set(cardIds);
     for(const override of OVERRIDES) {
         if(override.match(ids, strategy)) {
-            Object.assign(profile, override.apply);
+            const apply: Partial<DeckProfile> = { ...override.apply };
+            // Overrides are module-level constants. Clone injectable nested
+            // profiles so tuning one resolved bot can never mutate another.
+            if(override.apply.conflictCardEconomy) {
+                apply.conflictCardEconomy = { ...override.apply.conflictCardEconomy };
+            }
+            if(override.apply.fateAwareEconomy) {
+                apply.fateAwareEconomy = {
+                    ...override.apply.fateAwareEconomy,
+                    ...(Array.isArray(override.apply.fateAwareEconomy.durableCharacterIds)
+                        ? { durableCharacterIds: [...override.apply.fateAwareEconomy.durableCharacterIds] }
+                        : {})
+                };
+            }
+            Object.assign(profile, apply);
         }
     }
     return profile;

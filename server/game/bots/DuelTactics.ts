@@ -28,6 +28,9 @@ export interface DuelProfile {
     duelAxes: Record<string, 'military' | 'political'>;
     // ranked bearers for the duel attachments and fate investment
     keyCharacters: string[];
+    // Other dynasty characters worth preserving with fate, but which must not
+    // receive the duel attachment stack (Iron Crane Legion only allows Weapon).
+    durableCharacters: string[];
     // Keep this many durable duelists in play, each with a deep fate stack.
     towerTargetCount: number;
     supportTargetCount: number;
@@ -61,6 +64,10 @@ export const DUEL_DEFAULTS: DuelProfile = {
     keyCharacters: [
         'tengu-sensei', 'doji-kuwanan', 'kakita-kaezin', 'kakita-toshimoko'
     ],
+    durableCharacters: [
+        'tengu-sensei', 'doji-kuwanan', 'kakita-kaezin', 'kakita-toshimoko',
+        'iron-crane-legion'
+    ],
     towerTargetCount: 2,
     supportTargetCount: 2,
     towerFateMin: 3,
@@ -90,6 +97,26 @@ export class DuelTactics {
         return myHonor > this.profile.honorFloor ? this.profile.duelBid : 1;
     }
 
+    // Iaijutsu Master reacts after both dials are revealed. Use the live
+    // margin (our duel total - theirs):
+    // - -1 -> increase to a tie (a second Master may then turn it into a win),
+    // -  0 -> increase to a win,
+    // - 2+ -> decrease, retain the win, and reduce the honor transferred,
+    // - otherwise the modifier cannot improve the result efficiently.
+    iaijutsuBidChoice(duelMargin: number | undefined): 'Increase honor bid' | 'Decrease honor bid' | null {
+        if(duelMargin === -1 || duelMargin === 0) {
+            return 'Increase honor bid';
+        }
+        if(duelMargin !== undefined && duelMargin >= 2) {
+            return 'Decrease honor bid';
+        }
+        return null;
+    }
+
+    shouldUseIaijutsuMaster(duelMargin: number | undefined): boolean {
+        return this.iaijutsuBidChoice(duelMargin) !== null;
+    }
+
     // The axis a duel source compares — used to send our strongest on that
     // axis and target their weakest.
     duelAxis(cardId: string | undefined): 'military' | 'political' | null {
@@ -100,6 +127,10 @@ export class DuelTactics {
         return !!cardId && this.profile.keyCharacters.includes(cardId);
     }
 
+    isDurableCharacter(cardId: string | undefined): boolean {
+        return !!cardId && this.profile.durableCharacters.includes(cardId);
+    }
+
     needsTower(board: any[]): boolean {
         return board.filter((card) => this.isTowerCharacter(card.id)).length < this.profile.towerTargetCount;
     }
@@ -108,14 +139,19 @@ export class DuelTactics {
     // tower is showing but cannot be funded yet, the policy saves fate and
     // keeps that province card through regroup instead of replacing it.
     pickDynastyTower(playable: any[], costs: Record<string, number>, fate: number, board: any[], hand: any[] = []): any {
-        if(!this.needsTower(board)) {
-            return null;
-        }
         const hasShukujo = hand.some((card) => card.id === 'shukujo');
         const ranking = this.profile.keyCharacters;
-        const candidates = playable
+        const funded = (card: any) => {
+            const cost = costs[card.uuid] ?? 0;
+            // Normal seven-fate openings can establish a five-cost champion
+            // with two fate. Three-cost duelists remain the efficient deep-
+            // fate targets and still ask for three.
+            const minimumFate = cost >= 4 ? 2 : this.profile.towerFateMin;
+            return fate >= cost + minimumFate;
+        };
+        const keyCandidates = this.needsTower(board) ? playable
             .filter((card) => this.isTowerCharacter(card.id))
-            .filter((card) => fate >= (costs[card.uuid] ?? 0) + this.profile.towerFateMin)
+            .filter(funded)
             .sort((a, b) => {
                 // Shukujo only has its printed Action on Doji Kuwanan, so a
                 // copy in hand makes Kuwanan the first tower to establish.
@@ -125,12 +161,24 @@ export class DuelTactics {
                     return shukujoDiff;
                 }
                 return ranking.indexOf(a.id) - ranking.indexOf(b.id);
-            });
-        return candidates[0] || null;
+            }) : [];
+        if(keyCandidates.length > 0) {
+            return keyCandidates[0];
+        }
+
+        // Legion's live military equals the opponent's hand during conflicts.
+        // Establish one persistent copy when no funded key tower is available,
+        // without making it an attachment carrier.
+        if(!board.some((card) => card.id === 'iron-crane-legion')) {
+            return playable.filter((card) => card.id === 'iron-crane-legion')
+                .filter(funded)
+                .sort((a, b) => String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
+        }
+        return null;
     }
 
     hasVisibleTower(playable: any[]): boolean {
-        return playable.some((card) => this.isTowerCharacter(card.id));
+        return playable.some((card) => this.isDurableCharacter(card.id));
     }
 
     // At most two cheap helpers. When a tower is already visible but cannot
@@ -138,12 +186,12 @@ export class DuelTactics {
     // helper so it can still contest an unopposed conflict without draining
     // the next round's tower fund.
     pickSupportCharacter(playable: any[], costs: Record<string, number>, fate: number, board: any[], maxCost = Number.POSITIVE_INFINITY): any {
-        const supportCount = board.filter((card) => card.type === 'character' && !this.isTowerCharacter(card.id)).length;
+        const supportCount = board.filter((card) => card.type === 'character' && !this.isDurableCharacter(card.id)).length;
         if(supportCount >= this.profile.supportTargetCount) {
             return null;
         }
         return playable
-            .filter((card) => card.type === 'character' && !this.isTowerCharacter(card.id))
+            .filter((card) => card.type === 'character' && !this.isDurableCharacter(card.id))
             .filter((card) => (costs[card.uuid] ?? 0) <= maxCost)
             .filter((card) => fate - (costs[card.uuid] ?? 0) >= 1)
             .sort((a, b) => (costs[a.uuid] ?? 0) - (costs[b.uuid] ?? 0) ||
@@ -151,11 +199,12 @@ export class DuelTactics {
     }
 
     shouldKeepDynasty(cardId: string | undefined, board: any[]): boolean {
-        return this.needsTower(board) && this.isTowerCharacter(cardId);
+        return (this.needsTower(board) && this.isTowerCharacter(cardId)) ||
+            (cardId === 'iron-crane-legion' && !board.some((card) => card.id === 'iron-crane-legion'));
     }
 
     desiredAdditionalFate(cardId: string | undefined, fate: number, playCost?: number): number | null {
-        if(!this.isTowerCharacter(cardId)) {
+        if(!this.isDurableCharacter(cardId)) {
             return null;
         }
         const available = Math.max(fate - (playCost ?? 0), 0);
@@ -168,6 +217,35 @@ export class DuelTactics {
     ringBonus(element: string, board: any[]): number {
         return element === 'fire' && board.some((card) =>
             this.isTowerCharacter(card.id) && !card.isHonored) ? 30 : 0;
+    }
+
+    // Way of the Crane is setup, not a disposable conflict pump: establish
+    // an unhonored tower first, preferring the one that will persist longest.
+    pickHonorTarget(cards: any[], valueOf: (card: any) => number): any {
+        return cards.filter((card) => !card.isHonored).sort((a, b) =>
+            (this.isTowerCharacter(b.id) ? 1 : 0) - (this.isTowerCharacter(a.id) ? 1 : 0) ||
+            (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
+            valueOf(b) - valueOf(a) ||
+            String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
+    }
+
+    // Noble Sacrifice's cost and effect are two separate target prompts.
+    // Spend the least persistent honored body; remove the most persistent,
+    // strongest dishonored enemy.
+    pickNobleSacrifice(cards: any[], valueOf: (card: any) => number): any {
+        return cards.slice().sort((a, b) =>
+            (Number(a.fate) || 0) - (Number(b.fate) || 0) ||
+            (a.attachments || []).length - (b.attachments || []).length ||
+            valueOf(a) - valueOf(b) ||
+            String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
+    }
+
+    pickNobleVictim(cards: any[], valueOf: (card: any) => number): any {
+        return cards.slice().sort((a, b) =>
+            (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
+            (b.attachments || []).length - (a.attachments || []).length ||
+            valueOf(b) - valueOf(a) ||
+            String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
     isTowerAttachment(cardId: string | undefined): boolean {
@@ -217,12 +295,4 @@ export class DuelTactics {
         })[0] || null;
     }
 
-    // Duel prompts still use the strongest ranked durable duelist.
-    pickKeyCharacter(mine: any[]): any {
-        const ranking = this.profile.keyCharacters;
-        const ranked = mine
-            .filter((card) => card.id && ranking.includes(card.id))
-            .sort((a, b) => ranking.indexOf(a.id) - ranking.indexOf(b.id));
-        return ranked[0] || null;
-    }
 }

@@ -18,7 +18,8 @@ async function main() {
     const loadLeftDeck = getDeckLoader(leftLabel);
     const loadRightDeck = getDeckLoader(rightLabel);
 
-    if(!loadLeftDeck || !loadRightDeck || !Number.isInteger(games) || games < 1 || !Number.isInteger(botSeed)) {
+    if(!loadLeftDeck || !loadRightDeck || !Number.isInteger(games) || games < 1 ||
+        !Number.isInteger(botSeed) || botSeed < 1 || botSeed > 5) {
         process.stderr.write('usage: node _roundRobinWorker.js <leftDeck> <rightDeck> <games> <botSeed> <startIndex>\n');
         process.exit(2);
     }

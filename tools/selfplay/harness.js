@@ -60,7 +60,7 @@ function buildGame(names) {
     return { game, state };
 }
 
-function makeController(game, playerName, seed, trace = false, recorder = undefined, evaluator = undefined, explore = 0) {
+function makeController(game, playerName, seed, trace = false, recorder = undefined, evaluator = undefined, explore = 0, policy = undefined) {
     const runCommand = (command, name, args) => {
         if(!BOT_COMMANDS.has(command)) {
             return false;
@@ -69,13 +69,13 @@ function makeController(game, playerName, seed, trace = false, recorder = undefi
             game.stopNonChessClocks();
             const result = game[command](name, ...args);
             return result !== false;
-        } catch(err) {
+        } catch{
             return false;
         }
     };
     return new JigokuBotController(
         game,
-        { playerName: playerName, seed: seed, trace: trace, maxDecisionsPerTick: 40, llm: { enabled: false }, explore: explore },
+        { playerName: playerName, seed: seed, trace: trace, maxDecisionsPerTick: 40, policy: policy, llm: { enabled: false }, explore: explore },
         runCommand,
         { recorder: recorder, evaluator: evaluator }
     );
@@ -109,13 +109,27 @@ async function runGame(options = {}) {
     // heap across a long generation run.
     const maxRecords = options.maxRecordsPerGame || 3000;
     const makeRecorder = () => records
-        ? (record) => { if(records.length < maxRecords) { records.push(record); } }
+        ? (record) => {
+            if(records.length < maxRecords) {
+                records.push(record);
+            }
+        }
         : undefined;
-    // Per-seat evaluator (seed 3) + exploration rate. options.evaluators[i] /
+    // Per-seat evaluator (seed 4) + exploration rate. options.evaluators[i] /
     // options.explore[i] pair with seeds[i].
     const evaluators = options.evaluators || [];
     const explore = options.explore || [];
-    const controllers = names.map((name, i) => makeController(game, name, seeds[i], options.trace, makeRecorder(name), evaluators[i], explore[i] || 0));
+    const policies = options.policies || [];
+    const controllers = names.map((name, i) => makeController(
+        game,
+        name,
+        seeds[i],
+        options.trace,
+        makeRecorder(name),
+        evaluators[i],
+        explore[i] || 0,
+        policies[i]
+    ));
     if(options.onControllers) {
         options.onControllers(controllers);
     }

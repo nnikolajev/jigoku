@@ -3,14 +3,15 @@
 // Phoenix "Shugenja Spells" vs the Crane baseline. Seats alternate to cancel
 // first-player advantage. Usage:
 //   node tools/selfplay/matchPhoenixShugenja.js [games] [phoenixSeed] [--trace]
-// phoenixSeed 1 = heuristic, 4 = omniscient. Crane always plays seed 1.
+// Seeds: 1 fate-aware (default), 2 old heuristic, 5 omniscient. Crane uses seed 1.
 
 const { runGame } = require('./harness.js');
 const { loadPhoenixShugenjaDeck, loadCraneDeck } = require('./deckLoader.js');
 
 async function main() {
     const games = parseInt(process.argv[2], 10) || 20;
-    const phoenixSeed = process.argv[3] === '4' ? 4 : 1;
+    const parsedSeed = Number.parseInt(process.argv[3], 10);
+    const phoenixSeed = Number.isInteger(parsedSeed) && parsedSeed >= 1 && parsedSeed <= 5 ? parsedSeed : 1;
     const trace = process.argv.includes('--trace');
     const label = 'Phoenix Shugenja';
 

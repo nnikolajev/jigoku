@@ -132,7 +132,7 @@ stripped before JSON extraction.
 - `server/game/bots/llm/CardHints.ts` — hint schema + lenient validation.
 - `server/game/bots/llm/DeckHintService.ts` — analysis queue + disk cache.
 - `server/game/bots/llm/LiveConsultant.ts` — target consult (seed 1).
-- `server/game/bots/llm/LlmActionPlanner.ts` — seed-2 move planner: given the
+- `server/game/bots/llm/LlmActionPlanner.ts` — seed-3 move planner: given the
   full state + hand + the enumerated legal options, returns the id of the move
   to play. The controller builds the option set (`enumerateOptions`), validates
   every option, and appends the heuristic pick as the labelled fall-back.

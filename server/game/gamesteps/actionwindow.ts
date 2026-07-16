@@ -32,13 +32,7 @@ class ActionWindow extends UiPrompt {
     }
 
     onCardClicked(player: Player, card: any): boolean {
-        if(player !== this.currentPlayer) {
-            return false;
-        }
-
-        let actions = card.getActions();
-
-        let legalActions = actions.filter((action: any) => action.meetsRequirements(action.createContext(player)) === '');
+        const legalActions = this.getLegalActions(player, card);
 
         if(legalActions.length === 0) {
             return false;
@@ -57,6 +51,22 @@ class ActionWindow extends UiPrompt {
             handlers: legalActions.map((action: any) => (() => this.resolveAbility(action.createContext(player)))).concat(() => true)
         });
         return true;
+    }
+
+    // Shared by the bot controller when it builds the public legal-click set.
+    // Keeping this check beside onCardClicked prevents policy scoring/counting
+    // cards that the live action window would reject (wrong timing, no legal
+    // target, or unaffordable after current reducers/cost increases).
+    canClickCard(player: Player, card: any): boolean {
+        return this.getLegalActions(player, card).length > 0;
+    }
+
+    private getLegalActions(player: Player, card: any): any[] {
+        if(player !== this.currentPlayer || !card || typeof card.getActions !== 'function') {
+            return [];
+        }
+        return card.getActions()
+            .filter((action: any) => action.meetsRequirements(action.createContext(player)) === '');
     }
 
     resolveAbility(context: any) {

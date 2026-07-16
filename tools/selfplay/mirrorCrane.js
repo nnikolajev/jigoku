@@ -1,16 +1,16 @@
 'use strict';
 
-// TRUE MIRROR: the Crane precon on BOTH seats, seed 4 vs seed 1 — isolates the seed effect from deck noise. Seats alternate
+// TRUE MIRROR: the Crane precon on BOTH seats, seed 5 vs seed 1 — isolates the seed effect from deck noise. Seats alternate
 // to cancel first-player advantage. Usage:
 //   node tools/selfplay/mirrorCrane.js [games] [omniSeed] [--trace]
-// omniSeed 1 = heuristic, 4 = omniscient. Crane always plays seed 1.
+// omniSeed 5 = omniscient. Crane always plays fate-aware seed 1.
 
 const { runGame } = require('./harness.js');
 const { loadCraneDeck } = require('./deckLoader.js');
 
 async function main() {
     const games = parseInt(process.argv[2], 10) || 20;
-    const omniSeed = 4;
+    const omniSeed = 5;
     const trace = process.argv.includes('--trace');
 
     let omniWins = 0;

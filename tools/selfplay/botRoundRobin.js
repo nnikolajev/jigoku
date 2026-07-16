@@ -10,6 +10,11 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const { DECK_LABELS } = require('./deckRegistry.js');
+const {
+    STANDARD_GAMES,
+    roundRobinPayload,
+    writeBenchmarkSection
+} = require('./standardBenchmark.js');
 
 const WORKER = path.join(__dirname, '_roundRobinWorker.js');
 const PER_GAME_MS = 12000;
@@ -24,7 +29,8 @@ Options:
   -n, --games <count>       Games per matchup (default: 100)
   -w, --workers <count>     Parallel child processes (default: auto, max 8)
       --chunk-size <count>  Games per isolated job (default: ${DEFAULT_CHUNK_SIZE})
-      --seed <number>       Bot policy seed for both seats (default: 1)
+      --seed <number>       Both seats: 1 fate-aware, 2 old heuristic, 3 LLM,
+                            4 learned evaluator, 5 omniscient (default: 1)
       --decks <a,b,...>     Limit round robin to named decks
       --out <path-prefix>   Report prefix (default: tools/selfplay/out/round-robin-latest)
   -h, --help                Show help
@@ -34,7 +40,8 @@ Available decks: ${DECK_LABELS.join(', ')}
 Examples:
   node tools/selfplay/botRoundRobin.js
   node tools/selfplay/botRoundRobin.js --games 500 --workers 6
-  node tools/selfplay/botRoundRobin.js --decks Crane,Crab,Lion --games 20`;
+  node tools/selfplay/botRoundRobin.js --decks Crane,Crab,Lion --games 20
+  node tools/selfplay/botRoundRobin.js --seed 2 --games 100`;
 }
 
 function positiveInteger(value, flag) {
@@ -74,6 +81,9 @@ function parseArgs(argv) {
             options.chunkSize = positiveInteger(argv[++i], arg);
         } else if(arg === '--seed') {
             options.botSeed = positiveInteger(argv[++i], arg);
+            if(options.botSeed > 5) {
+                throw new Error('--seed must be a bot mode from 1 to 5');
+            }
         } else if(arg === '--decks') {
             const requested = String(argv[++i] || '').split(',').map((label) => label.trim()).filter(Boolean);
             const unknown = requested.filter((label) => !DECK_LABELS.includes(label));
@@ -98,6 +108,17 @@ function parseArgs(argv) {
     options.workers = Math.min(options.workers, 32);
     options.chunkSize = Math.min(options.chunkSize, options.games);
     return options;
+}
+
+function isStandardBenchmarkRun(options, report) {
+    const allDecks = options.decks.length === DECK_LABELS.length &&
+        DECK_LABELS.every((deck) => options.decks.includes(deck));
+    const expectedMatchups = DECK_LABELS.length * (DECK_LABELS.length - 1) / 2;
+    return options.games === STANDARD_GAMES &&
+        allDecks &&
+        report.matchups.length === expectedMatchups &&
+        report.matchups.every((matchup) =>
+            matchup.played === STANDARD_GAMES && matchup.failedJobs.length === 0);
 }
 
 function buildJobs(decks, games, chunkSize) {
@@ -366,6 +387,17 @@ async function main() {
     fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2) + '\n');
     fs.writeFileSync(markdownPath, renderMarkdown(report));
     printConsole(report, jsonPath, markdownPath);
+
+    if(isStandardBenchmarkRun(options, report)) {
+        const configPath = writeBenchmarkSection(
+            options.botSeed,
+            'roundRobin',
+            roundRobinPayload(report)
+        );
+        console.log(`Standard client benchmark updated: ${configPath}`);
+    } else if(options.games === STANDARD_GAMES && options.decks.length === DECK_LABELS.length) {
+        console.log('Standard client benchmark not updated: run was incomplete.');
+    }
 }
 
 if(require.main === module) {
@@ -375,4 +407,11 @@ if(require.main === module) {
     });
 }
 
-module.exports = { buildJobs, defaultWorkers, parseArgs, renderMarkdown, summarize };
+module.exports = {
+    buildJobs,
+    defaultWorkers,
+    isStandardBenchmarkRun,
+    parseArgs,
+    renderMarkdown,
+    summarize
+};

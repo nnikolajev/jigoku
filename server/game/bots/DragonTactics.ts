@@ -24,15 +24,10 @@
 // Tuning knobs for the monk playstyle.
 export interface DragonProfile {
     firstRoundBid: number; // full hand for the card engine
-    drawBid: number; // later dials: LOW — the deck self-draws (Storehouse,
-                     // Hurricane Punch, Teacher, library digs) and the honor
-                     // dial was bleeding it into dishonor losses
+    drawBid: number; // conservative later dial; still profile-injectable
     duelBid: number; // Defend Your Honor duels — enough to win, no more
     voidRecursionBonus: number; // ring-score bonus per Keeper Initiate
                                 // waiting in the dynasty discard
-    // cards-played payoff characters: while one PARTICIPATES, the conflict
-    // window keeps playing cards instead of stopping at "already winning"
-    cardEngineIds: string[];
     // ranked targets for the build-around attachments (Way of the Dragon,
     // Finger of Jade) and ready effects
     keyCharacters: string[];
@@ -45,7 +40,6 @@ export const DRAGON_DEFAULTS: DragonProfile = {
     drawBid: 2,
     duelBid: 2,
     voidRecursionBonus: 20,
-    cardEngineIds: ['togashi-mitsu-2', 'togashi-ichi', 'teacher-of-empty-thought'],
     keyCharacters: ['togashi-mitsu-2', 'togashi-ichi', 'togashi-tadakatsu', 'teacher-of-empty-thought'],
     wayTargets: ['togashi-mitsu-2', 'tranquil-philosopher', 'teacher-of-empty-thought', 'kitsuki-investigator'],
     towerCharacters: [
@@ -73,13 +67,6 @@ export class DragonTactics {
         return keepers * this.profile.voidRecursionBonus;
     }
 
-    // A cards-played payoff character is in the conflict: keep feeding it
-    // cards even when the conflict is already won/lost on skill.
-    cardEngineParticipating(myCharacters: any[]): boolean {
-        return myCharacters.some((card) =>
-            card.inConflict && card.id && this.profile.cardEngineIds.includes(card.id));
-    }
-
     hasParticipatingMonk(myCharacters: any[]): boolean {
         const monkIds = new Set([
             'ancient-master', 'teacher-of-empty-thought', 'togashi-acolyte',
@@ -96,24 +83,6 @@ export class DragonTactics {
     // Highest live exact threshold. Ichi counts both players' cards; defense
     // and stronghold attacks do not chase his illegal auto-break. The engine
     // count already folds in every Shintao Monastery's virtual card.
-    cardTarget(
-        myCharacters: any[],
-        amAttacker: boolean,
-        myCardsPlayed = 0,
-        opponentCardsPlayed = 0,
-        highHouseAvailable = false,
-        attackingStronghold = false
-    ): number {
-        return this.cardTargets(
-            myCharacters,
-            amAttacker,
-            myCardsPlayed,
-            opponentCardsPlayed,
-            highHouseAvailable,
-            attackingStronghold
-        )[0] ?? 0;
-    }
-
     cardTargets(
         myCharacters: any[],
         amAttacker: boolean,
@@ -149,8 +118,8 @@ export class DragonTactics {
         return myHonor > 3 ? this.profile.duelBid : 1;
     }
 
-    // Draw dials: full hand on round 1, then bid low — the deck draws
-    // through its own engine and the dial difference pays us honor.
+    // Draw dials: full hand on round 1, then use the profile's conservative
+    // later-round value while the deck's own card engine is online.
     desiredBid(roundNumber: number | undefined, myHonor: number): number {
         if(myHonor <= 3) {
             return 1;

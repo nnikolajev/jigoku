@@ -9,6 +9,10 @@
 
 export interface ShugenjaProfile {
     ringCardBonus: number;
+    offeringsFateValue: number;
+    togamaFateValue: number;
+    immediateRingPayoffValue: number;
+    displayRingMinimum: number;
     preConflictMinFate: number;
     towerIds: string[];
     shugenjaIds: string[];
@@ -70,6 +74,17 @@ const PRINTED_COSTS: Record<string, number> = {
 
 export const SHUGENJA_DEFAULTS: ShugenjaProfile = {
     ringCardBonus: 18,
+    // Ring-claim abilities need different economics from ordinary conflict
+    // declaration. Offerings receives ring fate immediately, but a live card
+    // payoff can beat one fate. Togama should take the largest fate pile first
+    // and use character/ring-effect value only to break close ties.
+    offeringsFateValue: 120,
+    togamaFateValue: 1000,
+    immediateRingPayoffValue: 100,
+    // Display costs two fate and an undefended province. Spend it proactively
+    // only for a live character/ring-effect payoff; hopeless defenses may still
+    // use it as a fallback, decided by JigokuBotPolicy.
+    displayRingMinimum: 100,
     preConflictMinFate: 2,
     towerIds: ['isawa-tadaka-2', 'fushicho', 'shiba-tsukune', 'kudaka'],
     shugenjaIds: [
@@ -117,7 +132,24 @@ export class ShugenjaTactics {
         return (inPlay + inHand) * this.profile.ringCardBonus;
     }
 
-    offeringsRingScore(element: string, myCharacters: any[], opponentCharacters: any[]): number {
+    offeringsRingScore(ring: any, myCharacters: any[], opponentCharacters: any[]): number {
+        const fate = typeof ring === 'string' ? 0 : (Number(ring?.fate) || 0);
+        const element = typeof ring === 'string' ? ring : String(ring?.element || '');
+        return fate * this.profile.offeringsFateValue +
+            this.immediateRingScore(element, myCharacters, opponentCharacters);
+    }
+
+    togamaRingScore(ring: any, myCharacters: any[], opponentCharacters: any[]): number {
+        return (Number(ring?.fate) || 0) * this.profile.togamaFateValue +
+            this.immediateRingScore(String(ring?.element || ''), myCharacters, opponentCharacters);
+    }
+
+    shouldUseDisplayForRing(element: string, myCharacters: any[], opponentCharacters: any[]): boolean {
+        return this.immediateRingScore(element, myCharacters, opponentCharacters) >=
+            this.profile.displayRingMinimum;
+    }
+
+    private immediateRingScore(element: string, myCharacters: any[], opponentCharacters: any[]): number {
         const wanted = element === 'water' ? this.profile.waterIds
             : element === 'air' ? this.profile.airIds
                 : element === 'void' ? this.profile.voidIds
@@ -127,7 +159,11 @@ export class ShugenjaTactics {
         // legal useful board target: a bowed own character to ready or a ready
         // zero-fate enemy to bow. Thus lone ready Kudaka chooses Air, while a
         // live Water payoff or usable second character can move Water ahead.
-        const livePayoffs = (myCharacters || []).filter((card) => card.id && wanted.includes(card.id)).length;
+        const ujinaHasEnemyTarget = (opponentCharacters || []).some((card) =>
+            card.type === 'character' && (Number(card.fate) || 0) === 0);
+        const livePayoffs = (myCharacters || []).filter((card) =>
+            card.id && wanted.includes(card.id) &&
+            (card.id !== 'isawa-ujina' || ujinaHasEnemyTarget)).length;
         const enemyHasFate = (opponentCharacters || []).some((card) => (Number(card.fate) || 0) > 0);
         const usableWaterTarget = (myCharacters || []).some((card) => card.bowed) ||
             (opponentCharacters || []).some((card) => !card.bowed && (Number(card.fate) || 0) === 0);
@@ -135,8 +171,11 @@ export class ShugenjaTactics {
         const fallback = enemyHasFate
             ? { water: waterRelevant ? 50 : 0, void: 40, earth: 30, air: 20, fire: 10 }
             : { water: waterRelevant ? 50 : 0, earth: 40, air: 30, fire: 20, void: 10 };
-        const waterEffectValue = element === 'water' && usableWaterTarget ? 100 : 0;
-        return livePayoffs * 100 + waterEffectValue + (fallback[element] ?? 0);
+        const waterEffectValue = element === 'water' && usableWaterTarget
+            ? this.profile.immediateRingPayoffValue
+            : 0;
+        return livePayoffs * this.profile.immediateRingPayoffValue +
+            waterEffectValue + (fallback[element] ?? 0);
     }
 
     isShugenja(card: any): boolean {
@@ -285,7 +324,7 @@ export class ShugenjaTactics {
 
     pickFiveFiresPlay(hand: any[], myCharacters: any[], opponentCharacters: any[], availableFate: number): any {
         if(availableFate < 5 ||
-            !(myCharacters || []).some((card) => this.profile.shugenjaIds.includes(card.id)) ||
+            !(myCharacters || []).some((card) => this.isShugenja(card)) ||
             this.fiveFiresTargetFate(opponentCharacters) < 5) {
             return null;
         }
@@ -366,7 +405,8 @@ export class ShugenjaTactics {
             return true;
         }
         return (me?.cardPiles?.cardsInPlay || []).some((card: any) =>
-            card.id === 'meddling-mediator' || card.id === 'asako-togama');
+            card.id === 'meddling-mediator' ||
+            (card.id === 'asako-togama' && card.inConflict));
     }
 
     shouldUseKyuden(playCtx: any): boolean {
@@ -392,12 +432,12 @@ export class ShugenjaTactics {
         const theirs = playCtx?.opponentCharacters || [];
         switch(card.id) {
             case 'consumed-by-five-fires':
-                return mine.some((character: any) => this.profile.shugenjaIds.includes(character.id)) &&
+                return mine.some((character: any) => this.isShugenja(character)) &&
                     this.fiveFiresTargetFate(theirs) >= 5;
             case 'against-the-waves':
-                return mine.some((character: any) => character.bowed && this.profile.shugenjaIds.includes(character.id));
+                return mine.some((character: any) => character.bowed && this.isShugenja(character));
             case 'supernatural-storm':
-                return mine.some((character: any) => this.profile.shugenjaIds.includes(character.id)) &&
+                return mine.some((character: any) => this.isShugenja(character)) &&
                     mine.some((character: any) => character.inConflict);
             case 'clarity-of-purpose':
                 return mine.length > 0;
@@ -414,20 +454,35 @@ export class ShugenjaTactics {
 
     desiredFateReserve(me: any, opponent: any): number {
         const mine = me?.cardPiles?.cardsInPlay || [];
-        const hasTarget = this.fiveFiresTargetFate(opponent?.cardPiles?.cardsInPlay || []) >= 5;
-        if(!hasTarget || !mine.some((card: any) => this.profile.shugenjaIds.includes(card.id))) {
-            return 1;
-        }
         const hand = me?.cardPiles?.hand || [];
+
+        // Once a two-fate disguise base is prepared, preserve Tadaka's
+        // five-minus-base-cost payment instead of spending it on another
+        // dynasty character before the conflict phase.
+        const preparedBase = !mine.some((card: any) => card.id === 'isawa-tadaka-2') &&
+            hand.some((card: any) => card.id === 'isawa-tadaka-2')
+            ? this.pickDisguiseTarget(
+                mine.filter((card: any) => (Number(card.fate) || 0) >= 2)
+            )
+            : null;
+        const tadakaReserve = preparedBase
+            ? Math.max(5 - this.profile.disguiseTargets[preparedBase.id], 1)
+            : 1;
+
+        const hasTarget = this.fiveFiresTargetFate(opponent?.cardPiles?.cardsInPlay || []) >= 5;
+        if(!hasTarget || !mine.some((card: any) => this.isShugenja(card))) {
+            return tadakaReserve;
+        }
         if(hand.some((card: any) => card.id === 'consumed-by-five-fires')) {
-            return 5;
+            return Math.max(tadakaReserve, 5);
         }
         const discardHasFires = (me?.cardPiles?.conflictDiscardPile || [])
             .some((card: any) => card.id === 'consumed-by-five-fires');
         const readyKyuden = (me?.strongholdProvince || [])
             .some((card: any) => card.id === 'kyuden-isawa' && !card.bowed);
         const hasSpellCost = hand.some((card: any) => card.type === 'event' && KYUDEN_SPELL_IDS.has(card.id));
-        return discardHasFires && readyKyuden && hasSpellCost ? 5 : 1;
+        const fiveFiresReserve = discardHasFires && readyKyuden && hasSpellCost ? 5 : 1;
+        return Math.max(tadakaReserve, fiveFiresReserve);
     }
 
     desiredAdditionalFate(cardId: string | undefined, hand: any[], availableFate: number, playCost?: number): number | null {

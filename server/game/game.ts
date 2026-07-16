@@ -426,21 +426,21 @@ class Game extends EventEmitter {
     /**
      * This function is called from the client whenever a card is clicked
      */
-    cardClicked(sourcePlayer: string, cardId: string): void {
+    cardClicked(sourcePlayer: string, cardId: string): boolean {
         const player = this.getPlayerByName(sourcePlayer);
 
         if(!player) {
-            return;
+            return false;
         }
 
         const card = this.findAnyCardInAnyList(cardId);
 
         if(!card) {
-            return;
+            return false;
         }
 
         // Check to see if the current step in the pipeline is waiting for input
-        this.pipeline.handleCardClicked(player, card);
+        return this.pipeline.handleCardClicked(player, card);
     }
 
     facedownCardClicked(
@@ -448,80 +448,82 @@ class Game extends EventEmitter {
         location: string,
         controllerName: string,
         isProvince: boolean = false
-    ): void {
+    ): boolean {
         const player = this.getPlayerByName(playerName);
         const controller = this.getPlayerByName(controllerName);
         if(!player || !controller) {
-            return;
+            return false;
         }
         const list = controller.getSourceList(location);
         if(!list) {
-            return;
+            return false;
         }
         const card = list.find((card: BaseCard) => !isProvince === !(card as any).isProvince);
         if(card) {
-            this.pipeline.handleCardClicked(player, card);
-            return;
+            return this.pipeline.handleCardClicked(player, card);
         }
+        return false;
     }
 
     /**
      * This function is called from the client whenever a ring is clicked
      */
-    ringClicked(sourcePlayer: string, ringindex: string): void {
+    ringClicked(sourcePlayer: string, ringindex: string): boolean {
         const ring = this.rings[ringindex];
         const player = this.getPlayerByName(sourcePlayer);
 
         if(!player || !ring) {
-            return;
+            return false;
         }
 
         // Check to see if the current step in the pipeline is waiting for input
         if(this.pipeline.handleRingClicked(player, ring)) {
-            return;
+            return true;
         }
 
         // If it's not the conflict phase and the ring hasn't been claimed, flip it
         if(this.currentPhase !== Phases.Conflict && !ring.claimed) {
             ring.flipConflictType();
+            return true;
         }
+        return false;
     }
 
     /**
      * This function is called by the client when a card menu item is clicked
      */
-    menuItemClick(sourcePlayer: string, cardId: string, menuItem: any): void {
+    menuItemClick(sourcePlayer: string, cardId: string, menuItem: any): boolean {
         const player = this.getPlayerByName(sourcePlayer);
         const card = this.findAnyCardInAnyList(cardId);
         if(!player || !card) {
-            return;
+            return false;
         }
 
         if(menuItem.command === 'click') {
-            this.cardClicked(sourcePlayer, cardId);
-            return;
+            return this.cardClicked(sourcePlayer, cardId);
         }
 
         MenuCommands.cardMenuClick(menuItem, this, player, card);
         this.checkGameState(true);
+        return true;
     }
 
     /**
      * This function is called by the client when a ring menu item is clicked
      */
-    ringMenuItemClick(sourcePlayer: string, sourceRing: { element: string }, menuItem: any): void {
+    ringMenuItemClick(sourcePlayer: string, sourceRing: { element: string }, menuItem: any): boolean {
         const player = this.getPlayerByName(sourcePlayer);
         const ring = this.rings[sourceRing.element];
         if(!player || !ring) {
-            return;
+            return false;
         }
 
         if(menuItem.command === 'click') {
-            this.ringClicked(sourcePlayer, ring.element);
-            return;
+            return this.ringClicked(sourcePlayer, ring.element);
         }
         MenuCommands.ringMenuClick(menuItem, this, player, ring);
         this.checkGameState(true);
+        return true;
     }
 
     /**

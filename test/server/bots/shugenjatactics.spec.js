@@ -179,6 +179,22 @@ describe('Phoenix Shugenja tactics', function() {
         expect(tactics.desiredFateReserve(me, opponent)).toBe(5);
     });
 
+    it('preserves the remaining Tadaka disguise payment after preparing a base', function() {
+        const me = {
+            cardPiles: {
+                cardsInPlay: [{ id: 'ethereal-dreamer', fate: 2 }],
+                hand: [{ id: 'isawa-tadaka-2', type: 'character' }],
+                conflictDiscardPile: []
+            },
+            strongholdProvince: [{ id: 'kyuden-isawa', bowed: false }]
+        };
+        const opponent = { cardPiles: { cardsInPlay: [] } };
+
+        expect(tactics.desiredFateReserve(me, opponent)).toBe(4);
+        me.cardPiles.cardsInPlay.push({ id: 'isawa-tadaka-2', fate: 2 });
+        expect(tactics.desiredFateReserve(me, opponent)).toBe(1);
+    });
+
     it('plays Five Fires proactively and ignores neutralized fate stacks', function() {
         const fires = {
             id: 'consumed-by-five-fires', uuid: 'fires', type: 'event', isPlayableByMe: true
@@ -211,7 +227,7 @@ describe('Phoenix Shugenja tactics', function() {
         expect(pass.reason).toBe('pass-window');
     });
 
-    it('Offerings chooses Air for lone Kudaka and Water with another useful character', function() {
+    it('Offerings balances ring fate against live Air and Water payoffs', function() {
         const offeringsState = (characters) => stateFor({
             promptTitle: 'Choose a ring to claim and resolve',
             menuTitle: 'Choose a ring to claim and resolve',
@@ -221,22 +237,85 @@ describe('Phoenix Shugenja tactics', function() {
         }, {
             cardPiles: { cardsInPlay: [{ type: 'character', fate: 3 }] }
         });
-        const rings = {
-            air: { element: 'air', unselectable: false },
-            earth: { element: 'earth', unselectable: false },
-            void: { element: 'void', unselectable: false },
-            water: { element: 'water', unselectable: false }
-        };
         const kudakaOnly = offeringsState([{ id: 'kudaka', uuid: 'kudaka', type: 'character' }]);
-        kudakaOnly.rings = rings;
-        expect(new JigokuBotPolicy('offerings-air').decide(kudakaOnly, 'Phoenix', { profile }).args[0]).toBe('air');
+        kudakaOnly.rings = {
+            air: { element: 'air', fate: 0, unselectable: false },
+            earth: { element: 'earth', fate: 2, unselectable: false },
+            void: { element: 'void', fate: 0, unselectable: false },
+            water: { element: 'water', fate: 0, unselectable: false }
+        };
+        expect(new JigokuBotPolicy('offerings-fate').decide(kudakaOnly, 'Phoenix', { profile }).args[0]).toBe('earth');
 
         const withWater = offeringsState([
-            { id: 'kudaka', uuid: 'kudaka', type: 'character' },
-            { id: 'shiba-tetsu', uuid: 'tetsu', type: 'character', bowed: true }
+            { id: 'prodigy-of-the-waves', uuid: 'prodigy', type: 'character', bowed: true }
         ]);
-        withWater.rings = rings;
+        withWater.rings = {
+            air: { element: 'air', fate: 1, unselectable: false },
+            earth: { element: 'earth', fate: 0, unselectable: false },
+            void: { element: 'void', fate: 0, unselectable: false },
+            water: { element: 'water', fate: 0, unselectable: false }
+        };
         expect(new JigokuBotPolicy('offerings-water').decide(withWater, 'Phoenix', { profile }).args[0]).toBe('water');
+    });
+
+    it('Asako Togama takes the highest-fate ring and uses live payoffs to break fate ties', function() {
+        const togamaState = stateFor({
+            promptTitle: 'Asako Togama',
+            menuTitle: 'Choose a ring to take',
+            selectRing: true,
+            buttons: [],
+            cardPiles: {
+                cardsInPlay: [
+                    { id: 'asako-togama', uuid: 'togama', type: 'character', inConflict: true },
+                    { id: 'kudaka', uuid: 'kudaka', type: 'character' }
+                ]
+            }
+        });
+        togamaState.rings = {
+            air: { element: 'air', fate: 2, unselectable: false },
+            earth: { element: 'earth', fate: 2, unselectable: false },
+            water: { element: 'water', fate: 1, unselectable: false }
+        };
+        expect(new JigokuBotPolicy('togama-tie').decide(togamaState, 'Phoenix', { profile }).args[0]).toBe('air');
+
+        togamaState.rings.earth.fate = 3;
+        expect(new JigokuBotPolicy('togama-max-fate').decide(togamaState, 'Phoenix', { profile }).args[0]).toBe('earth');
+    });
+
+    it('counts Asako Togama as a strategic conflict action only while participating', function() {
+        const togama = { id: 'asako-togama', uuid: 'togama', type: 'character', inConflict: false };
+        const me = {
+            stats: { fate: 1 },
+            cardPiles: { hand: [], conflictDiscardPile: [], cardsInPlay: [togama] },
+            strongholdProvince: []
+        };
+        const opponent = { cardPiles: { cardsInPlay: [] } };
+
+        expect(tactics.hasStrategicAction(me, opponent)).toBe(false);
+        togama.inConflict = true;
+        expect(tactics.hasStrategicAction(me, opponent)).toBe(true);
+    });
+
+    it('ignores stale selectRing state while Kyuden Isawa is choosing a discard', function() {
+        const state = stateFor({
+            promptTitle: 'Kyuden Isawa',
+            menuTitle: 'Select card to discard',
+            selectRing: true,
+            buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+            cardPiles: {
+                hand: [{ id: 'oracle-of-stone', uuid: 'oracle', type: 'event', selectable: true }]
+            }
+        });
+        state.rings = {
+            air: { element: 'air', fate: 2, unselectable: false },
+            water: { element: 'water', fate: 0, unselectable: false }
+        };
+        const decision = new JigokuBotPolicy('stale-ring-state').decide(state, 'Phoenix', {
+            profile,
+            targetHint: { sourceCardId: 'kyuden-isawa', sourceIsMine: true, gameActions: ['discardCard'] }
+        });
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('oracle');
     });
 
     it('Meddling Mediator takes fate before honor', function() {
@@ -250,17 +329,29 @@ describe('Phoenix Shugenja tactics', function() {
         expect(new JigokuBotPolicy('mediator-2').decide(withoutFate, 'Phoenix', { profile }).args[0]).toBe('honor');
     });
 
-    it('leaves a normal province undefended when Display of Power is ready', function() {
-        const state = stateFor({
-            promptTitle: 'Military Fire Conflict: 5 vs 0',
+    it('uses Display for character-payoff rings but defends a winnable irrelevant ring', function() {
+        const makeState = (element) => stateFor({
+            promptTitle: `Military ${element} Conflict: 5 vs 0`,
             menuTitle: 'Choose defenders',
             buttons: [{ text: 'Done', arg: 'done', uuid: 'done' }],
             stats: { fate: 2 },
-            cardPiles: { hand: [{ id: 'display-of-power', type: 'event' }], cardsInPlay: [] }
+            cardPiles: {
+                hand: [{ id: 'display-of-power', type: 'event' }],
+                cardsInPlay: [{
+                    id: 'kudaka', uuid: 'kudaka', type: 'character', bowed: false, inConflict: false,
+                    militarySkillSummary: { stat: '6' }, politicalSkillSummary: { stat: '3' }
+                }]
+            }
         });
-        const decision = new JigokuBotPolicy('display').decide(state, 'Phoenix', { profile });
-        expect(decision.reason).toBe('display-of-power-unopposed');
-        expect(decision.args[0]).toBe('done');
+
+        const air = new JigokuBotPolicy('display-air').decide(makeState('Air'), 'Phoenix', { profile });
+        expect(air.reason).toBe('display-of-power-unopposed');
+        expect(air.args[0]).toBe('done');
+
+        const fire = new JigokuBotPolicy('display-fire').decide(makeState('Fire'), 'Phoenix', { profile });
+        expect(fire.command).toBe('cardClicked');
+        expect(fire.args[0]).toBe('kudaka');
+
         expect(tactics.hasDisplayPlan({
             stats: { fate: 2 },
             cardPiles: { hand: [], conflictDiscardPile: [{ id: 'display-of-power' }] },

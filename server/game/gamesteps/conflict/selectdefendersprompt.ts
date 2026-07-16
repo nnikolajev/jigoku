@@ -68,6 +68,9 @@ class SelectDefendersPrompt extends UiPrompt {
         if(this.conflict.defenders.includes(card) && card.getEffects(EffectNames.MustBeDeclaredAsDefender).some((effect: any) => effect === 'both' || effect === this.conflict.conflictType)) {
             return false;
         }
+        if(this.conflict.maxAllowedDefenders > -1 && this.conflict.defenders.length >= this.conflict.maxAllowedDefenders && !this.conflict.defenders.includes(card)) {
+            return false;
+        }
         return (
             card.getType() === CardTypes.Character &&
             card.controller === this.player &&

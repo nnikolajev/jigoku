@@ -5,7 +5,10 @@ describe('Iron Mountain Castle', function () {
                 phase: 'conflict',
                 player1: {
                     inPlay: ['togashi-mitsu', 'kakita-yoshi'],
-                    hand: ['fine-katana', 'ornate-fan', 'kakita-blade', 'honored-blade', 'tattooed-wanderer'],
+                    hand: [
+                        'fine-katana', 'ornate-fan', 'kakita-blade', 'honored-blade', 'tattooed-wanderer',
+                        'tetsubo-of-blood', 'jade-tetsubo', 'daimyo-s-favor'
+                    ],
                     stronghold: ['iron-mountain-castle']
                 },
                 player2: {
@@ -21,6 +24,9 @@ describe('Iron Mountain Castle', function () {
             this.blade = this.player1.findCardByName('kakita-blade');
             this.honored = this.player1.findCardByName('honored-blade');
             this.wanderer = this.player1.findCardByName('tattooed-wanderer');
+            this.blood = this.player1.findCardByName('tetsubo-of-blood');
+            this.jadeTetsubo = this.player1.findCardByName('jade-tetsubo');
+            this.daimyosFavor = this.player1.findCardByName('daimyo-s-favor');
             this.iron = this.player1.findCardByName('iron-mountain-castle');
 
             this.initiate = this.player2.findCardByName('togashi-initiate');
@@ -121,6 +127,36 @@ describe('Iron Mountain Castle', function () {
             expect(this.getChatLogs(5)).toContain(
                 'player1 uses Iron Mountain Castle, bowing Iron Mountain Castle to reduce the cost of their next attachment by 1'
             );
+        });
+
+        it('should reduce Tetsubo of Blood before its alternate fate payment', function () {
+            this.mitsu.fate = 1;
+            const fate = this.mitsu.fate;
+            this.player1.clickCard(this.blood);
+            this.player1.clickCard(this.mitsu);
+            expect(this.player1).toHavePrompt('Triggered Abilities');
+            expect(this.player1).toBeAbleToSelect(this.iron);
+            this.player1.clickCard(this.iron);
+
+            expect(this.mitsu.attachments).toContain(this.blood);
+            expect(this.mitsu.fate).toBe(fate);
+        });
+
+        it('should stack with Daimyo\'s Favor to reduce Jade Tetsubo from two to zero', function () {
+            this.player1.playAttachment(this.daimyosFavor, this.mitsu);
+            this.player2.pass();
+            this.player1.clickCard(this.daimyosFavor);
+            this.player2.pass();
+            const fate = this.player1.fate;
+
+            this.player1.clickCard(this.jadeTetsubo);
+            this.player1.clickCard(this.mitsu);
+            expect(this.player1).toHavePrompt('Triggered Abilities');
+            expect(this.player1).toBeAbleToSelect(this.iron);
+            this.player1.clickCard(this.iron);
+
+            expect(this.mitsu.attachments).toContain(this.jadeTetsubo);
+            expect(this.player1.fate).toBe(fate);
         });
 
         it('should allow you to pass the activation, keeping your action opportunity', function () {

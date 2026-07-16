@@ -299,8 +299,9 @@ class Lobby {
         const botConfig = {
             playerName: botDetails.playerName || 'Jigoku Bot',
             deckId: botDetails.deckId,
-            seed: botDetails.seed || `${game.id}:bot`,
+            seed: botDetails.seed || 1,
             difficulty: botDetails.difficulty || 'mvp',
+            policy: botDetails.policy,
             trace: botDetails.trace !== false,
             llm: botDetails.llm || env.botLlm
         };

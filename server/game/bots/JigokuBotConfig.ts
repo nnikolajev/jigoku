@@ -7,6 +7,8 @@ export interface JigokuBotLlmConfig {
     cacheDir?: string;
 }
 
+export type JigokuBotPolicyVariant = 'generic' | 'fate-aware';
+
 export interface JigokuBotConfig {
     playerName: string;
     deckId?: string;
@@ -14,6 +16,9 @@ export interface JigokuBotConfig {
     difficulty?: string;
     trace?: boolean;
     maxDecisionsPerTick?: number;
+    // Seed 1 defaults to fate-aware; seed 2 selects the old generic heuristic.
+    // Explicit variants remain available for controlled policy comparisons.
+    policy?: JigokuBotPolicyVariant;
     llm?: JigokuBotLlmConfig;
     // Seed-3 exploration rate (0..1): probability of taking a random legal move
     // instead of the evaluator's argmax. Used during self-play data generation

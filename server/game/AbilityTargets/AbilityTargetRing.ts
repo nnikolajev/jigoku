@@ -61,7 +61,7 @@ class AbilityTargetRing {
         let buttons: any[] = [];
         let waitingPromptTitle = '';
         if(context.stage === Stages.PreTarget) {
-            if(!targetResults.noCostsFirstButton) {
+            if(!targetResults.noCostsFirstButton && !this.dependentCost) {
                 buttons.push({ text: 'Pay costs first', arg: 'costsFirst' });
             }
             buttons.push({ text: 'Cancel', arg: 'cancel' });

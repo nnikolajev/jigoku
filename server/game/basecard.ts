@@ -1356,6 +1356,11 @@ class BaseCard extends EffectSource {
             menu: this.getMenu(),
             name: this.cardData.name,
             packId: this.packId,
+            // Printed uniqueness and traits are public card information. Bot
+            // policy needs them for legal-cost/target planning (for example,
+            // In Service to My Lord and Bushi-count abilities).
+            isUnique: this.isUnique(),
+            traits: Array.from(this.getTraits()),
             popupMenuText: this.popupMenuText,
             showPopup: this.showPopup,
             tokens: this.tokens,

@@ -38,11 +38,12 @@ normal limit of two.
 
 Attachment priority is:
 
-1. Tetsubo of Blood and Jade Tetsubo.
-2. Adopted Kin and Daimyo's Favor.
-3. Ancestral Daisho, Elegant Tessen, and Finger of Jade.
-4. Two-Heavens Technique and Pathfinder's Blade.
-5. Fine Katana, Kitsuki's Method, Ornate Fan, Inscribed Tanto, and Tattooed
+1. Daimyo's Favor, establishing the reusable attachment reducer first.
+2. Tetsubo of Blood and Jade Tetsubo.
+3. Adopted Kin.
+4. Ancestral Daisho, Elegant Tessen, and Finger of Jade.
+5. Two-Heavens Technique and Pathfinder's Blade.
+6. Fine Katana, Kitsuki's Method, Ornate Fan, Inscribed Tanto, and Tattooed
    Wanderer.
 
 The bot plays these before conflicts when legal. It never opens an attachment
@@ -54,14 +55,18 @@ play if no strategic bearer has a free slot. Specific steering:
   played on its bearer. That paid attachment becomes the next attachment play
   and is forced onto the same bearer; cost-0 attachments cannot consume the
   prepared reduction.
-- A ready Iron Mountain Castle is reserved for Tetsubo of Blood first, then the
-  next positive-cost attachment. Daimyo's Favor leaves a cost-1 attachment for
-  Castle and combines with Castle only on cost-2-or-higher attachments. Castle
-  never bows for a printed cost-0 attachment, even if another effect temporarily
-  raises the amount payable.
-- A Weapon targets a bowed Niten Master first, immediately triggering his
-  ready reaction. Otherwise attachments prefer the ranked tower with the most
-  fate.
+- A ready Iron Mountain Castle makes a cost-1 attachment free, including
+  Tetsubo of Blood's alternate fate cost. The policy therefore saves Daimyo's
+  Favor for a later attachment. If Castle is bowed or unavailable, Favor pays
+  for Tetsubo. Jade Tetsubo costs 2, so Favor and Castle combine to make it
+  free. Castle never bows for a printed cost-0 attachment.
+- The game engine now selects a bearer before paying target-dependent costs.
+  This lets both reducers see Tetsubo's bearer and prevents Tetsubo from
+  removing fate before Favor or Castle can reduce its cost.
+- A Weapon is held while every Niten Master reaction carrier is ready, then
+  targets a bowed Niten Master to ready it for another conflict. Togashi Yokuni
+  follows the same targeting and hold rules after copying Niten Master's
+  ability. Other attachments prefer the ranked tower with the most fate.
 - Adopted Kin and Daimyo's Favor are limited by policy to one copy on each
   bearer. Other attachments prefer a bearer that already has Adopted Kin.
 - Elegant Tessen first readies a bowed printed-cost-2-or-less support
@@ -111,10 +116,13 @@ Method). The bot keeps the Jigoku card behavior unchanged.
 
 Focused unit coverage: `dragonattachmenttactics.spec.js`, including
 strategy/profile gating, deep fate, dynasty mulligan, three Restricted slots,
-Niten ready targeting, Adopted Kin/Tetsubo spreading, paid-only Daimyo's Favor
-sequencing, generic draw bidding, friendly and enemy Yokuni copy/use paths,
-ring steering, and policy integration. The full bot-only suite covers the
-shared policy regressions.
+Niten and Niten-copying Yokuni ready timing, Adopted Kin/Tetsubo spreading,
+paid-only Daimyo's Favor sequencing, Castle-first Tetsubo reduction, generic
+draw bidding, friendly and enemy Yokuni copy/use paths, ring steering, and
+policy integration. Card integration regressions cover Favor reducing Tetsubo
+to zero, Castle reducing Tetsubo to zero, and Favor plus Castle reducing Jade
+Tetsubo from 2 to zero. The full bot-only suite covers the shared policy
+regressions.
 
 Historical Crane self-play before the generic-bid, paid-only Favor, and enemy
 Yokuni changes used seed 1 with alternating seats:
@@ -130,14 +138,21 @@ That snapshot produced 23 dishonor and 17 conquest wins. Rejected experiments
 were more defensive pressure (28.2%, N=40) and allowing a two-fate tower setup
 (27.5%, N=40).
 
-Current validation after the generic-bid, paid-only Favor, Castle priority,
-cost-0 Castle guard, enemy-only Let Go, and dynamic enemy Yokuni changes used
-the same seed and alternating seats: **51-48, 1 stalled (51.5%, N=99 decided;
-100 games scheduled)**. This is 11.1 percentage points above the previous
-40.4% decided-game baseline.
+The current controlled matrix uses 100 alternating-seat games against each of
+Crane, Phoenix, and Scorpion. After the target-dependent engine repair, the
+deck scored **113-187 (37.7%)**. Saving Favor when ready Castle can pay for
+Tetsubo improved the same-sized matrix to **123-177 (41.0%)**: 66% against
+Crane, 30% against Phoenix, and 27% against Scorpion. These individual N=100
+matchups remain noisy; the aggregate is the tuning signal. Raising maximum
+tower fate to 5 (34.8%) and buying support immediately after a tower (36.7%)
+were tested and rejected.
 
-The complete bot unit suite passes **244 specs with 0 failures**, and TypeScript
-typechecking passes. A separate 10-game runtime audit observed **63 Castle
-triggers on positive-cost attachments and 0 on cost-0 attachments**, including
-4 Tetsubo of Blood reductions. All 13 observed Let Go targets were enemy
-attachments.
+Final all-deck validation at N=40 per matchup finished **178-182 (49.4%)**,
+up from the pre-fix **103-257 (28.6%)** snapshot. A separate N=100 run against
+the Crane precon finished **68-32 (68%)**, up from 42% in the reported
+pre-fix run. Seats alternate and both players use seed 1 fate-aware logic.
+
+The complete bot unit suite passes **278 specs with 0 failures**, and TypeScript
+typechecking passes. The card integration specs require the repository's
+external `test/json/Card` fixture data; deterministic self-play confirms the
+runtime reducer sequence when those fixtures are unavailable locally.

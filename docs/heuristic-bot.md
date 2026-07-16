@@ -11,12 +11,17 @@ Lobby game creation may include:
   "bot": {
     "enabled": true,
     "deckId": "deck id",
-    "seed": "replay-seed",
+    "seed": 1,
     "difficulty": "mvp",
     "trace": true
   }
 }
 ```
+
+When `policy` is omitted, the seed selects the policy. Seeds 1 and 5 use the
+fate-aware policy documented in [`fate-aware-bot.md`](fate-aware-bot.md); seed 5
+also receives omniscient context. Seed 2 preserves the old generic heuristic.
+Explicit `generic` / `fate-aware` values remain available for paired analysis.
 
 The lobby creates a second player named `Jigoku Bot`, hydrates the configured deck, and starts the normal game-server handoff for the human player.
 
@@ -44,14 +49,64 @@ Current heuristics:
 
 - **Deck strategy** (`deriveDeckStrategy`): the controller derives three independent flags once from the printed cards the bot actually owns and threads them into every decision, so decks *without* the marker cards keep the exact generic behavior. `holdingEngine` (Kyuden Hida or 2+ Kaiu Wall holdings) makes the bot mulligan every non-holding opening province toward holdings, deploy characters through dynasty Actions (Kyuden Hida / engineers) once fate remains, and never discard a holding from a province in the fate phase. `defensive` (3+ win-as-defender payoffs / dedicated blockers) makes the bot keep its bodies home and only commit an attack that can actually break the province — it passes conflicts it cannot break rather than throwing skill away, and turns the corner to attacking only once its board outgrows the opponent's defense. `aggressive` (3+ military-rush markers: Cavalry Reserves, Shiotome Encampment, Ujik Tactics, Captive Audience, Challenge on the Fields, Ride On, Spoils of War, …) makes the bot play a race: it deploys characters with at most 1 fate (cheap disposable bodies), commits *every* body to each attack instead of holding the weakest home, forces every conflict to military while it has any military skill (so Captive Audience can turn the political conflict into a second military one), and concedes defenses it cannot win outright — passing defensive windows and taking province breaks rather than bowing bodies it needs to attack again. The Crab wall deck trips only the first two flags; the Unicorn cavalry precon trips only `aggressive`; a generic deck trips none. (Preserving holdings in the fate-phase province discard is a universal fix — the generic bot previously discarded its own holdings.)
 
-## Seeds: heuristic (1) vs LLM-driven (2)
+## Conflict-card economy
+
+Seeds 1, 2, and 5 share an injectable `conflictCardEconomy` profile. The
+controller supplies printed fate costs by UUID for cards in the bot's
+hand and conflict discard. A 0/1 budget planner values legal candidates from
+playbook priority, relevant conflict skill, and ability value, chooses the
+highest-total-value group that fits the live fate pool, then sequences the most
+value-efficient member first.
+
+Priority 9-10 cards receive a protection premium, so Pacifism, Display of
+Power, Cavalry Reserves, and similar strategic cards remain live instead of
+being suppressed by free filler. Missing costs, or a playable card whose
+printed cost exceeds the current pool, preserve the old ordering. Consumed by
+Five Fires and prepared Tadaka execute before Kyuden can consume their fate;
+Dragon attachment/reducer ordering and Dragon card-count sequences remain
+explicit higher-priority paths.
+
+The engine rechecks legality and payment after every card. Printed costs are
+therefore planning estimates, not a replacement for live cost modifiers;
+unknown costs and mixed hand/in-play reaction windows keep priority order.
+
+### Seed-1 validation
+
+Controlled round robins used 40 games per matchup (1,800 games per run). The
+first planner pass exposed a consistent swarm regression: Lion and Unicorn
+each declined against 8 of 9 opponents. Their injectable profiles now retain
+legacy conflict-card sequencing while all other decks use the planner.
+
+| Deck | Before | Planner for all | Swarm-tuned |
+| --- | ---: | ---: | ---: |
+| Crab | 36.7% | 41.1% | 36.2% |
+| Crane | 43.9% | 48.6% | 45.6% |
+| CraneDuels | 13.1% | 17.2% | 15.3% |
+| Dragon | 46.9% | 47.2% | 51.3% |
+| DragonAttachments | 49.4% | 44.8% | 44.8% |
+| Lion | 55.4% | 49.2% | 54.9% |
+| Phoenix | 70.1% | 66.6% | 73.1% |
+| PhoenixShugenja | 55.7% | 61.3% | 56.3% |
+| Scorpion | 69.9% | 74.4% | 70.0% |
+| Unicorn | 58.9% | 49.7% | 52.5% |
+
+At this sample size, aggregate deck swings of roughly 5-7 points are within
+run variance. The repeatable result is Lion's recovery after the swarm
+exception; DragonAttachments already bypasses the main planner, so its mixed
+result does not justify another exception. Raw reports: [before](../tools/selfplay/out/conflict-economy-baseline-seed1.md),
+[planner for all](../tools/selfplay/out/conflict-economy-post1-seed1.md), and
+[swarm-tuned](../tools/selfplay/out/conflict-economy-post2-swarm-legacy-seed1.md).
+
+## Bot seeds
 
 The bot `seed` selects the brain:
 
-- **Seed 1 (default)** — the hand-written heuristic policy above is in charge. Fully deterministic; the LLM (when configured) only fills in per-card hints and the occasional ambiguous target consult.
-- **Seed 2** — the local LLM is in charge. At every single step the bot acts, the controller enumerates *every legal move* for the current prompt — enabled buttons, selectable rings, selectable/clickable cards, and the opponent's provinces in attack windows — validates each through the same legality gate the executor uses, and hands the whole option set to the model together with the full visible game state (phase/round/conflict/honor/fate/provinces), the bot's hand with printed card text, and both players' board characters and the rings. Each option carries a numeric `id` and a human `label`; the model replies with the id of the one option to execute (`{"option":3,"reason":"..."}`). The parser is lenient (accepts the id, a bare index, or an exact label) so a slightly-off answer from a thinking model still lands on a legal move. One call = one click, so multi-step plays (pick card → pick target → pick mode button) are separate consults, exactly like a human clicking through. The heuristic policy still runs first as a guide and is appended to the option list as a labelled fall-back. On any miss — hallucinated id, timeout, unreachable model, or even a game-rejected pick — the resolver walks the model pick, then the heuristic option, then every remaining enumerated option and executes the first the game accepts, so it can never produce an illegal command or dead-end (the failure mode that stalled the province-setup prompt: the raw heuristic decision there is a stray ring click that is illegal on its own, so it is only ever used when it appears as a legal option). Forced single-option steps skip the model and run the heuristic pick directly to stay fast. Seed 2 is deck-agnostic (it reads the live state, not deck strategy flags) and is slower — one model round trip per click, more when thinking is enabled — which is the intended trade for a smarter, state-driven pilot. Requires `bot.llm.enabled`; without a reachable model the seat silently stays on the heuristic policy.
+- **Seed 1 (default)** — the fate-aware heuristic. It preserves fate, invests in longer-lived expensive characters, and prioritizes rings holding fate.
+- **Seed 2** — the old generic hand-written heuristic, retained for comparisons.
+- **Seed 3** — the local LLM is in charge. At every single step the bot acts, the controller enumerates *every legal move* for the current prompt — enabled buttons, selectable rings, selectable/clickable cards, and the opponent's provinces in attack windows — validates each through the same legality gate the executor uses, and hands the whole option set to the model together with the full visible game state (phase/round/conflict/honor/fate/provinces), the bot's hand with printed card text, and both players' board characters and the rings. Each option carries a numeric `id` and a human `label`; the model replies with the id of the one option to execute (`{"option":3,"reason":"..."}`). The parser is lenient (accepts the id, a bare index, or an exact label) so a slightly-off answer from a thinking model still lands on a legal move. One call = one click, so multi-step plays (pick card → pick target → pick mode button) are separate consults, exactly like a human clicking through. The heuristic policy still runs first as a guide and is appended to the option list as a labelled fall-back. On any miss — hallucinated id, timeout, unreachable model, or even a game-rejected pick — the resolver walks the model pick, then the heuristic option, then every remaining enumerated option and executes the first the game accepts. Forced single-option steps skip the model. Seed 3 requires `bot.llm.enabled`; without a reachable model the seat stays on its base heuristic.
 
-- **Seed 3 (experimental, not competitive)** — a *learned evaluator*: self-play trains a model that scores every legal move; the bot refines the heuristic's conflict/dynasty choices with it (in-process, no round trip). The full pipeline lives in `tools/selfplay/` (harness, features, Python trainer, parity-exact TS inference, iterative self-play — see its README) and every component is validated. **But the trained bot does not beat the heuristic — it plays far worse** (breaks ~0 provinces vs the heuristic's ~4.75/game): a pointwise state-value model cannot rank the moves within a decision, so its conflict choices neuter the deck's aggression, and self-play iteration does not fix it (a known-hard RL result on a hidden-info game with a strong hand-written baseline). Seed 3 is opt-in (needs an injected evaluator) and left in place as infrastructure for future RL work; **seed 1 remains the strongest bot.**
+- **Seed 4 (experimental, not competitive)** — the learned evaluator formerly numbered seed 3. Self-play trains a model that scores legal moves in process. The infrastructure remains available, but the trained model performs worse than the heuristic and needs an injected evaluator.
+- **Seed 5** — seed 1's fate-aware heuristic plus omniscient logic. It can see the opponent's hand, fate, and face-down province strength.
 
 With a local LM Studio server configured (`bot.llm`), the bot additionally analyzes its deck's card text into per-card hints and can consult the model live on ambiguous target prompts — see `heuristic-bot-llm.md`.
 

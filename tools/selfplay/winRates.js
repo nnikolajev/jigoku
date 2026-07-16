@@ -5,13 +5,21 @@
 // so a rare synchronous engine loop or out-of-memory game kills only that child; the
 // parent keeps every game that already streamed and prints the board anyway,
 // marking a deck whose child died before finishing. Usage:
-//   node tools/selfplay/winRates.js [gamesPerDeck] [botSeed]
-// gamesPerDeck default 30. botSeed 1 = heuristic (default), 4 = omniscient.
+//   node tools/selfplay/winRates.js [gamesPerDeck] [botSeed] [craneSeed] [challengerPolicy]
+// gamesPerDeck default 100. Seeds: 1 fate-aware (default), 2 old heuristic,
+// 3 LLM, 4 learned evaluator, 5 omniscient. challengerPolicy is an optional
+// generic/fate-aware challenger override. Challenger and Crane seeds are
+// the same by default; craneSeed can override it for direct comparisons.
 // A single deck swings ~13pts at N=40, so use higher N for steadier numbers.
 
 const path = require('path');
 const { spawn } = require('child_process');
 const { DECK_LABELS } = require('./deckRegistry.js');
+const {
+    STANDARD_GAMES,
+    winRatesPayload,
+    writeBenchmarkSection
+} = require('./standardBenchmark.js');
 
 const BASELINE_DECK = 'Crane';
 const DECKS = Object.freeze(DECK_LABELS.filter((label) => label !== BASELINE_DECK));
@@ -20,9 +28,53 @@ const WORKER = path.join(__dirname, '_deckWorker.js');
 // Per-game wall budget; the deck child is killed if it exceeds games * this.
 const PER_GAME_MS = 12000;
 
-function runDeckChild(label, games, botSeed) {
+function parseBotSeed(value) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 5 ? parsed : 1;
+}
+
+function parsePolicyOverride(value) {
+    return value === 'generic' || value === 'fate-aware' ? value : undefined;
+}
+
+function parseArgs(argv = []) {
+    const botSeed = parseBotSeed(argv[1]);
+    return {
+        games: parseInt(argv[0], 10) || STANDARD_GAMES,
+        botSeed,
+        craneSeed: argv[2] === undefined ? botSeed : parseBotSeed(argv[2]),
+        challengerPolicy: parsePolicyOverride(argv[3])
+    };
+}
+
+function isStandardBenchmarkRun(options, rows) {
+    return options.games === STANDARD_GAMES &&
+        options.botSeed === options.craneSeed &&
+        !options.challengerPolicy &&
+        rows.length === DECKS.length &&
+        rows.every((row) => !row.died && row.played === STANDARD_GAMES);
+}
+
+function seatSeeds(botFirst, botSeed, craneSeed) {
+    return botFirst ? [botSeed, craneSeed] : [craneSeed, botSeed];
+}
+
+function seedLabel(seed) {
+    return ({
+        1: 'fate-aware',
+        2: 'old heuristic',
+        3: 'LLM seed (heuristic fallback in self-play)',
+        4: 'learned evaluator',
+        5: 'omniscient'
+    })[seed];
+}
+
+function runDeckChild(label, games, botSeed, craneSeed, challengerPolicy) {
     return new Promise((resolve) => {
-        const child = spawn(process.execPath, ['--max-old-space-size=1024', WORKER, label, String(games), String(botSeed)], {
+        const child = spawn(process.execPath, [
+            '--max-old-space-size=1024', WORKER, label, String(games), String(botSeed),
+            String(craneSeed), challengerPolicy || ''
+        ], {
             cwd: path.join(__dirname, '..', '..'),
             env: { ...process.env, LOG_LEVEL: 'error' }
         });
@@ -66,11 +118,13 @@ function runDeckChild(label, games, botSeed) {
 }
 
 async function main() {
-    const games = parseInt(process.argv[2], 10) || 30;
-    const botSeed = process.argv[3] === '4' ? 4 : 1;
+    const options = parseArgs(process.argv.slice(2));
+    const { games, botSeed, craneSeed, challengerPolicy } = options;
+    const challengerLabel = challengerPolicy || seedLabel(botSeed);
 
-    process.stderr.write(`running ${DECKS.length} deck simulations in parallel (${games} games each)\n`);
-    const deckRuns = await Promise.all(DECKS.map((label) => runDeckChild(label, games, botSeed)));
+    process.stderr.write(`running ${DECKS.length} deck simulations in parallel (${games} games each, challenger seed ${botSeed} ${seedLabel(botSeed)}, Crane seed ${craneSeed} ${seedLabel(craneSeed)}${challengerPolicy ? `, challenger override ${challengerPolicy}` : ''})\n`);
+    const deckRuns = await Promise.all(DECKS.map((label) =>
+        runDeckChild(label, games, botSeed, craneSeed, challengerPolicy)));
     const rows = [];
     for(const { label, results, died } of deckRuns) {
         let wins = 0;
@@ -93,7 +147,7 @@ async function main() {
 
     rows.sort((a, b) => (b.played ? b.wins / b.played : 0) - (a.played ? a.wins / a.played : 0));
 
-    console.log(`\n=== Bot win rates vs Crane precon (seed ${botSeed}, N=${games}/deck, seats alternate) ===\n`);
+    console.log(`\n=== Bot win rates vs Crane precon (challenger seed ${botSeed}, ${challengerLabel}; Crane seed ${craneSeed}, ${seedLabel(craneSeed)}; N=${games}/deck, seats alternate) ===\n`);
     const deckWidth = Math.max('deck'.length, ...rows.map((row) => row.label.length));
     console.log(`${'deck'.padEnd(deckWidth)}  record     win%   played  top loss / note`);
     console.log(`${'-'.repeat(deckWidth)}  ---------  -----  ------  ------------------------`);
@@ -110,6 +164,13 @@ async function main() {
         console.log(`${row.label.padEnd(deckWidth)}  ${record.padEnd(9)}  ${pct}%   ${String(row.played).padStart(3)}/${games}  ${note}`);
     }
     console.log('\n(all decks run in parallel in isolated processes; a deck marked "child ..." hit a hang/OOM and shows partial results.)');
+
+    if(isStandardBenchmarkRun(options, rows)) {
+        const configPath = writeBenchmarkSection(botSeed, 'winRates', winRatesPayload(options, rows));
+        console.log(`Standard client benchmark updated: ${configPath}`);
+    } else if(games === STANDARD_GAMES && botSeed === craneSeed && !challengerPolicy) {
+        console.log('Standard client benchmark not updated: run was incomplete.');
+    }
 }
 
 if(require.main === module) {
@@ -119,4 +180,12 @@ if(require.main === module) {
     });
 }
 
-module.exports = { DECKS };
+module.exports = {
+    DECKS,
+    isStandardBenchmarkRun,
+    parseArgs,
+    parseBotSeed,
+    parsePolicyOverride,
+    seatSeeds,
+    seedLabel
+};

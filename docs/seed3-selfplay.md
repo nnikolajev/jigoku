@@ -1,5 +1,9 @@
 # Seed 3 — Self-Play Learned Evaluator (full record)
 
+> **Renumbering note (2026-07-15):** this historical record uses the original
+> seed numbers. The learned evaluator is now seed 4, the LLM is seed 3, the old
+> generic heuristic is seed 2, and fate-aware is the default seed 1.
+
 > **Status: experimental, NOT competitive.** Seed 3 does **not** beat the seed-1
 > heuristic. It is gated (opt-in) and does not affect live play. This document
 > records the complete design, every attempt, why each failed, and how to run

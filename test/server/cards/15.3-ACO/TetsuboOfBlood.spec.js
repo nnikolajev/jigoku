@@ -6,7 +6,7 @@ describe('Tetsubo of Blood', function() {
                     phase: 'conflict',
                     player1: {
                         inPlay: ['doji-challenger', 'hantei-sotorii'],
-                        hand: ['tetsubo-of-blood', 'way-of-the-crane']
+                        hand: ['tetsubo-of-blood', 'way-of-the-crane', 'daimyo-s-favor']
                     },
                     player2: {
                         inPlay: ['bayushi-shoju'],
@@ -19,6 +19,7 @@ describe('Tetsubo of Blood', function() {
                 this.sotorii.fate = 1;
                 this.blood = this.player1.findCardByName('tetsubo-of-blood');
                 this.crane = this.player1.findCardByName('way-of-the-crane');
+                this.daimyosFavor = this.player1.findCardByName('daimyo-s-favor');
 
 
                 this.forshame = this.player2.findCardByName('for-shame');
@@ -79,6 +80,22 @@ describe('Tetsubo of Blood', function() {
 
                 this.player1.clickCard(this.crane);
                 expect(this.player1).toHavePrompt('Conflict Action Window');
+            });
+
+            it('should let Daimyo\'s Favor reduce its alternate fate cost to zero', function() {
+                this.player1.playAttachment(this.daimyosFavor, this.sotorii);
+                this.player2.pass();
+                this.player1.clickCard(this.daimyosFavor);
+                this.player2.pass();
+
+                const challengerFate = this.challenger.fate;
+                const sotoriiFate = this.sotorii.fate;
+                this.player1.playAttachment(this.blood, this.sotorii);
+
+                expect(this.sotorii.attachments).toContain(this.blood);
+                expect(this.challenger.fate).toBe(challengerFate);
+                expect(this.sotorii.fate).toBe(sotoriiFate);
+                expect(this.player2).toHavePrompt('Action Window');
             });
         });
     });

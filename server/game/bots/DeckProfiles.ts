@@ -240,7 +240,10 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         };
     }
     if(strategy.attachmentTower) {
-        profile.attachmentTower = { ...DRAGON_ATTACHMENT_DEFAULTS };
+        profile.attachmentTower = {
+            ...DRAGON_ATTACHMENT_DEFAULTS,
+            stackableAttachments: [...DRAGON_ATTACHMENT_DEFAULTS.stackableAttachments]
+        };
         profile.fateAwareEconomy = {
             ...profile.fateAwareEconomy,
             preferDeckCharacters: true,

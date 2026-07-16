@@ -2093,7 +2093,10 @@ class JigokuBotPolicy {
             ringsHaveFate: Object.values(playerState?.rings || {}).some((ring: any) => (Number(ring?.fate) || 0) >= 1),
             conflictsRemaining: me?.stats?.conflictsRemaining ?? 0,
             strongholdConflict: strongholdDefense || strongholdAssault,
-            preferFavorableRetreat: !!dragon
+            preferFavorableRetreat: !!dragon,
+            stronghold: me?.stronghold,
+            yokuniCopiedNiten: this.yokuniCopiedNiten,
+            activeConflict: true
         };
         playCtx.canPlayConflictCard = canPlayConflictCard;
         playCtx.conflictCosts = conflictCosts || {};
@@ -2146,6 +2149,10 @@ class JigokuBotPolicy {
             }
             if(shugenja && abilitySource.id === 'kyuden-isawa') {
                 this.recordBoardAbility(abilitySource);
+            }
+            if(attachmentTower && abilitySource.id === 'daimyo-s-favor') {
+                this.pendingDaimyoBearerUuid =
+                    attachmentTower.daimyoFavorBearerUuid(abilitySource, myCharacters) || null;
             }
             if(dragon && abilitySource.id === 'teacher-of-empty-thought') {
                 const key = String(abilitySource.uuid || abilitySource.id);
@@ -2276,7 +2283,7 @@ class JigokuBotPolicy {
     // Own in-play cards worth clicking for their Action abilities during a
     // conflict: the stronghold, the attacked province, and any board card
     // (holding, attachment, character) with a playbook-known Action.
-    private conflictAbilitySources(me: any, playCtx?: any, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, glory: GloryTactics | null = null, shugenja: ShugenjaTactics | null = null, _attachmentTower: DragonAttachmentTactics | null = null): any[] {
+    private conflictAbilitySources(me: any, playCtx?: any, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, glory: GloryTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): any[] {
         const stronghold = (me?.strongholdProvince || []).filter((card: any) => {
             if(card.type !== 'stronghold' || !card.uuid || card.bowed) {
                 return false;
@@ -2346,6 +2353,9 @@ class JigokuBotPolicy {
                     // they cannot loop.
                     if(hint.oncePerRound && this.boardAbilityIsUsed(card, dragon)) {
                         return false;
+                    }
+                    if(attachmentTower && card.id === 'daimyo-s-favor') {
+                        return attachmentTower.shouldUseDaimyoFavor(card, playCtx);
                     }
                     return typeof hint.shouldUseAction !== 'function' || !playCtx || hint.shouldUseAction(playCtx);
                 })

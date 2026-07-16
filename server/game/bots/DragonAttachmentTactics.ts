@@ -12,6 +12,7 @@ export interface DragonAttachmentProfile {
     dragonCharacters: string[];
     supportCharacters: string[];
     attachments: string[];
+    stackableAttachments: string[];
     restrictedAttachments: string[];
     weaponAttachments: string[];
     holdWeaponsForReadyNiten: boolean;
@@ -44,6 +45,11 @@ export const DRAGON_ATTACHMENT_DEFAULTS: DragonAttachmentProfile = {
         'ancestral-daisho', 'elegant-tessen', 'finger-of-jade', 'fine-katana',
         'inscribed-tanto', 'ornate-fan', 'pathfinder-s-blade',
         'kitsuki-s-method', 'two-heavens-technique', 'tattooed-wanderer'
+    ],
+    // Pure stat attachments can usefully stack. Every other attachment has a
+    // redundant named ability, so distribute it before playing another copy.
+    stackableAttachments: [
+        'fine-katana', 'ornate-fan', 'ancestral-daisho', 'kitsuki-s-method'
     ],
     restrictedAttachments: [
         'tetsubo-of-blood', 'jade-tetsubo', 'ancestral-daisho',
@@ -149,6 +155,10 @@ export class DragonAttachmentTactics {
         return !!cardId && this.profile.restrictedAttachments.includes(cardId);
     }
 
+    canStackAttachment(cardId: string | undefined): boolean {
+        return !!cardId && this.profile.stackableAttachments.includes(cardId);
+    }
+
     isWeapon(cardId: string | undefined): boolean {
         return !!cardId && this.profile.weaponAttachments.includes(cardId);
     }
@@ -237,16 +247,8 @@ export class DragonAttachmentTactics {
         if(this.isRestricted(attachmentId)) {
             candidates = candidates.filter((card) => this.restrictedCount(card) < this.restrictedCap(card));
         }
-        if(attachmentId === 'adopted-kin') {
-            candidates = candidates.filter((card) => !this.hasAttachment(card, 'adopted-kin'));
-        }
-        if(attachmentId === 'daimyo-s-favor') {
-            candidates = candidates.filter((card) => !this.hasAttachment(card, 'daimyo-s-favor'));
-        }
-        if(attachmentId === 'tetsubo-of-blood') {
-            // Limited is a per-player play restriction, not a per-character
-            // rule; spreading copies is still the better tower line.
-            candidates = candidates.filter((card) => !this.hasAttachment(card, 'tetsubo-of-blood'));
+        if(!this.canStackAttachment(attachmentId)) {
+            candidates = candidates.filter((card) => !this.hasAttachment(card, attachmentId!));
         }
         if(attachmentId === 'two-heavens-technique') {
             candidates = candidates.filter((card) => this.profile.dragonCharacters.includes(card.id) || card.id === 'hiruma-skirmisher');
@@ -367,7 +369,11 @@ export class DragonAttachmentTactics {
             return false;
         }
 
-        if(this.shouldHoldWeapon(attachment.id, ctx?.myCharacters || [], !!ctx?.yokuniCopiedNiten)) {
+        // Before conflicts, hold a Weapon while Niten is ready so it can ready
+        // him later. During a live conflict the Weapon is being played for its
+        // current skill swing, so use the available reducer first.
+        if(!ctx?.activeConflict &&
+            this.shouldHoldWeapon(attachment.id, ctx?.myCharacters || [], !!ctx?.yokuniCopiedNiten)) {
             return false;
         }
 

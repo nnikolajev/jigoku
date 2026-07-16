@@ -1,4 +1,5 @@
 const JigokuBotPolicy = require('../../../build/server/game/bots/JigokuBotPolicy.js');
+const FateAwareJigokuBotPolicy = require('../../../build/server/game/bots/FateAwareJigokuBotPolicy.js');
 const { ShugenjaTactics, SHUGENJA_DEFAULTS } = require('../../../build/server/game/bots/ShugenjaTactics.js');
 const { deriveDeckStrategy, getPlaybookEntry } = require('../../../build/server/game/bots/CardPlaybook.js');
 const { profileFromStrategy, resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
@@ -573,15 +574,26 @@ describe('Phoenix Shugenja tactics', function() {
         })).toBe(false);
     });
 
-    it('uses the maximum Five Fires amount and targets the enemy', function() {
-        const buttons = ['1', '3', '5'].map((value) => ({ text: value, arg: value, uuid: value }));
-        const state = stateFor({ promptTitle: 'How much fate?', menuTitle: 'How much fate?', buttons });
-        const decision = new JigokuBotPolicy('fires').decide(state, 'Phoenix', {
-            profile,
-            targetHint: { sourceCardId: 'consumed-by-five-fires', sourceIsMine: true }
+    it('uses the maximum Five Fires amount for the saved 1 plus 4 split', function() {
+        // HandlerMenuPrompt does not expose gameAction metadata, so this is the
+        // exact prompt shape the live controller sends to the policy.
+        const amountState = (amounts) => stateFor({
+            promptTitle: 'Consumed by Five Fires',
+            menuTitle: 'How much fate do you want to remove?',
+            buttons: [...amounts, 'Redo'].map((value) => ({ text: value, arg: value, uuid: value }))
         });
-        expect(decision.reason).toBe('five-fires-max-fate');
-        expect(decision.args[0]).toBe('5');
+        const policies = [
+            new FateAwareJigokuBotPolicy('1'),
+            new JigokuBotPolicy('2'),
+            new FateAwareJigokuBotPolicy('5')
+        ];
+        for(const policy of policies) {
+            const tenguDecision = policy.decide(amountState(['1']), 'Phoenix');
+            const legionDecision = policy.decide(amountState(['1', '2', '3', '4']), 'Phoenix');
+            expect(tenguDecision.reason).toBe('five-fires-max-fate');
+            expect(legionDecision.reason).toBe('five-fires-max-fate');
+            expect(Number(tenguDecision.args[0]) + Number(legionDecision.args[0])).toBe(5);
+        }
     });
 
     it('spends Five Fires on the largest live enemy fate stack', function() {

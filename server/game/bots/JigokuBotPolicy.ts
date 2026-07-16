@@ -692,8 +692,12 @@ class JigokuBotPolicy {
 
         if(title.includes('how much fate') || title.includes('how much honor')) {
             // Consumed by Five Fires should remove the full affordable amount,
-            // not the generic minimum of one.
-            if(shugenja && context.targetHint?.sourceCardId === 'consumed-by-five-fires') {
+            // not the generic minimum of one. Its nested HandlerMenuPrompt has
+            // no gameAction metadata, so identify the live prompt by its source
+            // title as well as by a target hint when one is available.
+            const isFiveFiresAmount = promptTitle.trim().toLowerCase() === 'consumed by five fires' ||
+                context.targetHint?.sourceCardId === 'consumed-by-five-fires';
+            if(isFiveFiresAmount) {
                 const numeric = buttons
                     .map((button) => ({ button, value: parseInt(String(button.text), 10) }))
                     .filter((entry) => !isNaN(entry.value))

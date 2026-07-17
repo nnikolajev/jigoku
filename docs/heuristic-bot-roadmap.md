@@ -3,18 +3,20 @@
 Improvement phases for the server-side heuristic bot, ordered by payoff vs. risk.
 See `heuristic-bot.md` for the current implemented behavior.
 
-## Phase A — Play conflict cards from hand (implemented)
+## Phase A — Play conflict cards from hand/discard (implemented)
 
 During conflict action windows where the bot participates, click a playable hand
 card so the normal `'Play X:'` handler menu, cost prompts, and target prompts
 resolve through the existing generic prompt handlers.
 
-- Hand card summaries already expose `isPlayableByMe` (`drawcard.ts`), so no new
-  state is needed. Cost is not in the summary; unaffordable clicks are rejected
-  by the game without mutation and the policy's attempted-memory moves on.
-- Guards: only act in conflicts the bot is in, keep a fate reserve (do not spend
-  below 1 fate), and only play while the conflict is losing but recoverable —
-  once ahead, pass instead of overcommitting.
+- Public summaries still omit printed conflict-card costs, so the controller
+  supplies `conflictCosts` from live cards and `currentLegalDirectCardUuids`
+  from the active engine step. Unaffordable, wrong-timing, and targetless plays
+  are removed before policy scoring.
+- Seeds 1, 2, and 5 share an injectable value-per-fate planner. Priority
+  premiums protect expensive strategic cards; deck tactics may override order.
+- Paid plays from conflict discard share the same usefulness, target, cost,
+  attachment, and contribution gates. Free `putIntoPlay` effects remain separate.
 - Characters played from hand prefer entering the conflict over staying home.
 
 ## Phase B — Conflict evaluation layer (implemented)
@@ -30,15 +32,14 @@ Teach the bot *when* to spend instead of just *how*:
   bot defends to win when reachable, otherwise defends just enough to prevent
   the break, and commits nothing when even that is impossible.
 
-## Phase C — In-play card abilities (partially implemented)
+## Phase C — In-play card abilities (implemented framework; coverage grows per card)
 
 Implemented carve-outs:
 
 - **Target polarity**: the controller reads the current target prompt's
   `gameAction` list from the pipeline step and passes a hint to the policy.
   Harmful actions (bow, dishonor, removeFate, discardFromPlay, ...) target the
-  opponent's strongest legal card — or the bot's own weakest when only its side
-  is legal (forced sacrifice). Helpful actions (honor, ready, placeFate,
+  opponent's strongest legal card. Helpful actions (honor, ready, placeFate,
   attach, ...) go to the bot's own side, preferring in-conflict characters.
   Unclassified effects from the bot's own card default to buff-own /
   debuff-opponent based on which sides are legal targets.
@@ -47,31 +48,39 @@ Implemented carve-outs:
   stronghold abilities, which are free and near-always beneficial
   (e.g. Meditations on the Tao).
 
-Implemented via the LLM harness (`heuristic-bot-llm.md`): per-card hint tables
-from LM Studio deck analysis unlock character/event reactions (priority-gated),
-override target polarity from actual card text, and gate/order conflict-window
-hand plays. Live consult covers ambiguous target prompts.
+`CardPlaybook.ts` now provides deterministic metadata for hand plays, dynasty
+actions, in-play actions, reactions, interrupts, target polarity, target-copy
+limits, and live `shouldPlay` / `shouldUseAction` gates. The controller clicks
+playbook-known characters, attachments, holdings, provinces, and strongholds.
+LM Studio hints remain optional fallback coverage for unmodeled cards.
 
-Still deferred:
+Still open: add or correct per-card playbook entries when utilization audits or
+live games expose a legal interaction the generic action classifier cannot value.
 
-- Without `bot.llm`, character and event reactions/interrupts stay passed —
-  blind triggers waste fate and honor.
-- Proactively clicking in-play cards in action windows (`'Choose an ability:'`)
-  beyond stronghold/attacked province.
-- The `difficulty` field in `JigokuBotConfig` is the natural switch for this.
+## Phase D — Scored-candidate policy (partially implemented)
 
-## Phase D — Scored-candidate policy (deferred, structural)
-
-`JigokuBotPolicy` is deliberately a swap point behind `JigokuBotController` (the
-command-path and trace boundary). For real strength, replace the if-chain with a
-scored-candidate policy:
+`JigokuBotPolicy` remains a deterministic rule policy behind
+`JigokuBotController`. Candidate enumeration and scoring exist for seed 3's LLM,
+seed 4's learned evaluator, conflict-card economy, exact conflict contribution,
+and seed 5's hidden-hand threat matrix. They have not replaced the deployed
+seed-1 policy wholesale: the learned evaluator measured worse and unrestricted
+model steering is slow.
 
 1. Enumerate legal moves for the current prompt.
 2. Score each (skill swing, fate efficiency, honor race position, province
    state, ring value).
 3. Pick the max deterministically (seeded tie-break).
 
-This replaces the policy internals without touching the controller, trace
-format, lobby flow, or tests. Bid prediction upgrades belong here too: track the
-opponent's actual bid history across rounds instead of pure hand-size inference,
-and weigh deck archetype (a dishonor deck bids differently).
+Remaining research: multi-action planning across a whole conflict, opponent bid
+history, uncertainty-aware hidden-hand estimates for fair bots, and a trained
+policy that can beat seed 1 without breaking prompt progression. Any experiment
+must retain the controller legality gate, trace format, interaction-loop audit,
+and deterministic fallback.
+
+## Phase E — Stronghold survival (implemented)
+
+`StrongholdDefenseTactics` activates after three own provinces break. It reserves
+the minimum provably safe defenders or skips offense, with explicit exceptions
+for bowed opponents, last-conflict attacks, and exposed-stronghold races. Covert
+forces fair bots to hold all. Seed 5 additionally budgets exact affordable hand
+skill and known defender-disabling effects. The profile is injectable per deck.

@@ -985,6 +985,36 @@ class JigokuBotPolicy {
         // signature, so a cost we cannot actually pay falls through to the target
         // pick / Cancel below instead of re-clicking forever.
         const payCosts = this.findButton(buttons, ['pay costs first']);
+        const maySelectCard = me.selectCard !== false;
+        // Check visible target polarity before making payment irreversible.
+        // Storied Defeat can be rules-legal after our character loses a duel;
+        // paying first removes Cancel and otherwise forces self-harm.
+        if(payCosts && maySelectCard && context.targetHint) {
+            const preCostDecision = this.cardDecision(
+                playerState,
+                me,
+                title,
+                buttons,
+                context.targetHint,
+                context.cardHint,
+                profile,
+                context.handStats,
+                context.conflictCosts,
+                dishonor,
+                glory,
+                lion,
+                dragon,
+                duelist,
+                shugenja,
+                attachmentTower
+            );
+            if(preCostDecision && [
+                'cancel-wrong-side-target',
+                'cancel-redundant-debuff-attachment'
+            ].includes(preCostDecision.reason)) {
+                return preCostDecision;
+            }
+        }
         if(payCosts && this.payCostsSignature !== this.lastSignature) {
             this.payCostsSignature = this.lastSignature;
             return this.buttonDecision(payCosts, 'pay-costs-first');
@@ -993,7 +1023,6 @@ class JigokuBotPolicy {
         // Some menu-only prompts inherit stale selectable-card flags from the
         // preceding card prompt. A real select prompt says selectCard=true; a
         // synthetic prompt with no buttons keeps the legacy card fallback.
-        const maySelectCard = me.selectCard !== false;
         const cardDecision = maySelectCard
             ? this.cardDecision(
                 playerState,

@@ -1,32 +1,35 @@
-# Seed 3 — Self-Play Learned Evaluator (full record)
+# Seed 4 — Self-Play Learned Evaluator (full record; formerly seed 3)
 
-> **Renumbering note (2026-07-15):** this historical record uses the original
-> seed numbers. The learned evaluator is now seed 4, the LLM is seed 3, the old
-> generic heuristic is seed 2, and fate-aware is the default seed 1.
+> **Renumbering note (2026-07-15):** early measurements called this evaluator
+> seed 3. Current runtime mapping is seed 1 fate-aware, seed 2 old heuristic,
+> seed 3 LLM-driven, seed 4 learned evaluator, and seed 5 omniscient. The legacy
+> filename remains so existing links do not break.
 
-> **Status: experimental, NOT competitive.** Seed 3 does **not** beat the seed-1
+> **Status: experimental, NOT competitive.** Seed 4 does **not** beat the seed-1
 > heuristic. It is gated (opt-in) and does not affect live play. This document
 > records the complete design, every attempt, why each failed, and how to run
 > the whole pipeline so a future effort does not repeat the dead ends.
 
-The seeds:
+Current seeds:
 
 | Seed | Bot | Runtime cost | Verdict |
 |------|-----|-------------|---------|
-| 1 | Hand-written heuristic policy | in-process, synchronous | **strongest bot; ship this** |
-| 2 | LLM picks every click (LM Studio) | per-click round trip | slow + weak decisions (rejected) |
-| 3 | Learned evaluator (self-play ML) | in-process tree walk | built + validated infra, but **loses to seed 1** |
+| 1 | Fate-aware heuristic | in-process, synchronous | deployed default |
+| 2 | Old generic heuristic | in-process, synchronous | comparison baseline |
+| 3 | LLM picks every click (LM Studio) | per-click round trip | slow, experimental |
+| 4 | Learned evaluator (self-play ML) | in-process tree walk | built + validated infra, but **loses to seed 1** |
+| 5 | Fate-aware + omniscient context | in-process, synchronous | cheating/hardest |
 
 ---
 
 ## 1. Concept
 
-Seed 3 is a **learned evaluator**, not a policy network. Self-play trains a model
+Seed 4 is a **learned evaluator**, not a policy network. Self-play trains a model
 that scores a `(state ⊕ option)` feature vector; at inference the bot enumerates
 every legal move it already knows (`JigokuBotController.enumerateOptions`), scores
 each, and takes the **argmax**. Inference is a shallow gradient-boosted-tree walk
-in-process — no Python at runtime, no per-click round trip (that was seed 2's
-fatal slowness).
+in-process — no Python at runtime and no per-click model round trip. Seed 3's
+LLM-driven mode is the separate per-click path.
 
 Chosen over the alternatives on purpose:
 - **Deep RL (policy gradient / actor-critic)** — rejected up front as too costly /
@@ -87,7 +90,7 @@ libs). **Inference must stay in-process TS** or it recreates seed-2 slowness.
 | `runTrajectories.js` | CLI: N games → per-decision JSONL + `.schema.json`. ~345 decisions/game. |
 | `train.py` | numpy+sklearn trainer. GBDT (classifier for `win`, regressor for `military`) → `weights.json` + `.parity.json`. |
 | `checkParity.js` | verifies TS tree walk == sklearn (`max|TS−sklearn| < 1e-6`). |
-| `evalMatch.js` | seed 3 vs seed 1, alternating seats, win rate. The quality gate. |
+| `evalMatch.js` | seed 4 vs seed 1, alternating seats, win rate. The quality gate. |
 | `generations.js` | iterative self-play RL (buffer → train → eval → decay ε → keep best). |
 | `fixtures/` | cached decklist + trimmed cards (no network at run time). |
 
@@ -104,7 +107,7 @@ features never drift):**
   pick is sigmoid-invariant).
 
 **Controller integration — `JigokuBotController.ts`:**
-- `isEvaluatorDriven()` — seed 3 + evaluator injected.
+- `isEvaluatorDriven()` — seed 4 + evaluator injected.
 - `isStrategicPrompt(prompt)` — WHITELIST. Evaluator engages only on real
   strategic prompts (elemental ring / choose province / choose attackers / choose
   defenders / dynasty character plays). Defers everything else (confirms,
@@ -112,7 +115,7 @@ features never drift):**
 - `evaluatorPick(player, prompt, options)` — bounded override: ≤3 tries per prompt
   (keyed on `stableSignature`), optional ε-exploration (`config.explore`), then
   defers to the heuristic option (always appended as enumerate fallback) so the
-  turn always advances. **Seed 3 = "heuristic flow + evaluator refinement", never
+  turn always advances. **Seed 4 = "heuristic flow + evaluator refinement", never
   a raw argmax that can livelock.**
 - `recorder?: (DecisionRecord)=>void` — gated; zero cost when absent. `DecisionRecord`
   is non-exported (clashes with `export = JigokuBotController`, TS2309).
@@ -132,7 +135,7 @@ python tools/selfplay/train.py --data tools/selfplay/out/trajectories.jsonl \
 # 3. verify TS reproduces sklearn exactly
 node tools/selfplay/checkParity.js tools/selfplay/out/weights.json
 
-# 4. the real gate — seed 3 vs seed 1
+# 4. the real gate — seed 4 vs seed 1
 node tools/selfplay/evalMatch.js 40 --weights tools/selfplay/out/weights.json
 
 # iterative self-play (policy iteration over generations)  — needs big heap
@@ -155,7 +158,7 @@ NODE_OPTIONS=--max-old-space-size=8192 node tools/selfplay/generations.js \
 
 ## 5. Attempts & failures (chronological)
 
-Every scoping produced the same result vs seed 1: **seed 3 breaks 0.00 provinces,
+Every scoping produced the same result vs seed 1: **the evaluator breaks 0.00 provinces,
 wins 0 conflicts, wins 0 games**; seed 1 breaks ~4.75–5.00 provinces/game and wins
 all.
 
@@ -206,7 +209,7 @@ nothing on a rush deck.
 multi-step decision flow. Structural, not tunable.**
 
 Recommendation: **ship seed 1** (the heuristic — ~5 provinces/game, wins the
-mirror decisively, 89/0 specs). Keep the seed-3 infra parked. A competitive
+mirror decisively in this historical run). Keep the seed-4 infrastructure parked. A competitive
 learned bot needs **deep RL that models the sequence/policy directly** (actor-
 critic or a hierarchical action model), not a pointwise value scorer — weeks of
 research-grade work, uncertain payoff. The built infra (harness, features, reward,

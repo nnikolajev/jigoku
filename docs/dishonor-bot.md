@@ -52,7 +52,8 @@ behavior changes (the fine-tuned Unicorn default is untouched).
   knob, applied by the `scorpion-poison-mill` override): the stronghold
   province is only attackable after 3 others break, so the opponent's final
   all-in push reveals it and discards X cards from their hand (X = attackers).
-  Measured N=40 with it: seed 1 27-13, seed 4 28-12 (top of the band).
+  Measured N=40 with it: seed 1 27-13, historical omniscient 28-12
+  (then seed 4; now seed 5; top of the band).
 - **Province reactions fire first** in every trigger window (generic policy
   behavior): Deserted Shrine's 10-card mill (aimed at the opponent's conflict
   deck by the dishonor select-prompt handler), Night Raid, Before the Throne,
@@ -116,7 +117,7 @@ exhaustions; Shoju clicks were normal purchases and conflict commits.
 | | win rate | sample |
 |---|---|---|
 | Scorpion seed 1 (heuristic) | **~62%** (99-61) | 4×N=40 pooled; individual runs ranged 20-20 to 32-8 |
-| Scorpion seed 4 (omniscient) | **~67%** (54-26) | 2×N=40 pooled |
+| Scorpion historical omniscient (then seed 4; now seed 5) | **~67%** (54-26) | 2×N=40 pooled |
 | seed 1 after the `abilityValue` fix | **31-9 (77.5%)** | N=40; Softskin (82 plays) and Compromised Secrets (77) had NEVER fired before |
 
 The `abilityValue` fix (shipped with the Lion deck): Softskin and Compromised

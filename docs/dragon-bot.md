@@ -26,6 +26,11 @@ Ichi threshold is not reachable but a 5- or 3-card payoff is, it falls back to
 that exact lower threshold. If no live threshold is reachable, it preserves
 the hand for the next conflict.
 
+High House's five-card plan is only valuable when at least one ring already has
+fate, or when the planned sequence contains a card that can put fate on a ring
+before the stronghold resolves. With neither source, the bot may still use High
+House for event protection, but it does not burn cards merely to reach five.
+
 At the threshold, board abilities are activated first. When all live payoff
 abilities are exhausted, the bot passes instead of playing a sixth, seventh,
 or later unnecessary card. High House is never bowed early for its small
@@ -64,6 +69,10 @@ remaining cards stay in hand.
 - Let Go and Miya Mystic remove an attachment from the strongest enemy tower.
 - Buff attachments and helpful effects target own characters. Harmful effects
   target enemy characters. Void Fist never deliberately targets an own Monk.
+- When an ordinary province cannot be saved efficiently, the profile can trade
+  provinces instead of spending its card-count package on a hopeless defense.
+  Target validation still applies during a threshold plan: reaching five never
+  permits Ancient Master or another beneficial attachment to target an enemy.
 - Court Games compares eligible glory: honor the own high-glory participant,
   or dishonor the enemy when its glory is higher.
 - Favorable Ground reinforces a losing defense normally. For this Dragon

@@ -10,8 +10,8 @@ To implement a card, follow these steps:
 Cards are organized under the `/server/game/cards` directory by grouping them by cycle/set number, pack number if applicable, and name.
 
 ```
-/server/game/cards/01-Core/CloudTheMind.js //Core Set
-/server/game/cards/02.1-ToA/GoblinSneak.js //Imperial Cycle, Pack 1, Tears of Amaterasu
+/server/game/cards/01-Core/CloudTheMind.ts //Core Set
+/server/game/cards/02.1-ToA/GoblinSneak.ts //Imperial Cycle, Pack 1, Tears of Amaterasu
 ```
 
 #### 2. Create a class for the card and export it.
@@ -61,7 +61,7 @@ Static attachment bonuses are automatically included in skill calculation.  They
 
 Many cards provide continuous bonuses to other cards you control or detrimental effects to opponents cards in certain situations. These can be defined using the `persistentEffect` method. Cards that enter play while the persistent effect is in play will automatically have the effect applied, and cards that leave play will have the effect removed. If the card providing the effect becomes blank, the effect is automatically removed from all previously applied cards.
 
-For a full list of properties that can be set when declaring an effect, look at `/server/game/Effects/effect.js`. To see all the types of effect which you can use (and whether they apply to cards, rings or players), look at `/server/game/effects.js`. Here are some common scenarios:
+For a full list of properties that can be set when declaring an effect, look at `/server/game/Effects/Effect.ts`. To see all the types of effect which you can use (and whether they apply to cards, rings or players), look at `/server/game/effects.ts`. Here are some common scenarios:
 
 #### Matching conditions vs matching specific cards
 
@@ -131,7 +131,7 @@ this.persistentEffect({
 
 #### Dynamic skill
 
-A few cards provide skill bonuses based on game state. For example, [Beastmaster Matriarch](https://fiveringsdb.com/card/beastmaster-matriarch) gets a bonus to military skill depending on how many rings have been claimed. Where the bonus should be continously updated, pass a function as the effect paramater. In `/server/game/effects.js`, you can see whether an effect is coded as static (expects to be passed an integer), dynamic (expects to be passed a function) or flexible (can take either).
+A few cards provide skill bonuses based on game state. For example, [Beastmaster Matriarch](https://fiveringsdb.com/card/beastmaster-matriarch) gets a bonus to military skill depending on how many rings have been claimed. Where the bonus should be continously updated, pass a function as the effect paramater. In `/server/game/effects.ts`, you can see whether an effect is coded as static (expects to be passed an integer), dynamic (expects to be passed a function) or flexible (can take either).
 
 ```javascript
 // This character has +2[military] for each ring in each opponent's claimed ring pool.
@@ -204,7 +204,7 @@ this.persistentEffect({
 
 #### Player modifying effects
 
-Certain cards provide bonuses or restrictions on the player itself instead of on any specific cards. These effects are marked as `player` effects in `/server/game/effects.js`. For player effects, `targetController` indicates which players the effect should be applied to (with `'current'` acting as the default). Player effects should not have a `match` property.
+Certain cards provide bonuses or restrictions on the player itself instead of on any specific cards. These effects are marked as `player` effects in `/server/game/effects.ts`. For player effects, `targetController` indicates which players the effect should be applied to (with `'current'` acting as the default). Player effects should not have a `match` property.
 
 ```javascript
 // While this character is participating in a conflict, opponents cannot play events.
@@ -217,7 +217,7 @@ this.persistentEffect({
 
 ### Actions
 
-Actions are abilities provided by the card text that players may trigger during action windows. They are declared using the `action` method. See `/server/game/cardaction.js` for full documentation. Here are some common scenarios:
+Actions are abilities provided by the card text that players may trigger during action windows. They are declared using the `action` method. See `/server/game/CardAction.ts` for full documentation. Here are some common scenarios:
 
 #### Declaring an action
 
@@ -282,7 +282,7 @@ this.action({
 
 Some actions have an additional cost, such as bowing the card. In these cases, specify the `cost` parameter. The action will check if the cost can be paid. If it can't, the action will not execute. If it can, costs will be paid automatically and then the action will execute.
 
-For a full list of costs, look at `/server/game/costs.js`.
+For a full list of costs, look at `/server/game/Costs.ts`.
 
 ```javascript
 // During a conflict, bow this character. Choose another [crane] character - that character gets +0/+3 until the end of the conflict
@@ -366,7 +366,7 @@ Once all targets are chosen, they will be set using their specified name under t
 
 #### Targeting rings
 
-Rings are targeted in almost the same way as cards.  For abilities which target rings, set the `mode` property to `'ring'`, and use `ringCondition` instead of `cardCondition`. Most of the ring selection prompt properties are valid here also, see `/server/game/gamesteps/selectringprompt.js` for more details. the chosen ring is stored in `context.ring` (or `context.rings[targetName]` where an ability has multiple targets).
+Rings are targeted in almost the same way as cards.  For abilities which target rings, set the `mode` property to `'ring'`, and use `ringCondition` instead of `cardCondition`. Most of the ring selection prompt properties are valid here also, see `/server/game/gamesteps/selectringprompt.ts` for more details. the chosen ring is stored in `context.ring` (or `context.rings[targetName]` where an ability has multiple targets).
 
 ```javascript
 // Action: Choose a ring and an opponent – that player cannot declare conflicts 
@@ -428,7 +428,7 @@ In general, the effects of an ability should be implemented using Game Actions.
 
 #### Game Actions
 
-Actions (and other triggered abilities) often use game actions.  Available game actions can be found in `/server/game/GameActions/GameActions.js`, along with any parameters and their defaults.  Game actions as properties in the main ability section default to targetomg the card generating the ability (for cards), the opponent (for players) and the contested ring (for rings). Game actions included in `target` (or in one of `targets`) will default to the that target. You can change the target of a game action or the parameters by passing either an object with the properties you want, or a function which takes `context` and returns those properties.
+Actions (and other triggered abilities) often use game actions.  Available game actions can be found in `/server/game/GameActions/GameActions.ts`, along with any parameters and their defaults.  Game actions as properties in the main ability section default to targetomg the card generating the ability (for cards), the opponent (for players) and the contested ring (for rings). Game actions included in `target` (or in one of `targets`) will default to the that target. You can change the target of a game action or the parameters by passing either an object with the properties you want, or a function which takes `context` and returns those properties.
 
 ```javascript
 // Action: During a conflict, bow this attachment – move attached character to the conflict.
@@ -554,7 +554,7 @@ this.action({
 
 #### Limiting the number of uses
 
-Some actions have text limiting the number of times they may be used in a given period. You can pass an optional `limit` property using one of the duration-specific ability limiters. See `/server/game/abilitylimit.js` for more details.
+Some actions have text limiting the number of times they may be used in a given period. You can pass an optional `limit` property using one of the duration-specific ability limiters. See `/server/game/AbilityLimit.ts` for more details.
 
 ```javascript
 this.action({
@@ -578,7 +578,7 @@ this.action({
 
 ### Triggered abilities
 
-Triggered abilities include all card abilities that have **Interrupt**, **Forced Interrupt**, **Reaction**, **Forced Reaction**. Implementing a triggered ability is similar to actions above, but instead of calling `this.action`, `this.reaction` or `this.interrupt` are used instead. Costs and targets are declared in the same way. For full documentation of properties, see `/server/game/triggeredability.js`. Here are some common scenarios:
+Triggered abilities include all card abilities that have **Interrupt**, **Forced Interrupt**, **Reaction**, **Forced Reaction**. Implementing a triggered ability is similar to actions above, but instead of calling `this.action`, `this.reaction` or `this.interrupt` are used instead. Costs and targets are declared in the same way. For full documentation of properties, see `/server/game/triggeredability.ts`. Here are some common scenarios:
 
 #### Defining the triggering condition
 

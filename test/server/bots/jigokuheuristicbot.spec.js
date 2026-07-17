@@ -156,6 +156,27 @@ describe('Jigoku heuristic bot', function() {
         expect(controller.isLegalCard(player, 'illegal')).toBe(false);
     });
 
+    it('omits Storied Defeat when its only legal duel loser is friendly', function() {
+        const prompt = { promptTitle: 'Conflict Action Window', menuTitle: 'Initiate an action', buttons: [] };
+        const player = makePlayer(prompt);
+        const summary = { uuid: 'storied', id: 'storied-defeat', type: 'event', location: 'hand' };
+        const liveCard = { uuid: 'storied', cardData: { id: 'storied-defeat' } };
+        const game = makeGame(player, { cards: [summary] });
+        game.findAnyCardInAnyList = () => liveCard;
+        const controller = new JigokuBotController(game, { playerName: player.name, seed: 1 }, jasmine.createSpy('runner'));
+        const preferredTargetLegal = jasmine.createSpy('preferredTargetLegal').and.returnValue(false);
+        controller.currentPromptStep = () => ({
+            canClickCard: () => true,
+            canClickCardForTargetSide: preferredTargetLegal
+        });
+
+        expect(controller.currentLegalDirectCardUuids(player)).toEqual({});
+        expect(preferredTargetLegal).toHaveBeenCalledWith(player, liveCard, 'enemy');
+
+        preferredTargetLegal.and.returnValue(true);
+        expect(controller.currentLegalDirectCardUuids(player)).toEqual({ storied: true });
+    });
+
     it('rejects stale selectable-card state on an explicit menu-only prompt', function() {
         const prompt = {
             promptTitle: 'Shosuro Hametsu', menuTitle: 'Select a card to reveal',
@@ -2171,6 +2192,52 @@ describe('Jigoku heuristic bot', function() {
                 targetPreference: 'any',
                 priority: priority,
                 summary: ''
+            });
+
+            it(`cancels Storied Defeat before paying when only its own duel loser is legal (${name})`, function() {
+                const ownLoser = {
+                    uuid: 'own-loser', id: 'kakita-kaezin', name: 'Kakita Kaezin',
+                    type: 'character', location: 'play area', selectable: true,
+                    controller: { name: 'Jigoku Bot' }, bowed: false, inConflict: true,
+                    militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '2' }
+                };
+                const state = {
+                    players: {
+                        'Jigoku Bot': {
+                            name: 'Jigoku Bot',
+                            promptTitle: 'Storied Defeat',
+                            menuTitle: 'Choose a character',
+                            selectCard: true,
+                            buttons: [
+                                { text: 'Pay costs first', arg: 'costsFirst', uuid: 'pay' },
+                                { text: 'Cancel', arg: 'cancel', uuid: 'cancel' }
+                            ],
+                            cardPiles: { cardsInPlay: [ownLoser], hand: [] },
+                            stats: { fate: 3, honor: 10 }
+                        },
+                        Opponent: {
+                            name: 'Opponent',
+                            cardPiles: { cardsInPlay: [] },
+                            stats: { fate: 0, honor: 10 }
+                        }
+                    }
+                };
+                const decision = new Policy(`storied-pre-cost-${name}`).decide(
+                    state,
+                    'Jigoku Bot',
+                    {
+                        targetHint: {
+                            gameActions: ['bow'],
+                            sourceIsMine: true,
+                            sourceType: 'event',
+                            sourceCardId: 'storied-defeat'
+                        },
+                        cardHint: (cardId) => getPlaybookEntry(cardId)
+                    }
+                );
+
+                expect(decision.target).toBe('Cancel');
+                expect(decision.reason).toBe('cancel-wrong-side-target');
             });
 
             it(`prefers an equal-value free conflict card over a cost-2 card (${name})`, function() {

@@ -13,15 +13,25 @@ reads the knobs; the profile is chosen per deck.
 
 | Knob | Meaning |
 |------|---------|
+| `fateAwareEconomy` | injectable dynasty purchase/fate policy used by seeds 1 and 5 |
+| `conflictCardEconomy` | value-per-fate candidate planner shared by seeds 1, 2, and 5 |
+| `strongholdDefense` | last-province reserve planner and fair/omniscient defender limits |
 | `mulliganForHoldings` | dig opening provinces toward holdings (Kaiu Wall) |
 | `digWithActions` | fire dynasty Action diggers (Kyuden Hida, engineers) |
 | `digMinBoardCharacters` | only dig once this many own characters are in play (0 = always) |
 | `aggressiveFate` | flood cheap bodies, deploy 0-1 fate |
+| `drawBidCap` | optional maximum draw bid for honor-sensitive grind decks |
 | `forceMilitaryConflict` | always declare military while any military skill exists |
 | `attackCommitment` | `all` / `all-but-one` / `breakable-or-hold` / `breakable-or-pressure` |
 | `attackKeepHome` | bodies kept home under the pressure / all-but modes |
+| `reserveDynastyFate` | retain fate for conflict cards after dynasty purchases |
 | `defenseCommitment` | `win-only` (rush) / `prevent-break` |
 | `spendCardsOnDefense` | play conflict cards / fire abilities to defend |
+| `preventBreakAfterBrokenProvinces` | delay prevent-break defense while intentionally trading early provinces |
+| `chumpBlock` | declare one cheap defender in a hopeless conflict to avoid unopposed honor loss |
+| `defenseSkillBuffer` | extra committed defense above exact prevent-break math |
+| `strongholdProvinceId` | province deliberately placed under the stronghold |
+| tactics sub-profiles | `dishonor`, `lion`, `glory`, `dragon`, `duelist`, `shugenja`, and `attachmentTower` |
 
 ## How a deck gets its profile
 
@@ -30,10 +40,11 @@ DeckStrategy flags ──profileFromStrategy()──▶ base profile ──resol
    (marker cards)     (exact old behavior)        (+ per-deck OVERRIDES)              context.profile
 ```
 
-- **`profileFromStrategy(strategy)`** reproduces the previous flag-driven
-  behavior EXACTLY — a pure refactor. Generic deck = `DEFAULT_PROFILE`;
-  aggressive layers the rush knobs; defensive/holding layer the turtle knobs.
-  Unicorn and Crane are unchanged (bot spec suite stays green, 98/0).
+- **`profileFromStrategy(strategy)`** starts from `DEFAULT_PROFILE`, then layers
+  generic holding/defensive/aggressive behavior and creates specialized tactics
+  sub-profiles for marker strategies. Generic decks still receive no tactics
+  module. Historical claims that this was only a three-flag pure refactor refer
+  to the first version; the current profile is the shared injection boundary.
 - **`resolveDeckProfile(cardIds, strategy)`** then merges any matching entry from
   the `OVERRIDES` list. An override is matched by **card contents + derived
   strategy** (not a deck id), so it applies in both live play and self-play.
@@ -65,6 +76,8 @@ the Scorpion Poison Mill deck, `lion?: LionProfile` (`LionTactics.ts`, doc
 honor engine's board-driven ring choice and glory pumps, and
 `dragon?: DragonProfile` (`DragonTactics.ts`, doc `dragon-bot.md`) for the
 Dragon monk card engine around Togashi Mitsu, and
+`duelist?: DuelProfile` (`DuelTactics.ts`, doc `duel-bot.md`) for the Crane
+Duels tower/duel plan, and
 `shugenja?: ShugenjaProfile` (`ShugenjaTactics.ts`, doc
 `phoenix-shugenja-bot.md`) for the Phoenix ring/Spell/Disguised engine, and
 `attachmentTower?: DragonAttachmentProfile` (`DragonAttachmentTactics.ts`, doc
@@ -98,7 +111,7 @@ Result vs the Crane precon (self-play, seeds alternate seats, N=40):
 | | before | after |
 |---|--------|-------|
 | Crab seed 1 win rate | ~10% (2-18) | **~45%** |
-| Crab seed 4 win rate | ~5% (1-19) | **~45%** |
+| Crab historical omniscient (then seed 4; now seed 5) | ~5% (1-19) | **~45%** |
 
 After the fix the Crab seat plays bodies (8 → 22), digs sparingly (49 → 8), and
 actually attacks (1 → 8 initiations) while keeping its defense. It no longer
@@ -152,7 +165,8 @@ Post-sweep utilization audit: every card, action, and reaction still fires
 
 ## Case study: Unicorn Cavalry Rush (EmeraldDB ef93bae2)
 
-The aggressive rush profile was tuned in the Unicorn seed-4 mirror, but the
+The aggressive rush profile was tuned in the historical omniscient mirror
+(then seed 4; now seed 5), but the
 Crane precon rolled it (~23% win rate, pooled N=160): Crane defends
 `prevent-break`, so the all-in attacks bounced off committed defenders, while
 every Crane counterattack was conceded (`win-only` + no cards on defense) —
@@ -177,7 +191,8 @@ Two fixes shipped together:
 
 Swept vs the Crane precon (every knob combination measured, N=20-40 per run):
 defense alone ~50%, fate alone ~40%, defense+fate ~57%, all three
-**~68% seed 1 (41-19, pooled N=60) / ~63% seed 4 (25-15, N=40)** — locked.
+**~68% seed 1 (41-19, pooled N=60) / ~63% historical omniscient
+(then seed 4; now seed 5; 25-15, N=40)** — locked.
 Regression checks on the final build: Crab vs Crane 19-21 (~47%), Scorpion vs
 Crane 12-8 (both in their bands).
 
@@ -217,7 +232,7 @@ and 1120-game non-Lion regression check: `lion-bot.md`.
 
 ## Generic stronghold and province logic (all decks, 2026-07-10)
 
-Four deck-independent behaviors added at user request:
+Current deck-independent behaviors:
 
 1. **Stronghold province defaults to Ancestral Lands** (+5 strength during
    political conflicts) when the deck has it and no override names another
@@ -225,12 +240,19 @@ Four deck-independent behaviors added at user request:
 2. **Attacked own province's Conflict Action fires before any pass/concede
    gate** — Fertile Fields draws a card, Meditations on the Tao strips an
    attacker's fate. Free value even in conflicts the bot was going to concede.
-3. **All-in stronghold defense**: the stronghold province breaking loses the
-   game, so every defense cap is overridden there — every ready body defends
-   (`stronghold-defense-all`), cards are spent even by no-cards-on-defense
-   rush profiles, and there is no "hopeless" fold. Fixes the bot skipping
-   defense when the human's final attack was too big.
-4. **All-in stronghold assault** (mirror): when attacking the ENEMY
+3. **All-in defense while the stronghold is attacked**: every defense cap is
+   overridden, every ready body may defend, and conflict cards remain enabled.
+4. **Last-province planning between conflicts**: after three own provinces are
+   broken, `StrongholdDefenseTactics` calculates military and political threats
+   against the combined stronghold-province strength. It may skip attacking,
+   reserve the minimum safe defender set, or attack freely. A fair seed keeps at
+   most one calculated defender; seed 5 also adds affordable hidden-hand skill
+   and known bow/send-home/remove effects and may reserve more.
+5. **Safety exceptions**: attack freely when every opposing character is bowed;
+   attack all-in when the opponent has no conflict remaining; race all-in when
+   both strongholds are exposed. Any ready opposing Covert character causes the
+   fair planner to hold every defender because the reserved body can be bypassed.
+6. **All-in stronghold assault** (mirror): when attacking the ENEMY
    stronghold, the "deficit too big, save the hand" cap is lifted — breaking
    it wins the game.
 
@@ -246,7 +268,7 @@ unopposed conflicts (each unopposed loss bleeds 1 honor).
 
 ## Card-utilization audits (`tools/selfplay/auditCards.js`)
 
-`node tools/selfplay/auditCards.js <unicorn|crab|scorpion|lion> [games]` runs
+`node tools/selfplay/auditCards.js <unicorn|crab|scorpion|lion|phoenix|phoenix-shugenja|dragon|dragon-attachments|craneduel> [games]` runs
 the deck vs Crane and prints, for EVERY card in the decklist, how many times
 the bot successfully clicked it and through which decision reasons — plus a
 ZERO-clicks list. Run it after onboarding or tuning a deck: zero-click cards
@@ -261,6 +283,30 @@ Findings and decisions:
 | Softskin, Compromised Secrets (Scorpion) | never played (0/0 stats, zero-contribution filter) | 62% → 77.5% on the fix run | ENABLED (`abilityValue`) |
 | Spyglass (Unicorn) | never played in military conflicts (+0 mil) | pre-generic build measured 59% N=80; current build 69% pooled N=80 | ENABLED (`abilityValue`, user decision — draw engine matters vs humans) |
 | Kaiu Siege Force action (Crab) | 0 ability uses in 40 games (gate needed bowed+inConflict+losing) | 42.5% run, no harm (band ~35-42%) | gate loosened to bowed+inConflict |
+
+## Deterministic analysis and interaction-cycle audits
+
+`analyzePolicyGame.js` replays a control policy and candidate policy with the
+same shuffle, seat, deck, and RNG stream, then writes a Markdown comparison and
+full JSON decision trace. It is the reusable one-game deep-analysis tool:
+
+```powershell
+node tools/selfplay/analyzePolicyGame.js --deck PhoenixShugenja --rng-seed 20260715
+```
+
+`validateBotInteractions.js` checks all registered decks for repeated clicks,
+unchanged-state runs, short prompt/action cycles, decision-budget exhaustion,
+unsupported prompts, stalls, timeouts, and engine errors. It defaults to the
+offline deployable seeds 1, 2, and 5 and Crane opponents; use `--opponents all`
+for the full matrix:
+
+```powershell
+node tools/selfplay/validateBotInteractions.js
+node tools/selfplay/validateBotInteractions.js --opponents all --games 2
+```
+
+Seed 3 needs its live LLM and seed 4 needs evaluator weights; without them an
+offline audit exercises only their heuristic fallback.
 
 ## Re-baseline (2026-07-11, after the Crane Duels onboarding)
 
@@ -277,7 +323,21 @@ pre-2026-07-11 band numbers as measured against the WEAKER Crane.
 ## Measuring in self-play
 
 `tools/selfplay/harness.js` `runGame({ names, seeds, deckA, deckB })` runs a
-headless game; `deckLoader` exports `loadUnicornDeck() / loadCraneDeck() /
-loadCrabDeck()`. Alternate the seats to cancel first-player advantage. To inspect
-a seat's decisions, pass `onControllers: (controllers) => …` and read
-`controller.trace` (reason histogram) after the game.
+headless game. `deckLoader.js` and `deckRegistry.js` expose standardized deck
+fixtures. Alternate seats to cancel first-player advantage. To inspect a seat's
+decisions, pass `onControllers: (controllers) => …` and read `controller.trace`.
+
+Standard reports default to 100 games:
+
+```powershell
+node tools/selfplay/winRates.js 100 <bot-seed> [crane-seed]
+node tools/selfplay/botRoundRobin.js --seed <bot-seed> --games 100
+```
+
+`winRates.js` defaults Crane to the challenger seed. A complete 100-game run
+with identical challenger/Crane seeds and no policy override writes the
+`winRates` section of `jigoku-client/client/botBenchmarkResults.json`.
+`botRoundRobin.js` writes `roundRobin` only when all decks and every 100-game
+matchup complete. Nonstandard, partial, custom-policy, or cross-seed runs still
+produce reports but never replace client baselines. `NewGame.tsx` reads this
+JSON and displays both values beside the selected deck and seed.

@@ -67,8 +67,12 @@ play if no strategic bearer has a free slot. Specific steering:
   targets a bowed Niten Master to ready it for another conflict. Togashi Yokuni
   follows the same targeting and hold rules after copying Niten Master's
   ability. Other attachments prefer the ranked tower with the most fate.
-- Adopted Kin and Daimyo's Favor are limited by policy to one copy on each
-  bearer. Other attachments prefer a bearer that already has Adopted Kin.
+- Fine Katana, Ornate Fan, Ancestral Daisho, and Kitsuki's Method may stack on
+  one bearer, subject to the Restricted-slot limit. Every other attachment is
+  limited by policy to one copy per bearer and is distributed when another
+  legal strategic character is available. This includes Watch Commander and
+  the deck's ability attachments. Other attachments prefer a bearer that
+  already has Adopted Kin when the singleton rule still permits it.
 - Elegant Tessen first readies a bowed printed-cost-2-or-less support
   character; otherwise it is another Niten Master Weapon.
 - Two-Heavens Technique prefers a Bushi with exactly two Weapon attachments.
@@ -152,7 +156,8 @@ up from the pre-fix **103-257 (28.6%)** snapshot. A separate N=100 run against
 the Crane precon finished **68-32 (68%)**, up from 42% in the reported
 pre-fix run. Seats alternate and both players use seed 1 fate-aware logic.
 
-The complete bot unit suite passes **278 specs with 0 failures**, and TypeScript
-typechecking passes. The card integration specs require the repository's
+The reducer-validation snapshot passed **278 bot specs with 0 failures**, and
+TypeScript typechecking passed. The suite has since expanded, so that count is
+historical rather than a current total. The card integration specs require the repository's
 external `test/json/Card` fixture data; deterministic self-play confirms the
 runtime reducer sequence when those fixtures are unavailable locally.

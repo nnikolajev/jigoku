@@ -42,15 +42,17 @@ JigokuBotController (seed 5)                     FateAwareJigokuBotPolicy
   Duels deck (EmeraldDB `b59bc6b3`, the deck the user plays). Card BODIES are
   read live from the game objects, so any deck's characters/attachments are
   covered exactly; the registry adds what a live object cannot express — what an
-  EVENT does (a duel, a removal). `estimateHandThreat(hand, fate, type)` returns
-  a realistic single-conflict threat (best affordable body + best affordable
-  trick, **not** the sum of the whole hand). `getCardModel(id)` looks a card up.
+  EVENT does (a duel, a removal). The controller builds a threat matrix for
+  every affordable budget from 0 through the opponent's current fate, on both
+  conflict axes. Each entry chooses the best affordable body and trick under
+  their shared fate budget; it does **not** sum the whole hand.
 - **`JigokuBotController.ts`** — `isOmniscient()` (seed 5), `buildOmniscient(me)`
   assembles the cheat view from the live opponent `Player` each tick,
   `knownCard()` overlays live stats with the registry, `opponentProvinces()`
   reads true strengths, and `ensureDeckAnalyzed()` is the one-time gate that
   reports which of the human's conflict events (if any) are unmodeled.
-- **`JigokuBotPolicy.ts`** — `context.omniscient` drives four live behaviors:
+- **`JigokuBotPolicy.ts`** and **`StrongholdDefenseTactics.ts`** — the
+  `context.omniscient` view drives five live behaviors:
   1. **Hand-aware conflict type** (`omniPreferredConflictType`) — compares each
      axis after subtracting the best body, flat printed attachment boost, or
      curated event boost the opponent can afford from their real hand.
@@ -62,6 +64,17 @@ JigokuBotController (seed 5)                     FateAwareJigokuBotPolicy
   4. **Token defense** (`defenderDecision`) — when the visible attack plus its
      affordable hidden boost still cannot break, commits only one weak defender
      to avoid the unopposed honor loss.
+  5. **Exact stronghold reserve** — after three own provinces are broken, the
+     survival planner combines the opponent's ready skill, affordable hand
+     boost, and affordable bow/send-home/discard/remove effects. Unlike fair
+     seeds, seed 5 may reserve multiple defenders when its exact hidden-state
+     calculation says one is unsafe.
+
+Province strength comes from the live province card's `getStrength()`, so
+holdings, the stronghold bonus, and active modifiers are included even when the
+province is face-down. Defender-disable detection walks the real ability trees
+and printed text, then limits the danger to cards the opponent can afford with
+their current fate.
 
 ## Deck-analysis gate
 
@@ -98,10 +111,12 @@ same exact hand estimate without overcommitting bodies:
   defender concede a provably lost conflict) — over-held and passed winnable
   conflicts. **Crane mirror regressed to 1-11.**
 
-Lesson: the base commit/defend heuristic is well tuned;
+Lesson: the base ordinary-conflict commit/defend heuristic is well tuned;
 speculative overrides of *how much to commit* degrade it, because the bot
-opponent defends optimally while the estimate assumes worst case. The safe,
-positive cheat is *what to target*, not *how much to spend*.
+opponent defends optimally while the estimate assumes worst case. Those broad
+overrides remain disabled. The narrow exception is last-province survival,
+where losing the stronghold ends the game and exact hidden hand information can
+justify reserving more defenders.
 
 ## Result
 
@@ -118,7 +133,8 @@ by duels/honor rather than raw break math. Against a real (imperfect) human the
 cheat is meaningfully harder than seed 1: it never wastes an attack on a strong
 face-down province when a weak one is open. Bot specs include regression
 coverage for live hidden hand bonuses, facedown province strength,
-conflict-type choice, and weakest-province targeting.
+conflict-type choice, weakest-province targeting, affordable defender disables,
+and omniscient stronghold reserves.
 
 ## How to run / test
 

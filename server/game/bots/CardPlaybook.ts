@@ -86,6 +86,10 @@ export interface PlaybookEntry extends CardHint {
     // bearer (Watch Commander is limit one per character). Keep this policy
     // metadata injectable instead of hard-coding the card in target selection.
     maxCopiesPerTarget?: number;
+    // Engine legality may expose only a strategically harmful target. Require
+    // the live action selector to expose a target on this entry's preferred
+    // side before the bot clicks the source.
+    requiresPreferredTarget?: boolean;
     shouldPlay?: (ctx: PlaybookContext) => boolean;
     shouldUseAction?: (ctx: PlaybookContext) => boolean;
 }
@@ -2580,6 +2584,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'enemy',
         targetPreference: 'strongest',
         priority: 8,
+        requiresPreferredTarget: true,
         summary: 'bow (+dishonor) a duel loser'
     }),
 

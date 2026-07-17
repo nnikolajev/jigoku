@@ -1577,9 +1577,18 @@ class JigokuBotController {
                 continue;
             }
             try {
-                if(checker(card)) {
-                    legal[summary.uuid] = true;
+                if(!checker(card)) {
+                    continue;
                 }
+                const hint: any = getPlaybookEntry(card.cardData?.id);
+                const preferredSide = hint?.attachSide || hint?.targetSide;
+                if(hint?.requiresPreferredTarget &&
+                    (preferredSide === 'self' || preferredSide === 'enemy') &&
+                    typeof step?.canClickCardForTargetSide === 'function' &&
+                    !step.canClickCardForTargetSide(player, card, preferredSide)) {
+                    continue;
+                }
+                legal[summary.uuid] = true;
             } catch{
                 // A custom prompt checker may require state not exposed here;
                 // omit that card and let the normal pass/fallback advance.

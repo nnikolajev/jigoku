@@ -57,6 +57,10 @@ opponent must stay on its generic profile or every measured band shifts.
   Sensei's covert+lockout double, Toshimoko's conflict-nullifying interrupt,
   Cunning Negotiator's steal-the-province-action duel: all playbook entries,
   all verified firing.
+- **Storied Defeat safety**: it requires an enemy character that lost a duel in
+  the current conflict. The live preflight rejects an own-only target set before
+  costs or follow-up prompts are paid, so the bot never bows or dishonors its
+  own duel loser and does not enter a cancel/retry loop.
 
 ## Side effect: the sparring Crane got smarter
 
@@ -71,8 +75,8 @@ every deck's vs-Crane band downward. See deck-profiles.md.
 
 | Config | Result |
 |--------|--------|
-| duelBid 3 | seed 1: 15-23 (+2 stalls), Crane honor wins 6; seed 4: 13-27, honor wins 6 |
-| duelBid 2 (old policy) | seed 1: 18-22 + 16-24 (pooled 42.5%), seed 4: 18-22 (45%); honor leak closed (6→2) |
+| duelBid 3 | seed 1: 15-23 (+2 stalls), Crane honor wins 6; historical omniscient (then seed 4, now seed 5): 13-27, honor wins 6 |
+| duelBid 2 (old policy) | seed 1: 18-22 + 16-24 (pooled 42.5%), historical omniscient: 18-22 (45%); honor leak closed (6→2) |
 | tower policy (final, four independent N=20 batches) | 11-9, 9-11, 10-10, 9-11; pooled **39-41 (48.75%)** |
 | forced Shukujo switching experiment (rejected) | pooled 29-51 (36.25%); switching without full conflict forecasting helped the opponent too often |
 

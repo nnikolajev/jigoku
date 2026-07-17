@@ -131,7 +131,8 @@ stripped before JSON extraction.
   system prompt (source: EmeraldDB Imperial rules reference).
 - `server/game/bots/llm/CardHints.ts` — hint schema + lenient validation.
 - `server/game/bots/llm/DeckHintService.ts` — analysis queue + disk cache.
-- `server/game/bots/llm/LiveConsultant.ts` — target consult (seed 1).
+- `server/game/bots/llm/LiveConsultant.ts` — optional ambiguous-target consult
+  for heuristic-driven seats; seed 3 instead uses the full move planner.
 - `server/game/bots/llm/LlmActionPlanner.ts` — seed-3 move planner: given the
   full state + hand + the enumerated legal options, returns the id of the move
   to play. The controller builds the option set (`enumerateOptions`), validates
@@ -146,8 +147,7 @@ are excluded from deck analysis (no model traffic for cards we already
 understand). See `heuristic-bot.md` for the playbook behavior itself.
 
 `CardPlaybook.ts` also exports `deriveDeckStrategy(cardIds)`, which the
-controller runs once over the bot's owned cards to gate deck-specific behavior
-(holding-engine mulligan/digging, defensive attacking, aggressive military
-rush — all-in commitment, 0-1 fate deploys, forced-military conflicts,
-conceded defenses). Decks whose analyzed cards trip none of the marker sets
-keep the generic behavior, so the LLM path is unchanged for them.
+controller runs once over the bot's owned cards. Current markers are holding,
+defensive, aggressive, dishonor, glory, monk, duelist, Shugenja, and attachment
+tower. `DeckProfiles.ts` converts them into generic knobs and optional tactics
+modules. Decks that trip no marker retain the generic behavior.

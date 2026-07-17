@@ -47,7 +47,11 @@ The offline fixture is the source used by self-play; it contains 5 provinces,
 - Feeding an Army is triggered at five or more printed-cost-3-or-lower bodies.
 - For Greater Glory always fires after a military province break.
 - The rush uses `win-only` ordinary defense and does not spend conflict cards
-  defending. Stronghold defense still remains all-in.
+  defending. After three own provinces break, the shared stronghold-survival
+  planner reserves enough ready skill to protect the final province. It may
+  still race when the opponent has no ready characters, Lion has the last
+  declaration, or both players' strongholds are exposed; an actual stronghold
+  attack remains all-in defense.
 
 ### Conflict tools
 
@@ -57,7 +61,10 @@ The offline fixture is the source used by self-play; it contains 5 provinces,
   Honored General, or Matsu Beiona first.
 - Ujiaki's Offer is held for a losing political conflict and targets a ready
   enemy participant so bow + dishonor + send-home can reverse the result.
-- Political Rival is reserved for political defense.
+- Political Rival is usable on attack or defense when its live +3 political
+  contribution reaches a province break or prevents one. Once that result is
+  already secured, the shared conflict-economy gate preserves it instead of
+  overcommitting.
 - True Strike Kenjutsu attaches to a listed tower; its action starts the duel
   while a ready enemy participates.
 - Elegant Tessen is played to ready a bowed printed-cost-2-or-lower Lion body.

@@ -99,5 +99,21 @@ describe('ActionWindow', function() {
             expect(this.prompt.canClickCard(this.player2, { getActions: () => [illegalAction] })).toBe(false);
             expect(this.prompt.canClickCard(this.player1, { getActions: () => [legalAction] })).toBe(false);
         });
+
+        it('distinguishes legal targets by controller for bot preflight', function() {
+            const ownTarget = { controller: this.player2 };
+            const enemyTarget = { controller: this.player1 };
+            const makeCard = (targets) => ({
+                getActions: () => [{
+                    createContext: () => ({}),
+                    meetsRequirements: () => '',
+                    targets: [{ getAllLegalTargets: () => targets }]
+                }]
+            });
+
+            expect(this.prompt.canClickCardForTargetSide(this.player2, makeCard([ownTarget]), 'self')).toBe(true);
+            expect(this.prompt.canClickCardForTargetSide(this.player2, makeCard([ownTarget]), 'enemy')).toBe(false);
+            expect(this.prompt.canClickCardForTargetSide(this.player2, makeCard([enemyTarget]), 'enemy')).toBe(true);
+        });
     });
 });

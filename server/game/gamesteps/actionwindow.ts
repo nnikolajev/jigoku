@@ -61,6 +61,42 @@ class ActionWindow extends UiPrompt {
         return this.getLegalActions(player, card).length > 0;
     }
 
+    // Strategy may care which controller owns a legal target, while engine
+    // legality only cares that some target exists. Inspect the same live
+    // selectors used by the actual click without leaking card-specific state
+    // into public summaries.
+    canClickCardForTargetSide(player: Player, card: any, side: 'self' | 'enemy'): boolean {
+        return this.getLegalActions(player, card).some((action: any) => {
+            const context = action.createContext(player);
+            let inspectedCardTarget = false;
+            for(const target of action.targets || []) {
+                if(typeof target?.getAllLegalTargets !== 'function') {
+                    continue;
+                }
+                let legalTargets: any[];
+                try {
+                    legalTargets = target.getAllLegalTargets(context) || [];
+                } catch{
+                    // Dynamic/dependent selectors may need earlier choices;
+                    // they cannot safely veto an otherwise legal action here.
+                    continue;
+                }
+                const cards = legalTargets.filter((candidate: any) => candidate?.controller);
+                if(cards.length === 0) {
+                    continue;
+                }
+                inspectedCardTarget = true;
+                if(cards.some((candidate: any) => side === 'self'
+                    ? candidate.controller === player
+                    : candidate.controller === player.opponent)) {
+                    return true;
+                }
+            }
+            // Ring/menu/ability targets cannot be classified by controller.
+            return !inspectedCardTarget;
+        });
+    }
+
     private getLegalActions(player: Player, card: any): any[] {
         if(player !== this.currentPlayer || !card || typeof card.getActions !== 'function') {
             return [];

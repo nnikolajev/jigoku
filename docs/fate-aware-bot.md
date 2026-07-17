@@ -1,4 +1,4 @@
-# Fate-Aware Heuristic Bot (Experimental)
+# Fate-Aware Heuristic Bot (Default)
 
 `FateAwareJigokuBotPolicy` is the default seed-1 policy and remains a separate
 copy of the generic heuristic bot. Seed 5 uses this same policy plus its
@@ -9,8 +9,8 @@ but opts into a different dynasty economy and ring-fate rule. The previous
 
 ## Selection
 
-Select **Fate-aware economy (experimental)** in the Jigoku client's bot
-difficulty dropdown. It is the default and sends seed `1`. Direct callers can
+Select **Fate-aware heuristic (default)** in the Jigoku client's bot
+difficulty dropdown. It sends seed `1`. Direct callers can
 use seed 1:
 
 ```json
@@ -130,13 +130,12 @@ per deck):
 Undecided games count as non-wins in the displayed percentages, matching the
 win-rate script. Generic had 4 undecided games; fate-aware had 2.
 
-## Current Verdict
+## Current Status
 
-Keep the policy as a separate experimental copy while gathering larger samples.
-With real costs, it improves eight of nine decks and the whole cohort by 9
-percentage points. Phoenix Shugenja now behaves as intended: a deterministic
-trace funded its first two strong characters with 3 fate each, reached 3
-characters in round 3, maintained 3-4 characters afterward, and improved from
-75% to 85% over 100 games. Scorpion's 4-point decline and Dragon Attachments'
-1-point gain are small enough to need a larger follow-up sample before adding
-deck-specific exceptions.
+Seed 1 is the deployed default. `FateAwareJigokuBotPolicy` remains a separate
+class so seed 2 can preserve the old heuristic for controlled comparisons, but
+it is no longer treated as an experimental client option. Later deck profiles
+added swarm, tower, conflict-card economy, and stronghold-defense overrides;
+therefore the historical table above is evidence for the initial switch, not a
+current win-rate baseline. Standardized current results come from
+`winRates.js` and `botRoundRobin.js` as described in `heuristic-bot.md`.

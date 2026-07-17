@@ -51,7 +51,7 @@ gated on its presence.
 | | result |
 |---|---|
 | seed 1 | 24-16 and 27-13 (pooled 51-29, **~64%**) |
-| seed 4 (omniscient) | **30-10 (75%)** |
+| historical omniscient run (then seed 4; now seed 5) | **30-10 (75%)** |
 
 Utilization audit: every card fires except The Imperial Palace — a pure
 passive (+3 during glory counts, nothing to click), correctly zero.

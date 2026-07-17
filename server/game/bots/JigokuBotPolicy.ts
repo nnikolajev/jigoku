@@ -160,11 +160,10 @@ class JigokuBotPolicy {
     // window flips the prompt signature and clears the attempted-set. Cleared
     // each round at the Honor Bid so it stays usable once per round.
     private boardAbilityUsed = new Map<string, number>();
-    // Teacher has no target sub-prompt, so the normal attempted-click guard
-    // would hide Way of the Dragon's second legal activation. Track successful
-    // selections per conflict and explicitly permit that one repeat.
+    // Identifies the live Dragon conflict so per-conflict card-engine state
+    // (currently Kiho/ring-fate projection) resets at the right boundary.
     private dragonAbilityConflictKey = '';
-    private dragonAbilityUses = new Map<string, number>();
+    private dragonConflictAbilityUsed = new Map<string, number>();
     private dragonKihoPlayed = false;
     // Disguised can return to the action window after a target was accepted
     // but the remaining cost/play check failed. Do not replay the same Tadaka
@@ -288,7 +287,7 @@ class JigokuBotPolicy {
             this.failedPlayCards.clear();
             this.pendingPlay = null;
             this.boardAbilityUsed.clear();
-            this.dragonAbilityUses.clear();
+            this.dragonConflictAbilityUsed.clear();
             this.dragonAbilityConflictKey = '';
             this.dragonKihoPlayed = false;
             this.tadakaDisguiseAttempted = false;
@@ -357,9 +356,11 @@ class JigokuBotPolicy {
     }
 
     private boardAbilityKey(card: any, dragon: DragonTactics | null = null): string {
-        // Preserve the historical one-use-per-printed-id behavior for every
-        // deck except Dragon's Way-enabled Tranquil Philosopher.
-        return String(dragon && card?.id === 'tranquil-philosopher' ? (card?.uuid || card?.id) : (card?.id || card?.uuid || ''));
+        // Way belongs to one specific bearer and copies are deliberately
+        // spread. Track each Way-enabled character independently; preserve the
+        // historical printed-id behavior for all other board actions.
+        return String(dragon && dragon.hasWayOfTheDragon(card) ?
+            (card?.uuid || card?.id) : (card?.id || card?.uuid || ''));
     }
 
     private boardAbilityLimit(card: any, dragon: DragonTactics | null = null): number {
@@ -373,6 +374,24 @@ class JigokuBotPolicy {
     private recordBoardAbility(card: any, dragon: DragonTactics | null = null): void {
         const key = this.boardAbilityKey(card, dragon);
         this.boardAbilityUsed.set(key, (this.boardAbilityUsed.get(key) || 0) + 1);
+    }
+
+    private wayAbilityIsUsed(card: any, dragon: DragonTactics): boolean {
+        const period = dragon.wayAbilityPeriod(card);
+        if(period === 'conflict') {
+            const key = String(card?.uuid || card?.id || '');
+            return (this.dragonConflictAbilityUsed.get(key) || 0) >= this.boardAbilityLimit(card, dragon);
+        }
+        return period === 'round' && this.boardAbilityIsUsed(card, dragon);
+    }
+
+    private recordWayAbility(card: any, dragon: DragonTactics): void {
+        if(dragon.wayAbilityPeriod(card) === 'conflict') {
+            const key = String(card?.uuid || card?.id || '');
+            this.dragonConflictAbilityUsed.set(key, (this.dragonConflictAbilityUsed.get(key) || 0) + 1);
+            return;
+        }
+        this.recordBoardAbility(card, dragon);
     }
 
     private decideForPrompt(playerState: any, me: any, context: DecideContext = {}): BotDecision | null {
@@ -608,14 +627,23 @@ class JigokuBotPolicy {
 
         if(promptTitle.startsWith('Play ') || promptTitle === 'Choose an ability:') {
             // Dragon plays its dual-mode monks (Ancient Master, Tattooed
-            // Wanderer, Togashi Acolyte) as ATTACHMENTS by preference.
+            // Wanderer, Togashi Acolyte) as ATTACHMENTS by preference. With
+            // no own bearer, use character mode: attaching the Monk to an
+            // opponent advances the card count but helps the wrong player.
             if(dragon || attachmentTower) {
                 const asAttachment = buttons.find((button) =>
                     String(button.text || '').toLowerCase().includes('as an attachment'));
-                if(asAttachment) {
+                if(asAttachment && this.myCharactersInPlay(me).length > 0) {
                     return this.buttonDecision(asAttachment, attachmentTower
                         ? 'attachment-tower-play-as-attachment'
                         : 'dragon-play-as-attachment');
+                }
+                if(dragon && asAttachment) {
+                    const asCharacter = buttons.find((button) =>
+                        String(button.text || '').toLowerCase().includes('as a character'));
+                    if(asCharacter) {
+                        return this.buttonDecision(asCharacter, 'dragon-play-as-character-no-bearer');
+                    }
                 }
             }
             // Isawa Tadaka enters ready and preserves the replaced non-unique
@@ -1810,9 +1838,10 @@ class JigokuBotPolicy {
         if(profile.defenseCommitment === 'win-only') {
             // The rush would rather lose a province than bow bodies it needs to
             // attack again, so it only defends when it can win the conflict
-            // outright; a chump-block that merely delays a break is conceded.
-            if(potential >= attackerSkill) {
-                target = attackerSkill;
+            // outright. Attackers win ties, so the defense must reach one more
+            // skill; a tie or chump-block that merely delays a break is conceded.
+            if(potential > attackerSkill) {
+                target = attackerSkill + 1;
             } else {
                 return this.buttonDecision(done, 'aggressive-concede-defense');
             }
@@ -1958,9 +1987,18 @@ class JigokuBotPolicy {
         const myCharacters = this.myCharactersInPlay(me);
         const opponentCharacters = (opponent?.cardPiles?.cardsInPlay || []).filter((card: any) => card.type === 'character');
         const strongholdAssault = standing.amAttacker && this.strongholdUnderAttack(opponent);
+        const ringsHaveFate = Object.values(playerState?.rings || {})
+            .some((ring: any) => (Number(ring?.fate) || 0) >= 1);
+        const dragonPool = this.normalConflictPlayCandidates(me, opponent);
+        const projectedRingFateCards = dragonPool.filter((card: any) =>
+            card.isPlayableByMe && card.uuid &&
+            !this.isAttempted('cardClicked', [card.uuid]) &&
+            !this.isCancelVetoed(card.id));
+        const canCreateRingFate = !!dragon &&
+            dragon.canCreateRingFate(projectedRingFateCards, myCharacters);
         const highHouse = (me?.strongholdProvince || []).find((card: any) => card.id === 'high-house-of-light');
         const highHouseRelevant = !!dragon && !!highHouse && dragon.hasParticipatingMonk(myCharacters) &&
-            (!highHouse.bowed || cardsPlayed >= 5);
+            !highHouse.bowed && (ringsHaveFate || canCreateRingFate);
         const dragonTargets = dragon ? dragon.cardTargets(
             myCharacters,
             standing.amAttacker,
@@ -1969,7 +2007,6 @@ class JigokuBotPolicy {
             highHouseRelevant,
             strongholdAssault
         ) : [];
-        const dragonPool = this.normalConflictPlayCandidates(me, opponent);
         const dragonPlayableCount = (target: number) => dragonPool.filter((card: any) => {
             if(!card.isPlayableByMe || !card.uuid || this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id)) {
                 return false;
@@ -2004,6 +2041,8 @@ class JigokuBotPolicy {
         }).length;
         const dragonCardTarget = dragonTargets.find((target) =>
             cardsPlayed >= target || dragon?.canReachTarget(cardsPlayed, dragonPlayableCount(target), target)) ?? dragonTargets[0] ?? 0;
+        const highHouseWaitForFate = highHouseRelevant && cardsPlayed < 5 &&
+            !!dragon?.canReachTarget(cardsPlayed, dragonPlayableCount(5), 5);
         const dragonPlanActive = dragonTargets.length > 0;
         const feedCards = !!dragon && dragon.allowsCardCountOvercommit() && dragonPlanActive &&
             dragon.canReachTarget(cardsPlayed, dragonPlayableCount(dragonCardTarget), dragonCardTarget);
@@ -2091,9 +2130,8 @@ class JigokuBotPolicy {
             // count — the "can't reach the target, use it now" escape hatch for
             // High House of Light.
             moreCardsPlayable: dragonPlayableCount(dragonCardTarget) > 0,
-            // Any ring holding fate — High House of Light's 5-card ring-fate
-            // steal is only worth waiting for when a ring actually has fate.
-            ringsHaveFate: Object.values(playerState?.rings || {}).some((ring: any) => (Number(ring?.fate) || 0) >= 1),
+            ringsHaveFate,
+            highHouseWaitForFate,
             conflictsRemaining: me?.stats?.conflictsRemaining ?? 0,
             strongholdConflict: strongholdDefense || strongholdAssault,
             preferFavorableRetreat: !!dragon,
@@ -2132,15 +2170,20 @@ class JigokuBotPolicy {
         ].join('|');
         if(dragonConflictKey !== this.dragonAbilityConflictKey) {
             this.dragonAbilityConflictKey = dragonConflictKey;
-            this.dragonAbilityUses.clear();
+            this.dragonConflictAbilityUsed.clear();
             this.dragonKihoPlayed = false;
         }
         const canSelectAbility = (card: any) => {
+            // A useful Way bearer gets two activations in its printed period.
+            // Count the planned clicks ourselves so a same-signature action
+            // window permits click two but cannot become an endless click loop.
+            if(dragon && dragon.wayAbilityPeriod(card)) {
+                return !this.wayAbilityIsUsed(card, dragon);
+            }
             if(!this.isAttempted('cardClicked', [card.uuid])) {
                 return true;
             }
-            return !!dragon && card.id === 'teacher-of-empty-thought' && dragon.hasWayOfTheDragon(card) &&
-                (this.dragonAbilityUses.get(String(card.uuid || card.id)) || 0) < 2;
+            return false;
         };
         const abilitySource = this.conflictAbilitySources(me, playCtx, cardHint, dishonor, lion, dragon, glory, shugenja, attachmentTower)
             .filter((card) => this.isDirectCardLegal(card, legalDirectCardUuids))
@@ -2149,7 +2192,9 @@ class JigokuBotPolicy {
             // Record once-per-round board abilities so they are not re-fired for
             // the rest of the round (stops the Tranquil Philosopher fate loop).
             const srcHint: any = cardHint ? cardHint(abilitySource.id) : undefined;
-            if(srcHint && srcHint.oncePerRound) {
+            if(dragon && dragon.wayAbilityPeriod(abilitySource)) {
+                this.recordWayAbility(abilitySource, dragon);
+            } else if(srcHint && srcHint.oncePerRound) {
                 this.recordBoardAbility(abilitySource, dragon);
             }
             if(shugenja && abilitySource.id === 'kyuden-isawa') {
@@ -2158,10 +2203,6 @@ class JigokuBotPolicy {
             if(attachmentTower && abilitySource.id === 'daimyo-s-favor') {
                 this.pendingDaimyoBearerUuid =
                     attachmentTower.daimyoFavorBearerUuid(abilitySource, myCharacters) || null;
-            }
-            if(dragon && abilitySource.id === 'teacher-of-empty-thought') {
-                const key = String(abilitySource.uuid || abilitySource.id);
-                this.dragonAbilityUses.set(key, (this.dragonAbilityUses.get(key) || 0) + 1);
             }
             return this.cardClickDecision(abilitySource, 'use-board-ability');
         }
@@ -2199,6 +2240,13 @@ class JigokuBotPolicy {
                 if(saveDragonCards && card.id !== 'centipede-tattoo') {
                     return false;
                 }
+                // Way is only valuable on the repeatable characters ranked by
+                // DragonTactics. Starting it without such a bearer leads to an
+                // attachment prompt the target selector must cancel, wasting
+                // bot decisions and retrying the same non-play later.
+                if(dragon && card.id === 'way-of-the-dragon' && !dragon.pickWayCharacter(myCharacters)) {
+                    return false;
+                }
                 // GloryTactics owns this deck-specific count so its injected
                 // specialization remains observable through every seed. The
                 // shared playbook gate below applies the same threshold to
@@ -2232,6 +2280,12 @@ class JigokuBotPolicy {
                 }
                 if(feedCards && dragonCardTarget >= 5) {
                     const order = (card: any) => {
+                        // Empty rings: play projected fate source before
+                        // consuming remaining slots on the road to five.
+                        if(highHouseWaitForFate && !ringsHaveFate &&
+                            dragon?.cardCanCreateRingFate(card, myCharacters)) {
+                            return -1;
+                        }
                         if(card.id === 'togashi-acolyte') {
                             return 0;
                         }
@@ -2306,9 +2360,13 @@ class JigokuBotPolicy {
             if(lion && card.id === 'hayaken-no-shiro') {
                 return lion.shouldReadyWithStronghold(playCtx?.myCharacters || []);
             }
-            // High House is reserved for its complete five-card effect.
+            // Wait for five only when ring fate exists (or this sequence can
+            // create it). Otherwise take the base event protection now.
             if(dragon && card.id === 'high-house-of-light') {
-                return dragon.strongholdReady(playCtx?.cardsPlayed ?? 0);
+                return dragon.strongholdReady(
+                    playCtx?.cardsPlayed ?? 0,
+                    playCtx?.highHouseWaitForFate === true
+                );
             }
             if(glory && card.id === 'isawa-mori-seido') {
                 return glory.shouldUseStronghold(playCtx?.myCharacters || []);
@@ -3611,7 +3669,8 @@ class JigokuBotPolicy {
             };
         }
 
-        if(dragon && targetHint?.sourceCardId === 'ancient-master') {
+        if(dragon && targetHint?.sourceCardId === 'ancient-master' &&
+            !(targetHint.gameActions || []).includes('attach')) {
             const pick = dragon.pickAncientMasterCard(cards);
             if(pick) {
                 return this.cardClickDecision(pick, 'ancient-master-card-order');
@@ -4344,8 +4403,16 @@ class JigokuBotPolicy {
             }
             // Some attachments carry an enemy-aimed ABILITY but belong on our
             // own character (True Strike Kenjutsu) — attach own-side first.
-            if(sourceHint && (sourceHint as any).attachSide === 'self') {
-                return this.attachmentTargetDecision(mine, theirs, playerState, me, skillType, targetHint.sourceCardId, (sourceHint as any).maxCopiesPerTarget);
+            if(sourceHint && ((sourceHint as any).attachSide === 'self' || sourceHint.targetSide === 'self')) {
+                const target = this.attachmentTargetDecision(mine, [], playerState, me, skillType,
+                    targetHint.sourceCardId, (sourceHint as any).maxCopiesPerTarget);
+                if(target) {
+                    return target;
+                }
+                if(cancel) {
+                    return this.buttonDecision(cancel, 'cancel-wrong-side-target');
+                }
+                return null;
             }
             // Control attachments (Pacifism, Fiery Madness, Pit Trap...) are
             // hinted enemy-side: land them on the opponent's best character on

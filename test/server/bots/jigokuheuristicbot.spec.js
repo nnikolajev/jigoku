@@ -1880,6 +1880,13 @@ describe('Jigoku heuristic bot', function() {
     describe('conflict action window', function() {
         function makeConflictWindowState(options) {
             return {
+                rings: options.rings || {
+                    air: { element: 'air', fate: 0 },
+                    earth: { element: 'earth', fate: 0 },
+                    fire: { element: 'fire', fate: 0 },
+                    void: { element: 'void', fate: 0 },
+                    water: { element: 'water', fate: 0 }
+                },
                 conflict: {
                     type: options.type || 'military',
                     attackingPlayerId: options.amAttacker ? 'bot-id' : 'human-id',
@@ -2398,6 +2405,7 @@ describe('Jigoku heuristic bot', function() {
             // One Shintao virtual card plus four real playable cards reaches five.
             const reachable = makeConflictWindowState({
                 amAttacker: true, attackerSkill: 2, defenderSkill: 3, cardsPlayed: 1,
+                rings: { air: { element: 'air', fate: 1 } },
                 cardsInPlay: [monk], strongholdProvince: [stronghold],
                 opponentCardsInPlay: [{
                     uuid: 'enemy', id: 'enemy', type: 'character', bowed: false, inConflict: true,
@@ -2433,6 +2441,7 @@ describe('Jigoku heuristic bot', function() {
             // Only three real cards remain: do not begin a five-card plan.
             const unreachable = makeConflictWindowState({
                 amAttacker: true, attackerSkill: 2, defenderSkill: 3, cardsPlayed: 1,
+                rings: { air: { element: 'air', fate: 1 } },
                 cardsInPlay: [monk], strongholdProvince: [stronghold],
                 hand: [
                     handCard('iron-foundations-stance'), handCard('swell-of-seafoam'),
@@ -2440,8 +2449,71 @@ describe('Jigoku heuristic bot', function() {
                 ]
             });
             const savePolicy = new JigokuBotPolicy('dragon-save');
+            expect(savePolicy.decide(unreachable, 'Jigoku Bot', context).args[0]).toBe('high-house');
             expect(savePolicy.decide(unreachable, 'Jigoku Bot', context).args[0]).toBe('monk');
             expect(savePolicy.decide(unreachable, 'Jigoku Bot', context).target).toBe('Pass');
+        });
+
+        it('uses High House protection without chasing five cards when rings have no fate', function() {
+            const handCard = (id, type = 'event') => ({
+                uuid: id + '-uuid', id: id, name: id, type: type, location: 'hand', isPlayableByMe: true
+            });
+            const monk = {
+                uuid: 'plain-monk', id: 'plain-monk', name: 'Plain Monk', type: 'character',
+                traits: ['monk'], location: 'play area', bowed: false, inConflict: true,
+                militarySkillSummary: { stat: '2' }, politicalSkillSummary: { stat: '2' }
+            };
+            const stronghold = {
+                uuid: 'high-house', id: 'high-house-of-light', name: 'High House of Light',
+                type: 'stronghold', bowed: false
+            };
+            const state = makeConflictWindowState({
+                amAttacker: true, attackerSkill: 2, defenderSkill: 3, cardsPlayed: 1,
+                cardsInPlay: [monk], strongholdProvince: [stronghold],
+                hand: [
+                    handCard('iron-foundations-stance'), handCard('swell-of-seafoam'),
+                    handCard('hurricane-punch'), handCard('togashi-acolyte', 'character')
+                ]
+            });
+            const context = {
+                strategy: deriveDeckStrategy(['high-house-of-light']),
+                cardHint: (id) => getPlaybookEntry(id)
+            };
+
+            const decision = new JigokuBotPolicy('dragon-no-ring-fate').decide(state, 'Jigoku Bot', context);
+            expect(decision.command).toBe('cardClicked');
+            expect(decision.args[0]).toBe('high-house');
+        });
+
+        it('chases five and leads with a ring-fate producer when rings start empty', function() {
+            const handCard = (id, type = 'event') => ({
+                uuid: id + '-uuid', id: id, name: id, type: type, location: 'hand', isPlayableByMe: true
+            });
+            const monk = {
+                uuid: 'plain-monk', id: 'plain-monk', name: 'Plain Monk', type: 'character',
+                traits: ['monk'], location: 'play area', bowed: false, inConflict: true,
+                militarySkillSummary: { stat: '2' }, politicalSkillSummary: { stat: '2' }
+            };
+            const state = makeConflictWindowState({
+                amAttacker: true, attackerSkill: 2, defenderSkill: 3, cardsPlayed: 1,
+                cardsInPlay: [monk],
+                strongholdProvince: [{
+                    uuid: 'high-house', id: 'high-house-of-light', name: 'High House of Light',
+                    type: 'stronghold', bowed: false
+                }],
+                hand: [
+                    handCard('written-in-the-stars'), handCard('iron-foundations-stance'),
+                    handCard('hurricane-punch'), handCard('togashi-acolyte', 'character')
+                ]
+            });
+            const context = {
+                strategy: deriveDeckStrategy(['high-house-of-light']),
+                cardHint: (id) => getPlaybookEntry(id)
+            };
+
+            const decision = new JigokuBotPolicy('dragon-project-ring-fate').decide(state, 'Jigoku Bot', context);
+            expect(decision.command).toBe('cardClicked');
+            expect(decision.args[0]).toBe('written-in-the-stars-uuid');
         });
 
         it('activates Dragon payoffs at threshold, then stops instead of playing extra cards', function() {
@@ -2499,6 +2571,27 @@ describe('Jigoku heuristic bot', function() {
             const policy = new JigokuBotPolicy('dragon-teacher-way');
             expect(policy.decide(state, 'Jigoku Bot', context).args[0]).toBe('teacher');
             expect(policy.decide(state, 'Jigoku Bot', context).args[0]).toBe('teacher');
+            expect(policy.decide(state, 'Jigoku Bot', context).target).toBe('Pass');
+        });
+
+        it('uses Togashi Mitsu twice when Way of the Dragon raises its round limit', function() {
+            const mitsu = {
+                uuid: 'mitsu', id: 'togashi-mitsu-2', name: 'Togashi Mitsu', type: 'character',
+                location: 'play area', bowed: false, inConflict: true,
+                attachments: [{ uuid: 'way', id: 'way-of-the-dragon', type: 'attachment' }],
+                militarySkillSummary: { stat: '5' }, politicalSkillSummary: { stat: '5' }
+            };
+            const state = makeConflictWindowState({
+                amAttacker: true, attackerSkill: 5, defenderSkill: 0,
+                cardsPlayed: 5, cardsInPlay: [mitsu]
+            });
+            const context = {
+                strategy: deriveDeckStrategy(['high-house-of-light']),
+                cardHint: (id) => getPlaybookEntry(id)
+            };
+            const policy = new JigokuBotPolicy('dragon-mitsu-way');
+            expect(policy.decide(state, 'Jigoku Bot', context).args[0]).toBe('mitsu');
+            expect(policy.decide(state, 'Jigoku Bot', context).args[0]).toBe('mitsu');
             expect(policy.decide(state, 'Jigoku Bot', context).target).toBe('Pass');
         });
 

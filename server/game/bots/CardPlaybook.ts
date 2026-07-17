@@ -140,6 +140,14 @@ const entry = (cardId: string, overrides: Partial<PlaybookEntry>): PlaybookEntry
 
 const participating = (cards: any[]) => cards.filter((card) => card.inConflict);
 const readyParticipants = (cards: any[]) => cards.filter((card) => card.inConflict && !card.bowed);
+const DRAGON_MONK_IDS = new Set([
+    'ancient-master', 'teacher-of-empty-thought', 'togashi-acolyte',
+    'togashi-ichi', 'togashi-initiate', 'togashi-mitsu-2',
+    'togashi-tadakatsu', 'tranquil-philosopher', 'tattooed-wanderer'
+]);
+const hasMonkTrait = (card: any): boolean => DRAGON_MONK_IDS.has(card?.id) ||
+    (Array.isArray(card?.traits) && card.traits.some((trait: string) => trait.toLowerCase() === 'monk')) ||
+    (typeof card?.traits === 'string' && /\bmonk\b/i.test(card.traits));
 const liveSkill = (card: any, axis: 'military' | 'political'): number => {
     const summary = axis === 'military' ? card?.militarySkillSummary : card?.politicalSkillSummary;
     const live = Number(summary?.stat);
@@ -2186,8 +2194,18 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'strongest',
         priority: 8,
         summary: '2+ cards played: bow and send home an enemy',
-        shouldPlay: (ctx) => (ctx.cardsPlayed ?? 0) >= 2 &&
-            participating(ctx.opponentCharacters).some((card) => !card.bowed)
+        shouldPlay: (ctx) => {
+            if((ctx.cardsPlayed ?? 0) < 2) {
+                return false;
+            }
+            // Void Fist only requires a participating Monk; that Monk may
+            // already be bowed and can still enable a profitable enemy target.
+            const strongestMonk = participating(ctx.myCharacters)
+                .filter(hasMonkTrait)
+                .reduce((maximum, card) => Math.max(maximum, liveSkill(card, 'military')), -1);
+            return strongestMonk >= 0 && readyParticipants(ctx.opponentCharacters)
+                .some((card) => liveSkill(card, 'military') <= strongestMonk);
+        }
     }),
 
     // Own monk will not bow out of the conflict; honors him after a Kiho.

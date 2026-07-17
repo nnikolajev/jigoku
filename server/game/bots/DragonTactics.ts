@@ -35,7 +35,18 @@ export interface DragonProfile {
     // Finger of Jade) and ready effects
     keyCharacters: string[];
     wayTargets: string[];
+    // Way increases the normal ability limit, but does not override a card's
+    // separate `max` restriction. Only characters whose useful Action really
+    // gains a second activation belong here, together with that limit period.
+    wayAbilityPeriods: Record<string, 'round' | 'conflict'>;
     towerCharacters: string[];
+    // Cards whose play can create ring fate during the same conflict, making
+    // High House's five-card bonus live even when every ring starts empty.
+    ringFateProducerCards: string[];
+    // Togashi Dreamer moves fate to a ring after a Kiho is played. Keep both
+    // sides as profile data so alternate Monk lists can inject their engine.
+    ringFateOnKihoCharacters: string[];
+    kihoCards: string[];
 }
 
 export const DRAGON_DEFAULTS: DragonProfile = {
@@ -45,11 +56,19 @@ export const DRAGON_DEFAULTS: DragonProfile = {
     duelBid: 2,
     voidRecursionBonus: 20,
     keyCharacters: ['togashi-mitsu-2', 'togashi-ichi', 'togashi-tadakatsu', 'teacher-of-empty-thought'],
-    wayTargets: ['togashi-mitsu-2', 'tranquil-philosopher', 'teacher-of-empty-thought', 'kitsuki-investigator'],
+    wayTargets: ['togashi-mitsu-2', 'tranquil-philosopher', 'teacher-of-empty-thought'],
+    wayAbilityPeriods: {
+        'togashi-mitsu-2': 'round',
+        'tranquil-philosopher': 'round',
+        'teacher-of-empty-thought': 'round'
+    },
     towerCharacters: [
         'togashi-mitsu-2', 'togashi-ichi', 'togashi-tadakatsu',
         'teacher-of-empty-thought', 'tranquil-philosopher', 'kitsuki-investigator'
-    ]
+    ],
+    ringFateProducerCards: ['written-in-the-stars', 'army-of-the-rising-wave'],
+    ringFateOnKihoCharacters: ['togashi-dreamer'],
+    kihoCards: ['hurricane-punch', 'void-fist', 'swell-of-seafoam', 'iron-foundations-stance']
 };
 
 // Decision helpers the policy delegates to when (and only when) the deck's
@@ -109,13 +128,38 @@ export class DragonTactics {
         return [...new Set(targets)].sort((a, b) => b - a);
     }
 
-    // Preserve High House until its full five-card effect is live.
-    strongholdReady(cardsPlayed: number): boolean {
-        return cardsPlayed >= 5;
+    // Preserve High House only while its ring-fate bonus is worth and able to
+    // reach. Otherwise use its base event-targeting protection immediately.
+    strongholdReady(cardsPlayed: number, waitForFateBonus = true): boolean {
+        return cardsPlayed >= 5 || !waitForFateBonus;
     }
 
     canReachTarget(cardsPlayed: number, playableCards: number, target: number): boolean {
         return target > cardsPlayed && cardsPlayed + playableCards >= target;
+    }
+
+    cardCanCreateRingFate(card: any, myCharacters: any[]): boolean {
+        if(this.profile.ringFateProducerCards.includes(card?.id)) {
+            return true;
+        }
+
+        const hasDreamer = myCharacters.some((candidate) =>
+            candidate.inConflict && this.profile.ringFateOnKihoCharacters.includes(candidate.id));
+        const hasFateDonor = myCharacters.some((candidate) =>
+            candidate.inConflict && (Number(candidate.fate) || 0) > 0);
+        if(!hasDreamer || !hasFateDonor) {
+            return false;
+        }
+
+        const traits = Array.isArray(card?.traits)
+            ? card.traits
+            : String(card?.traits || '').split(/[.,\s]+/);
+        return this.profile.kihoCards.includes(card?.id) ||
+            traits.some((trait: string) => trait.toLowerCase() === 'kiho' || trait.toLowerCase() === 'kihō');
+    }
+
+    canCreateRingFate(playableCards: any[], myCharacters: any[]): boolean {
+        return playableCards.some((card) => this.cardCanCreateRingFate(card, myCharacters));
     }
 
     allowsCardCountOvercommit(): boolean {
@@ -150,9 +194,17 @@ export class DragonTactics {
     pickWayCharacter(mine: any[]): any {
         const ranking = this.profile.wayTargets;
         const ranked = mine
-            .filter((card) => card.id && ranking.includes(card.id) && !this.hasWayOfTheDragon(card))
+            .filter((card) => card.id && ranking.includes(card.id) &&
+                !!this.profile.wayAbilityPeriods[card.id] && !this.hasWayOfTheDragon(card))
             .sort((a, b) => ranking.indexOf(a.id) - ranking.indexOf(b.id));
         return ranked[0] || null;
+    }
+
+    wayAbilityPeriod(card: any): 'round' | 'conflict' | null {
+        if(!card?.id || !this.hasWayOfTheDragon(card)) {
+            return null;
+        }
+        return this.profile.wayAbilityPeriods[card.id] || null;
     }
 
     hasWayOfTheDragon(card: any): boolean {

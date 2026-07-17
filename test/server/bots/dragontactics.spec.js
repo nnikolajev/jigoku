@@ -31,7 +31,10 @@ describe('DragonTactics', function() {
         });
 
         it('parks Sacred Sanctuary under the stronghold', function() {
-            expect(resolveDeckProfile(['sacred-sanctuary', 'high-house-of-light'], MONK).strongholdProvinceId).toBe('sacred-sanctuary');
+            const profile = resolveDeckProfile(['sacred-sanctuary', 'high-house-of-light'], MONK);
+            expect(profile.strongholdProvinceId).toBe('sacred-sanctuary');
+            expect(profile.defenseCommitment).toBe('win-only');
+            expect(profile.spendCardsOnDefense).toBe(false);
             expect(resolveDeckProfile(['high-house-of-light'], MONK).strongholdProvinceId).toBeUndefined();
         });
     });
@@ -59,14 +62,26 @@ describe('DragonTactics', function() {
             expect(tactics.cardTargets([{ id: 'togashi-ichi', inConflict: true }], true, 0, 0, false, true)).toEqual([]);
         });
 
-        it('only fires High House at five and starts a plan only when reachable', function() {
+        it('holds High House for five only while its fate bonus is worth chasing', function() {
             expect(tactics.allowsCardCountOvercommit()).toBe(true);
             expect(tactics.strongholdReady(5)).toBe(true);
             expect(tactics.strongholdReady(4)).toBe(false);
             expect(tactics.strongholdReady(1)).toBe(false);
+            expect(tactics.strongholdReady(1, false)).toBe(true);
             // cardsPlayed includes Shintao Monastery's virtual card.
             expect(tactics.canReachTarget(1, 4, 5)).toBe(true);
             expect(tactics.canReachTarget(1, 3, 5)).toBe(false);
+        });
+
+        it('projects ring fate from a played producer or a Dreamer Kiho trigger', function() {
+            const monkWithFate = { id: 'togashi-initiate', inConflict: true, fate: 1 };
+            const dreamer = { id: 'togashi-dreamer', inConflict: true, fate: 0 };
+
+            expect(tactics.canCreateRingFate([{ id: 'written-in-the-stars' }], [monkWithFate])).toBe(true);
+            expect(tactics.canCreateRingFate([{ id: 'army-of-the-rising-wave' }], [monkWithFate])).toBe(true);
+            expect(tactics.canCreateRingFate([{ id: 'hurricane-punch' }], [dreamer, monkWithFate])).toBe(true);
+            expect(tactics.canCreateRingFate([{ id: 'hurricane-punch' }], [monkWithFate])).toBe(false);
+            expect(tactics.canCreateRingFate([{ id: 'banzai' }], [dreamer, monkWithFate])).toBe(false);
         });
 
         it('build-around attachments go to Mitsu first', function() {
@@ -84,6 +99,18 @@ describe('DragonTactics', function() {
             ];
             expect(tactics.pickWayCharacter(mine).id).toBe('tranquil-philosopher');
             expect(tactics.pickWayCharacter([{ id: 'togashi-ichi' }])).toBeNull();
+            expect(tactics.pickWayCharacter([{ id: 'kitsuki-investigator' }])).toBeNull();
+            expect(tactics.wayAbilityPeriod(mine[2])).toBe('round');
+            expect(tactics.wayAbilityPeriod(mine[1])).toBeNull();
+        });
+
+        it('spreads Way copies instead of stacking them on one action character', function() {
+            const mine = [
+                { id: 'togashi-mitsu-2', attachments: [{ id: 'way-of-the-dragon' }] },
+                { id: 'tranquil-philosopher', attachments: [{ id: 'way-of-the-dragon' }] },
+                { id: 'teacher-of-empty-thought', attachments: [] }
+            ];
+            expect(tactics.pickWayCharacter(mine).id).toBe('teacher-of-empty-thought');
         });
 
         it('invests fate in towers and preserves them while Cycle digs', function() {
@@ -102,6 +129,19 @@ describe('DragonTactics', function() {
                 { id: 'togashi-acolyte' }
             ]);
             expect(pick.id).toBe('togashi-acolyte');
+        });
+
+        it('uses Void Fist only when an opposing participant is a legal military target', function() {
+            const shouldPlay = require('../../../build/server/game/bots/CardPlaybook.js')
+                .getPlaybookEntry('void-fist').shouldPlay;
+            const monk = { id: 'togashi-ichi', inConflict: true, bowed: false,
+                militarySkillSummary: { stat: '6' } };
+            const enemy = (military) => ({ id: 'enemy', inConflict: true, bowed: false,
+                militarySkillSummary: { stat: String(military) } });
+
+            expect(shouldPlay({ cardsPlayed: 2, myCharacters: [monk], opponentCharacters: [enemy(9)] })).toBe(false);
+            expect(shouldPlay({ cardsPlayed: 2, myCharacters: [monk], opponentCharacters: [enemy(6)] })).toBe(true);
+            expect(shouldPlay({ cardsPlayed: 2, myCharacters: [{ ...monk, bowed: true }], opponentCharacters: [enemy(6)] })).toBe(true);
         });
     });
 });

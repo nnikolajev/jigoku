@@ -671,6 +671,247 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         expectComplete(spies);
     });
 
+    it('keeps Dragon dual-mode Monk attachments off enemy characters through seeds 1, 2, and 5', function() {
+        const profile = resolveDeckProfile(
+            ['high-house-of-light', 'sacred-sanctuary'],
+            flags({ monk: true })
+        );
+        const enemy = character('enemy', 'doji-kuwanan', { selectable: true });
+        const noOwnBearer = targetState('ancient-master', ['attach'], [], [enemy]);
+        const decisions = decideWithEveryPolicy(profile, noOwnBearer, {
+            targetHint: {
+                sourceCardId: 'ancient-master', sourceIsMine: true,
+                sourceType: 'attachment', gameActions: ['attach']
+            }
+        });
+
+        expectEveryPolicy(decisions, (decision) => {
+            expect(decision.command).toBe('menuButton');
+            expect(decision.target).toBe('Cancel');
+            expect(decision.reason).toBe('cancel-wrong-side-target');
+        });
+    });
+
+    it('spreads Way onto a different useful Action character through seeds 1, 2, and 5', function() {
+        const profile = resolveDeckProfile(['high-house-of-light'], flags({ monk: true }));
+        const mitsu = character('mitsu', 'togashi-mitsu-2', {
+            attachments: [attachment('existing-way', 'way-of-the-dragon')]
+        });
+        const teacher = character('teacher', 'teacher-of-empty-thought');
+        const investigator = character('investigator', 'kitsuki-investigator');
+        const state = targetState('way-of-the-dragon', ['attach'], [mitsu, teacher, investigator], []);
+        const decisions = decideWithEveryPolicy(profile, state, {
+            targetHint: {
+                sourceCardId: 'way-of-the-dragon', sourceIsMine: true,
+                sourceType: 'attachment', gameActions: ['attach']
+            }
+        });
+
+        expectEveryPolicy(decisions, (decision) => {
+            expect(decision.command).toBe('cardClicked');
+            expect(decision.args[0]).toBe('teacher');
+            expect(decision.reason).toBe('dragon-way-repeatable-character');
+        });
+    });
+
+    it('uses a Way-enabled Togashi Mitsu exactly twice through seeds 1, 2, and 5', function() {
+        const profile = resolveDeckProfile(['high-house-of-light'], flags({ monk: true }));
+        const mitsu = character('mitsu', 'togashi-mitsu-2', {
+            inConflict: true, location: 'play area',
+            attachments: [attachment('way', 'way-of-the-dragon')]
+        });
+        const state = makeState({
+            promptTitle: 'Conflict Action Window', menuTitle: 'Conflict', buttons: [PASS],
+            cardsPlayedThisConflict: 5,
+            cardPiles: { cardsInPlay: [mitsu] }
+        }, {}, {
+            conflict: {
+                type: 'military', attackingPlayerId: 'bot-id',
+                defendingPlayerId: 'opponent-id', attackerSkill: 5, defenderSkill: 0
+            }
+        });
+
+        for(const policyCase of POLICY_CASES) {
+            const omniscient = policyCase.omniscient ? {
+                oppName: 'Opponent', oppFate: 5, oppHand: [], oppProvinces: [], unmodeledEvents: []
+            } : undefined;
+            const context = {
+                ...(omniscient ? { omniscient } : {}),
+                profile, roundNumber: 2, cardHint: getPlaybookEntry
+            };
+            const policy = new policyCase.Policy(policyCase.seed);
+            expect(policy.decide(state, BOT, context).args[0]).toBe('mitsu');
+            expect(policy.decide(state, BOT, context).args[0]).toBe('mitsu');
+            expect(policy.decide(state, BOT, context).target).toBe('Pass');
+        }
+    });
+
+    it('uses High House immediately on empty rings through seeds 1, 2, and 5', function() {
+        const profile = resolveDeckProfile(
+            ['high-house-of-light', 'sacred-sanctuary'],
+            flags({ monk: true })
+        );
+        const monk = character('monk', 'plain-monk', {
+            inConflict: true, location: 'play area', traits: ['monk']
+        });
+        const state = makeState({
+            promptTitle: 'Conflict Action Window', menuTitle: 'Conflict', buttons: [PASS],
+            cardsPlayedThisConflict: 1,
+            strongholdProvince: [{
+                uuid: 'high-house', id: 'high-house-of-light', name: 'High House of Light',
+                type: 'stronghold', location: 'stronghold province', bowed: false
+            }],
+            cardPiles: {
+                cardsInPlay: [monk],
+                hand: [
+                    event('stance', 'iron-foundations-stance'),
+                    event('seafoam', 'swell-of-seafoam'),
+                    event('punch', 'hurricane-punch'),
+                    character('acolyte', 'togashi-acolyte', { location: 'hand', isPlayableByMe: true })
+                ]
+            }
+        }, { cardPiles: { cardsInPlay: [character('enemy', 'enemy', { inConflict: true })] } }, {
+            rings: {
+                air: { element: 'air', fate: 0 }, earth: { element: 'earth', fate: 0 },
+                fire: { element: 'fire', fate: 0 }, water: { element: 'water', fate: 0 },
+                void: { element: 'void', fate: 0 }
+            },
+            conflict: {
+                type: 'military', attackingPlayerId: 'bot-id',
+                defendingPlayerId: 'opponent-id', attackerSkill: 2, defenderSkill: 3
+            }
+        });
+        const decisions = decideWithEveryPolicy(profile, state);
+
+        expectEveryPolicy(decisions, (decision) => {
+            expect(decision.command).toBe('cardClicked');
+            expect(decision.args[0]).toBe('high-house');
+        });
+    });
+
+    it('plays a dual-mode Dragon Monk as a character when no friendly bearer exists', function() {
+        const profile = resolveDeckProfile(
+            ['high-house-of-light', 'sacred-sanctuary'],
+            flags({ monk: true })
+        );
+        const state = makeState({
+            promptTitle: 'Play Ancient Master', menuTitle: 'Choose how to play Ancient Master',
+            buttons: [
+                { text: 'Play Ancient Master as an attachment', arg: 'attachment', uuid: 'attachment' },
+                { text: 'Play Ancient Master as a character', arg: 'character', uuid: 'character' },
+                CANCEL
+            ],
+            cardPiles: { cardsInPlay: [] }
+        });
+        const decisions = decideWithEveryPolicy(profile, state, { playCardId: 'ancient-master' });
+
+        expectEveryPolicy(decisions, (decision) => {
+            expect(decision.command).toBe('menuButton');
+            expect(decision.target).toBe('Play Ancient Master as a character');
+            expect(decision.reason).toBe('dragon-play-as-character-no-bearer');
+        });
+    });
+
+    it('trades an unwinnable outer province instead of committing Dragon Monk attackers', function() {
+        const profile = resolveDeckProfile(
+            ['high-house-of-light', 'sacred-sanctuary'],
+            flags({ monk: true })
+        );
+        const state = makeState({
+            promptTitle: 'Military Water Conflict: 9 vs 0',
+            menuTitle: 'Choose defenders', buttons: [DONE],
+            provinces: {
+                one: [{ uuid: 'frog', id: 'city-of-the-rich-frog', type: 'province',
+                    isProvince: true, inConflict: true, strengthSummary: { stat: '3' } }],
+                two: [], three: [], four: []
+            },
+            cardPiles: {
+                cardsInPlay: [
+                    character('ichi', 'togashi-ichi', { militarySkillSummary: { stat: '6' } }),
+                    character('keeper', 'keeper-initiate', { militarySkillSummary: { stat: '1' } })
+                ]
+            }
+        }, {}, {
+            conflict: {
+                type: 'military', attackingPlayerId: 'opponent-id',
+                defendingPlayerId: 'bot-id', attackerSkill: 9, defenderSkill: 0
+            }
+        });
+        const decisions = decideWithEveryPolicy(profile, state);
+
+        expectEveryPolicy(decisions, (decision) => {
+            expect(decision.command).toBe('menuButton');
+            expect(decision.target).toBe('Done');
+            expect(decision.reason).toBe('aggressive-concede-defense');
+        });
+    });
+
+    it('trades an outer province when Dragon can only tie the attacker', function() {
+        const profile = resolveDeckProfile(
+            ['high-house-of-light', 'sacred-sanctuary'],
+            flags({ monk: true })
+        );
+        const state = makeState({
+            promptTitle: 'Military Water Conflict: 7 vs 0',
+            menuTitle: 'Choose defenders', buttons: [DONE],
+            provinces: {
+                one: [{ uuid: 'frog', id: 'city-of-the-rich-frog', type: 'province',
+                    isProvince: true, inConflict: true, strengthSummary: { stat: '3' } }],
+                two: [], three: [], four: []
+            },
+            cardPiles: {
+                cardsInPlay: [
+                    character('ichi', 'togashi-ichi', { militarySkillSummary: { stat: '6' } }),
+                    character('keeper', 'keeper-initiate', { militarySkillSummary: { stat: '1' } })
+                ]
+            }
+        }, {}, {
+            conflict: {
+                type: 'military', attackingPlayerId: 'opponent-id',
+                defendingPlayerId: 'bot-id', attackerSkill: 7, defenderSkill: 0
+            }
+        });
+        const decisions = decideWithEveryPolicy(profile, state);
+
+        expectEveryPolicy(decisions, (decision) => {
+            expect(decision.command).toBe('menuButton');
+            expect(decision.target).toBe('Done');
+            expect(decision.reason).toBe('aggressive-concede-defense');
+        });
+    });
+
+    it('does not start Way of the Dragon when no valuable friendly bearer exists', function() {
+        const profile = resolveDeckProfile(
+            ['high-house-of-light', 'sacred-sanctuary'],
+            flags({ monk: true })
+        );
+        const state = makeState({
+            promptTitle: 'Conflict Action Window', menuTitle: 'Conflict', buttons: [PASS],
+            cardPiles: {
+                cardsInPlay: [character('initiate', 'togashi-initiate', { inConflict: true })],
+                hand: [attachment('way', 'way-of-the-dragon')]
+            }
+        }, {
+            provinces: {
+                one: [{ uuid: 'enemy-province', id: 'manicured-garden', type: 'province',
+                    isProvince: true, inConflict: true, strengthSummary: { stat: '4' } }],
+                two: [], three: [], four: []
+            },
+            cardPiles: { cardsInPlay: [character('enemy', 'enemy', { inConflict: true })] }
+        }, {
+            conflict: {
+                type: 'military', attackingPlayerId: 'bot-id',
+                defendingPlayerId: 'opponent-id', attackerSkill: 1, defenderSkill: 3
+            }
+        });
+        const decisions = decideWithEveryPolicy(profile, state);
+
+        expectEveryPolicy(decisions, (decision) => {
+            expect(decision.command).toBe('menuButton');
+            expect(decision.target).toBe('Pass');
+        });
+    });
+
     it('executes every Crane duel tactic method', function() {
         const spies = spyTactic(DuelTactics);
         const profile = profileFromStrategy(flags({ duelist: true }));

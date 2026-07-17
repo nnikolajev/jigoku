@@ -388,7 +388,13 @@ const OVERRIDES: ProfileOverride[] = [
             strongholdProvinceId: 'sacred-sanctuary',
             // The monks are cheap and the payoffs count PARTICIPANTS' cards:
             // commit everything (measured vs all-but-one below).
-            attackCommitment: 'all'
+            attackCommitment: 'all',
+            // Card-count payoffs produce their value on our attacks. Trade an
+            // outer province when the board cannot WIN the defense, then keep
+            // those bodies and cards ready for the counterattack. Stronghold
+            // defense still overrides both gates in JigokuBotPolicy.
+            defenseCommitment: 'win-only',
+            spendCardsOnDefense: false
         }
     },
     {

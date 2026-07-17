@@ -44,7 +44,7 @@ describe('Togashi Mitsu 2', function() {
                     },
                     player2: {
                         inPlay: ['togashi-mitsu-2', 'doji-whisperer', 'asako-azunami'],
-                        hand: ['a-new-name', 'a-new-name', 'a-new-name', 'a-new-name', 'a-new-name', 'vine-tattoo']
+                        hand: ['a-new-name', 'a-new-name', 'a-new-name', 'a-new-name', 'a-new-name', 'vine-tattoo', 'way-of-the-dragon']
                     }
                 });
                 this.challenger = this.player1.findCardByName('doji-challenger');
@@ -131,6 +131,37 @@ describe('Togashi Mitsu 2', function() {
 
                 expect(this.mitsu.isHonored).toBe(true);
                 expect(this.getChatLogs(5)).toContain('player2 uses Togashi Mitsu to resolve the Fire Ring\'s effect');
+            });
+
+            it('should allow two uses when Way of the Dragon was attached before the first use', function() {
+                this.player1.pass();
+                this.player2.playAttachment('way-of-the-dragon', this.mitsu);
+                this.noMoreActions();
+                this.initiateConflict({
+                    attackers: [this.challenger],
+                    defenders: [this.mitsu],
+                    type: 'military'
+                });
+
+                for(let i = 0; i < 5; i++) {
+                    this.player2.playAttachment(this.player2.filterCardsByName('a-new-name')[i], this.mitsu);
+                    this.player1.pass();
+                }
+
+                this.player2.clickCard(this.mitsu);
+                this.player2.clickRing('air');
+                this.player2.clickPrompt('Gain 2 honor');
+                this.player1.pass();
+
+                this.player2.clickCard(this.mitsu);
+                expect(this.player2).toHavePrompt('Choose a ring effect to resolve');
+                this.player2.clickRing('air');
+                this.player2.clickPrompt('Gain 2 honor');
+                this.player1.pass();
+
+                this.player2.clickCard(this.mitsu);
+                expect(this.player2).toHavePrompt('Conflict Action Window');
+                expect(this.getChatLogs(20).filter((entry) => entry.includes('uses Togashi Mitsu to resolve')).length).toBe(2);
             });
 
             it('should allow ring replacement effects', function() {

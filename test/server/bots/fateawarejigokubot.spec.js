@@ -200,6 +200,59 @@ describe('fate-aware Jigoku bot policy', function() {
         expect(attack.args).toEqual(['province 2', 'Human', true]);
     });
 
+    it('detects affordable hidden-hand defender control and exact own stronghold strength', function() {
+        const bowEvent = {
+            id: 'nested-bow-event', type: 'event', isConflict: true,
+            cardData: { cost: '1', text: 'Choose an opponent character - bow that character.' },
+            getCost: () => 1,
+            abilities: {
+                actions: [{
+                    targets: [{ properties: { controller: 'opponent' } }],
+                    properties: {
+                        targets: {
+                            choice: { choices: { 'Bow it': { name: 'bow' } } }
+                        }
+                    }
+                }],
+                reactions: [], playActions: []
+            }
+        };
+        const ownOnlyBow = {
+            id: 'own-bow-cost', type: 'event', isConflict: true,
+            cardData: { cost: '0', text: 'Bow a character you control.' },
+            getCost: () => 0,
+            abilities: { actions: [], reactions: [], playActions: [] }
+        };
+        const controller = new JigokuBotController({}, { playerName, seed: 5 }, () => true);
+        expect(controller.knownCard(bowEvent).canDisableDefender).toBe(true);
+        expect(controller.knownCard(ownOnlyBow).canDisableDefender).toBe(false);
+
+        const secondBowEvent = {
+            ...bowEvent,
+            id: 'second-bow-event'
+        };
+        const expensiveBowEvent = {
+            ...bowEvent,
+            id: 'expensive-bow-event',
+            cardData: { ...bowEvent.cardData, cost: '3' },
+            getCost: () => 3
+        };
+        const opponent = {
+            name: 'Human', fate: 2,
+            hand: { toArray: () => [bowEvent, secondBowEvent, expensiveBowEvent] },
+            getProvinces: () => []
+        };
+        expect(controller.buildOmniscient({ opponent }).affordableDefenderDisables).toBe(2);
+
+        const liveStrongholdProvince = {
+            isProvince: true, location: 'stronghold province', facedown: true,
+            strengthSummary: {}, getStrength: () => 9
+        };
+        expect(controller.strongholdProvinceStrength({
+            getProvinces: () => [liveStrongholdProvince]
+        })).toBe(9);
+    });
+
     it('allows an explicit generic policy override for paired analysis', function() {
         const generic = new JigokuBotController({}, { playerName, seed: 1, policy: 'generic' }, () => true);
         const fateAware = new JigokuBotController({}, { playerName, seed: 2, policy: 'fate-aware' }, () => true);

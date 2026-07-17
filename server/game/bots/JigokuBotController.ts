@@ -13,7 +13,7 @@ import { buildHandThreatMatrix, getCardModel } from './DeckAnalysis.js';
 import type { KnownCard, OmniProvince, Omniscient } from './DeckAnalysis';
 import { stateFeatures, optionFeatures } from './ml/features.js';
 import type { MoveEvaluator } from './ml/evaluator';
-import { attackProvinceLists, mustAttackStronghold } from './ProvinceTargeting.js';
+import { attackProvinceLists, mustAttackStronghold, strongholdProvinceUnderAttack } from './ProvinceTargeting.js';
 import { logger } from '../../logger.js';
 import type Game from '../game';
 import type Player from '../player';
@@ -164,8 +164,65 @@ class JigokuBotController {
             polBonus: polBonus ?? model?.polBonus ?? 0,
             swing: model?.swing ?? 0,
             tag: model?.tag ?? 'utility',
+            canDisableDefender: this.cardCanDisableDefender(card),
             conflictTypes: model?.conflictTypes || []
         };
+    }
+
+    // Inspect the real card implementation, not only curated threat metadata.
+    // This catches cards such as For Shame whose nested choice can bow an
+    // opposing participant. Used only by seed 5's hidden-hand reserve plan.
+    private cardCanDisableDefender(card: any): boolean {
+        const disabling = new Set(['bow', 'sendHome', 'discardFromPlay', 'returnToHand', 'returnToDeck', 'removeFromGame']);
+        const abilities = ([] as any[]).concat(
+            card?.abilities?.actions || [],
+            card?.abilities?.reactions || [],
+            card?.abilities?.playActions || []
+        );
+        const seen = new Set<any>();
+        const visit = (value: any, opponentTarget: boolean, depth: number): boolean => {
+            if(!value || depth > 10 || seen.has(value)) {
+                return false;
+            }
+            if(Array.isArray(value)) {
+                return value.some((entry) => visit(entry, opponentTarget, depth + 1));
+            }
+            if(typeof value !== 'object') {
+                return false;
+            }
+            seen.add(value);
+            const side = String(value.controller || value.player || '').toLowerCase();
+            const targetsOpponent = opponentTarget || side === 'opponent' || side === 'any';
+            if(targetsOpponent && disabling.has(String(value.name || ''))) {
+                return true;
+            }
+            const keys = [
+                'gameAction', 'gameActions', 'action', 'actions', 'choices', 'options',
+                'then', 'target', 'targets', 'ifTrueAction', 'ifFalseAction',
+                'replacementGameAction', 'defaultProperties', 'properties'
+            ];
+            return keys.some((key) => visit(value[key], targetsOpponent, depth + 1));
+        };
+
+        for(const ability of abilities) {
+            const targetsOpponent = (ability?.targets || []).some((target: any) => {
+                const side = String(target?.properties?.controller || target?.properties?.player || '').toLowerCase();
+                return side === 'opponent' || side === 'any';
+            });
+            seen.clear();
+            if(visit(ability?.properties, targetsOpponent, 0)) {
+                return true;
+            }
+        }
+
+        // Custom handler cards may not expose a GameAction tree. Keep a narrow
+        // printed-text fallback, excluding effects explicitly limited to own
+        // characters so a self-ready/bow cost is not treated as a threat.
+        const text = String(card?.cardData?.text || '').replace(/<[^>]*>/g, ' ').toLowerCase();
+        const controlEffect = /\bbow\b|send[^.]*\bhome\b|discard[^.]*character[^.]*from play|remove[^.]*character[^.]*from the conflict/.test(text);
+        const opposingTarget = /opponent|character in the conflict|participating character|a character|chosen character/.test(text);
+        const ownOnly = /character you control/.test(text) && !/opponent/.test(text);
+        return controlEffect && opposingTarget && !ownOnly;
     }
 
     private liveProvinceStrength(card: any): number {
@@ -199,6 +256,22 @@ class JigokuBotController {
         return out;
     }
 
+    private affordableDefenderDisableCount(cards: KnownCard[], fate: number): number {
+        let remaining = Math.max(0, Number(fate) || 0);
+        let count = 0;
+        const costs = cards.filter((card) => card.canDisableDefender)
+            .map((card) => Math.max(0, Number(card.fate) || 0))
+            .sort((left, right) => left - right);
+        for(const cost of costs) {
+            if(cost > remaining) {
+                continue;
+            }
+            remaining -= cost;
+            count++;
+        }
+        return count;
+    }
+
     // Assemble the seed-5 cheat view from the live opponent Player. Recomputed
     // each tick (cheap) so it always reflects the current hand/fate/board.
     private buildOmniscient(me: Player): Omniscient | undefined {
@@ -224,8 +297,21 @@ class JigokuBotController {
                 military: buildHandThreatMatrix(oppHand, oppFate, 'military'),
                 political: buildHandThreatMatrix(oppHand, oppFate, 'political')
             },
+            affordableDefenderDisables: this.affordableDefenderDisableCount(oppHand, oppFate),
             unmodeledEvents
         };
+    }
+
+    // Own province is known information. Read the live game object so a still
+    // facedown province gets its exact total: printed province + stronghold +
+    // holdings + current effects. `strengthSummary` intentionally hides this
+    // number while facedown.
+    private strongholdProvinceStrength(player: Player): number | undefined {
+        const provinces: any[] = typeof (player as any).getProvinces === 'function'
+            ? (player as any).getProvinces() : [];
+        const province = provinces.find((card) =>
+            card?.location === 'stronghold province' && card.isProvince !== false);
+        return province ? this.liveProvinceStrength(province) : undefined;
     }
 
     // One-time deck-analysis gate for seed 5 (satisfies "analyze the deck before
@@ -411,12 +497,13 @@ class JigokuBotController {
                     // Player-state hand summaries omit printed conflict-card
                     // costs. Deck profiles need these to sequence reducers.
                     conflictCosts: this.conflictCostsHint(player),
+                    strongholdProvinceStrength: this.strongholdProvinceStrength(player),
                     // Seed 5 only: the cheat view (human hand/fate/true province
                     // strengths). Undefined for every other seed, so the policy's
                     // omniscient branches stay dormant for every other seed.
                     omniscient: this.buildOmniscient(player)
                 });
-                const mandatoryStrongholdAssault = this.isMandatoryStrongholdAssault(playerState, player.name, beforePrompt);
+                const mandatoryStrongholdSequence = this.isMandatoryStrongholdSequence(playerState, player.name, beforePrompt);
 
                 // Seed 3: let the LLM choose the move. Whenever the step is a
                 // real choice (more than one legal option), hand the whole
@@ -424,7 +511,7 @@ class JigokuBotController {
                 // — the heuristic decision rides along as the labelled fall-back.
                 // Forced/single-option steps skip the model and run the
                 // heuristic pick directly so trivial clicks stay fast.
-                if(this.isLlmDriven() && !mandatoryStrongholdAssault) {
+                if(this.isLlmDriven() && !mandatoryStrongholdSequence) {
                     const options = this.enumerateOptions(player, beforePrompt, decision);
                     if(options.length >= 2) {
                         this.startActionConsult(player, beforePrompt, options, decision);
@@ -448,7 +535,7 @@ class JigokuBotController {
                 // the end-of-round phases are left to the heuristic — the
                 // evaluator adds no value there and the setup province prompts
                 // are shaped in ways it cannot satisfy (it would stall).
-                if(this.isEvaluatorDriven() && this.isStrategicPrompt(beforePrompt) && !mandatoryStrongholdAssault) {
+                if(this.isEvaluatorDriven() && this.isStrategicPrompt(beforePrompt) && !mandatoryStrongholdSequence) {
                     const options = this.enumerateOptions(player, beforePrompt, decision);
                     if(options.length >= 1) {
                         decision = this.evaluatorPick(player, beforePrompt, options) || decision;
@@ -882,8 +969,8 @@ class JigokuBotController {
         // Do not expose strategic alternatives that violate the win condition.
         // This also keeps seed-4 training records free of pointless fourth-
         // province targets during the forced stronghold assault sequence.
-        if(this.isMandatoryStrongholdAssault(state, player.name, prompt)) {
-            add(fallback, `Mandatory stronghold assault (${fallback?.target || fallback?.reason || 'advance'})`);
+        if(this.isMandatoryStrongholdSequence(state, player.name, prompt)) {
+            add(fallback, `Mandatory stronghold sequence (${fallback?.target || fallback?.reason || 'advance'})`);
             return options;
         }
 
@@ -1525,6 +1612,33 @@ class JigokuBotController {
         const promptTitle = String(prompt?.promptTitle || '');
         return promptTitle === 'Initiate Conflict' ||
             /^(Military|Political)\s+(Air|Earth|Fire|Water|Void)\s+Conflict/i.test(promptTitle);
+    }
+
+    private isMandatoryStrongholdDefense(state: any, playerName: string, prompt: any): boolean {
+        const me = state?.players?.[playerName];
+        if(!me) {
+            return false;
+        }
+        const promptTitle = String(prompt?.promptTitle || '');
+        const menuTitle = String(prompt?.menuTitle || '').toLowerCase();
+        const conflictPrompt = promptTitle === 'Initiate Conflict' ||
+            /^(Military|Political)\s+(Air|Earth|Fire|Water|Void)\s+Conflict/i.test(promptTitle);
+
+        // Before the opponent attacks: shared policy decides pass/reserve/race.
+        if(mustAttackStronghold(me) && conflictPrompt) {
+            return true;
+        }
+
+        // During the game-deciding defense: shared policy commits every legal
+        // defender and spends cards instead of letting LLM/evaluator alternatives
+        // trade away the stronghold.
+        return strongholdProvinceUnderAttack(me) &&
+            (conflictPrompt || promptTitle === 'Conflict Action Window' || menuTitle.includes('choose defenders'));
+    }
+
+    private isMandatoryStrongholdSequence(state: any, playerName: string, prompt: any): boolean {
+        return this.isMandatoryStrongholdAssault(state, playerName, prompt) ||
+            this.isMandatoryStrongholdDefense(state, playerName, prompt);
     }
 
     private isLegalFacedownClick(player: Player, args: any[]): boolean {

@@ -129,6 +129,9 @@ export interface KnownCard {
     polBonus: number;
     swing: number;
     tag: CardTag;
+    // Live ability inspection: this hand card can bow, remove, or send home an
+    // opposing defender during a conflict. Used only by seed 5.
+    canDisableDefender?: boolean;
     conflictTypes?: ('military' | 'political')[];
 }
 
@@ -170,6 +173,10 @@ export interface Omniscient {
         military: HandThreatPlan[];
         political: HandThreatPlan[];
     };
+    // Maximum number currently relevant to reserve planning. Most Imperial
+    // conflict effects disable one character; zero means no affordable known
+    // card can invalidate a stay-home defender.
+    affordableDefenderDisables?: number;
     // Conflict-event ids in the human's deck with no curated model — the tricks
     // the bot is blind to. Empty when the deck is fully analyzed.
     unmodeledEvents: string[];

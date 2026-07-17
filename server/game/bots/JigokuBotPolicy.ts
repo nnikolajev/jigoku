@@ -15,7 +15,9 @@ import { DragonTactics } from './DragonTactics.js';
 import { DuelTactics } from './DuelTactics.js';
 import { ShugenjaTactics } from './ShugenjaTactics.js';
 import { DragonAttachmentTactics } from './DragonAttachmentTactics.js';
-import { attackProvinceLists, strongholdProvinceUnderAttack } from './ProvinceTargeting.js';
+import { StrongholdDefenseTactics } from './StrongholdDefenseTactics.js';
+import type { StrongholdDefenseCharacter, StrongholdDefensePlan } from './StrongholdDefenseTactics';
+import { attackProvinceLists, mustAttackStronghold, strongholdProvinceUnderAttack } from './ProvinceTargeting.js';
 
 type BotCommandName = 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
 
@@ -143,6 +145,9 @@ interface DecideContext {
     // Printed fate cost of conflict cards in our hand by uuid. Player-state
     // summaries omit it; profiles use this to sequence cost reducers.
     conflictCosts?: Record<string, number>;
+    // Exact live total for our stronghold province, including stronghold and
+    // holding modifiers even while the province remains facedown.
+    strongholdProvinceStrength?: number;
 }
 
 class JigokuBotPolicy {
@@ -530,6 +535,42 @@ class JigokuBotPolicy {
             return this.buttonDecision(this.findButton(buttons, ['yes']) || this.findButton(buttons, ['no']), 'confirm-pass');
         }
 
+        // Togashi Tadakatsu (and any future chooseConflictRing restriction)
+        // inserts a button-only declaration prompt before the defender chooses
+        // the ring. Generic fallback prefers buttons containing "pass", which
+        // made the bot decline every conflict while Tadakatsu was in play.
+        // Apply the same exposed-stronghold plan used by the normal ring prompt:
+        // only turtle when it explicitly says hold all. Also verify that a
+        // non-reserved ready character can attack: this menu may still be
+        // offered when the defender can choose a ring but the attacker has no
+        // body for the following Choose attackers prompt.
+        if(/do you wish to declare a conflict/i.test(menuTitle)) {
+            const declare = this.findButton(buttons, ['declare a conflict']);
+            const pass = this.findButton(buttons, ['pass conflict']);
+            const strongholdPlan = this.strongholdDefensePlan(
+                me,
+                opponent,
+                profile,
+                context.omniscient,
+                context.strongholdProvinceStrength
+            );
+            if(strongholdPlan.active && strongholdPlan.mode === 'hold-all' && pass) {
+                return this.buttonDecision(pass, strongholdPlan.reason);
+            }
+            const reserved = new Set(strongholdPlan.reserveUuids);
+            const canAttack = this.readyCharacters(me).some((card) =>
+                !reserved.has(String(card.uuid)) &&
+                ((this.skillValue(card, 'military') || 0) > 0 ||
+                    (this.skillValue(card, 'political') || 0) > 0));
+            if(!canAttack && pass) {
+                return this.buttonDecision(
+                    pass,
+                    strongholdPlan.active ? 'stronghold-no-free-attacker' : 'pass-no-attackers'
+                );
+            }
+            return this.buttonDecision(declare || pass, declare ? 'declare-conflict-opportunity' : 'pass-no-legal-conflict');
+        }
+
         if(title.includes('mulligan')) {
             // Holding-engine decks dig their opening provinces toward Kaiu Wall
             // holdings (mulligan every non-holding province card); other decks
@@ -552,7 +593,7 @@ class JigokuBotPolicy {
         }
 
         if(promptTitle === 'Initiate Conflict' || CONFLICT_TITLE_REGEX.test(promptTitle)) {
-            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, profile, context.omniscient, dishonor, context.cardHint, glory, dragon, duelist, shugenja, attachmentTower, lion, context.legalDirectCardUuids, context.legalRingElements);
+            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, profile, context.omniscient, context.strongholdProvinceStrength, dishonor, context.cardHint, glory, dragon, duelist, shugenja, attachmentTower, lion, context.legalDirectCardUuids, context.legalRingElements);
             if(declaration) {
                 return declaration;
             }
@@ -1095,6 +1136,43 @@ class JigokuBotPolicy {
         return strongholdProvinceUnderAttack(me);
     }
 
+    private strongholdDefenseCharacter(card: any): StrongholdDefenseCharacter {
+        return {
+            uuid: String(card.uuid),
+            military: Math.max(this.skillValue(card, 'military') || 0, 0),
+            political: Math.max(this.skillValue(card, 'political') || 0, 0),
+            covert: !!card.covert
+        };
+    }
+
+    private strongholdDefensePlan(me: any, opponent: any, profile: DeckProfile,
+        omni?: Omniscient, exactStrength?: number): StrongholdDefensePlan {
+        const visibleProvince = (me?.strongholdProvince || []).find((card: any) =>
+            card.isProvince !== false && (card.isProvince || card.type === 'province' || card.facedown));
+        const visibleStrength = Number(visibleProvince?.strengthSummary?.stat);
+        const strength = Number.isFinite(exactStrength) ? Number(exactStrength) :
+            (Number.isFinite(visibleStrength) ? visibleStrength : 3);
+        const theirReady = this.myCharactersInPlay(opponent).filter((card) => !card.bowed);
+        const handThreat = omni ? {
+            military: this.omniHandThreat(omni, 'military').skill,
+            political: this.omniHandThreat(omni, 'political').skill
+        } : undefined;
+        const tactics = new StrongholdDefenseTactics(profile.strongholdDefense);
+        return tactics.plan({
+            active: mustAttackStronghold(me),
+            opponentStrongholdExposed: mustAttackStronghold(opponent),
+            strongholdProvinceStrength: strength,
+            myReady: this.readyCharacters(me).map((card) => this.strongholdDefenseCharacter(card)),
+            opponentReady: theirReady.map((card) => this.strongholdDefenseCharacter(card)),
+            opponentConflictsRemaining: opponent?.stats?.conflictsRemaining,
+            opponentMilitaryRemaining: opponent?.stats?.militaryRemaining,
+            opponentPoliticalRemaining: opponent?.stats?.politicalRemaining,
+            handThreat,
+            defenderDisables: omni?.affordableDefenderDisables,
+            omniscient: !!omni
+        });
+    }
+
     // The own province currently under attack (regular slots or stronghold).
     private attackedOwnProvince(me: any): any {
         return PROVINCE_KEYS
@@ -1343,17 +1421,23 @@ class JigokuBotPolicy {
             : { desired: shugenjaFate, reason: 'tadaka-setup-fate' };
     }
 
-    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, omni?: Omniscient, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, lion: LionTactics | null = null, legalDirectCardUuids?: Record<string, true>, legalRingElements?: Record<string, true>): BotDecision | null {
+    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, omni?: Omniscient, strongholdProvinceStrength?: number, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, lion: LionTactics | null = null, legalDirectCardUuids?: Record<string, true>, legalRingElements?: Record<string, true>): BotDecision | null {
         const lowerMenu = menuTitle.toLowerCase();
         const ready = this.readyCharacters(me).filter((card) => this.isDirectCardLegal(card, legalDirectCardUuids));
         const conflictMatch = promptTitle.match(CONFLICT_TITLE_REGEX);
         const conflictType = conflictMatch ? conflictMatch[1].toLowerCase() : null;
+        const strongholdPlan = this.strongholdDefensePlan(me, opponent, profile, omni, strongholdProvinceStrength);
+        const reserved = new Set(strongholdPlan.reserveUuids);
 
         if(lowerMenu.includes('elemental ring')) {
-            const canAttack = ready.some((card) => (this.skillValue(card, 'military') || 0) > 0 || (this.skillValue(card, 'political') || 0) > 0);
             const passButton = this.findButton(buttons, ['pass conflict']);
+            if(strongholdPlan.active && strongholdPlan.mode === 'hold-all' && passButton) {
+                return this.buttonDecision(passButton, strongholdPlan.reason);
+            }
+            const canAttack = ready.some((card) => !reserved.has(String(card.uuid)) &&
+                ((this.skillValue(card, 'military') || 0) > 0 || (this.skillValue(card, 'political') || 0) > 0));
             if(!canAttack && passButton) {
-                return this.buttonDecision(passButton, 'pass-no-attackers');
+                return this.buttonDecision(passButton, strongholdPlan.active ? 'stronghold-no-free-attacker' : 'pass-no-attackers');
             }
 
             const rings = Object.values(playerState?.rings || {})
@@ -1431,8 +1515,9 @@ class JigokuBotPolicy {
             const type = conflictType || 'military';
             const committed = this.myCharactersInPlay(me).filter((card) => card.inConflict);
             const finalStrongholdPush = this.strongholdUnderAttack(opponent);
-            const eligible = ready.filter((card) =>
-                !card.inConflict && (this.skillValue(card, type) || 0) > 0);
+            const legalUncommitted = ready.filter((card) =>
+                !card.inConflict && !reserved.has(String(card.uuid)));
+            const eligible = legalUncommitted.filter((card) => (this.skillValue(card, type) || 0) > 0);
             const candidates = this.sortBySkillDesc(
                 finalStrongholdPush
                     ? eligible
@@ -1501,13 +1586,16 @@ class JigokuBotPolicy {
             // attackers when a guaranteed break is not yet reachable.
             const keepHome = Math.max(1, profile.attackKeepHome);
             const unbreakableCommit =
-                finalStrongholdPush ? committed.length < totalEligible
+                strongholdPlan.forceAllAttackers ? committed.length < totalEligible
+                    : finalStrongholdPush ? committed.length < totalEligible
                     : profile.attackCommitment === 'all' ? committed.length < totalEligible
                         : profile.attackCommitment === 'breakable-or-hold' ? false
                             : profile.attackCommitment === 'breakable-or-pressure' ? committed.length < Math.max(1, totalEligible - keepHome)
                                 : committed.length < Math.max(1, totalEligible - 1);
-            const needMore = potentialSkill >= breakTarget
-                ? committedSkill < breakTarget || !!payoffCandidate
+            const needMore = strongholdPlan.forceAllAttackers
+                ? committed.length < totalEligible
+                : potentialSkill >= breakTarget
+                    ? committedSkill < breakTarget || !!payoffCandidate
                 : unbreakableCommit;
 
             if(needMore) {
@@ -1525,6 +1613,18 @@ class JigokuBotPolicy {
             const forcedPick = candidates.find((card) => !this.isAttempted('cardClicked', [card.uuid]));
             if(forcedPick) {
                 return this.cardClickDecision(forcedPick, 'declare-attacker');
+            }
+
+            // A zero-skill character can still be a legal attacker (printed 0,
+            // unlike a dash). This matters when Tadakatsu lets the defender
+            // choose a ring and only that conflict type remains: filtering on
+            // positive skill left the engine at an unfinishable Choose
+            // attackers prompt. Prefer useful positive skill above, but use an
+            // engine-legal zero-skill body when it is the only way forward.
+            const zeroSkillPick = legalUncommitted.find((card) =>
+                !this.isAttempted('cardClicked', [card.uuid]));
+            if(zeroSkillPick) {
+                return this.cardClickDecision(zeroSkillPick, 'declare-zero-skill-attacker');
             }
 
             const passButton = this.findButton(buttons, ['pass conflict']);
@@ -1834,8 +1934,12 @@ class JigokuBotPolicy {
         const provinceStrength = this.attackedProvinceStrength(me);
         const potential = defenderSkill + candidates.reduce((total, card) => total + Math.max(this.skillValue(card, type) || 0, 0), 0);
 
+        const defenseCommitment = profile.preventBreakAfterBrokenProvinces > 0 &&
+            this.brokenOuterProvinceCount(me) < profile.preventBreakAfterBrokenProvinces
+            ? 'win-only'
+            : profile.defenseCommitment;
         let target;
-        if(profile.defenseCommitment === 'win-only') {
+        if(defenseCommitment === 'win-only') {
             // The rush would rather lose a province than bow bodies it needs to
             // attack again, so it only defends when it can win the conflict
             // outright. Attackers win ties, so the defense must reach one more
@@ -1871,6 +1975,12 @@ class JigokuBotPolicy {
         }
 
         return this.buttonDecision(done, 'finish-defenders');
+    }
+
+    private brokenOuterProvinceCount(player: any): number {
+        return PROVINCE_KEYS.filter((key) =>
+            (player?.provinces?.[key] || []).some((card: any) => card.isProvince && card.isBroken)
+        ).length;
     }
 
     // Strength of the given player's attacked province; falls back when the
@@ -2211,7 +2321,12 @@ class JigokuBotPolicy {
         // stop exactly at the threshold. If no payoff is reachable, preserve the
         // hand; Centipede Tattoo is the one escape hatch for a losing participant
         // that can fight again next conflict.
-        if(dragonPayoffReady) {
+        // Exact card-count stopping is correct in ordinary conflicts. It is not
+        // a game-loss gate: while either stronghold is being decided, continue
+        // through useful playbook-approved cards (Swell can honor a Monk; Iron
+        // Foundations cycles after a prior Kiho) until the conflict is saved or
+        // no useful play remains.
+        if(dragonPayoffReady && !strongholdDefense && !strongholdAssault) {
             return pass;
         }
         const dragonSaveException = saveDragonCards && standing.losing && dragonCardTarget >= 5 &&

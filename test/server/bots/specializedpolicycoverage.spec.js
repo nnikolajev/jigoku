@@ -812,7 +812,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         });
     });
 
-    it('trades an unwinnable outer province instead of committing Dragon Monk attackers', function() {
+    it('commits Dragon Monk defenders when their combined skill can prevent a break', function() {
         const profile = resolveDeckProfile(
             ['high-house-of-light', 'sacred-sanctuary'],
             flags({ monk: true })
@@ -823,7 +823,9 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
             provinces: {
                 one: [{ uuid: 'frog', id: 'city-of-the-rich-frog', type: 'province',
                     isProvince: true, inConflict: true, strengthSummary: { stat: '3' } }],
-                two: [], three: [], four: []
+                two: [{ id: 'broken-two', isProvince: true, isBroken: true }],
+                three: [{ id: 'broken-three', isProvince: true, isBroken: true }],
+                four: []
             },
             cardPiles: {
                 cardsInPlay: [
@@ -840,13 +842,49 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         const decisions = decideWithEveryPolicy(profile, state);
 
         expectEveryPolicy(decisions, (decision) => {
-            expect(decision.command).toBe('menuButton');
-            expect(decision.target).toBe('Done');
-            expect(decision.reason).toBe('aggressive-concede-defense');
+            expect(decision.command).toBe('cardClicked');
+            expect(decision.target).toBe('togashi-ichi');
+            expect(decision.reason).toBe('declare-defender');
         });
     });
 
-    it('trades an outer province when Dragon can only tie the attacker', function() {
+    it('defends an outer province when Dragon can tie the attacker', function() {
+        const profile = resolveDeckProfile(
+            ['high-house-of-light', 'sacred-sanctuary'],
+            flags({ monk: true })
+        );
+        const state = makeState({
+            promptTitle: 'Military Water Conflict: 7 vs 0',
+            menuTitle: 'Choose defenders', buttons: [DONE],
+            provinces: {
+                one: [{ uuid: 'frog', id: 'city-of-the-rich-frog', type: 'province',
+                    isProvince: true, inConflict: true, strengthSummary: { stat: '3' } }],
+                two: [{ id: 'broken-two', isProvince: true, isBroken: true }],
+                three: [{ id: 'broken-three', isProvince: true, isBroken: true }],
+                four: []
+            },
+            cardPiles: {
+                cardsInPlay: [
+                    character('ichi', 'togashi-ichi', { militarySkillSummary: { stat: '6' } }),
+                    character('keeper', 'keeper-initiate', { militarySkillSummary: { stat: '1' } })
+                ]
+            }
+        }, {}, {
+            conflict: {
+                type: 'military', attackingPlayerId: 'opponent-id',
+                defendingPlayerId: 'bot-id', attackerSkill: 7, defenderSkill: 0
+            }
+        });
+        const decisions = decideWithEveryPolicy(profile, state);
+
+        expectEveryPolicy(decisions, (decision) => {
+            expect(decision.command).toBe('cardClicked');
+            expect(decision.target).toBe('togashi-ichi');
+            expect(decision.reason).toBe('declare-defender');
+        });
+    });
+
+    it('preserves the Dragon attack engine before two outer provinces are broken', function() {
         const profile = resolveDeckProfile(
             ['high-house-of-light', 'sacred-sanctuary'],
             flags({ monk: true })

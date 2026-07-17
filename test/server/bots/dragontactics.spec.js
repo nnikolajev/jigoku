@@ -33,8 +33,9 @@ describe('DragonTactics', function() {
         it('parks Sacred Sanctuary under the stronghold', function() {
             const profile = resolveDeckProfile(['sacred-sanctuary', 'high-house-of-light'], MONK);
             expect(profile.strongholdProvinceId).toBe('sacred-sanctuary');
-            expect(profile.defenseCommitment).toBe('win-only');
+            expect(profile.defenseCommitment).toBe('prevent-break');
             expect(profile.spendCardsOnDefense).toBe(false);
+            expect(profile.preventBreakAfterBrokenProvinces).toBe(2);
             expect(resolveDeckProfile(['high-house-of-light'], MONK).strongholdProvinceId).toBeUndefined();
         });
     });

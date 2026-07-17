@@ -35,6 +35,8 @@ import { SHUGENJA_DEFAULTS } from './ShugenjaTactics.js';
 import type { ShugenjaProfile } from './ShugenjaTactics';
 import { DRAGON_ATTACHMENT_DEFAULTS } from './DragonAttachmentTactics.js';
 import type { DragonAttachmentProfile } from './DragonAttachmentTactics';
+import { STRONGHOLD_DEFENSE_DEFAULTS } from './StrongholdDefenseTactics.js';
+import type { StrongholdDefenseProfile } from './StrongholdDefenseTactics';
 
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
@@ -57,6 +59,7 @@ export interface DeckProfile {
     // ---- dynasty / economy ----
     fateAwareEconomy: FateAwareEconomyProfile; // injectable dynasty spending policy used by seeds 1 and 5
     conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1, 2, and 5
+    strongholdDefense: StrongholdDefenseProfile; // shared injectable last-province reserve planner for every seed
     mulliganForHoldings: boolean; // dig opening provinces toward holdings
     digWithActions: boolean; // fire dynasty Action diggers (Kyuden Hida, engineers)
     digMinBoardCharacters: number; // only dig once this many own characters are already in play
@@ -83,6 +86,11 @@ export interface DeckProfile {
     // ---- defense ----
     defenseCommitment: DefenseCommitment;
     spendCardsOnDefense: boolean; // play conflict cards / fire abilities to defend
+    // Before this many outer provinces are broken, use win-only defense even
+    // when defenseCommitment is prevent-break. Zero enables prevent-break from
+    // round one. Lets province-trading decks protect the third break without
+    // bowing their whole attack engine early.
+    preventBreakAfterBrokenProvinces: number;
     chumpBlock: boolean; // when a defense is hopeless, still declare ONE cheap
                          // defender instead of conceding: an unopposed loss
                          // costs 1 honor, and honor attrition is how slow
@@ -142,6 +150,7 @@ export interface DeckProfile {
 export const DEFAULT_PROFILE: DeckProfile = {
     fateAwareEconomy: { ...DEFAULT_FATE_AWARE_ECONOMY },
     conflictCardEconomy: { ...DEFAULT_CONFLICT_CARD_ECONOMY },
+    strongholdDefense: { ...STRONGHOLD_DEFENSE_DEFAULTS },
     mulliganForHoldings: false,
     digWithActions: false,
     digMinBoardCharacters: 0,
@@ -152,6 +161,7 @@ export const DEFAULT_PROFILE: DeckProfile = {
     reserveDynastyFate: true,
     defenseCommitment: 'prevent-break',
     spendCardsOnDefense: true,
+    preventBreakAfterBrokenProvinces: 0,
     chumpBlock: false,
     defenseSkillBuffer: 0
 };
@@ -165,7 +175,8 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
     const profile: DeckProfile = {
         ...DEFAULT_PROFILE,
         fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },
-        conflictCardEconomy: { ...DEFAULT_PROFILE.conflictCardEconomy }
+        conflictCardEconomy: { ...DEFAULT_PROFILE.conflictCardEconomy },
+        strongholdDefense: { ...DEFAULT_PROFILE.strongholdDefense }
     };
     if(!strategy) {
         return profile;
@@ -389,12 +400,15 @@ const OVERRIDES: ProfileOverride[] = [
             // The monks are cheap and the payoffs count PARTICIPANTS' cards:
             // commit everything (measured vs all-but-one below).
             attackCommitment: 'all',
-            // Card-count payoffs produce their value on our attacks. Trade an
-            // outer province when the board cannot WIN the defense, then keep
-            // those bodies and cards ready for the counterattack. Stronghold
-            // defense still overrides both gates in JigokuBotPolicy.
-            defenseCommitment: 'win-only',
-            spendCardsOnDefense: false
+            // Earlier tuning conceded every defense the board could not win.
+            // That let modest attacks break three outer provinces almost
+            // uncontested, leaving no time for the card-count engine. Commit
+            // bodies when they can prevent a break, but keep hand cards for
+            // the deck's own five-card conflict engine. The generic stronghold
+            // override still spends every useful card on game-ending defense.
+            defenseCommitment: 'prevent-break',
+            spendCardsOnDefense: false,
+            preventBreakAfterBrokenProvinces: 2
         }
     },
     {
@@ -539,6 +553,9 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                         ? { durableCharacterIds: [...override.apply.fateAwareEconomy.durableCharacterIds] }
                         : {})
                 };
+            }
+            if(override.apply.strongholdDefense) {
+                apply.strongholdDefense = { ...override.apply.strongholdDefense };
             }
             Object.assign(profile, apply);
         }

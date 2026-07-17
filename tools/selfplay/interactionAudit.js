@@ -162,6 +162,8 @@ function interactionDiagnostic(controller, game, playerName) {
         promptStep = undefined;
         targetHint = undefined;
     }
+    const liveCardsInPlay = player?.cardsInPlay?.toArray?.() || [];
+    const conflict = promptStep?.conflict;
     return {
         selectCard: me.selectCard === true,
         selectRing: me.selectRing === true,
@@ -176,6 +178,36 @@ function interactionDiagnostic(controller, game, playerName) {
             controller: card.controller?.name || null
         })),
         liveSelectableRings: (player?.promptState?.selectableRings || []).map((ring) => ring.element),
+        liveRingChecks: Object.values(game.rings || {}).map((ring) => {
+            let legalNow = null;
+            try {
+                legalNow = typeof promptStep?.checkRingCondition === 'function'
+                    ? promptStep.checkRingCondition(ring)
+                    : null;
+            } catch{
+                legalNow = null;
+            }
+            return { element: ring.element, conflictType: ring.conflictType, legalNow };
+        }),
+        liveCardsInPlay: liveCardsInPlay.map((card) => {
+            let legalNow = null;
+            try {
+                legalNow = typeof promptStep?.checkCardCondition === 'function'
+                    ? promptStep.checkCardCondition(card)
+                    : null;
+            } catch{
+                legalNow = null;
+            }
+            return {
+                uuid: card.uuid || null,
+                id: card.id || null,
+                name: card.name || null,
+                bowed: !!card.bowed,
+                military: Number(card.getMilitarySkill?.()) || 0,
+                political: Number(card.getPoliticalSkill?.()) || 0,
+                legalNow
+            };
+        }),
         promptStep: promptStep ? {
             type: promptStep.constructor?.name || null,
             complete: typeof promptStep.isComplete === 'function' ? promptStep.isComplete() : null,
@@ -191,7 +223,17 @@ function interactionDiagnostic(controller, game, playerName) {
                 : null,
             reachedLimit: typeof promptStep.selector?.hasReachedLimit === 'function'
                 ? promptStep.selector.hasReachedLimit(promptStep.selectedCards || [], promptStep.context)
-                : null
+                : null,
+            conflict: conflict ? {
+                type: conflict.conflictType || null,
+                element: conflict.element || null,
+                province: conflict.conflictProvince ? {
+                    id: conflict.conflictProvince.id || null,
+                    name: conflict.conflictProvince.name || null,
+                    location: conflict.conflictProvince.location || null
+                } : null,
+                attackers: (conflict.attackers || []).map((card) => card.id || card.name || card.uuid)
+            } : null
         } : null,
         targetHint: targetHint || null,
         policySignature: controller.policy?.lastSignature || null,

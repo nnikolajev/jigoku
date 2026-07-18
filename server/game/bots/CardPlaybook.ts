@@ -1813,7 +1813,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'strongest',
         priority: 8,
         summary: 'political: honor an own participant',
-        shouldPlay: (ctx) => participating(ctx.myCharacters).length > 0
+        shouldPlay: (ctx) => participating(ctx.myCharacters).some((card) => !card.isHonored) ||
+            participating(ctx.opponentCharacters).some((card) => !card.isDishonored)
     }),
 
     // Political duel: honor the winner, dishonor the loser. Steered by the

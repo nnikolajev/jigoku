@@ -60,8 +60,8 @@ current zone.
 - Doji Challenger pulls a future defender only after the current attack is
   already secure, setting up the next conflict.
 - Court Games compares glory and the Savvy Politician / Noble Sacrifice setup
-  value before choosing honor or dishonor. Savvy then honors the best remaining
-  persistent character.
+  value before choosing honor or dishonor. Savvy then honors the highest-glory
+  remaining character, using persistence only as a tie-break.
 - Noble Sacrifice spends the least persistent honored body and removes the
   strongest, most persistent dishonored opposing character. Storied Defeat is
   enemy-only and never bows or dishonors the bot's own duel loser.

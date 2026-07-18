@@ -790,6 +790,38 @@ describe('Jigoku heuristic bot', function() {
             .toBe('Dishonor an opposing character');
     });
 
+    it('Court Games glory profile dishonors when every own participant is already honored', function() {
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Political Water Conflict', menuTitle: 'Choose one',
+                    buttons: [
+                        { text: 'Honor a friendly character', arg: 'honor', uuid: 'h' },
+                        { text: 'Dishonor an opposing character', arg: 'dishonor', uuid: 'd' }
+                    ],
+                    cardPiles: { cardsInPlay: [{
+                        uuid: 'mine', type: 'character', inConflict: true, isHonored: true,
+                        glorySummary: { stat: '3' }
+                    }] }
+                },
+                Human: {
+                    name: 'Human', cardPiles: { cardsInPlay: [{
+                        uuid: 'enemy', type: 'character', inConflict: true, isDishonored: false,
+                        glorySummary: { stat: '1' }
+                    }] }
+                }
+            }
+        };
+        const profile = require('../../../build/server/game/bots/DeckProfiles.js')
+            .profileFromStrategy({ glory: true });
+
+        expect(new JigokuBotPolicy('glory-court-saturated').decide(
+            state,
+            'Jigoku Bot',
+            { profile }
+        ).target).toBe('Dishonor an opposing character');
+    });
+
     it('declines a self fate-removal follow-up (A Legion of One recur/no-effect)', function() {
         const state = {
             players: {
@@ -3260,7 +3292,7 @@ describe('Jigoku heuristic bot', function() {
             expect(decision.args[0]).toBe('enemy-5');
         });
 
-        it('honors towers first, then highest glory, and dishonors highest-glory enemies', function() {
+        it('honors highest-glory own characters and dishonors highest-glory enemies', function() {
             const own = new JigokuBotPolicy('honor-glory').decide(
                 makeTargetState([
                     character('skill-6', 6, { glorySummary: { stat: '0' } }),
@@ -3270,7 +3302,7 @@ describe('Jigoku heuristic bot', function() {
                 'Jigoku Bot',
                 { targetHint: { gameActions: ['honor'], sourceIsMine: true } }
             );
-            expect(own.args[0]).toBe('tower');
+            expect(own.args[0]).toBe('glory-3');
 
             const enemy = new JigokuBotPolicy('dishonor-glory').decide(
                 makeTargetState([], [
@@ -3281,6 +3313,145 @@ describe('Jigoku heuristic bot', function() {
                 { targetHint: { gameActions: ['dishonor'], sourceIsMine: true } }
             );
             expect(enemy.args[0]).toBe('glory-3');
+        });
+
+        it('accepts a forced Court Games dishonor on its lowest-glory character', function() {
+            const policy = new JigokuBotPolicy('court-games-forced-low-glory');
+            const decision = policy.decide(
+                makeTargetState([
+                    character('prodigy', 3, {
+                        inConflict: true,
+                        politicalSkillSummary: { stat: '3' },
+                        glorySummary: { stat: '2' }
+                    }),
+                    character('tsukune', 4, {
+                        inConflict: true,
+                        politicalSkillSummary: { stat: '4' },
+                        glorySummary: { stat: '4' }
+                    }),
+                    character('dreamer', 3, {
+                        inConflict: true,
+                        politicalSkillSummary: { stat: '3' },
+                        glorySummary: { stat: '0' }
+                    })
+                ], []),
+                'Jigoku Bot',
+                {
+                    targetHint: {
+                        gameActions: ['dishonor'], sourceIsMine: false,
+                        sourceType: 'event', sourceCardId: 'court-games'
+                    },
+                    cardHint: (id) => getPlaybookEntry(id)
+                }
+            );
+
+            expect(decision.args[0]).toBe('dreamer');
+            expect(decision.reason).toBe('forced-dishonor-own-lowest-glory');
+        });
+
+        it('minimizes a forced honor placed on an enemy character', function() {
+            const decision = new JigokuBotPolicy('forced-enemy-honor').decide(
+                makeTargetState([], [
+                    character('enemy-high', 5, { glorySummary: { stat: '4' } }),
+                    character('enemy-zero', 1, { glorySummary: { stat: '0' } })
+                ]),
+                'Jigoku Bot',
+                { targetHint: { gameActions: ['honor'], sourceIsMine: false } }
+            );
+
+            expect(decision.args[0]).toBe('enemy-zero');
+            expect(decision.reason).toBe('forced-honor-enemy-lowest-glory');
+        });
+
+        it('resolves Ujina forced self-removal for the Phoenix glory profile instead of looping Cancel', function() {
+            const state = makeTargetState([
+                character('own-strong', 5),
+                character('own-weak', 1)
+            ], []);
+            const profile = require('../../../build/server/game/bots/DeckProfiles.js')
+                .profileFromStrategy({ glory: true });
+            const decision = new JigokuBotPolicy('glory-ujina-forced').decide(
+                state,
+                'Jigoku Bot',
+                {
+                    profile,
+                    targetHint: {
+                        sourceCardId: 'isawa-ujina',
+                        sourceIsMine: true,
+                        gameActions: ['removeFromGame']
+                    }
+                }
+            );
+
+            expect(decision.args[0]).toBe('own-weak');
+            expect(decision.reason).toBe('ujina-forced-own-weakest');
+        });
+
+        it('dishonors a participating enemy when the glory loss flips the conflict', function() {
+            const state = makeTargetState(
+                [character('own', 4, { politicalSkillSummary: { stat: '4' } })],
+                [
+                    character('participant', 2, {
+                        inConflict: true,
+                        politicalSkillSummary: { stat: '2' },
+                        glorySummary: { stat: '2' }
+                    }),
+                    character('home-tower', 7, {
+                        politicalSkillSummary: { stat: '7' },
+                        glorySummary: { stat: '4' }
+                    })
+                ]
+            );
+            state.players['Jigoku Bot'].id = 'BOT';
+            state.players.Human.id = 'HUMAN';
+            state.conflict = {
+                type: 'political',
+                attackingPlayerId: 'BOT',
+                attackerSkill: 4,
+                defenderSkill: 5
+            };
+
+            const decision = new JigokuBotPolicy('dishonor-conflict-swing').decide(
+                state,
+                'Jigoku Bot',
+                { targetHint: { gameActions: ['dishonor'], sourceIsMine: true } }
+            );
+
+            expect(decision.args[0]).toBe('participant');
+            expect(decision.reason).toBe('dishonor-enemy-best-status-impact');
+        });
+
+        it('dishonors the highest-glory enemy at home when a participant cannot change the conflict', function() {
+            const state = makeTargetState(
+                [character('own', 1, { politicalSkillSummary: { stat: '1' } })],
+                [
+                    character('participant', 2, {
+                        inConflict: true,
+                        politicalSkillSummary: { stat: '2' },
+                        glorySummary: { stat: '2' }
+                    }),
+                    character('home-tower', 7, {
+                        politicalSkillSummary: { stat: '7' },
+                        glorySummary: { stat: '4' }
+                    })
+                ]
+            );
+            state.players['Jigoku Bot'].id = 'BOT';
+            state.players.Human.id = 'HUMAN';
+            state.conflict = {
+                type: 'political',
+                attackingPlayerId: 'BOT',
+                attackerSkill: 1,
+                defenderSkill: 5
+            };
+
+            const decision = new JigokuBotPolicy('dishonor-home-value').decide(
+                state,
+                'Jigoku Bot',
+                { targetHint: { gameActions: ['dishonor'], sourceIsMine: true } }
+            );
+
+            expect(decision.args[0]).toBe('home-tower');
         });
 
         it('gives up its own weakest character when a harmful effect can only hit its side', function() {

@@ -18,11 +18,14 @@ describe('DeckProfiles', function() {
         const second = profileFromStrategy(GENERIC);
         first.conflictCardEconomy.priorityWeight = 99;
         first.strongholdDefense.skillBuffer = 99;
+        first.personalHonor.persistentCharacterFate = 99;
 
         expect(second.conflictCardEconomy.priorityWeight).toBe(DEFAULT_PROFILE.conflictCardEconomy.priorityWeight);
         expect(DEFAULT_PROFILE.conflictCardEconomy.priorityWeight).not.toBe(99);
         expect(second.strongholdDefense.skillBuffer).toBe(DEFAULT_PROFILE.strongholdDefense.skillBuffer);
         expect(DEFAULT_PROFILE.strongholdDefense.skillBuffer).not.toBe(99);
+        expect(second.personalHonor.persistentCharacterFate).toBe(DEFAULT_PROFILE.personalHonor.persistentCharacterFate);
+        expect(DEFAULT_PROFILE.personalHonor.persistentCharacterFate).not.toBe(99);
     });
 
     it('aggressive (Unicorn) keeps the rush knobs', function() {

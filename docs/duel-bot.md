@@ -69,7 +69,8 @@ Tsuma and deliberately receives the shared duel package.
   their target prompt, preventing the old cancel/retry loop.
 - **Honor plan**: while a tower is unhonored, Fire gains enough ring priority
   to beat the ordinary Earth/Void ordering (rings carrying 2+ fate still win
-  the global economic priority).
+  the global economic priority). Way of the Crane honors the eligible
+  highest-glory character; tower persistence breaks equal-glory ties.
 - **Vassal Fields under the stronghold** (`crane-duel-vassal-fields`
   override): drains 1 attacker fate every conflict fought there.
 - Tsuma (characters enter honored), Magistrate Station (ready an honored

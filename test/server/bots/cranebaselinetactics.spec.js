@@ -143,6 +143,16 @@ describe('CraneBaselineTactics', function() {
             expect(tactics.desiredDynastyFateReserve(3)).toBe(1);
         });
 
+        it('chains Savvy Politician honor onto the highest-glory target', function() {
+            const persistentLowGlory = {
+                uuid: 'persistent', fate: 4, glorySummary: { stat: '1' }, isHonored: false
+            };
+            const highGlory = {
+                uuid: 'high-glory', fate: 0, glorySummary: { stat: '3' }, isHonored: false
+            };
+            expect(tactics.pickHonorChainTarget([persistentLowGlory, highGlory])).toBe(highGlory);
+        });
+
         it('can buy a second durable character in one late dynasty phase to reach the board floor', function() {
             const player = 'Jigoku Bot';
             const pass = { text: 'Pass', arg: 'pass', uuid: 'pass' };

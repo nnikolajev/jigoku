@@ -23,10 +23,11 @@ gated on its presence.
   target steered to an honored participant (straight stats now) or the
   biggest ready body (banks glory for the favor count). Rally to the Cause
   goes under the stronghold (`phoenix-rally-stronghold` override).
-- **Honor engine**: Asako Diplomat's win reaction honors our strongest
-  un-honored character (falling back to dishonoring their strongest — the
+- **Honor engine**: Asako Diplomat's win reaction honors our highest-glory
+  un-honored character (falling back to dishonoring their highest-glory target — the
   target pick and the follow-up honor/dishonor menu are linked through
-  `diplomatChoice`); Court Games picks "Honor a friendly character"; Kiku
+  `diplomatChoice`); Court Games honors a friendly participant while one can
+  receive the status, then switches to enemy dishonor when all are honored; Kiku
   Matsuri honors our strongest and their weakest through the generic
   helpful-polarity; Benten's Touch bows a home Shugenja to honor a
   participant; Magnificent Kimono (pride, `abilityValue`) stacks more.
@@ -36,7 +37,9 @@ gated on its presence.
 - **Cancels**: Censure (with the Favor) and Voice of Honor (more honored
   characters) fire through the priority>=6 interrupt path.
 - **Void punishes**: Isawa Ujina's forced reaction removes their strongest
-  no-fate character; Shiba Tsukune resolves 2 unclaimed rings at phase end;
+  no-fate character; when only friendly targets are legal it removes the
+  weakest instead of repeatedly cancelling the forced prompt. Shiba Tsukune
+  resolves 2 unclaimed rings at phase end;
   Isawa Kaede's double-resolve is engine-automatic.
 - **Water package**: Against the Waves READIES an own bowed Shugenja (the
   bow/ready menu is steered to Ready); Prodigy readies itself while water is

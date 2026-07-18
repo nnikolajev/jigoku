@@ -23,6 +23,7 @@ reads the knobs; the profile is chosen per deck.
 | `conflictCardEconomy` | value-per-fate candidate planner shared by seeds 1, 2, and 5 |
 | `strongholdDefense` | last-province reserve planner and fair/omniscient defender limits |
 | `attachmentControl` | shared Let Go policy comparing own debuff removal with enemy attachment removal |
+| `personalHonor` | shared glory-aware honor/dishonor targeting; conflict swing and home-target preferences are overridable |
 | `mulliganForHoldings` | dig opening provinces toward holdings (Kaiu Wall) |
 | `digWithActions` | fire dynasty Action diggers (Kyuden Hida, engineers) |
 | `digMinBoardCharacters` | only dig once this many own characters are in play (0 = always) |
@@ -94,6 +95,12 @@ tower deck, and `craneBaseline?: CraneBaselineProfile`
 duel/honor/control baseline. Same gating rule:
 the sub-profile exists only for decks whose strategy/override derives it, and
 every policy hook checks its presence.
+
+`personalHonor: PersonalHonorProfile` is different: every deck receives this
+generic injectable profile. `PersonalHonorTactics.ts` centralizes high-glory
+friendly honor, low-glory forced self-dishonor, low-glory forced enemy honor,
+and conflict-aware enemy dishonor. A deck override may change its conflict/home
+preferences without duplicating target code.
 
 ## Case study: Crab Defense (EmeraldDB 3a8006b7)
 

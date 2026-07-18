@@ -259,6 +259,15 @@ describe('DuelTactics', function() {
             const weakEnemy = { uuid: 'weak', fate: 0, skill: 2, isDishonored: true, attachments: [] };
             const enemyTower = { uuid: 'enemy-tower', fate: 3, skill: 5, isDishonored: true, attachments: [{}] };
             expect(tactics.pickHonorTarget([helper, tower], skill)).toBe(tower);
+            const highGlorySupport = {
+                uuid: 'high-glory', id: 'kakita-favorite', fate: 0, skill: 2,
+                glorySummary: { stat: '3' }, isHonored: false, attachments: []
+            };
+            expect(tactics.pickHonorTarget(
+                [tower, highGlorySupport],
+                skill,
+                (card) => Number(card.glorySummary?.stat) || 0
+            )).toBe(highGlorySupport);
             expect(tactics.pickNobleSacrifice([tower, helper], skill)).toBe(helper);
             expect(tactics.pickNobleVictim([weakEnemy, enemyTower], skill)).toBe(enemyTower);
         });

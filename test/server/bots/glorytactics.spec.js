@@ -1,5 +1,5 @@
 const { GloryTactics, GLORY_DEFAULTS } = require('../../../build/server/game/bots/GloryTactics.js');
-const { deriveDeckStrategy } = require('../../../build/server/game/bots/CardPlaybook.js');
+const { deriveDeckStrategy, getPlaybookEntry } = require('../../../build/server/game/bots/CardPlaybook.js');
 const { profileFromStrategy, resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
 
 // Locks the glory/honor layer (Phoenix For Honor and Glory): strategy
@@ -7,6 +7,21 @@ const { profileFromStrategy, resolveDeckProfile } = require('../../../build/serv
 describe('GloryTactics', function() {
     const tactics = new GloryTactics(GLORY_DEFAULTS);
     const GLORY = { holdingEngine: false, defensive: false, aggressive: false, dishonor: false, glory: true };
+
+    it('plays Court Games only when one status mode has a useful target', function() {
+        const shouldPlay = getPlaybookEntry('court-games').shouldPlay;
+        const own = { inConflict: true, isHonored: false };
+        const enemy = { inConflict: true, isDishonored: false };
+        expect(shouldPlay({ myCharacters: [own], opponentCharacters: [] })).toBe(true);
+        expect(shouldPlay({
+            myCharacters: [{ ...own, isHonored: true }],
+            opponentCharacters: [enemy]
+        })).toBe(true);
+        expect(shouldPlay({
+            myCharacters: [{ ...own, isHonored: true }],
+            opponentCharacters: [{ ...enemy, isDishonored: true }]
+        })).toBe(false);
+    });
 
     describe('strategy derivation', function() {
         it('flips glory on for the Phoenix stronghold or the marker set', function() {

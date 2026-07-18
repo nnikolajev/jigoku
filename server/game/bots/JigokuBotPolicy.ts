@@ -19,6 +19,8 @@ import { StrongholdDefenseTactics } from './StrongholdDefenseTactics.js';
 import type { StrongholdDefenseCharacter, StrongholdDefensePlan } from './StrongholdDefenseTactics';
 import { CraneBaselineTactics } from './CraneBaselineTactics.js';
 import { AttachmentControlTactics } from './AttachmentControlTactics.js';
+import { PersonalHonorTactics, PERSONAL_HONOR_DEFAULTS } from './PersonalHonorTactics.js';
+import type { PersonalHonorConflict } from './PersonalHonorTactics';
 import { attackProvinceLists, mustAttackStronghold, strongholdProvinceUnderAttack } from './ProvinceTargeting.js';
 
 type BotCommandName = 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
@@ -508,6 +510,7 @@ class JigokuBotPolicy {
             ? new CraneBaselineTactics(profile.craneBaseline)
             : null;
         const attachmentControl = new AttachmentControlTactics(profile.attachmentControl);
+        const personalHonor = new PersonalHonorTactics(profile.personalHonor || PERSONAL_HONOR_DEFAULTS);
 
         // Card-name controls have no prompt buttons and cannot use the normal
         // button fallback. Gossip must name a card from the opponent's actual,
@@ -934,11 +937,19 @@ class JigokuBotPolicy {
             if(ringSwitch) {
                 return this.buttonDecision(ringSwitch, 'glory-kuroi-mori-ring');
             }
-            // Court Games: honor our own participant over making the
-            // opponent dishonor theirs.
+            // Court Games: build the glory deck's honor engine while an own
+            // participant can receive the status. If all are already honored,
+            // take the still-beneficial enemy dishonor instead of choosing a
+            // targetless mode.
             const courtHonor = buttons.find((button) => String(button.text || '').startsWith('Honor a friendly'));
-            if(courtHonor) {
-                return this.buttonDecision(courtHonor, 'glory-court-games-honor');
+            const courtDishonor = buttons.find((button) => String(button.text || '').startsWith('Dishonor an opposing'));
+            if(courtHonor && courtDishonor) {
+                const canHonorOwn = this.myCharactersInPlay(me).some((card) =>
+                    card.inConflict && !card.isHonored);
+                return this.buttonDecision(
+                    canHonorOwn ? courtHonor : courtDishonor,
+                    canHonorOwn ? 'glory-court-games-honor' : 'glory-court-games-dishonor'
+                );
             }
             // Against the Waves (bow-or-ready menu on an own Shugenja):
             // always READY.
@@ -994,17 +1005,18 @@ class JigokuBotPolicy {
         const courtDishonorBtn = buttons.find((button) => String(button.text || '').startsWith('Dishonor an opposing'));
         if(courtHonorBtn && courtDishonorBtn) {
             if(crane) {
-                const honorOwn = crane.shouldHonorWithCourtGames(this.playbookContext(playerState, me, dishonor));
+                const honorOwn = crane.shouldHonorWithCourtGames(
+                    this.playbookContext(playerState, me, dishonor),
+                    (card) => personalHonor.gloryValue(card)
+                );
                 return this.buttonDecision(honorOwn ? courtHonorBtn : courtDishonorBtn,
                     honorOwn ? 'crane-court-games-honor-engine' : 'crane-court-games-dishonor-threat');
             }
             const own = this.myCharactersInPlay(me)
-                .filter((card) => card.inConflict && !card.isHonored)
-                .sort((a, b) => this.gloryValue(b) - this.gloryValue(a));
+                .filter((card) => card.inConflict && !card.isHonored);
             const enemy = (opponent?.cardPiles?.cardsInPlay || [])
-                .filter((card: any) => card.type === 'character' && card.inConflict && !card.isDishonored)
-                .sort((a: any, b: any) => this.gloryValue(b) - this.gloryValue(a));
-            const honorOwn = own.length > 0 && (enemy.length === 0 || this.gloryValue(own[0]) >= this.gloryValue(enemy[0]));
+                .filter((card: any) => card.type === 'character' && card.inConflict && !card.isDishonored);
+            const honorOwn = personalHonor.shouldHonorOwn(own, enemy);
             return this.buttonDecision(honorOwn ? courtHonorBtn : courtDishonorBtn,
                 honorOwn ? 'court-games-honor-own-high-glory' : 'court-games-dishonor-enemy-high-glory');
         }
@@ -1056,7 +1068,15 @@ class JigokuBotPolicy {
             return this.buttonDecision(choice || buttons[0], 'choose-triggered-ability');
         }
 
-        const ringResolution = this.ringResolutionDecision(playerState, me, promptTitle, menuTitle, buttons, dishonor);
+        const ringResolution = this.ringResolutionDecision(
+            playerState,
+            me,
+            promptTitle,
+            menuTitle,
+            buttons,
+            personalHonor,
+            dishonor
+        );
         if(ringResolution) {
             return ringResolution;
         }
@@ -2190,6 +2210,24 @@ class JigokuBotPolicy {
             amAttacker,
             attackerSkill,
             defenderSkill
+        };
+    }
+
+    private personalHonorConflict(playerState: any, me: any): PersonalHonorConflict | null {
+        const standing = this.conflictStanding(playerState, me);
+        const type = playerState?.conflict?.type;
+        if(!standing || (type !== 'military' && type !== 'political')) {
+            return null;
+        }
+        const opponent = this.opponentPlayer(playerState, me);
+        return {
+            axis: type,
+            mySkill: standing.amAttacker ? standing.attackerSkill : standing.defenderSkill,
+            opponentSkill: standing.amAttacker ? standing.defenderSkill : standing.attackerSkill,
+            amAttacker: standing.amAttacker,
+            attackedProvinceStrength: standing.amAttacker
+                ? this.attackedProvinceStrength(opponent, 4)
+                : undefined
         };
     }
 
@@ -4062,6 +4100,7 @@ class JigokuBotPolicy {
         crane: CraneBaselineTactics | null = null,
         attachmentControl: AttachmentControlTactics | null = null
     ): BotDecision | null {
+        const personalHonor = new PersonalHonorTactics(profile.personalHonor || PERSONAL_HONOR_DEFAULTS);
         const cards = this.findVisibleCards(playerState).filter((card) =>
             card.selectable && card.uuid && !this.isAttempted('cardClicked', [card.uuid]));
         if(cards.length === 0) {
@@ -4178,7 +4217,24 @@ class JigokuBotPolicy {
         }
 
         if(targetHint) {
-            const aimed = this.polarityTargetDecision(cards, playerState, me, skillType, targetHint, buttons, cardHint, glory, lion, dragon, duelist, shugenja, attachmentTower, crane, attachmentControl);
+            const aimed = this.polarityTargetDecision(
+                cards,
+                playerState,
+                me,
+                skillType,
+                targetHint,
+                buttons,
+                personalHonor,
+                cardHint,
+                glory,
+                lion,
+                dragon,
+                duelist,
+                shugenja,
+                attachmentTower,
+                crane,
+                attachmentControl
+            );
             if(aimed) {
                 return aimed;
             }
@@ -4209,7 +4265,7 @@ class JigokuBotPolicy {
     // hit the opponent's strongest card (or our weakest when only own cards
     // are legal, e.g. a forced sacrifice), helpful effects go to our own side
     // (preferring characters already in the conflict).
-    private polarityTargetDecision(cards: any[], playerState: any, me: any, skillType: string, targetHint: TargetHint, buttons: any[], cardHint?: CardHintLookup, glory: GloryTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, attachmentControl: AttachmentControlTactics | null = null): BotDecision | null {
+    private polarityTargetDecision(cards: any[], playerState: any, me: any, skillType: string, targetHint: TargetHint, buttons: any[], personalHonor: PersonalHonorTactics, cardHint?: CardHintLookup, glory: GloryTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, attachmentControl: AttachmentControlTactics | null = null): BotDecision | null {
         const myUuids = new Set(this.findVisibleCards(me).map((card) => card.uuid));
         const mine = cards.filter((card) => this.cardBelongsToPlayer(card, me, myUuids));
         const theirs = cards.filter((card) => !this.cardBelongsToPlayer(card, me, myUuids));
@@ -4268,14 +4324,15 @@ class JigokuBotPolicy {
 
         if(duelist && targetHint.sourceCardId === 'way-of-the-crane' && actionNames.includes('honor')) {
             const target = duelist.pickHonorTarget(mine,
-                (card) => Math.max(this.skillValue(card, 'military') || 0, this.skillValue(card, 'political') || 0));
+                (card) => Math.max(this.skillValue(card, 'military') || 0, this.skillValue(card, 'political') || 0),
+                (card) => personalHonor.gloryValue(card));
             if(target) {
                 return this.cardClickDecision(target, 'duel-honor-tower');
             }
         }
 
         if(crane && targetHint.sourceCardId === 'savvy-politician' && actionNames.includes('honor')) {
-            const target = crane.pickHonorChainTarget(mine);
+            const target = crane.pickHonorChainTarget(mine, (card) => personalHonor.gloryValue(card));
             if(target) {
                 return this.cardClickDecision(target, 'crane-savvy-honor-chain');
             }
@@ -4426,13 +4483,15 @@ class JigokuBotPolicy {
         // Ujina is a forced reaction. Prefer an enemy with no fate; if the
         // engine offers only our characters, cancelling simply reopens the
         // forced prompt forever, so sacrifice our weakest legal body.
-        if(shugenja && targetHint.sourceCardId === 'isawa-ujina' &&
+        if(targetHint.sourceCardId === 'isawa-ujina' &&
             (targetHint.gameActions || []).includes('removeFromGame')) {
             if(theirs.length > 0) {
                 return this.cardClickDecision(this.sortBySkillDesc(theirs, skillType)[0], 'ujina-remove-enemy');
             }
             if(mine.length > 0) {
-                return this.cardClickDecision(shugenja.pickWeakest(mine), 'ujina-forced-own-weakest');
+                const weakest = shugenja?.pickWeakest(mine) ||
+                    this.sortBySkillDesc(mine, skillType).slice().reverse()[0];
+                return this.cardClickDecision(weakest, 'ujina-forced-own-weakest');
             }
         }
 
@@ -4770,11 +4829,11 @@ class JigokuBotPolicy {
             const unhonored = mine.filter((card) => !card.isHonored);
             if(unhonored.length > 0) {
                 this.diplomatChoice = 'honor';
-                return this.cardClickDecision(this.sortByStatusImpact(unhonored, skillType)[0], 'diplomat-honor-own');
+                return this.cardClickDecision(personalHonor.pickOwnHonor(unhonored), 'diplomat-honor-own');
             }
             if(theirs.length > 0) {
                 this.diplomatChoice = 'dishonor';
-                return this.cardClickDecision(this.sortByStatusImpact(theirs, skillType)[0], 'diplomat-dishonor-enemy');
+                return this.cardClickDecision(personalHonor.pickEnemyDishonor(theirs), 'diplomat-dishonor-enemy');
             }
         }
         if(targetHint.sourceCardId === 'isawa-mori-seido' && glory) {
@@ -4808,13 +4867,13 @@ class JigokuBotPolicy {
             // already dishonored), give the leftover to the weakest legal
             // card so the misdirected token costs the least.
             if(promptTitle === 'Choose a character to honor') {
-                const pick = this.sortByStatusImpact(mine, skillType)[0] ||
-                    this.sortBySkillDesc(theirs, skillType).pop();
+                const pick = personalHonor.pickOwnHonor(mine) ||
+                    personalHonor.pickForcedEnemyHonor(theirs);
                 return pick ? this.cardClickDecision(pick, 'shameful-honor-own') : null;
             }
             if(promptTitle === 'Choose a character to dishonor') {
-                const pick = this.sortByStatusImpact(theirs, skillType)[0] ||
-                    this.sortBySkillDesc(mine, skillType).pop();
+                const pick = personalHonor.pickEnemyDishonor(theirs) ||
+                    personalHonor.pickForcedOwnDishonor(mine);
                 return pick ? this.cardClickDecision(pick, 'shameful-dishonor-enemy') : null;
             }
             const anySelected = this.findVisibleCards(playerState).some((card) =>
@@ -4823,13 +4882,13 @@ class JigokuBotPolicy {
                 if(mine.length === 0) {
                     return cancel ? this.buttonDecision(cancel, 'cancel-wrong-side-target') : null;
                 }
-                const ownSorted = this.sortByStatusImpact(mine, skillType);
-                const ownPick = ownSorted.find((card) => !card.isHonored) || ownSorted[0];
+                const ownPick = personalHonor.pickOwnHonor(mine.filter((card) => !card.isHonored)) ||
+                    personalHonor.pickOwnHonor(mine);
                 return this.cardClickDecision(ownPick, 'shameful-pick-own');
             }
-            const enemySorted = this.sortByStatusImpact(theirs, skillType);
-            const second = enemySorted.find((card) => !card.isDishonored) || enemySorted[0] ||
-                this.sortBySkillDesc(mine, skillType).pop();
+            const second = personalHonor.pickEnemyDishonor(theirs.filter((card) => !card.isDishonored)) ||
+                personalHonor.pickEnemyDishonor(theirs) ||
+                personalHonor.pickForcedOwnDishonor(mine);
             if(second) {
                 return this.cardClickDecision(second, 'shameful-pick-enemy');
             }
@@ -4993,13 +5052,31 @@ class JigokuBotPolicy {
         if(actionNames.includes('honor') && !actionNames.includes('dishonor')) {
             const honorable = mine.filter((card) => !card.isHonored);
             if(honorable.length > 0) {
-                return this.cardClickDecision(this.sortByStatusImpact(honorable, skillType)[0], 'honor-own-highest-glory');
+                return this.cardClickDecision(personalHonor.pickOwnHonor(honorable), 'honor-own-highest-glory');
+            }
+            if(cancel && targetHint.sourceIsMine) {
+                return this.buttonDecision(cancel, 'cancel-wrong-side-target');
+            }
+            const forcedEnemy = personalHonor.pickForcedEnemyHonor(theirs.filter((card) => !card.isHonored));
+            if(forcedEnemy) {
+                return this.cardClickDecision(forcedEnemy, 'forced-honor-enemy-lowest-glory');
             }
         }
         if(actionNames.includes('dishonor') && !actionNames.includes('honor')) {
             const dishonorable = theirs.filter((card) => !card.isDishonored);
             if(dishonorable.length > 0) {
-                return this.cardClickDecision(this.sortByStatusImpact(dishonorable, skillType)[0], 'dishonor-enemy-highest-glory');
+                const conflict = this.personalHonorConflict(playerState, me);
+                return this.cardClickDecision(
+                    personalHonor.pickEnemyDishonor(dishonorable, conflict),
+                    'dishonor-enemy-best-status-impact'
+                );
+            }
+            if(cancel && targetHint.sourceIsMine) {
+                return this.buttonDecision(cancel, 'cancel-wrong-side-target');
+            }
+            const forcedOwn = personalHonor.pickForcedOwnDishonor(mine.filter((card) => !card.isDishonored));
+            if(forcedOwn) {
+                return this.cardClickDecision(forcedOwn, 'forced-dishonor-own-lowest-glory');
             }
         }
         if(actionNames.includes('ready') && !actionNames.includes('bow')) {
@@ -5124,7 +5201,7 @@ class JigokuBotPolicy {
     // skipping is better), fire honors own / dishonors enemy, water bows the
     // opponent's strongest ready character or readies an own bowed one when
     // more conflicts remain, air weighs gaining 2 honor against taking 1.
-    private ringResolutionDecision(playerState: any, me: any, promptTitle: string, menuTitle: string, buttons: any[], dishonor: DishonorTactics | null = null): BotDecision | null {
+    private ringResolutionDecision(playerState: any, me: any, promptTitle: string, menuTitle: string, buttons: any[], personalHonor: PersonalHonorTactics, dishonor: DishonorTactics | null = null): BotDecision | null {
         const dontResolve = this.findButton(buttons, ['don\'t resolve']);
         const isWaterTargetPrompt = menuTitle === 'Choose character to bow or unbow' ||
             (/water ring/i.test(promptTitle) && /choose (a )?character/i.test(menuTitle));
@@ -5156,19 +5233,24 @@ class JigokuBotPolicy {
             }
 
             if(menuTitle === 'Choose character to honor or dishonor') {
-                const ownTargets = this.sortByStatusImpact(mine.filter((card) => !card.isHonored), 'military');
-                const ownPool = ownTargets.filter((card) => card.inConflict).concat(ownTargets.filter((card) => !card.inConflict));
-                const enemyTargets = this.sortByStatusImpact(theirs.filter((card) => !card.isDishonored), 'military');
+                const ownTargets = mine.filter((card) => !card.isHonored);
+                const enemyTargets = theirs.filter((card) => !card.isDishonored);
                 // Dishonor decks flip the order: a dishonored enemy fights
                 // worse and bleeds its controller 1 honor when it dies.
                 if(dishonor?.preferDishonorEnemy() && enemyTargets.length > 0) {
-                    return this.cardClickDecision(enemyTargets[0], 'fire-ring-dishonor-enemy');
+                    return this.cardClickDecision(
+                        personalHonor.pickEnemyDishonor(enemyTargets),
+                        'fire-ring-dishonor-enemy'
+                    );
                 }
-                if(ownPool.length > 0) {
-                    return this.cardClickDecision(ownPool[0], 'fire-ring-honor-own');
+                if(ownTargets.length > 0) {
+                    return this.cardClickDecision(personalHonor.pickOwnHonor(ownTargets), 'fire-ring-honor-own');
                 }
                 if(enemyTargets.length > 0) {
-                    return this.cardClickDecision(enemyTargets[0], 'fire-ring-dishonor-enemy');
+                    return this.cardClickDecision(
+                        personalHonor.pickEnemyDishonor(enemyTargets),
+                        'fire-ring-dishonor-enemy'
+                    );
                 }
                 return dontResolve ? this.buttonDecision(dontResolve, 'fire-ring-skip') : null;
             }
@@ -5360,34 +5442,6 @@ class JigokuBotPolicy {
             const fateDiff = (Number(b.fate) || 0) - (Number(a.fate) || 0);
             return fateDiff !== 0 ? fateDiff : String(a.uuid).localeCompare(String(b.uuid));
         })[0];
-    }
-
-    private sortByStatusImpact(cards: any[], skillType: string): any[] {
-        return cards.slice().sort((a, b) => {
-            const towerDiff = (this.isTower(b) ? 1 : 0) - (this.isTower(a) ? 1 : 0);
-            if(towerDiff !== 0) {
-                return towerDiff;
-            }
-            const gloryDiff = this.gloryValue(b) - this.gloryValue(a);
-            if(gloryDiff !== 0) {
-                return gloryDiff;
-            }
-            const readyDiff = (b.bowed ? 0 : 1) - (a.bowed ? 0 : 1);
-            if(readyDiff !== 0) {
-                return readyDiff;
-            }
-            const conflictDiff = (b.inConflict ? 1 : 0) - (a.inConflict ? 1 : 0);
-            if(conflictDiff !== 0) {
-                return conflictDiff;
-            }
-            const skillDiff = (this.skillValue(b, skillType) || 0) - (this.skillValue(a, skillType) || 0);
-            return skillDiff !== 0 ? skillDiff : String(a.uuid).localeCompare(String(b.uuid));
-        });
-    }
-
-    private gloryValue(card: any): number {
-        const value = Number(card?.glorySummary?.stat);
-        return Number.isFinite(value) ? value : 0;
     }
 
     private preferReady(cards: any[]): any[] {

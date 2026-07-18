@@ -31,7 +31,7 @@ The offline fixture is the source used by self-play; it contains 5 provinces,
 - Only Akodo Toturi, Commander of the Legions, and Honored General are towers.
   They receive exactly two additional fate. Every other character receives 0.
 - Honored Veterans is used only when a newly played, positive-glory Bushi can
-  be honored. Tower first, then highest glory.
+  be honored. Highest glory first; tower persistence breaks ties.
 - A Season of War requires at least two fate before play, leaving resources to
   buy a body in the extra no-income dynasty phase.
 - Staging Ground reveals facedown province cards after visible purchases are
@@ -75,9 +75,11 @@ The offline fixture is the source used by self-play; it contains 5 provinces,
 
 Two requested rules apply to every deck:
 
-1. Honor targets: a multi-fate tower first, then the character with the highest
-   glory. Dishonor targets: the enemy character with highest glory. Ready and
-   current-conflict state break ties.
+1. Honor targets: the friendly character with highest glory. Forced
+   self-dishonor: the lowest-glory legal character (zero glory loses no skill).
+   Enemy dishonor normally targets highest glory at home; a participant takes
+   priority only when its glory loss changes the conflict winner or creates a
+   province break. Ready state and persistence break equal-glory ties.
 2. Restricted attachments: count existing Restricted attachments by printed
    id, reject characters already at the two-card cap when alternatives exist,
    and prefer the character with the fewest Restricted attachments. Immediate

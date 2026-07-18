@@ -223,21 +223,22 @@ export class CraneBaselineTactics {
         return margin(other) > margin(ctx.conflictType);
     }
 
-    shouldHonorWithCourtGames(ctx: any): boolean {
+    shouldHonorWithCourtGames(ctx: any, gloryOf: (card: any) => number = (card) =>
+        Math.max(0, Number(card?.glorySummary?.stat ?? card?.glory) || 0)): boolean {
         const own = (ctx.myCharacters || []).filter((card: any) => card.inConflict && !card.isHonored);
         const enemy = (ctx.opponentCharacters || []).filter((card: any) => card.inConflict && !card.isDishonored);
-        const glory = (card: any) => Math.max(0, Number(card.glory) || 0);
-        const ownBest = own.sort((a: any, b: any) => glory(b) - glory(a))[0];
-        const enemyBest = enemy.sort((a: any, b: any) => glory(b) - glory(a))[0];
+        const ownBest = own.sort((a: any, b: any) => gloryOf(b) - gloryOf(a))[0];
+        const enemyBest = enemy.sort((a: any, b: any) => gloryOf(b) - gloryOf(a))[0];
         const savvyBonus = ownBest?.id === 'savvy-politician' ? 2 : 0;
         const nobleSetup = (ctx.hand || []).some((card: any) => card.id === 'noble-sacrifice') ? 2 : 0;
-        return !!ownBest && (!enemyBest || glory(ownBest) + savvyBonus + nobleSetup >= glory(enemyBest));
+        return !!ownBest && (!enemyBest || gloryOf(ownBest) + savvyBonus + nobleSetup >= gloryOf(enemyBest));
     }
 
-    pickHonorChainTarget(cards: any[]): any | null {
+    pickHonorChainTarget(cards: any[], gloryOf: (card: any) => number = (card) =>
+        Math.max(0, Number(card?.glorySummary?.stat ?? card?.glory) || 0)): any | null {
         return cards.filter((card) => !card.isHonored).sort((a, b) =>
+            gloryOf(b) - gloryOf(a) ||
             (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
-            (Number(b.glory) || 0) - (Number(a.glory) || 0) ||
             String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 }

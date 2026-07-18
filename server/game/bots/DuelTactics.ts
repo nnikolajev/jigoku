@@ -448,10 +448,11 @@ export class DuelTactics {
             this.isTowerCharacter(card.id) && !card.isHonored) ? 30 : 0;
     }
 
-    // Way of the Crane is setup, not a disposable conflict pump: establish
-    // an unhonored tower first, preferring the one that will persist longest.
-    pickHonorTarget(cards: any[], valueOf: (card: any) => number): any {
+    // Way of the Crane is setup, not a disposable conflict pump: honor creates
+    // skill equal to glory, so glory leads; tower persistence breaks ties.
+    pickHonorTarget(cards: any[], valueOf: (card: any) => number, gloryOf: (card: any) => number = () => 0): any {
         return cards.filter((card) => !card.isHonored).sort((a, b) =>
+            gloryOf(b) - gloryOf(a) ||
             (this.isTowerCharacter(b.id) ? 1 : 0) - (this.isTowerCharacter(a.id) ? 1 : 0) ||
             (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
             valueOf(b) - valueOf(a) ||

@@ -41,6 +41,8 @@ import { ATTACHMENT_CONTROL_DEFAULTS } from './AttachmentControlTactics.js';
 import type { AttachmentControlProfile } from './AttachmentControlTactics';
 import { CRANE_BASELINE_DEFAULTS } from './CraneBaselineTactics.js';
 import type { CraneBaselineProfile } from './CraneBaselineTactics';
+import { PERSONAL_HONOR_DEFAULTS } from './PersonalHonorTactics.js';
+import type { PersonalHonorProfile } from './PersonalHonorTactics';
 
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
@@ -65,6 +67,7 @@ export interface DeckProfile {
     conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1, 2, and 5
     strongholdDefense: StrongholdDefenseProfile; // shared injectable last-province reserve planner for every seed
     attachmentControl: AttachmentControlProfile; // shared Let Go / attachment-removal value policy
+    personalHonor: PersonalHonorProfile; // shared glory-aware honor/dishonor target policy
     mulliganForHoldings: boolean; // dig opening provinces toward holdings
     digWithActions: boolean; // fire dynasty Action diggers (Kyuden Hida, engineers)
     digMinBoardCharacters: number; // only dig once this many own characters are already in play
@@ -165,6 +168,7 @@ export const DEFAULT_PROFILE: DeckProfile = {
         ownDebuffScores: { ...ATTACHMENT_CONTROL_DEFAULTS.ownDebuffScores },
         enemyAttachmentScores: { ...ATTACHMENT_CONTROL_DEFAULTS.enemyAttachmentScores }
     },
+    personalHonor: { ...PERSONAL_HONOR_DEFAULTS },
     mulliganForHoldings: false,
     digWithActions: false,
     digMinBoardCharacters: 0,
@@ -195,7 +199,8 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             ...DEFAULT_PROFILE.attachmentControl,
             ownDebuffScores: { ...DEFAULT_PROFILE.attachmentControl.ownDebuffScores },
             enemyAttachmentScores: { ...DEFAULT_PROFILE.attachmentControl.enemyAttachmentScores }
-        }
+        },
+        personalHonor: { ...DEFAULT_PROFILE.personalHonor }
     };
     if(!strategy) {
         return profile;
@@ -615,6 +620,9 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     ownDebuffScores: { ...override.apply.attachmentControl.ownDebuffScores },
                     enemyAttachmentScores: { ...override.apply.attachmentControl.enemyAttachmentScores }
                 };
+            }
+            if(override.apply.personalHonor) {
+                apply.personalHonor = { ...override.apply.personalHonor };
             }
             if(override.apply.craneBaseline) {
                 apply.craneBaseline = {

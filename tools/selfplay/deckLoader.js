@@ -68,16 +68,27 @@ function loadUnicornDeck() {
     return buildDeck(loadDecklist(), loadCards());
 }
 
-// Crane Duels (EmeraldDB b59bc6b3) — the deck the human plays against the
-// seed-5 omniscient bot. The card fixture is a raw array, so index it by id.
+// Crane Baseline (EmeraldDB 4736f7c0) — the standard win-rate opponent and
+// a playable bot deck. Card fixtures are raw arrays, so index them by id.
+function indexFixtureCards(fileNames) {
+    const cardsById = {};
+    for(const fileName of fileNames) {
+        const cards = JSON.parse(fs.readFileSync(path.join(FIXTURES, fileName), 'utf8'));
+        for(const card of cards) {
+            cardsById[card.id] = card;
+        }
+    }
+    return cardsById;
+}
+
 function loadCraneDeck() {
     const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'crane-decklist.json'), 'utf8'));
-    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'crane-cards.json'), 'utf8'));
-    const cardsById = {};
-    for(const card of cardsArray) {
-        cardsById[card.id] = card;
-    }
-    return buildDeck(decklist, cardsById);
+    return buildDeck(decklist, indexFixtureCards([
+        'crane-cards.json',
+        'craneduel-cards.json',
+        'craneduel-v03-extra-cards.json',
+        'crane-baseline-extra-cards.json'
+    ]));
 }
 
 // Crab Defense (EmeraldDB 3a8006b7) — holding-engine / defensive precon.
@@ -159,13 +170,10 @@ function loadDragonAttachmentsDeck() {
 
 function loadCraneDuelDeck() {
     const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'craneduel-decklist.json'), 'utf8'));
-    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'craneduel-cards.json'), 'utf8'));
-    const extraCards = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'craneduel-v03-extra-cards.json'), 'utf8'));
-    const cardsById = {};
-    for(const card of [...cardsArray, ...extraCards]) {
-        cardsById[card.id] = card;
-    }
-    return buildDeck(decklist, cardsById);
+    return buildDeck(decklist, indexFixtureCards([
+        'craneduel-cards.json',
+        'craneduel-v03-extra-cards.json'
+    ]));
 }
 
 module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadCraneDeck, loadCrabDeck, loadScorpionDeck, loadLionDeck, loadPhoenixDeck, loadPhoenixShugenjaDeck, loadDragonDeck, loadDragonAttachmentsDeck, loadCraneDuelDeck, FIXTURES };

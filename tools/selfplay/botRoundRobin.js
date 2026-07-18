@@ -6,7 +6,6 @@
 // containment.
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const { DECK_LABELS } = require('./deckRegistry.js');
@@ -27,7 +26,7 @@ Runs every unique deck matchup. Seats alternate within each matchup.
 
 Options:
   -n, --games <count>       Games per matchup (default: 100)
-  -w, --workers <count>     Parallel child processes (default: auto, max 8)
+  -w, --workers <count>     Parallel child processes (default: 32)
       --chunk-size <count>  Games per isolated job (default: ${DEFAULT_CHUNK_SIZE})
       --seed <number>       Both seats: 1 fate-aware, 2 old heuristic, 3 LLM,
                             4 learned evaluator, 5 omniscient (default: 1)
@@ -53,9 +52,7 @@ function positiveInteger(value, flag) {
 }
 
 function defaultWorkers() {
-    const cpuCount = typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length;
-    const memoryCount = Math.max(1, Math.floor(os.freemem() / (1024 * 1024 * 1024)));
-    return Math.max(1, Math.min(8, cpuCount - 1 || 1, memoryCount));
+    return 32;
 }
 
 function parseArgs(argv) {

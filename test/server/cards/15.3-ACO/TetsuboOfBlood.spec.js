@@ -83,6 +83,13 @@ describe('Tetsubo of Blood', function() {
             });
 
             it('should let Daimyo\'s Favor reduce its alternate fate cost to zero', function() {
+                this.initiateConflict({
+                    type: 'military',
+                    attackers: [this.sotorii],
+                    defenders: [this.shoju]
+                });
+
+                this.player2.pass();
                 this.player1.playAttachment(this.daimyosFavor, this.sotorii);
                 this.player2.pass();
                 this.player1.clickCard(this.daimyosFavor);
@@ -95,7 +102,7 @@ describe('Tetsubo of Blood', function() {
                 expect(this.sotorii.attachments).toContain(this.blood);
                 expect(this.challenger.fate).toBe(challengerFate);
                 expect(this.sotorii.fate).toBe(sotoriiFate);
-                expect(this.player2).toHavePrompt('Action Window');
+                expect(this.player2).toHavePrompt('Conflict Action Window');
             });
         });
     });

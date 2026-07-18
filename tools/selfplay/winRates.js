@@ -1,6 +1,6 @@
 'use strict';
 
-// One-stop win-rate board for every piloted bot deck vs the Crane precon.
+// One-stop win-rate board for every piloted bot deck vs Crane Baseline.
 // All decks run in parallel, each in its OWN child process (see _deckWorker.js),
 // so a rare synchronous engine loop or out-of-memory game kills only that child; the
 // parent keeps every game that already streamed and prints the board anyway,
@@ -147,7 +147,7 @@ async function main() {
 
     rows.sort((a, b) => (b.played ? b.wins / b.played : 0) - (a.played ? a.wins / a.played : 0));
 
-    console.log(`\n=== Bot win rates vs Crane precon (challenger seed ${botSeed}, ${challengerLabel}; Crane seed ${craneSeed}, ${seedLabel(craneSeed)}; N=${games}/deck, seats alternate) ===\n`);
+    console.log(`\n=== Bot win rates vs Crane Baseline (challenger seed ${botSeed}, ${challengerLabel}; Crane seed ${craneSeed}, ${seedLabel(craneSeed)}; N=${games}/deck, seats alternate) ===\n`);
     const deckWidth = Math.max('deck'.length, ...rows.map((row) => row.label.length));
     console.log(`${'deck'.padEnd(deckWidth)}  record     win%   played  top loss / note`);
     console.log(`${'-'.repeat(deckWidth)}  ---------  -----  ------  ------------------------`);

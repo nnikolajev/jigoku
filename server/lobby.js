@@ -20,6 +20,7 @@ class Lobby {
         this.users = new Map();
         this.games = new Map();
         this.userGameMap = new Map();
+        this.pendingGameCreations = new Set();
         this.messageService = options.messageService || new MessageService(options.db);
         this.deckService = options.deckService || new DeckService(options.db);
         this.cardService = options.cardService || new CardService(options.db);
@@ -446,29 +447,39 @@ class Lobby {
     }
 
     onNewGame(socket, gameDetails) {
-        var existingGame = this.findGameForUser(socket.user.username);
-        if(existingGame) {
+        const username = socket.user.username;
+        var existingGame = this.findGameForUser(username);
+        if(existingGame || this.pendingGameCreations.has(username)) {
             return;
         }
 
+        this.pendingGameCreations.add(username);
         let game = new PendingGame(socket.user, gameDetails);
         game.newGame(socket.id, socket.user, gameDetails.password, (err, message) => {
+            this.pendingGameCreations.delete(username);
             if(err) {
                 logger.info('game failed to create', err, message);
 
                 return;
             }
 
+            // Register before asynchronous bot hydration. This makes game
+            // creation immediately observable and closes the duplicate-request
+            // race while a bot deck is loading.
+            this.games.set(game.id, game);
+            this.userGameMap.set(username, game);
             this.addBotOpponent(game, gameDetails.bot)
                 .then(() => {
                     socket.joinChannel(game.id);
                     this.sendGameState(game);
 
-                    this.games.set(game.id, game);
-                    this.userGameMap.set(socket.user.username, game);
                     this.broadcastGameList();
                 })
                 .catch((botErr) => {
+                    this.games.delete(game.id);
+                    if(this.userGameMap.get(username) === game) {
+                        this.userGameMap.delete(username);
+                    }
                     logger.info('failed to add bot opponent', botErr);
                 });
         });

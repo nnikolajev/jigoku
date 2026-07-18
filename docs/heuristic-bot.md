@@ -122,6 +122,10 @@ node tools/selfplay/winRates.js 100 <seed> [crane-seed]
 node tools/selfplay/botRoundRobin.js --seed <seed> --games 100
 ```
 
+The standardized opponent is the current 4736f7c0 **Crane Baseline** deck;
+its public-deck-aware Gossip, duel/honor package, and validation are documented
+in `crane-baseline-bot.md`.
+
 Complete standard runs update
 `jigoku-client/client/botBenchmarkResults.json`; custom game counts, policy
 overrides, cross-seed Crane tests, selected-deck round robins, or incomplete
@@ -138,7 +142,11 @@ Future strategy profiles can replace `JigokuBotPolicy` while keeping `JigokuBotC
 
 ## Limits
 
-- No deck-specific strategy.
-- No machine learning or matchup tuning.
-- Unsupported prompt shapes stop bot advancement and leave a trace entry.
-- Bot games are labeled in save state and skipped for the external analytics game-report post.
+- Specialized behavior exists only for registered marker/profile combinations;
+  an unknown deck falls back to the generic profile.
+- Seeds 1, 2, and 5 are hand-written policies; seed 4's optional learned
+  evaluator remains experimental and is not a competitive default.
+- Unsupported prompt shapes leave a trace entry and use the controller's
+  bounded progress fallback.
+- Bot games are labeled in save state and skipped for the external analytics
+  game-report post.

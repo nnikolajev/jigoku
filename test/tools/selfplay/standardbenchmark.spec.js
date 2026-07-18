@@ -1,6 +1,7 @@
 'use strict';
 
 const {
+    STANDARD_SUITE_ID,
     emptyBenchmark,
     mergeBenchmark,
     roundRobinPayload,
@@ -36,10 +37,12 @@ describe('standard self-play benchmark config', function() {
         });
 
         expect(winRates.decks.Lion.winRate).toBe(0.55);
+        expect(winRates.suiteId).toBe(STANDARD_SUITE_ID);
         expect(winRates.totals).toEqual(jasmine.objectContaining({ wins: 55, played: 100 }));
         expect(roundRobin.decks.Lion).toEqual(jasmine.objectContaining({
             wins: 500,
             averageOpponentWinRate: 0.56
         }));
+        expect(roundRobin.suiteId).toBe(STANDARD_SUITE_ID);
     });
 });

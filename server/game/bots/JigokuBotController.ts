@@ -155,6 +155,7 @@ class JigokuBotController {
         const polBonus = this.parseStat(data.political_bonus);
         return {
             id: card.id,
+            name: card.name || data.name || card.id,
             type,
             side,
             fate: isNaN(cost) ? (model?.fate ?? 0) : Math.max(cost, 0),
@@ -300,6 +301,21 @@ class JigokuBotController {
             affordableDefenderDisables: this.affordableDefenderDisableCount(oppHand, oppFate),
             unmodeledEvents
         };
+    }
+
+    // L5R deck lists are known information. Expose the opponent's complete
+    // conflict-deck composition to every seed, independent of the seed-5 hand
+    // cheat. `game.allCards` retains every physical copy across every zone.
+    private opponentConflictDeck(me: Player): KnownCard[] {
+        const opp = (me as any).opponent as Player | undefined;
+        if(!opp) {
+            return [];
+        }
+        const allCards: any[] = (this.game as any).allCards || [];
+        return allCards
+            .filter((card: any) => card.owner === opp &&
+                (card.isConflict || card.cardData?.side === 'conflict'))
+            .map((card: any) => this.knownCard(card));
     }
 
     // Own province is known information. Read the live game object so a still
@@ -473,6 +489,7 @@ class JigokuBotController {
                 let decision = this.policy.decide(playerState, player.name, {
                     roundNumber: (this.game as any).roundNumber,
                     promptIdentity: promptStep?.uuid,
+                    promptControls: beforePrompt?.controls || [],
                     selectionReachedLimit: typeof promptStep?.selector?.hasReachedLimit === 'function'
                         ? promptStep.selector.hasReachedLimit(promptStep.selectedCards || [], promptStep.context)
                         : false,
@@ -485,6 +502,7 @@ class JigokuBotController {
                     cardHint: (cardId: string) => getPlaybookEntry(cardId) || this.hintService?.getHint(cardId),
                     strategy: this.currentDeckStrategy(player),
                     profile: this.currentDeckProfile(player),
+                    opponentConflictDeck: this.opponentConflictDeck(player),
                     // Live duel skill gap (our side - their side) for the bid.
                     duelGap: this.currentDuelGap(player),
                     // Effective post-reveal margin, including bid modifiers.
@@ -1247,7 +1265,7 @@ class JigokuBotController {
     }
 
     private isActivePrompt(prompt: any): boolean {
-        return !!prompt && (prompt.buttons?.length > 0 || prompt.selectCard || prompt.selectRing);
+        return !!prompt && (prompt.buttons?.length > 0 || prompt.controls?.length > 0 || prompt.selectCard || prompt.selectRing);
     }
 
     // The active prompt step lives at the bottom of the nested pipeline stack.
@@ -1522,7 +1540,7 @@ class JigokuBotController {
 
     private isLegalButton(prompt: any, args: any[]): boolean {
         const [arg, uuid, method] = args;
-        return (prompt.buttons || []).some((button: any) => {
+        const legalButton = (prompt.buttons || []).some((button: any) => {
             const command = button.command || 'menuButton';
             return !button.disabled &&
                 command === 'menuButton' &&
@@ -1530,6 +1548,18 @@ class JigokuBotController {
                 button.uuid === uuid &&
                 (button.method || undefined) === (method || undefined);
         });
+        if(legalButton) {
+            return true;
+        }
+        // Typed prompt controls (Gossip, Bayushi's Whisperers, Emissary of
+        // Lies) submit a free-form value through menuButton and have no button
+        // list. Validate the control identity/method and a non-empty value.
+        return typeof arg === 'string' && arg.trim().length > 0 &&
+            (prompt.controls || []).some((control: any) =>
+                control.type === 'card-name' &&
+                (control.command || 'menuButton') === 'menuButton' &&
+                control.uuid === uuid &&
+                (control.method || undefined) === (method || undefined));
     }
 
     private isLegalCard(player: Player, cardUuid: string): boolean {

@@ -4,8 +4,8 @@ const { DECK_LABELS } = require('../../../tools/selfplay/deckRegistry.js');
 const { isStandardBenchmarkRun, parseArgs } = require('../../../tools/selfplay/botRoundRobin.js');
 
 describe('self-play bot round-robin options', function() {
-    it('defaults to fate-aware seed 1 and accepts renumbered seed 5', function() {
-        expect(parseArgs([])).toEqual(jasmine.objectContaining({ games: 100, botSeed: 1 }));
+    it('defaults to 32 workers and fate-aware seed 1, and accepts renumbered seed 5', function() {
+        expect(parseArgs([])).toEqual(jasmine.objectContaining({ games: 100, workers: 32, botSeed: 1 }));
         expect(parseArgs(['--decks', 'Crane,PhoenixShugenja']).botSeed).toBe(1);
 
         const options = parseArgs(['--seed', '5', '--decks', 'Crane,PhoenixShugenja']);

@@ -7,6 +7,10 @@ const fs = require('fs');
 const path = require('path');
 
 const STANDARD_GAMES = 100;
+const BENCHMARK_VERSION = 2;
+// Changing the standard opponent or the round-robin deck roster invalidates
+// previously recorded numbers. The client only displays matching sections.
+const STANDARD_SUITE_ID = 'crane-baseline-4736f7c0';
 const DEFAULT_RESULTS_PATH = path.resolve(
     __dirname,
     '..',
@@ -27,8 +31,9 @@ const SEED_LABELS = Object.freeze({
 
 function emptyBenchmark() {
     return {
-        version: 1,
+        version: BENCHMARK_VERSION,
         standard: {
+            suiteId: STANDARD_SUITE_ID,
             gamesPerDeck: STANDARD_GAMES,
             gamesPerMatchup: STANDARD_GAMES,
             sameSeedOpponents: true,
@@ -48,6 +53,7 @@ function readBenchmark(filePath = process.env.JIGOKU_BOT_BENCHMARK_PATH || DEFAU
         return {
             ...emptyBenchmark(),
             ...parsed,
+            version: BENCHMARK_VERSION,
             standard: { ...emptyBenchmark().standard, ...(parsed.standard || {}) },
             seeds: parsed.seeds || {}
         };
@@ -62,6 +68,7 @@ function mergeBenchmark(current, seed, section, payload) {
     return {
         ...emptyBenchmark(),
         ...current,
+        version: BENCHMARK_VERSION,
         updatedAt: generatedAt,
         seeds: {
             ...(current.seeds || {}),
@@ -102,6 +109,7 @@ function winRatesPayload(options, rows, generatedAt = new Date().toISOString()) 
         played += row.played;
     }
     return {
+        suiteId: STANDARD_SUITE_ID,
         generatedAt,
         gamesPerDeck: options.games,
         challengerSeed: options.botSeed,
@@ -133,6 +141,7 @@ function roundRobinPayload(report) {
         };
     }
     return {
+        suiteId: STANDARD_SUITE_ID,
         generatedAt: report.generatedAt,
         gamesPerMatchup: report.config.games,
         botSeed: report.config.botSeed,
@@ -143,8 +152,10 @@ function roundRobinPayload(report) {
 
 module.exports = {
     DEFAULT_RESULTS_PATH,
+    BENCHMARK_VERSION,
     SEED_LABELS,
     STANDARD_GAMES,
+    STANDARD_SUITE_ID,
     emptyBenchmark,
     mergeBenchmark,
     readBenchmark,

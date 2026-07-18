@@ -37,6 +37,10 @@ import { DRAGON_ATTACHMENT_DEFAULTS } from './DragonAttachmentTactics.js';
 import type { DragonAttachmentProfile } from './DragonAttachmentTactics';
 import { STRONGHOLD_DEFENSE_DEFAULTS } from './StrongholdDefenseTactics.js';
 import type { StrongholdDefenseProfile } from './StrongholdDefenseTactics';
+import { ATTACHMENT_CONTROL_DEFAULTS } from './AttachmentControlTactics.js';
+import type { AttachmentControlProfile } from './AttachmentControlTactics';
+import { CRANE_BASELINE_DEFAULTS } from './CraneBaselineTactics.js';
+import type { CraneBaselineProfile } from './CraneBaselineTactics';
 
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
@@ -60,6 +64,7 @@ export interface DeckProfile {
     fateAwareEconomy: FateAwareEconomyProfile; // injectable dynasty spending policy used by seeds 1 and 5
     conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1, 2, and 5
     strongholdDefense: StrongholdDefenseProfile; // shared injectable last-province reserve planner for every seed
+    attachmentControl: AttachmentControlProfile; // shared Let Go / attachment-removal value policy
     mulliganForHoldings: boolean; // dig opening provinces toward holdings
     digWithActions: boolean; // fire dynasty Action diggers (Kyuden Hida, engineers)
     digMinBoardCharacters: number; // only dig once this many own characters are already in play
@@ -127,11 +132,15 @@ export interface DeckProfile {
     // branch that reads it is gated on its presence. Knobs in DragonTactics.
     dragon?: DragonProfile;
 
-    // ---- duel-centric playstyle (upgraded Crane Duels) ----
-    // Present only for decks whose strategy derives `duelist` (keyed on
-    // Tsuma so the sparring Crane precon stays generic). Knobs in
-    // DuelTactics.
+    // ---- duel-centric playstyle (Crane Duels / Crane Baseline) ----
+    // Present only for decks whose strategy derives `duelist`, currently
+    // keyed on Tsuma. Knobs live in DuelTactics.
     duelist?: DuelProfile;
+
+    // ---- mixed Crane baseline ----
+    // Adds public deck-list-aware Gossip naming and the solo/honor sequencing
+    // unique to the new baseline without duplicating the shared duel policy.
+    craneBaseline?: CraneBaselineProfile;
 
     // ---- spell/ring-control playstyle (Phoenix Shugenja Spells) ----
     // Present only for Kyuden Isawa decks. It steers ring manipulation,
@@ -151,6 +160,11 @@ export const DEFAULT_PROFILE: DeckProfile = {
     fateAwareEconomy: { ...DEFAULT_FATE_AWARE_ECONOMY },
     conflictCardEconomy: { ...DEFAULT_CONFLICT_CARD_ECONOMY },
     strongholdDefense: { ...STRONGHOLD_DEFENSE_DEFAULTS },
+    attachmentControl: {
+        ...ATTACHMENT_CONTROL_DEFAULTS,
+        ownDebuffScores: { ...ATTACHMENT_CONTROL_DEFAULTS.ownDebuffScores },
+        enemyAttachmentScores: { ...ATTACHMENT_CONTROL_DEFAULTS.enemyAttachmentScores }
+    },
     mulliganForHoldings: false,
     digWithActions: false,
     digMinBoardCharacters: 0,
@@ -176,7 +190,12 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         ...DEFAULT_PROFILE,
         fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },
         conflictCardEconomy: { ...DEFAULT_PROFILE.conflictCardEconomy },
-        strongholdDefense: { ...DEFAULT_PROFILE.strongholdDefense }
+        strongholdDefense: { ...DEFAULT_PROFILE.strongholdDefense },
+        attachmentControl: {
+            ...DEFAULT_PROFILE.attachmentControl,
+            ownDebuffScores: { ...DEFAULT_PROFILE.attachmentControl.ownDebuffScores },
+            enemyAttachmentScores: { ...DEFAULT_PROFILE.attachmentControl.enemyAttachmentScores }
+        }
     };
     if(!strategy) {
         return profile;
@@ -491,6 +510,24 @@ const OVERRIDES: ProfileOverride[] = [
         }
     },
     {
+        // Crane Baseline (EmeraldDB 4736f7c0): mixed duels/honor/control. Tsuma
+        // activates the shared duel package; these additional knobs cover the
+        // cards that distinguish this exact list. Meditations strips fate from
+        // the final attacker and remains legal under the stronghold.
+        name: 'crane-baseline-mixed-duels',
+        match: (ids, strategy) => strategy.duelist &&
+            CRANE_BASELINE_DEFAULTS.markerCards.every((id) => ids.has(id)),
+        apply: {
+            strongholdProvinceId: 'meditations-on-the-tao',
+            craneBaseline: {
+                ...CRANE_BASELINE_DEFAULTS,
+                markerCards: [...CRANE_BASELINE_DEFAULTS.markerCards],
+                gossipImportance: { ...CRANE_BASELINE_DEFAULTS.gossipImportance },
+                gossipTagWeights: { ...CRANE_BASELINE_DEFAULTS.gossipTagWeights }
+            }
+        }
+    },
+    {
         // Lion Swarm v0.3 (EmeraldDB 27a913d1): a true province-trading rush.
         // Flood 0-2 cost bodies, but protect provinces that are actually at
         // risk of breaking. Feeding an Army / For Greater Glory preserve the
@@ -556,6 +593,21 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
             }
             if(override.apply.strongholdDefense) {
                 apply.strongholdDefense = { ...override.apply.strongholdDefense };
+            }
+            if(override.apply.attachmentControl) {
+                apply.attachmentControl = {
+                    ...override.apply.attachmentControl,
+                    ownDebuffScores: { ...override.apply.attachmentControl.ownDebuffScores },
+                    enemyAttachmentScores: { ...override.apply.attachmentControl.enemyAttachmentScores }
+                };
+            }
+            if(override.apply.craneBaseline) {
+                apply.craneBaseline = {
+                    ...override.apply.craneBaseline,
+                    markerCards: [...override.apply.craneBaseline.markerCards],
+                    gossipImportance: { ...override.apply.craneBaseline.gossipImportance },
+                    gossipTagWeights: { ...override.apply.craneBaseline.gossipTagWeights }
+                };
             }
             Object.assign(profile, apply);
         }

@@ -826,6 +826,10 @@ describe('DragonAttachmentTactics', function() {
             expect(shouldPlay({
                 opponentCharacters: [{ id: 'enemy', attachments: [{ id: 'fine-katana' }] }]
             })).toBe(true);
+            expect(shouldPlay({
+                opponentCharacters: [],
+                myCharacters: [{ id: 'mine', attachments: [{ id: 'pacifism' }] }]
+            })).toBe(true);
         });
 
         it('copies and triggers an enemy Tengu Sensei ability with Yokuni', function() {

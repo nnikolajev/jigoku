@@ -1,9 +1,10 @@
 # Upgraded Crane Duels bot deck (EmeraldDB e2e443b5)
 
-The duel deck now follows the human tower plan: establish up to two durable
-characters from **Tengu Sensei, Doji Kuwanan, Kakita Kaezin, and Kakita
-Toshimoko**, invest 3-5 additional fate, honor them, and put duel tools on
-them. One or two cheap supporting bodies defend or take unopposed conflicts.
+The shared duel package follows the human tower plan: establish durable
+characters from **Tengu Sensei, Doji Kuwanan, Kakita Kaezin, Kakita
+Toshimoko, and Kakita Yoshi**, honor them, and put duel tools on them. The
+upgraded Crane Duels list and current Crane Baseline both use this package;
+the baseline's mixed honor/control behavior is in `crane-baseline-bot.md`.
 
 ## Why the old policy underperformed
 
@@ -26,9 +27,9 @@ large matchup advantage merely from using the linked list.
 ## How the bot plays it
 
 `duelist` strategy flag → `DuelProfile` → `DuelTactics`, same pattern as the
-other five tactics modules. **The flag keys on Tsuma alone**: the sparring
-Crane precon shares the entire duel package with this list, and the baseline
-opponent must stay on its generic profile or every measured band shifts.
+other tactics modules. **The flag keys on Tsuma alone**. The retired sparring
+Crane precon lacks Tsuma and stays generic; the current Crane Baseline contains
+Tsuma and deliberately receives the shared duel package.
 
 - **Duel bids**: 2 (`duel-honor-bid`), floor 4. Bid 3 was measured to feed
   the OPPONENT's honor victory (honor flows to the lower bidder): Crane won
@@ -38,9 +39,12 @@ opponent must stay on its generic profile or every measured band shifts.
   mapped to the axis it compares. A prompt offering OUR characters sends our
   strongest on that axis; a prompt offering THEIRS duels their weakest
   (`duel-own-strongest` / `duel-enemy-weakest`).
-- **Tower deployment**: buy one of the four preferred characters only when it
-  can receive at least 3 fate; place 3-5 fate on it; retain an unfunded tower
-  faceup through regroup; keep at most two cheap support characters.
+- **Tower deployment**: buy a preferred character only when it can be funded;
+  ordinary three-cost duelists seek at least 3 fate, while a normal seven-fate
+  opening may establish a five-cost champion with 2. Retain an unfunded tower
+  through regroup and keep at most two cheap support characters. Crane
+  Baseline adds a round-3 board floor so these caps cannot strand it on two
+  bodies.
 - **Attachment stacking**: Duelist Training and the deck's other duel/stat
   attachments land on the four towers. Restricted attachments are spread to
   characters with fewer occupied slots and never exceed two. **Shukujo only
@@ -62,14 +66,14 @@ opponent must stay on its generic profile or every measured band shifts.
   costs or follow-up prompts are paid, so the bot never bows or dishonors its
   own duel loser and does not enter a cancel/retry loop.
 
-## Side effect: the sparring Crane got smarter
+## Current Crane Baseline
 
-The playbook is global by card id, and the baseline Crane precon shares ~41
-cards with this list. Its previously idle cards (Kaezin's duel, Kuwanan's
-bow, Toshimoko's interrupt, Harrier's discard, Duelist Training, the Dojo)
-now fire for the BASELINE opponent too. That is deliberate — the baseline is
-the user's own physical deck, played properly at last — but it re-baselines
-every deck's vs-Crane band downward. See deck-profiles.md.
+The standardized opponent is no longer the old sparring precon. It is the
+dedicated 4736f7c0 Crane Baseline list, which reuses these duel rules and adds
+public-deck-aware Gossip, Let Go control, Noble Sacrifice, solo-character
+sequencing, and a late board floor. See `crane-baseline-bot.md`. Historical
+results below were measured against the older opponent and are retained only
+as the tuning record for the upgraded Crane Duels list.
 
 ## Results (alternating seats, N=40 each, vs the now-smarter baseline Crane)
 

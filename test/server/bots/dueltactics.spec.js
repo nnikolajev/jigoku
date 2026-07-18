@@ -115,6 +115,33 @@ describe('DuelTactics', function() {
             expect(tactics.pickAttachmentTarget([tenguFull], 'fine-katana')).toBeNull();
         });
 
+        it('protects durable towers, spreads singleton protection, and never wastes covert on Tengu', function() {
+            const tengu = { uuid: 'tengu', id: 'tengu-sensei', fate: 4, attachments: [] };
+            const kuwanan = { uuid: 'kuwanan', id: 'doji-kuwanan', fate: 3, attachments: [] };
+            expect(tactics.pickAttachmentTarget([tengu, kuwanan], 'tattooed-wanderer')).toBe(kuwanan);
+            kuwanan.attachments.push({ id: 'above-question' });
+            expect(tactics.pickAttachmentTarget([tengu, kuwanan], 'above-question', 1)).toBe(tengu);
+            tengu.attachments.push({ id: 'above-question' });
+            expect(tactics.pickAttachmentTarget([tengu, kuwanan], 'above-question', 1)).toBeNull();
+        });
+
+        it('uses shared copy limits to distribute duel utility attachments', function() {
+            for(const attachmentId of ['above-question', 'duelist-training', 'iaijutsu-master']) {
+                expect(getPlaybookEntry(attachmentId).maxCopiesPerTarget).toBe(1);
+                const first = {
+                    uuid: `${attachmentId}-first`, id: 'kakita-kaezin', fate: 4,
+                    attachments: [{ id: attachmentId }]
+                };
+                const second = {
+                    uuid: `${attachmentId}-second`, id: 'kakita-toshimoko', fate: 3,
+                    attachments: []
+                };
+                expect(tactics.pickAttachmentTarget([first, second], attachmentId, 1)).toBe(second);
+                second.attachments.push({ id: attachmentId });
+                expect(tactics.pickAttachmentTarget([first, second], attachmentId, 1)).toBeNull();
+            }
+        });
+
         it('prioritizes fire while a tower still needs honoring', function() {
             expect(tactics.ringBonus('fire', [{ id: 'tengu-sensei', isHonored: false }])).toBe(30);
             expect(tactics.ringBonus('fire', [{ id: 'tengu-sensei', isHonored: true }])).toBe(0);
@@ -245,6 +272,146 @@ describe('DuelTactics', function() {
                 targetHint: { sourceCardId: 'shukujo', sourceIsMine: true, gameActions: ['attach'] }
             });
             expect(decision.reason).toBe('duel-cancel-shukujo-without-kuwanan');
+        });
+
+        it('routes all singleton duel attachments to a different bearer', function() {
+            for(const attachmentId of ['above-question', 'duelist-training', 'iaijutsu-master']) {
+                const first = {
+                    uuid: `${attachmentId}-first`, id: 'kakita-kaezin', type: 'character',
+                    location: 'play area', selectable: true, fate: 4,
+                    attachments: [{ uuid: `${attachmentId}-copy`, id: attachmentId }]
+                };
+                const second = {
+                    uuid: `${attachmentId}-second`, id: 'kakita-toshimoko', type: 'character',
+                    location: 'play area', selectable: true, fate: 3, attachments: []
+                };
+                const state = {
+                    players: {
+                        'Jigoku Bot': {
+                            name: 'Jigoku Bot', promptTitle: attachmentId,
+                            menuTitle: 'Choose a character', selectCard: true,
+                            buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+                            cardPiles: { cardsInPlay: [first, second] }
+                        }
+                    }
+                };
+                const decision = new JigokuBotPolicy(`duel-singleton-${attachmentId}`).decide(
+                    state,
+                    'Jigoku Bot',
+                    {
+                        strategy: DUELIST,
+                        cardHint: getPlaybookEntry,
+                        targetHint: {
+                            sourceCardId: attachmentId,
+                            sourceIsMine: true,
+                            gameActions: ['attach']
+                        }
+                    }
+                );
+                expect(decision.reason).toBe('duel-attach-tower');
+                expect(decision.args[0]).toBe(second.uuid);
+            }
+        });
+
+        it('plays Tattooed Wanderer as covert on an own persistent character', function() {
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', promptTitle: 'Play Tattooed Wanderer', menuTitle: 'Choose an ability:',
+                        buttons: [
+                            { text: 'Play Tattooed Wanderer as a character', arg: 'character', uuid: 'character' },
+                            { text: 'Play Tattooed Wanderer as an attachment', arg: 'attachment', uuid: 'attachment' }
+                        ],
+                        cardPiles: { hand: [], cardsInPlay: [{ uuid: 'kuwanan', id: 'doji-kuwanan', type: 'character' }] }
+                    }
+                }
+            };
+            const decision = new JigokuBotPolicy('duel-tattoo').decide(state, 'Jigoku Bot', {
+                strategy: DUELIST,
+                playCardId: 'tattooed-wanderer'
+            });
+            expect(decision.reason).toBe('duel-play-tattooed-wanderer-as-attachment');
+            expect(decision.args[0]).toBe('attachment');
+        });
+
+        it('does not start a pre-conflict protection attachment it cannot afford', function() {
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict', promptTitle: 'Action Window',
+                        menuTitle: 'Initiate an action',
+                        buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stats: { fate: 0 },
+                        cardPiles: {
+                            hand: [{
+                                uuid: 'above', id: 'above-question', name: 'Above Question',
+                                type: 'attachment', isPlayableByMe: true
+                            }],
+                            cardsInPlay: [{
+                                uuid: 'kuwanan', id: 'doji-kuwanan', type: 'character',
+                                location: 'play area', fate: 3, attachments: []
+                            }]
+                        }
+                    }
+                }
+            };
+            const decision = new JigokuBotPolicy('duel-unaffordable-protection').decide(state, 'Jigoku Bot', {
+                strategy: DUELIST,
+                cardHint: getPlaybookEntry,
+                conflictCosts: { above: 1 }
+            });
+            expect(decision.command).toBe('menuButton');
+            expect(decision.target).toBe('Pass');
+        });
+
+        it('does not replay an attachment forever after its target prompt cancels', function() {
+            const above = {
+                uuid: 'above-loop', id: 'above-question', name: 'Above Question',
+                type: 'attachment', location: 'hand', isPlayableByMe: true
+            };
+            const kuwanan = {
+                uuid: 'kuwanan-loop', id: 'doji-kuwanan', type: 'character',
+                location: 'play area', fate: 3, attachments: []
+            };
+            const actionState = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict', promptTitle: 'Action Window',
+                        menuTitle: 'Initiate an action',
+                        buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stats: { fate: 2 }, cardPiles: { hand: [above], cardsInPlay: [kuwanan] }
+                    }
+                }
+            };
+            const context = {
+                strategy: DUELIST, cardHint: getPlaybookEntry,
+                conflictCosts: { 'above-loop': 1 }
+            };
+            const policy = new JigokuBotPolicy('duel-cancelled-attachment-loop');
+            expect(policy.decide(actionState, 'Jigoku Bot', context).args[0]).toBe('above-loop');
+
+            const targetState = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict', promptTitle: 'Above Question',
+                        menuTitle: 'Choose a character',
+                        buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+                        stats: { fate: 2 }, cardPiles: { hand: [above], cardsInPlay: [] }
+                    }
+                },
+                selectableCards: [{ ...kuwanan, selectable: true }]
+            };
+            const cancelled = policy.decide(targetState, 'Jigoku Bot', {
+                ...context,
+                targetHint: {
+                    sourceCardId: 'above-question', sourceIsMine: true,
+                    gameActions: ['attach']
+                }
+            });
+            expect(cancelled.target).toBe('Cancel');
+
+            const afterCancel = policy.decide(actionState, 'Jigoku Bot', context);
+            expect(afterCancel.target).toBe('Pass');
         });
 
         it('does not repeat Kuwanan\'s Duelist Training into an already-bowed target', function() {

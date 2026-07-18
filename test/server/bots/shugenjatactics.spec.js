@@ -377,6 +377,32 @@ describe('Phoenix Shugenja tactics', function() {
         expect(protect.args[0]).toBe('tadaka');
     });
 
+    it('finishes an Against the Waves target when the adapter omits owner metadata', function() {
+        const bowedShugenja = {
+            id: 'isawa-ujina', uuid: 'ujina', type: 'character', selectable: true,
+            bowed: true, militarySkillSummary: { stat: '3' }
+        };
+        const state = stateFor({
+            promptTitle: 'Against the Waves', menuTitle: 'Choose a character',
+            buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+            cardPiles: { cardsInPlay: [] }
+        });
+        // Some live target adapters expose legal cards outside the owning
+        // player's public pile. The rules target is still self-only Shugenja.
+        state.selectableCards = [bowedShugenja];
+        const decision = new JigokuBotPolicy('waves-ownerless-target').decide(state, 'Phoenix', {
+            profile,
+            cardHint: (cardId) => getPlaybookEntry(cardId),
+            targetHint: {
+                sourceCardId: 'against-the-waves', sourceIsMine: true,
+                gameActions: ['bow', 'ready']
+            }
+        });
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('ujina');
+        expect(decision.reason).toBe('waves-ready-bowed');
+    });
+
     it('reserves five fate when Five Fires can remove an enemy tower', function() {
         const me = {
             cardPiles: {

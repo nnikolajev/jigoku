@@ -120,6 +120,9 @@ export function analyzeDeck(cardIds: string[]): { analyzed: boolean; missing: st
 // curation).
 export interface KnownCard {
     id: string;
+    // Printed name is public deck-list information and is required by effects
+    // such as Gossip that name a card rather than selecting a live copy.
+    name: string;
     type: string;
     side: string;
     fate: number;

@@ -119,6 +119,9 @@ node tools/selfplay/winRates.js 100 1 2  # fate-aware vs old heuristic Crane
 # paired deterministic deep trace: same shuffle/seat, generic vs fate-aware
 node tools/selfplay/analyzePolicyGame.js --deck PhoenixShugenja --rng-seed 20260715
 
+# real-game per-card utilization; all registered deck/opponent labels work
+node tools/selfplay/auditCards.js Crane 20 1 PhoenixShugenja
+
 # all-deck interaction-cycle audit for deployed offline bot seeds
 node tools/selfplay/validateBotInteractions.js
 
@@ -138,6 +141,11 @@ size; `--late-round` and `--min-board` configure that board target. Use `--help`
 to select any registered deck, opponent, policies, seat, seed, caps, or output
 prefix.
 
+`auditCards.js <deck> [games=20] [seed=1] [opponent=Crane]` uses the shared
+deck registry and reports every successful click grouped by card and decision
+reason. Its zero-click section distinguishes active cards that need policy
+coverage from passive cards whose engine text does not create a click.
+
 Round-robin reports default to `tools/selfplay/out/round-robin-latest.md` and
 `.json`. Use `--out <path-prefix>` to preserve named runs, `--decks A,B,C` for a
 subset, and `--help` for all options. Win rates exclude undecided games;
@@ -152,6 +160,9 @@ its third argument remains available for cross-seed experiments. Custom game
 counts, cross-seed opponents, policy overrides, deck subsets, and incomplete
 runs never replace the client baseline. Worker count, chunk size, and report
 output path do not change gameplay and may be customized during a standard run.
+Each saved section carries the current standardized-suite id. Changing the
+Crane Baseline or registered round-robin roster hides older incomparable
+sections in the client until that standard script is run again.
 Self-play disables external LM Studio calls, so seed 3 measurements describe its
 heuristic fallback and are labeled that way in the generated config.
 

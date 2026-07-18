@@ -9,6 +9,12 @@ shared decision code and risking the fine-tuned Unicorn default.
 of named knobs — so a deck's playstyle is DATA, not `if` statements. The policy
 reads the knobs; the profile is chosen per deck.
 
+> **Current benchmark baseline (2026-07-18):** standardized vs-Crane runs use
+> the 4736f7c0 **Crane Baseline** list, not the retired sparring precon. Older
+> case-study percentages below are historical tuning records against their
+> stated opponent. Current client numbers come only from a fresh standard
+> `winRates.js` / `botRoundRobin.js` run. See `crane-baseline-bot.md`.
+
 ## The knobs
 
 | Knob | Meaning |
@@ -16,6 +22,7 @@ reads the knobs; the profile is chosen per deck.
 | `fateAwareEconomy` | injectable dynasty purchase/fate policy used by seeds 1 and 5 |
 | `conflictCardEconomy` | value-per-fate candidate planner shared by seeds 1, 2, and 5 |
 | `strongholdDefense` | last-province reserve planner and fair/omniscient defender limits |
+| `attachmentControl` | shared Let Go policy comparing own debuff removal with enemy attachment removal |
 | `mulliganForHoldings` | dig opening provinces toward holdings (Kaiu Wall) |
 | `digWithActions` | fire dynasty Action diggers (Kyuden Hida, engineers) |
 | `digMinBoardCharacters` | only dig once this many own characters are in play (0 = always) |
@@ -31,7 +38,7 @@ reads the knobs; the profile is chosen per deck.
 | `chumpBlock` | declare one cheap defender in a hopeless conflict to avoid unopposed honor loss |
 | `defenseSkillBuffer` | extra committed defense above exact prevent-break math |
 | `strongholdProvinceId` | province deliberately placed under the stronghold |
-| tactics sub-profiles | `dishonor`, `lion`, `glory`, `dragon`, `duelist`, `shugenja`, and `attachmentTower` |
+| tactics sub-profiles | `dishonor`, `lion`, `glory`, `dragon`, `duelist`, `craneBaseline`, `shugenja`, and `attachmentTower` |
 
 ## How a deck gets its profile
 
@@ -82,7 +89,9 @@ Duels tower/duel plan, and
 `phoenix-shugenja-bot.md`) for the Phoenix ring/Spell/Disguised engine, and
 `attachmentTower?: DragonAttachmentProfile` (`DragonAttachmentTactics.ts`, doc
 `dragon-attachments-bot.md`) for the Iron Mountain Castle Restricted-attachment
-tower deck. Same gating rule:
+tower deck, and `craneBaseline?: CraneBaselineProfile`
+(`CraneBaselineTactics.ts`, doc `crane-baseline-bot.md`) for the mixed
+duel/honor/control baseline. Same gating rule:
 the sub-profile exists only for decks whose strategy/override derives it, and
 every policy hook checks its presence.
 
@@ -268,8 +277,9 @@ unopposed conflicts (each unopposed loss bleeds 1 honor).
 
 ## Card-utilization audits (`tools/selfplay/auditCards.js`)
 
-`node tools/selfplay/auditCards.js <unicorn|crab|scorpion|lion|phoenix|phoenix-shugenja|dragon|dragon-attachments|craneduel> [games]` runs
-the deck vs Crane and prints, for EVERY card in the decklist, how many times
+`node tools/selfplay/auditCards.js <deck> [games=20] [seed=1] [opponent=Crane]`
+runs any registered deck (including `Crane`) against the chosen opponent and
+prints, for EVERY card in the decklist, how many times
 the bot successfully clicked it and through which decision reasons — plus a
 ZERO-clicks list. Run it after onboarding or tuning a deck: zero-click cards
 are either passives (fine) or silently gated (the Softskin/Spyglass class of

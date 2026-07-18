@@ -7,18 +7,15 @@
 //   WIN — Kyuden Kakita honors our duelist after every resolved duel,
 //   Proving Ground draws, Kakita Blade gains honor, Policy Debate strips
 //   their hand, Storied Defeat bows the loser,
-// - attachments (Duelist Training, Daimyo's Gunbai, Shukujo, Kakita Blade,
-//   Iaijutsu Master) stack on the key duelists so one body carries several
-//   duel actions,
+// - attachments land on key duelists; singleton utility copies spread before
+//   another bearer receives the same card,
 // - Vassal Fields sits under the stronghold (its action drains the
 //   attacker's fate on the final push); Tsuma plays characters pre-honored;
 //   Magistrate Station re-readies honored characters.
 //
 // All behavior here is DATA-gated: the tactics exist only when the deck's
-// profile carries a DuelProfile. The SPARRING Crane precon shares almost
-// every card with this list, so the strategy flag keys on Tsuma (new-list
-// only) — the baseline opponent must keep its generic behavior or every
-// deck's measured band shifts.
+// profile carries a DuelProfile. Both the upgraded Crane Duels list and the
+// current Crane Baseline intentionally opt into this reusable package.
 
 // Tuning knobs for the duel playstyle.
 export interface DuelProfile {
@@ -62,11 +59,12 @@ export const DUEL_DEFAULTS: DuelProfile = {
         'cunning-negotiator': 'political'
     },
     keyCharacters: [
-        'tengu-sensei', 'doji-kuwanan', 'kakita-kaezin', 'kakita-toshimoko'
+        'tengu-sensei', 'doji-kuwanan', 'kakita-kaezin', 'kakita-toshimoko',
+        'kakita-yoshi-2'
     ],
     durableCharacters: [
         'tengu-sensei', 'doji-kuwanan', 'kakita-kaezin', 'kakita-toshimoko',
-        'iron-crane-legion'
+        'iron-crane-legion', 'kakita-yoshi-2'
     ],
     towerTargetCount: 2,
     supportTargetCount: 2,
@@ -74,7 +72,8 @@ export const DUEL_DEFAULTS: DuelProfile = {
     towerFateMax: 5,
     towerAttachments: [
         'shukujo', 'duelist-training', 'daimyo-s-gunbai', 'kakita-blade',
-        'iaijutsu-master', 'fine-katana', 'ornate-fan', 'seal-of-the-crane'
+        'iaijutsu-master', 'fine-katana', 'ornate-fan', 'seal-of-the-crane',
+        'above-question', 'tattooed-wanderer'
     ],
     restrictedAttachments: [
         'shukujo', 'daimyo-s-gunbai', 'kakita-blade', 'fine-katana', 'ornate-fan'
@@ -260,11 +259,20 @@ export class DuelTactics {
     // Restricted cards spread across towers with open slots. Non-restricted
     // duel tools prefer the tower with most fate. Shukujo is Kuwanan-only:
     // attaching it elsewhere gives stats but loses the Champion Action.
-    pickAttachmentTarget(mine: any[], attachmentId: string | undefined): any {
+    pickAttachmentTarget(
+        mine: any[],
+        attachmentId: string | undefined,
+        maxCopiesPerTarget?: number
+    ): any {
         if(!this.isTowerAttachment(attachmentId)) {
             return null;
         }
         let candidates = mine.filter((card) => this.isTowerCharacter(card.id));
+        // Protection and covert are useful on every persistent high-value body,
+        // including Iron Crane Legion. Duel actions remain on true duel towers.
+        if(attachmentId === 'above-question' || attachmentId === 'tattooed-wanderer') {
+            candidates = mine.filter((card) => this.isDurableCharacter(card.id));
+        }
         if(attachmentId === 'shukujo') {
             candidates = candidates.filter((card) => card.id === 'doji-kuwanan');
         }
@@ -274,6 +282,16 @@ export class DuelTactics {
             // legally attach to him.
             candidates = candidates.filter((card) => card.id !== 'doji-kuwanan' ||
                 (card.attachments || []).some((attachment: any) => attachment.id === 'seal-of-the-crane'));
+        }
+        if(attachmentId === 'tattooed-wanderer') {
+            // Tengu Sensei already has Covert; a second source adds no value.
+            candidates = candidates.filter((card) => card.id !== 'tengu-sensei');
+        }
+        if(attachmentId && maxCopiesPerTarget) {
+            // Copy limits come from shared card metadata. Duel-specific
+            // targeting only ranks legal strategic bearers.
+            candidates = candidates.filter((card) => (card.attachments || [])
+                .filter((attachment: any) => attachment.id === attachmentId).length < maxCopiesPerTarget);
         }
         const restricted = !!attachmentId && this.profile.restrictedAttachments.includes(attachmentId);
         if(restricted) {

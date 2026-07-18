@@ -38,8 +38,8 @@ JigokuBotController (seed 5)                     FateAwareJigokuBotPolicy
 ```
 
 - **`DeckAnalysis.ts`** — the "deck analysis". A curated per-card conflict model
-  (fate cost, mil/pol skill, buff, event swing, tag) for the cards of the Crane
-  Duels deck (EmeraldDB `b59bc6b3`, the deck the user plays). Card BODIES are
+  (printed name, fate cost, mil/pol skill, buff, event swing, tag) for supported
+  conflict cards. Card BODIES are
   read live from the game objects, so any deck's characters/attachments are
   covered exactly; the registry adds what a live object cannot express — what an
   EVENT does (a duel, a removal). The controller builds a threat matrix for
@@ -52,7 +52,7 @@ JigokuBotController (seed 5)                     FateAwareJigokuBotPolicy
   reads true strengths, and `ensureDeckAnalyzed()` is the one-time gate that
   reports which of the human's conflict events (if any) are unmodeled.
 - **`JigokuBotPolicy.ts`** and **`StrongholdDefenseTactics.ts`** — the
-  `context.omniscient` view drives five live behaviors:
+  `context.omniscient` view drives six live behaviors:
   1. **Hand-aware conflict type** (`omniPreferredConflictType`) — compares each
      axis after subtracting the best body, flat printed attachment boost, or
      curated event boost the opponent can afford from their real hand.
@@ -69,6 +69,9 @@ JigokuBotController (seed 5)                     FateAwareJigokuBotPolicy
      boost, and affordable bow/send-home/discard/remove effects. Unlike fair
      seeds, seed 5 may reserve multiple defenders when its exact hidden-state
      calculation says one is unsafe.
+  6. **Exact Gossip naming** — Gossip still names only a card in the known
+     submitted opponent conflict deck, but seed 5 ranks exact hand copies and
+     current affordability above merely possible deck threats.
 
 Province strength comes from the live province card's `getStrength()`, so
 holdings, the stronghold bonus, and active modifiers are included even when the
@@ -79,8 +82,8 @@ their current fate.
 ## Deck-analysis gate
 
 The user's requirement: "if seed 5 is chosen and the deck is not yet analyzed it
-needs to be analyzed first." The analysis is the static `DeckAnalysis` registry;
-Crane Duels ships fully analyzed. At game start the omniscient bot scans the
+needs to be analyzed first." The analysis is the static `DeckAnalysis` registry.
+At game start the omniscient bot scans the
 human's whole deck for conflict events with no curated model and reports coverage
 in the game log:
 - fully modeled → "has analyzed the opponent deck: all N conflict events
@@ -150,5 +153,6 @@ npx jasmine test/server/bots/jigokuheuristicbot.spec.js     # shared heuristic b
 ```
 
 Live: pick **Omniscient (cheating — hardest)** in the lobby Bot difficulty
-dropdown (passes bot `seed: "5"`). Fixtures for the Crane deck live in
-`tools/selfplay/fixtures/crane-decklist.json` + `crane-cards.json`.
+dropdown (passes bot `seed: "5"`). Fixtures for Crane Baseline live in
+`tools/selfplay/fixtures/crane-decklist.json`, `crane-cards.json`, and
+`crane-baseline-extra-cards.json`.

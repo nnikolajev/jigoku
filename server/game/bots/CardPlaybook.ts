@@ -1,5 +1,6 @@
 import type { CardHint } from './llm/CardHints';
 import { getCardModel } from './DeckAnalysis.js';
+import { isNegativeAttachmentId } from './AttachmentControlTactics.js';
 
 /**
  * Hand-written per-card knowledge for the bot, keyed by printed card id.
@@ -2237,8 +2238,10 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 7,
         summary: 'discard an attachment',
         abilityValue: true,
-        shouldPlay: (ctx) => ctx.opponentCharacters.some((card) =>
-            (card.attachments || []).length > 0)
+        shouldPlay: (ctx) => (ctx.opponentCharacters || []).some((card) =>
+            (card.attachments || []).length > 0) ||
+            (ctx.myCharacters || []).some((card) => (card.attachments || [])
+                .some((attachment: any) => isNegativeAttachmentId(attachment.id)))
     }),
 
     // Interrupt: cancel an enemy event by winning a military duel. It is an
@@ -2312,7 +2315,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 7,
         summary: 'attachment mode: bearer gains covert',
         abilityValue: true,
-        preConflict: true
+        preConflict: true,
+        maxCopiesPerTarget: 1
     }),
 
     // Move the bearer to the conflict (or home) + stats.
@@ -2473,6 +2477,32 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
 
     // ---- other character actions/reactions ----
 
+    'brash-samurai': entry('brash-samurai', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 10,
+        summary: 'honor itself while it is the only friendly participant',
+        inPlayAction: true,
+        shouldUseAction: (ctx) => participating(ctx.myCharacters).length === 1 &&
+            participating(ctx.myCharacters)[0].id === 'brash-samurai' &&
+            !participating(ctx.myCharacters)[0].isHonored
+    }),
+
+    'savvy-politician': entry('savvy-politician', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 9,
+        summary: 'after being honored, honor another valuable character'
+    }),
+
+    'kakita-yoshi-2': entry('kakita-yoshi-2', {
+        conflictTypes: ['political'],
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 10,
+        summary: 'political attack win: dishonor enemy characters'
+    }),
+
     // While attacking: drag an enemy character INTO the conflict — feeds the
     // duelists a target.
     // Doji Challenger's action moves an ENEMY character INTO the conflict
@@ -2487,7 +2517,9 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 6,
         summary: 'attacking: move an enemy character into the conflict',
         inPlayAction: true,
-        shouldUseAction: () => false
+        shouldUseAction: (ctx) => ctx.amAttacker && !ctx.losing &&
+            (ctx.conflictsRemaining || 0) >= 1 && (ctx.strengthNeeded ?? 0) <= 0 &&
+            ctx.opponentCharacters.some((card) => !card.bowed && !card.inConflict)
     }),
 
     // Bow an enemy with lower military — aim at their strongest legal.
@@ -2540,6 +2572,15 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     }),
 
     // ---- events ----
+
+    'gossip': entry('gossip', {
+        priority: 10,
+        summary: 'name an important card from the known opponent conflict deck',
+        abilityValue: true,
+        // The Crane profile plays this before a conflict, where its phase-long
+        // restriction covers every following conflict window.
+        shouldPlay: () => false
+    }),
 
     // Dishonor a character involved in a duel.
     'insult-to-injury': entry('insult-to-injury', {
@@ -2647,7 +2688,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         abilityValue: true
     }),
 
-    // ---- attachments (all stack on the key duelists) ----
+    // ---- attachments (land on key duelists; singleton utility spreads) ----
 
     'daimyo-s-gunbai': entry('daimyo-s-gunbai', {
         targetSide: 'enemy',
@@ -2677,6 +2718,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 9,
         summary: 'grants a military duel action',
         abilityValue: true,
+        maxCopiesPerTarget: 1,
         inPlayAction: true,
         shouldUseAction: (ctx) => ctx.myCharacters.some((card) =>
             card.inConflict && !card.bowed &&
@@ -2689,7 +2731,27 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 6,
-        summary: 'champion weapon: switch the conflict type'
+        summary: 'champion weapon: switch the conflict type',
+        inPlayAction: true,
+        shouldUseAction: (ctx) => {
+            const own = participating(ctx.myCharacters);
+            const enemy = participating(ctx.opponentCharacters);
+            const current = ctx.conflictType;
+            const other = current === 'military' ? 'political' : 'military';
+            const margin = (axis: 'military' | 'political') =>
+                own.reduce((sum, card) => sum + liveSkill(card, axis), 0) -
+                enemy.reduce((sum, card) => sum + liveSkill(card, axis), 0);
+            return own.some((card) => card.id === 'doji-kuwanan') && margin(other) > margin(current);
+        }
+    }),
+
+    'above-question': entry('above-question', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 9,
+        summary: 'protect a persistent character from opponent events',
+        abilityValue: true,
+        maxCopiesPerTarget: 1
     }),
 
     // +2 political in duels; reaction: +1 honor on duel wins. Always fire.
@@ -2707,7 +2769,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'strongest',
         priority: 7,
         summary: 'after dials: nudge our duel bid by 1',
-        abilityValue: true
+        abilityValue: true,
+        maxCopiesPerTarget: 1
     }),
 
     // ---- holdings / provinces ----
@@ -2842,9 +2905,8 @@ export function deriveDeckStrategy(cardIds: Iterable<string>): DeckStrategy {
         dishonor: ids.has('city-of-the-open-hand') || dishonorCount >= 4,
         glory: ids.has('isawa-mori-seido') || gloryCount >= 4,
         monk: ids.has('high-house-of-light') || monkCount >= 4,
-        // Keyed on Tsuma alone: the SPARRING Crane precon shares the whole
-        // duel package with the upgraded list, and the baseline opponent
-        // must keep its generic behavior (bands stay comparable).
+        // Tsuma marks both supported duel lists. The current Crane Baseline
+        // intentionally combines this shared package with its own profile.
         duelist: ids.has('tsuma'),
         // Kyuden Isawa uniquely identifies the Spell recursion/ring-control
         // deck without changing the older Phoenix glory strategy.

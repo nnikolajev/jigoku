@@ -38,15 +38,17 @@ class ConsumedByFiveFires extends DrawCard {
             cardCondition: card => card.location === Locations.PlayArea && card.allowGameAction('removeFate', context) && card.controller !== context.player && !Object.keys(targets).includes(card.uuid),
             onSelect: (player, card) => {
                 let maxFate = Math.min(fateRemaining, card.getFate());
-                let choices = Array.from({ length: maxFate }, (_, i) => i + 1);
+                // Prompt labels are strings throughout the UI/controller
+                // contract. Keep the selected amount numeric in `targets` so
+                // the remaining-fate calculation cannot concatenate strings.
+                let choices = Array.from({ length: maxFate }, (_, i) => (i + 1).toString());
                 let handlers = choices.map(choice => {
                     return () => {
-                        targets[card.uuid] = choice;
-                        messages.push('take ' + choice.toString() + ' fate from ' + card.name);
+                        targets[card.uuid] = Number(choice);
+                        messages.push('take ' + choice + ' fate from ' + card.name);
                         this.chooseCard(context, targets, messages);
                     };
                 });
-                    // @ts-expect-error choices array mixes number and string, game engine handles it at runtime
                 choices.push('Redo');
                 handlers.push(() => {
                     this.chooseCard(context, {}, []);

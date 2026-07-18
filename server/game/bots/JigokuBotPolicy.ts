@@ -152,6 +152,9 @@ interface DecideContext {
     // Ownership of the event whose effects are currently being interrupted.
     // Voice of Honor must never cancel its controller's own event.
     interruptedEventIsMine?: boolean;
+    // A Display of Power already survived interrupts and installed its delayed
+    // ring replacement in this conflict. Later copies must be preserved.
+    displayOfPowerActive?: boolean;
     // UUIDs already visible to the bot that the live prompt accepts as direct
     // clicks. Undefined preserves legacy behavior for synthetic/custom calls.
     legalDirectCardUuids?: Record<string, true>;
@@ -897,7 +900,7 @@ class JigokuBotPolicy {
         // Triggered ability windows ('Any reactions?' / 'Any interrupts to X?'):
         // fire own province and stronghold abilities, pass everything else.
         if(title.includes('any reaction') || title.includes('any interrupt')) {
-            return this.triggeredWindowDecision(playerState, me, buttons, title, context.playCost, context.cardHint, profile, context.conflictCosts, lion, attachmentTower, duelist, context.duelMargin, context.interruptedEventIsMine);
+            return this.triggeredWindowDecision(playerState, me, buttons, title, context.playCost, context.cardHint, profile, context.conflictCosts, lion, attachmentTower, duelist, context.duelMargin, context.interruptedEventIsMine, context.displayOfPowerActive);
         }
 
         // Opponent-forced "reveal N cards from your hand" selects (Daidoji
@@ -3834,7 +3837,7 @@ class JigokuBotPolicy {
     // worth firing (e.g. Meditations on the Tao stripping attacker fate);
     // character and event reactions stay passed until per-card knowledge
     // exists, because firing them blindly wastes fate and honor.
-    private triggeredWindowDecision(playerState: any, me: any, buttons: any[], windowTitle: string, playCost?: number, cardHint?: CardHintLookup, profile: DeckProfile = DEFAULT_PROFILE, conflictCosts?: Record<string, number>, lion: LionTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, duelist: DuelTactics | null = null, duelMargin?: number, interruptedEventIsMine?: boolean): BotDecision | null {
+    private triggeredWindowDecision(playerState: any, me: any, buttons: any[], windowTitle: string, playCost?: number, cardHint?: CardHintLookup, profile: DeckProfile = DEFAULT_PROFILE, conflictCosts?: Record<string, number>, lion: LionTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, duelist: DuelTactics | null = null, duelMargin?: number, interruptedEventIsMine?: boolean, displayOfPowerActive = false): BotDecision | null {
         // A cost increase can make the engine expose Castle while a printed
         // cost-zero attachment is being played. Preserve the once-per-round
         // bow for a printed paid attachment instead of discounting that card.
@@ -3891,6 +3894,9 @@ class JigokuBotPolicy {
                         return false;
                     }
                     if(card.id === 'voice-of-honor' && interruptedEventIsMine === true) {
+                        return false;
+                    }
+                    if(card.id === 'display-of-power' && displayOfPowerActive) {
                         return false;
                     }
                     if(duelist?.duelSourceId(card)) {

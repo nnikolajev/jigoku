@@ -20,6 +20,7 @@ import type Player from '../player';
 import type Ring from '../ring';
 import type BaseCard from '../basecard';
 import type { JigokuBotConfig } from './JigokuBotConfig';
+import { EventNames } from '../Constants';
 
 interface BotDecision {
     command: 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
@@ -78,6 +79,12 @@ class JigokuBotController {
     private recentExhaustSignatures: string[] = [];
     private consecutiveExhaustions = 0;
     private deckStrategy?: DeckStrategy;
+    // Display of Power installs its delayed ring replacement only after its
+    // ability-effects event survives interrupts. Remember that success for
+    // this conflict so another copy is not spent on the same ring. A canceled
+    // event is not emitted, leaving retry available.
+    private displayOfPowerActive = false;
+    private displayOfPowerConflictUuid: string | null = null;
 
     constructor(private game: Game, readonly config: JigokuBotConfig, private runCommand: CommandRunner,
         services: { hintService?: DeckHintService; consultant?: LiveConsultant; planner?: LlmActionPlanner; onStateChange?: () => void; recorder?: DecisionRecorder; evaluator?: MoveEvaluator } = {}) {
@@ -90,6 +97,8 @@ class JigokuBotController {
         this.onStateChange = services.onStateChange;
         this.recorder = services.recorder;
         this.evaluator = services.evaluator;
+        (this.game as any).on?.(EventNames.OnInitiateAbilityEffects, (event: any) =>
+            this.recordDisplayOfPowerInitiated(event));
 
         if(config.llm?.enabled) {
             const client = new LmStudioClient({ baseUrl: config.llm.baseUrl, model: config.llm.model });
@@ -550,6 +559,7 @@ class JigokuBotController {
                     // Effective post-reveal margin, including bid modifiers.
                     duelMargin: this.currentDuelMargin(player),
                     interruptedEventIsMine: this.currentInterruptedEventIsMine(player),
+                    displayOfPowerActive: this.displayOfPowerActiveThisConflict(),
                     legalDirectCardUuids: this.currentLegalDirectCardUuids(player),
                     legalRingElements: this.currentLegalRingElements(player),
                     // Printed fate cost of dynasty province cards (reserve 1 fate).
@@ -1498,6 +1508,27 @@ class JigokuBotController {
         });
         const eventPlayer = event?.context?.player || event?.player;
         return eventPlayer?.name ? eventPlayer.name === player.name : undefined;
+    }
+
+    private recordDisplayOfPowerInitiated(event: any): void {
+        const source = event?.card || event?.context?.source;
+        const eventPlayer = event?.context?.player || event?.player || source?.controller;
+        const conflictUuid = (this.game as any).currentConflict?.uuid;
+        if(event?.cancelled || source?.id !== 'display-of-power' ||
+            eventPlayer?.name !== this.config.playerName || !conflictUuid) {
+            return;
+        }
+        this.displayOfPowerActive = true;
+        this.displayOfPowerConflictUuid = String(conflictUuid);
+    }
+
+    private displayOfPowerActiveThisConflict(): boolean {
+        const conflictUuid = (this.game as any).currentConflict?.uuid;
+        if(!conflictUuid || String(conflictUuid) !== this.displayOfPowerConflictUuid) {
+            this.displayOfPowerActive = false;
+            this.displayOfPowerConflictUuid = null;
+        }
+        return this.displayOfPowerActive;
     }
 
     // The 'Choose additional fate' cost prompt does not expose the printed

@@ -30,6 +30,35 @@ describe('Jigoku heuristic bot', function() {
         };
     }
 
+    it('tracks only uninterrupted Display of Power and resets it after the conflict', function() {
+        const listeners = {};
+        const game = {
+            currentConflict: { uuid: 'conflict-1' },
+            on: (event, handler) => listeners[event] = handler
+        };
+        const controller = new JigokuBotController(
+            game,
+            { playerName: 'Jigoku Bot', seed: 1 },
+            jasmine.createSpy('runner')
+        );
+        const displayEvent = {
+            card: { id: 'display-of-power' },
+            context: { player: { name: 'Jigoku Bot' } }
+        };
+
+        listeners.onInitiateAbilityEffects({ ...displayEvent, cancelled: true });
+        expect(controller.displayOfPowerActiveThisConflict()).toBeFalse();
+
+        listeners.onInitiateAbilityEffects(displayEvent);
+        expect(controller.displayOfPowerActiveThisConflict()).toBeTrue();
+
+        game.currentConflict = null;
+        expect(controller.displayOfPowerActiveThisConflict()).toBeFalse();
+
+        game.currentConflict = { uuid: 'conflict-2' };
+        expect(controller.displayOfPowerActiveThisConflict()).toBeFalse();
+    });
+
     it('builds a target hint when a selector exposes one gameAction object', function() {
         const controller = Object.create(JigokuBotController.prototype);
         controller.currentPromptStep = () => ({
@@ -2759,6 +2788,51 @@ describe('Jigoku heuristic bot', function() {
 
                 expect(decision.command).toBe('cardClicked');
                 expect(decision.args[0]).toBe('zzz-display');
+            });
+
+            it(`does not trigger a second Display of Power after one resolved in the conflict (${name})`, function() {
+                const lowerPriorityReaction = {
+                    uuid: 'aaa-reaction',
+                    id: 'minor-reaction',
+                    name: 'Minor Reaction',
+                    type: 'event',
+                    location: 'hand',
+                    selectable: true
+                };
+                const secondDisplay = {
+                    uuid: 'zzz-second-display',
+                    id: 'display-of-power',
+                    name: 'Display of Power',
+                    type: 'event',
+                    location: 'hand',
+                    selectable: true
+                };
+                const decision = new Policy(`trigger-display-once-${name}`).decide(
+                    {
+                        players: {
+                            'Jigoku Bot': {
+                                name: 'Jigoku Bot',
+                                promptTitle: 'Triggered Abilities',
+                                menuTitle: 'Any reactions?',
+                                selectCard: true,
+                                buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                                stats: { fate: 2 },
+                                cardPiles: { hand: [lowerPriorityReaction, secondDisplay] }
+                            }
+                        }
+                    },
+                    'Jigoku Bot',
+                    {
+                        displayOfPowerActive: true,
+                        cardHint: (cardId) => cardId === 'display-of-power'
+                            ? hint(10)(cardId)
+                            : hint(6)(cardId),
+                        conflictCosts: { 'aaa-reaction': 0, 'zzz-second-display': 2 }
+                    }
+                );
+
+                expect(decision.command).toBe('cardClicked');
+                expect(decision.args[0]).toBe('aaa-reaction');
             });
 
             it(`does not pretend an in-play reaction has zero fate cost (${name})`, function() {

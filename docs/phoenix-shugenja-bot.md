@@ -28,6 +28,8 @@ forced rule or legal timing.
   on a live Phoenix payoff, or when the available defenders cannot win anyway.
   A winnable conflict on an irrelevant ring is defended normally. The reaction
   cancels the enemy ring effect, resolves it for Phoenix, and claims the ring.
+  Once its effects survive interrupts, later Display copies are preserved for
+  another conflict; an interrupted copy may be retried immediately.
   Stronghold defense is never intentionally conceded.
 - **Build practical towers.** Ready, Water, Clarity of Purpose, Supernatural
   Storm, and Adept of the Waves effects prefer Isawa Tadaka, Fushichō, Shiba

@@ -1633,6 +1633,78 @@ describe('Jigoku heuristic bot', function() {
         expect(decision.reason).toBe('attack-facedown-province');
     });
 
+    describe('province attack priority', function() {
+        const character = (uuid, mil = 4, pol = 4) => ({
+            uuid: uuid, type: 'character', location: 'play area', bowed: false, inConflict: false,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: String(pol) }
+        });
+        const province = (uuid, id, location, strength, abilityClass = 'none', eminent = false) => ({
+            uuid: uuid, id: id, name: id, isProvince: true, type: 'province', location: location,
+            isBroken: false, facedown: false, eminent: eminent, provinceAbilityClass: abilityClass,
+            strengthSummary: { stat: String(strength) }
+        });
+        const state = (provinces) => ({
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose province to attack',
+                    buttons: [], cardPiles: { cardsInPlay: [character('attacker')] }
+                },
+                Human: {
+                    name: 'Human', cardPiles: { cardsInPlay: [] },
+                    provinces: { one: [provinces[0]], two: [provinces[1]], three: [], four: [] }
+                }
+            }
+        });
+
+        it('prefers a same-strength province with no triggered ability over an action province', function() {
+            const shameful = province('shameful', 'shameful-display', 'province 1', 3, 'action');
+            const tsuma = province('tsuma', 'tsuma', 'province 2', 3, 'none');
+            const decision = new JigokuBotPolicy('province-ability-priority').decide(
+                state([shameful, tsuma]), 'Jigoku Bot');
+
+            expect(decision.args[0]).toBe('tsuma');
+        });
+
+        it('prefers an eminent province before a weaker ordinary province', function() {
+            const tsuma = province('tsuma', 'tsuma', 'province 1', 3, 'none');
+            const eminent = province('watch', 'the-eternal-watch', 'province 2', 4, 'action', true);
+            const decision = new JigokuBotPolicy('province-eminent-priority').decide(
+                state([tsuma, eminent]), 'Jigoku Bot');
+
+            expect(decision.args[0]).toBe('watch');
+        });
+
+        it('makes seed 5 treat hidden Public Forum as strength 6 for target priority', function() {
+            const hiddenState = state([
+                { facedown: true, location: 'province 1', isBroken: false },
+                { facedown: true, location: 'province 2', isBroken: false }
+            ]);
+            const decision = new JigokuBotPolicy('province-public-forum-priority').decide(
+                hiddenState,
+                'Jigoku Bot',
+                {
+                    omniscient: {
+                        oppName: 'Human', oppFate: 0, oppHand: [], unmodeledEvents: [],
+                        oppProvinces: [
+                            {
+                                id: 'public-forum', name: 'Public Forum', location: 'province 1',
+                                strength: 3, broken: false, facedown: true,
+                                eminent: false, abilityClass: 'reaction'
+                            },
+                            {
+                                id: 'shameful-display', name: 'Shameful Display', location: 'province 2',
+                                strength: 4, broken: false, facedown: true,
+                                eminent: false, abilityClass: 'action'
+                            }
+                        ]
+                    }
+                }
+            );
+
+            expect(decision.args[0]).toBe('province 2');
+        });
+    });
+
     it('uses a selectable card controller when the player summary omits that own card', function() {
         const ownTarget = {
             uuid: 'own-global-target', id: 'togashi-ichi', name: 'Togashi Ichi',
@@ -1931,6 +2003,98 @@ describe('Jigoku heuristic bot', function() {
         const secondDecision = policy.decide(state, 'Jigoku Bot', { profile: profile });
         expect(secondDecision.args[0]).toBe('second');
         expect(secondDecision.reason).toBe('declare-attacker');
+    });
+
+    describe('two-broken-province conflict safety', function() {
+        const broken = (location) => ({ isProvince: true, type: 'province', location: location, isBroken: true });
+        const open = (location) => ({ isProvince: true, type: 'province', location: location, isBroken: false });
+        const character = (uuid, mil, pol = 0) => ({
+            uuid: uuid, name: uuid, type: 'character', location: 'play area', bowed: false, inConflict: false,
+            militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: String(pol) }
+        });
+        const makeState = (conflictsRemaining = 2, opponentConflictsRemaining = 2) => ({
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', firstPlayer: true,
+                    promptTitle: 'Military Air Conflict', menuTitle: 'Choose attackers',
+                    buttons: [
+                        { text: 'Initiate Conflict', arg: 'done', uuid: 'done' },
+                        { text: 'Pass Conflict', arg: 'pass', uuid: 'pass' }
+                    ],
+                    stats: {
+                        honor: 10, conflictsRemaining: conflictsRemaining,
+                        militaryRemaining: 1, politicalRemaining: conflictsRemaining > 1 ? 1 : 0
+                    },
+                    cardPiles: {
+                        cardsInPlay: [character('tower', 10), character('body-a', 1), character('body-b', 1)]
+                    },
+                    provinces: {
+                        one: [broken('province 1')], two: [broken('province 2')],
+                        three: [open('province 3')], four: [open('province 4')]
+                    },
+                    strongholdProvince: [{
+                        uuid: 'own-last', isProvince: true, type: 'province', location: 'stronghold province',
+                        isBroken: false, strengthSummary: { stat: '4' }
+                    }]
+                },
+                Human: {
+                    name: 'Human', firstPlayer: false,
+                    stats: {
+                        conflictsRemaining: opponentConflictsRemaining,
+                        militaryRemaining: 1,
+                        politicalRemaining: opponentConflictsRemaining > 1 ? 1 : 0
+                    },
+                    cardPiles: { cardsInPlay: [character('enemy-a', 6), character('enemy-b', 6)] },
+                    provinces: {
+                        one: [open('province 1')], two: [open('province 2')],
+                        three: [open('province 3')], four: [open('province 4')]
+                    },
+                    strongholdProvince: []
+                }
+            }
+        });
+
+        it('does not consume the sole safe defender on the first conflict opportunity', function() {
+            const decision = new JigokuBotPolicy('two-broken-first-opportunity').decide(
+                makeState(), 'Jigoku Bot', { profile: { attackCommitment: 'all', attackKeepHome: 0 } });
+
+            expect(decision.args[0]).toBe('body-a');
+            expect(decision.reason).toBe('declare-attacker');
+        });
+
+        it('releases the temporary reserve on the second conflict opportunity', function() {
+            const decision = new JigokuBotPolicy('two-broken-second-opportunity').decide(
+                makeState(1, 1), 'Jigoku Bot', { profile: { attackCommitment: 'all', attackKeepHome: 0 } });
+
+            expect(decision.args[0]).toBe('tower');
+            expect(decision.reason).toBe('declare-attacker');
+        });
+
+        it('may pass an unsafe first opportunity but still declares its second conflict', function() {
+            const state = makeState();
+            const me = state.players['Jigoku Bot'];
+            me.promptTitle = 'Initiate Conflict';
+            me.menuTitle = 'Choose an elemental ring';
+            me.cardPiles.cardsInPlay = [character('only-defender', 10)];
+            state.rings = { air: { element: 'air', claimed: false, unselectable: false, fate: 0 } };
+            const policy = new JigokuBotPolicy('two-broken-delay-conflict');
+
+            const delay = policy.decide(state, 'Jigoku Bot', {
+                profile: { attackCommitment: 'all', attackKeepHome: 0 }
+            });
+            expect(delay.target).toBe('Pass Conflict');
+            expect(delay.reason).toBe('two-broken-all-needed');
+
+            me.stats.conflictsRemaining = 1;
+            me.stats.politicalRemaining = 0;
+            state.players.Human.stats.conflictsRemaining = 1;
+            state.players.Human.stats.politicalRemaining = 0;
+            const second = policy.decide(state, 'Jigoku Bot', {
+                profile: { attackCommitment: 'all', attackKeepHome: 0 }
+            });
+            expect(second.command).toBe('ringClicked');
+            expect(second.args[0]).toBe('air');
+        });
     });
 
     describe('last-province attack defense', function() {

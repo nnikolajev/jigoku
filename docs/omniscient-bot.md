@@ -56,19 +56,22 @@ JigokuBotController (seed 5)                     FateAwareJigokuBotPolicy
   1. **Hand-aware conflict type** (`omniPreferredConflictType`) — compares each
      axis after subtracting the best body, flat printed attachment boost, or
      curated event boost the opponent can afford from their real hand.
-  2. **Weakest-province targeting** (`attackProvinceDecision`) — strikes the
-     weakest unbroken province first by TRUE strength, instead of board order.
+  2. **Hidden-aware province targeting** (`attackProvinceDecision`) — uses the
+     same injectable Eminent/effective-strength/ability-timing ranking as every
+     seed, but applies it to the TRUE identity and strength of facedown cards.
+     Public Forum has effective priority strength 6 because it needs two breaks.
   3. **True-strength sizing** (`omniAttackedStrength`) — the break math uses the
      real strength of the (even face-down) attacked province instead of the
      heuristic's guess-4 fallback.
   4. **Token defense** (`defenderDecision`) — when the visible attack plus its
      affordable hidden boost still cannot break, commits only one weak defender
      to avoid the unopposed honor loss.
-  5. **Exact stronghold reserve** — after three own provinces are broken, the
-     survival planner combines the opponent's ready skill, affordable hand
-     boost, and affordable bow/send-home/discard/remove effects. Unlike fair
-     seeds, seed 5 may reserve multiple defenders when its exact hidden-state
-     calculation says one is unsafe.
+  5. **Exact stronghold reserve** — the two-broken risk gate uses exact live
+     outer and stronghold-province strengths; after three own provinces are
+     broken, the survival planner combines the opponent's ready skill,
+     affordable hand boost, and affordable bow/send-home/discard/remove effects.
+     Unlike fair seeds, seed 5 may reserve multiple defenders when its exact
+     hidden-state calculation says one is unsafe.
   6. **Exact Gossip naming** — Gossip still names only a card in the known
      submitted opponent conflict deck, but seed 5 ranks exact hand copies and
      current affordability above merely possible deck threats.

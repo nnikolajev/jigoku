@@ -271,13 +271,18 @@ class JigokuBotController {
             }
             out.push({
                 location: card.location || '',
+                id: card.id || card.cardData?.id || '',
                 name: card.name || card.id || '',
                 // Do not read strengthSummary: it is intentionally empty while
                 // a province is face down. getStrength() still returns the live
                 // value including holdings, stronghold bonuses and effects.
                 strength: this.liveProvinceStrength(card),
                 broken: !!card.isBroken,
-                facedown: !!card.facedown
+                facedown: !!card.facedown,
+                eminent: typeof card.hasEminent === 'function' ? !!card.hasEminent() : false,
+                abilityClass: typeof card.getProvinceAbilityClass === 'function'
+                    ? card.getProvinceAbilityClass()
+                    : 'unknown'
             });
         }
         return out;
@@ -354,6 +359,17 @@ class JigokuBotController {
         const province = provinces.find((card) =>
             card?.location === 'stronghold province' && card.isProvince !== false);
         return province ? this.liveProvinceStrength(province) : undefined;
+    }
+
+    private weakestOuterProvinceStrength(player: Player): number | undefined {
+        const provinces: any[] = typeof (player as any).getProvinces === 'function'
+            ? (player as any).getProvinces() : [];
+        const strengths = provinces
+            .filter((card) => /^province [1-4]$/.test(String(card?.location || '')) &&
+                card.isProvince !== false && !card.isBroken)
+            .map((card) => this.liveProvinceStrength(card))
+            .filter((strength) => Number.isFinite(strength));
+        return strengths.length > 0 ? Math.min(...strengths) : undefined;
     }
 
     // One-time deck-analysis gate for seed 5 (satisfies "analyze the deck before
@@ -542,6 +558,7 @@ class JigokuBotController {
                     // costs. Deck profiles need these to sequence reducers.
                     conflictCosts: this.conflictCostsHint(player),
                     strongholdProvinceStrength: this.strongholdProvinceStrength(player),
+                    weakestOuterProvinceStrength: this.weakestOuterProvinceStrength(player),
                     // Public visible defender ability; every seed may protect
                     // its participant immediately when that defender can bow.
                     opponentParticipantCanBow: this.opponentParticipantCanBow(player),

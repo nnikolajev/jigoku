@@ -338,8 +338,30 @@ export class ProvinceCard extends BaseCard {
             isProvince: this.isProvince,
             isBroken: this.isBroken,
             strengthSummary: this.strengthSummary,
+            // Only reveal targeting metadata when normal card identity is
+            // public. Opposing facedown province summaries omit `id`, keeping
+            // fair bots blind; seed 5 reads the live object separately.
+            ...(baseSummary.id ? {
+                eminent: this.hasEminent(),
+                provinceAbilityClass: this.getProvinceAbilityClass()
+            } : {}),
             attachments: this.attachments.map((attachment) => attachment.getSummary(activePlayer, hideWhenFaceup))
         };
+    }
+
+    getProvinceAbilityClass(): 'none' | 'reveal' | 'reaction' | 'action' {
+        if((this.abilities.actions || []).length > 0) {
+            return 'action';
+        }
+        const reactions = this.abilities.reactions || [];
+        if(reactions.length === 0) {
+            return 'none';
+        }
+        const revealOnly = reactions.every((ability: any) => {
+            const events = Object.keys(ability.when || {});
+            return events.length > 0 && events.every((event) => event === 'onCardRevealed');
+        });
+        return revealOnly ? 'reveal' : 'reaction';
     }
 
     allowAttachment(attachment: DrawCard): boolean {

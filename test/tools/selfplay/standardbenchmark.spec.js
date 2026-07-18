@@ -1,6 +1,8 @@
 'use strict';
 
 const {
+    STANDARD_ROUND_ROBIN_GAMES,
+    STANDARD_WIN_RATE_GAMES,
     STANDARD_SUITE_ID,
     emptyBenchmark,
     mergeBenchmark,
@@ -9,6 +11,15 @@ const {
 } = require('../../../tools/selfplay/standardBenchmark.js');
 
 describe('standard self-play benchmark config', function() {
+    it('uses 100-game win rates and a 40-game round robin', function() {
+        expect(STANDARD_WIN_RATE_GAMES).toBe(100);
+        expect(STANDARD_ROUND_ROBIN_GAMES).toBe(40);
+        expect(emptyBenchmark().standard).toEqual(jasmine.objectContaining({
+            gamesPerDeck: 100,
+            gamesPerMatchup: 40
+        }));
+    });
+
     it('merges independent script sections without deleting another seed or section', function() {
         const first = mergeBenchmark(emptyBenchmark(), 1, 'winRates', { generatedAt: 'first' });
         const second = mergeBenchmark(first, 1, 'roundRobin', { generatedAt: 'second' });
@@ -28,7 +39,7 @@ describe('standard self-play benchmark config', function() {
         );
         const roundRobin = roundRobinPayload({
             generatedAt: 'later',
-            config: { games: 100, botSeed: 1 },
+            config: { games: 40, botSeed: 1 },
             deckSummaries: [{
                 deck: 'Lion', wins: 500, losses: 399, other: 1, played: 900,
                 overallWinRate: 500 / 899, averageOpponentWinRate: 0.56,

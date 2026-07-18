@@ -102,7 +102,7 @@ python tools/selfplay/train.py --data tools/selfplay/out/trajectories.jsonl --ou
 node tools/selfplay/checkParity.js tools/selfplay/out/weights.json
 node tools/selfplay/evalMatch.js 40 --weights tools/selfplay/out/weights.json
 
-# all deck pairs, 100 games per matchup (default), parallel workers auto-sized
+# all deck pairs, 40 games per matchup (default), parallel workers auto-sized
 node tools/selfplay/botRoundRobin.js
 
 # old heuristic on both seats (seed 1 fate-aware is the default)
@@ -118,6 +118,9 @@ node tools/selfplay/winRates.js 100 1 2  # fate-aware vs old heuristic Crane
 
 # paired deterministic deep trace: same shuffle/seat, generic vs fate-aware
 node tools/selfplay/analyzePolicyGame.js --deck PhoenixShugenja --rng-seed 20260715
+
+# paired profile-knob A/B: same games, only target deck profile changes
+node tools/selfplay/compareProfileVariants.js --deck PhoenixShugenja --opponent Unicorn --seed 5 --games 40 --variants current,ratio-1.5,no-pre-defense
 
 # real-game per-card utilization; all registered deck/opponent labels work
 node tools/selfplay/auditCards.js Crane 20 1 PhoenixShugenja
@@ -141,6 +144,13 @@ size; `--late-round` and `--min-board` configure that board target. Use `--help`
 to select any registered deck, opponent, policies, seat, seed, caps, or output
 prefix.
 
+`compareProfileVariants.js` is the lighter repeated-game profile debugger. It
+keeps the opponent on the current profile and applies a named variant only to
+the target deck. `ratio-N` changes the preliminary stronghold-defense threat
+ratio; `public-forum-N`, `no-eminent`, `no-ability-priority`, and the legacy
+variants isolate province ordering. Reports include win-rate delta from
+`current`. These experiments never replace standardized client results.
+
 `auditCards.js <deck> [games=20] [seed=1] [opponent=Crane]` uses the shared
 deck registry and reports every successful click grouped by card and decision
 reason. Its zero-click section distinguishes active cards that need policy
@@ -153,8 +163,9 @@ subset, and `--help` for all options. Win rates exclude undecided games;
 
 A complete standard run also updates
 `../jigoku-client/client/botBenchmarkResults.json`, which the bot deck/seed
-selector reads. Standard means 100 games, alternating seats, same bot seed on
-both sides, and the full registered deck set for round robin. `winRates.js`
+selector reads. Standard means 100 games per win-rate deck or 40 games per
+round-robin matchup, alternating seats, same bot seed on both sides, and the
+full registered deck set for round robin. `winRates.js`
 requires no policy override and defaults the Crane seed to the challenger seed;
 its third argument remains available for cross-seed experiments. Custom game
 counts, cross-seed opponents, policy overrides, deck subsets, and incomplete

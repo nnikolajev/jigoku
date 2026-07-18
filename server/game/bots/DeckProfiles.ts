@@ -43,6 +43,8 @@ import { CRANE_BASELINE_DEFAULTS } from './CraneBaselineTactics.js';
 import type { CraneBaselineProfile } from './CraneBaselineTactics';
 import { PERSONAL_HONOR_DEFAULTS } from './PersonalHonorTactics.js';
 import type { PersonalHonorProfile } from './PersonalHonorTactics';
+import { PROVINCE_TARGETING_DEFAULTS } from './ProvinceTargeting.js';
+import type { ProvinceTargetingProfile } from './ProvinceTargeting';
 
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
@@ -66,6 +68,7 @@ export interface DeckProfile {
     fateAwareEconomy: FateAwareEconomyProfile; // injectable dynasty spending policy used by seeds 1 and 5
     conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1, 2, and 5
     strongholdDefense: StrongholdDefenseProfile; // shared injectable last-province reserve planner for every seed
+    provinceTargeting: ProvinceTargetingProfile; // shared injectable Eminent/strength/ability target priority for every seed
     attachmentControl: AttachmentControlProfile; // shared Let Go / attachment-removal value policy
     personalHonor: PersonalHonorProfile; // shared glory-aware honor/dishonor target policy
     mulliganForHoldings: boolean; // dig opening provinces toward holdings
@@ -163,6 +166,12 @@ export const DEFAULT_PROFILE: DeckProfile = {
     fateAwareEconomy: { ...DEFAULT_FATE_AWARE_ECONOMY },
     conflictCardEconomy: { ...DEFAULT_CONFLICT_CARD_ECONOMY },
     strongholdDefense: { ...STRONGHOLD_DEFENSE_DEFAULTS },
+    provinceTargeting: {
+        ...PROVINCE_TARGETING_DEFAULTS,
+        abilityPriority: { ...PROVINCE_TARGETING_DEFAULTS.abilityPriority },
+        effectiveStrengthById: { ...PROVINCE_TARGETING_DEFAULTS.effectiveStrengthById },
+        priorityTierById: { ...PROVINCE_TARGETING_DEFAULTS.priorityTierById }
+    },
     attachmentControl: {
         ...ATTACHMENT_CONTROL_DEFAULTS,
         ownDebuffScores: { ...ATTACHMENT_CONTROL_DEFAULTS.ownDebuffScores },
@@ -195,6 +204,12 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },
         conflictCardEconomy: { ...DEFAULT_PROFILE.conflictCardEconomy },
         strongholdDefense: { ...DEFAULT_PROFILE.strongholdDefense },
+        provinceTargeting: {
+            ...DEFAULT_PROFILE.provinceTargeting,
+            abilityPriority: { ...DEFAULT_PROFILE.provinceTargeting.abilityPriority },
+            effectiveStrengthById: { ...DEFAULT_PROFILE.provinceTargeting.effectiveStrengthById },
+            priorityTierById: { ...DEFAULT_PROFILE.provinceTargeting.priorityTierById }
+        },
         attachmentControl: {
             ...DEFAULT_PROFILE.attachmentControl,
             ownDebuffScores: { ...DEFAULT_PROFILE.attachmentControl.ownDebuffScores },
@@ -330,10 +345,19 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
 // A named per-deck override: when `match` is true for the bot's deck, `apply` is
 // merged over the strategy-derived profile. Matched by card contents + derived
 // strategy so it works in both live play and self-play (no deck-id needed).
+type DeckProfileOverride = Omit<Partial<DeckProfile>, 'strongholdDefense' | 'provinceTargeting'> & {
+    strongholdDefense?: Partial<StrongholdDefenseProfile>;
+    provinceTargeting?: Omit<Partial<ProvinceTargetingProfile>, 'abilityPriority' | 'effectiveStrengthById' | 'priorityTierById'> & {
+        abilityPriority?: Partial<ProvinceTargetingProfile['abilityPriority']>;
+        effectiveStrengthById?: Record<string, number>;
+        priorityTierById?: Record<string, number>;
+    };
+};
+
 interface ProfileOverride {
     name: string;
     match: (cardIds: Set<string>, strategy: DeckStrategy) => boolean;
-    apply: Partial<DeckProfile>;
+    apply: DeckProfileOverride;
 }
 
 const OVERRIDES: ProfileOverride[] = [
@@ -360,7 +384,15 @@ const OVERRIDES: ProfileOverride[] = [
         name: 'phoenix-shugenja-vassal-fields',
         match: (ids, strategy) => strategy.shugenja && ids.has('vassal-fields'),
         apply: {
-            strongholdProvinceId: 'vassal-fields'
+            strongholdProvinceId: 'vassal-fields',
+            // This ring/spell deck needs conflict opportunities more than an
+            // early one-body reserve. Require a 50% larger two-province threat
+            // before preserving its attacker; final-stronghold defense is
+            // unchanged. Paired seed-5 A/B: +6.7 pp vs Unicorn, +2.5 pp vs
+            // Crane/Lion, neutral vs Scorpion/Dragon Attachments.
+            strongholdDefense: {
+                preStrongholdThreatRatio: 1.5
+            }
         }
     },
     {
@@ -597,7 +629,8 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
     const ids = cardIds instanceof Set ? cardIds : new Set(cardIds);
     for(const override of OVERRIDES) {
         if(override.match(ids, strategy)) {
-            const apply: Partial<DeckProfile> = { ...override.apply };
+            const { strongholdDefense, provinceTargeting, ...flatApply } = override.apply;
+            const apply: Partial<DeckProfile> = { ...flatApply };
             // Overrides are module-level constants. Clone injectable nested
             // profiles so tuning one resolved bot can never mutate another.
             if(override.apply.conflictCardEconomy) {
@@ -611,8 +644,29 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                         : {})
                 };
             }
-            if(override.apply.strongholdDefense) {
-                apply.strongholdDefense = { ...override.apply.strongholdDefense };
+            if(strongholdDefense) {
+                apply.strongholdDefense = {
+                    ...profile.strongholdDefense,
+                    ...strongholdDefense
+                };
+            }
+            if(provinceTargeting) {
+                apply.provinceTargeting = {
+                    ...profile.provinceTargeting,
+                    ...provinceTargeting,
+                    abilityPriority: {
+                        ...profile.provinceTargeting.abilityPriority,
+                        ...provinceTargeting.abilityPriority
+                    },
+                    effectiveStrengthById: {
+                        ...profile.provinceTargeting.effectiveStrengthById,
+                        ...provinceTargeting.effectiveStrengthById
+                    },
+                    priorityTierById: {
+                        ...profile.provinceTargeting.priorityTierById,
+                        ...provinceTargeting.priorityTierById
+                    }
+                };
             }
             if(override.apply.attachmentControl) {
                 apply.attachmentControl = {

@@ -21,7 +21,8 @@ reads the knobs; the profile is chosen per deck.
 |------|---------|
 | `fateAwareEconomy` | injectable dynasty purchase/fate policy used by seeds 1 and 5 |
 | `conflictCardEconomy` | value-per-fate candidate planner shared by seeds 1, 2, and 5 |
-| `strongholdDefense` | last-province reserve planner and fair/omniscient defender limits |
+| `provinceTargeting` | shared injectable province ordering: Eminent, effective strength, ability timing, and per-card overrides |
+| `strongholdDefense` | three-broken survival planner plus injectable two-broken risk gate and fair/omniscient defender limits |
 | `attachmentControl` | shared Let Go policy comparing own debuff removal with enemy attachment removal |
 | `personalHonor` | shared glory-aware honor/dishonor targeting; conflict swing and home-target preferences are overridable |
 | `mulliganForHoldings` | dig opening provinces toward holdings (Kaiu Wall) |
@@ -101,6 +102,28 @@ generic injectable profile. `PersonalHonorTactics.ts` centralizes high-glory
 friendly honor, low-glory forced self-dishonor, low-glory forced enemy honor,
 and conflict-aware enemy dishonor. A deck override may change its conflict/home
 preferences without duplicating target code.
+
+`provinceTargeting: ProvinceTargetingProfile` is also universal. Its cloned
+maps let a deck change one province's effective priority without leaking the
+change to other profiles. The default ranks Eminent provinces first, then
+effective strength, then `none` / reveal-only / reaction / Action abilities;
+Public Forum has priority strength 6 while retaining its real game strength.
+
+`strongholdDefense: StrongholdDefenseProfile` exposes the preliminary
+two-broken-province safety gate separately from final stronghold survival.
+Rush profiles can disable `preStrongholdDefenseEnabled`, raise
+`preStrongholdThreatRatio`, add `preStrongholdThreatBuffer`, or tune the ready
+character/conflict thresholds while continuing to use the shared planner.
+Nested stronghold-defense and province-targeting overrides are deep-merged into
+the strategy profile, including their maps. A deck can therefore override one
+ratio or one province id without copying the other defaults.
+
+Phoenix Shugenja uses this injection to set
+`preStrongholdThreatRatio: 1.5`. It still defends an exposed stronghold exactly
+like other decks, but it preserves an attacker at two broken provinces only
+against a 50% larger projected two-conflict threat. Paired seed-5 A/B measured
++6.7 points against Unicorn, +2.5 against Crane and Lion, and no change against
+Scorpion or Dragon Attachments.
 
 ## Case study: Crab Defense (EmeraldDB 3a8006b7)
 
@@ -344,17 +367,17 @@ headless game. `deckLoader.js` and `deckRegistry.js` expose standardized deck
 fixtures. Alternate seats to cancel first-player advantage. To inspect a seat's
 decisions, pass `onControllers: (controllers) => …` and read `controller.trace`.
 
-Standard reports default to 100 games:
+Standard win rates use 100 games per deck; round robin uses 40 per matchup:
 
 ```powershell
 node tools/selfplay/winRates.js 100 <bot-seed> [crane-seed]
-node tools/selfplay/botRoundRobin.js --seed <bot-seed> --games 100
+node tools/selfplay/botRoundRobin.js --seed <bot-seed>
 ```
 
 `winRates.js` defaults Crane to the challenger seed. A complete 100-game run
 with identical challenger/Crane seeds and no policy override writes the
 `winRates` section of `jigoku-client/client/botBenchmarkResults.json`.
-`botRoundRobin.js` writes `roundRobin` only when all decks and every 100-game
+`botRoundRobin.js` writes `roundRobin` only when all decks and every 40-game
 matchup complete. Nonstandard, partial, custom-policy, or cross-seed runs still
 produce reports but never replace client baselines. `NewGame.tsx` reads this
 JSON and displays both values beside the selected deck and seed.

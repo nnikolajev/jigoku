@@ -128,3 +128,19 @@ node tools/selfplay/matchPhoenixShugenja.js 20 1
 node tools/selfplay/auditCards.js phoenix-shugenja 10
 npx jasmine --config=jasmine-bots.json
 ```
+
+## Two-broken-province reserve tuning (2026-07-18)
+
+The shared preliminary stronghold planner originally reserved Phoenix
+Shugenja's attacker as soon as the opponent's ready skill reached the weakest
+outer province plus stronghold-province strength. That is too cautious for this
+ring/spell deck: losing conflict opportunities also loses ring fate and its
+character/card ring triggers. Its injected `preStrongholdThreatRatio` is now
+`1.5`; final exposed-stronghold defense is unchanged.
+
+Paired seed-5 tests with identical games improved the Unicorn matchup by 6.7
+points, Crane and Lion by 2.5 each, and were neutral against Scorpion and Dragon
+Attachments. The final focused Unicorn validation was 56-44 at N=100. The full
+standard seed-5 round robin reached 58.0% (208-151, one other) at 40 games per
+matchup, up from 55.5% before this fine-tune. Use
+`compareProfileVariants.js` to repeat this profile-level A/B.

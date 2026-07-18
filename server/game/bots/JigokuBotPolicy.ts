@@ -21,7 +21,13 @@ import { CraneBaselineTactics } from './CraneBaselineTactics.js';
 import { AttachmentControlTactics } from './AttachmentControlTactics.js';
 import { PersonalHonorTactics, PERSONAL_HONOR_DEFAULTS } from './PersonalHonorTactics.js';
 import type { PersonalHonorConflict } from './PersonalHonorTactics';
-import { attackProvinceLists, mustAttackStronghold, strongholdProvinceUnderAttack } from './ProvinceTargeting.js';
+import {
+    attackProvinceLists,
+    brokenOuterProvinceCount,
+    mustAttackStronghold,
+    ProvinceTargetingTactics,
+    strongholdProvinceUnderAttack
+} from './ProvinceTargeting.js';
 
 type BotCommandName = 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
 
@@ -162,6 +168,9 @@ interface DecideContext {
     // Exact live total for our stronghold province, including stronghold and
     // holding modifiers even while the province remains facedown.
     strongholdProvinceStrength?: number;
+    // Exact weakest unbroken outer province total, including holdings and
+    // active effects. Used only by the two-break counterattack-risk planner.
+    weakestOuterProvinceStrength?: number;
     // Public visible-board signal. Unlike omniscient hand data, every seed may
     // react to a participating defender whose ability can bow its character.
     opponentParticipantCanBow?: boolean;
@@ -655,7 +664,8 @@ class JigokuBotPolicy {
                 opponent,
                 profile,
                 context.omniscient,
-                context.strongholdProvinceStrength
+                context.strongholdProvinceStrength,
+                context.weakestOuterProvinceStrength
             );
             if(strongholdPlan.active && strongholdPlan.mode === 'hold-all' && pass) {
                 return this.buttonDecision(pass, strongholdPlan.reason);
@@ -696,7 +706,7 @@ class JigokuBotPolicy {
         }
 
         if(promptTitle === 'Initiate Conflict' || CONFLICT_TITLE_REGEX.test(promptTitle)) {
-            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, profile, context.omniscient, context.strongholdProvinceStrength, dishonor, context.cardHint, glory, dragon, duelist, shugenja, attachmentTower, lion, crane, context.legalDirectCardUuids, context.legalRingElements);
+            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, profile, context.omniscient, context.strongholdProvinceStrength, context.weakestOuterProvinceStrength, dishonor, context.cardHint, glory, dragon, duelist, shugenja, attachmentTower, lion, crane, context.legalDirectCardUuids, context.legalRingElements);
             if(declaration) {
                 return declaration;
             }
@@ -1313,12 +1323,20 @@ class JigokuBotPolicy {
     }
 
     private strongholdDefensePlan(me: any, opponent: any, profile: DeckProfile,
-        omni?: Omniscient, exactStrength?: number): StrongholdDefensePlan {
+        omni?: Omniscient, exactStrength?: number, exactWeakestOuterStrength?: number): StrongholdDefensePlan {
         const visibleProvince = (me?.strongholdProvince || []).find((card: any) =>
             card.isProvince !== false && (card.isProvince || card.type === 'province' || card.facedown));
         const visibleStrength = Number(visibleProvince?.strengthSummary?.stat);
         const strength = Number.isFinite(exactStrength) ? Number(exactStrength) :
             (Number.isFinite(visibleStrength) ? visibleStrength : 3);
+        const visibleOuterStrengths = PROVINCE_KEYS
+            .map((key) => (me?.provinces?.[key] || []).find((card: any) =>
+                card.isProvince !== false && (card.isProvince || card.type === 'province') && !card.isBroken))
+            .map((card) => Number(card?.strengthSummary?.stat))
+            .filter((value) => Number.isFinite(value));
+        const weakestOuterStrength = Number.isFinite(exactWeakestOuterStrength)
+            ? Number(exactWeakestOuterStrength)
+            : (visibleOuterStrengths.length > 0 ? Math.min(...visibleOuterStrengths) : 3);
         const theirReady = this.myCharactersInPlay(opponent).filter((card) => !card.bowed);
         const handThreat = omni ? {
             military: this.omniHandThreat(omni, 'military').skill,
@@ -1336,7 +1354,10 @@ class JigokuBotPolicy {
             opponentPoliticalRemaining: opponent?.stats?.politicalRemaining,
             handThreat,
             defenderDisables: omni?.affordableDefenderDisables,
-            omniscient: !!omni
+            omniscient: !!omni,
+            myBrokenOuterProvinces: brokenOuterProvinceCount(me),
+            isFirstPlayer: !!me?.firstPlayer,
+            weakestOuterProvinceStrength: weakestOuterStrength
         });
     }
 
@@ -1588,12 +1609,13 @@ class JigokuBotPolicy {
             : { desired: shugenjaFate, reason: 'tadaka-setup-fate' };
     }
 
-    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, omni?: Omniscient, strongholdProvinceStrength?: number, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, lion: LionTactics | null = null, crane: CraneBaselineTactics | null = null, legalDirectCardUuids?: Record<string, true>, legalRingElements?: Record<string, true>): BotDecision | null {
+    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, omni?: Omniscient, strongholdProvinceStrength?: number, weakestOuterProvinceStrength?: number, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, lion: LionTactics | null = null, crane: CraneBaselineTactics | null = null, legalDirectCardUuids?: Record<string, true>, legalRingElements?: Record<string, true>): BotDecision | null {
         const lowerMenu = menuTitle.toLowerCase();
         const ready = this.readyCharacters(me).filter((card) => this.isDirectCardLegal(card, legalDirectCardUuids));
         const conflictMatch = promptTitle.match(CONFLICT_TITLE_REGEX);
         const conflictType = conflictMatch ? conflictMatch[1].toLowerCase() : null;
-        const strongholdPlan = this.strongholdDefensePlan(me, opponent, profile, omni, strongholdProvinceStrength);
+        const strongholdPlan = this.strongholdDefensePlan(
+            me, opponent, profile, omni, strongholdProvinceStrength, weakestOuterProvinceStrength);
         const reserved = new Set(strongholdPlan.reserveUuids);
 
         if(lowerMenu.includes('elemental ring')) {
@@ -1662,7 +1684,7 @@ class JigokuBotPolicy {
                     };
                 }
             }
-            return this.attackProvinceDecision(opponent, omni, legalDirectCardUuids);
+            return this.attackProvinceDecision(opponent, omni, legalDirectCardUuids, profile);
         }
 
         if(lowerMenu.includes('covert')) {
@@ -1972,27 +1994,14 @@ class JigokuBotPolicy {
         return this.attackedProvinceStrength(opponent, 4);
     }
 
-    private attackProvinceDecision(opponent: any, omni?: Omniscient, legalDirectCardUuids?: Record<string, true>): BotDecision | null {
+    private attackProvinceDecision(opponent: any, omni?: Omniscient,
+        legalDirectCardUuids?: Record<string, true>, profile: DeckProfile = DEFAULT_PROFILE): BotDecision | null {
         if(!opponent) {
             return null;
         }
 
-        let candidateLists = attackProvinceLists(opponent);
-
-        // Seed 5 sees every province's true strength, so it strikes the weakest
-        // unbroken province first (fastest break, least skill spent) instead of
-        // taking them in board order. Ties keep board order.
-        if(omni) {
-            const strengthOf = (list: any): number => {
-                const province = (list || []).find((card: any) => (card.isProvince || card.facedown) && card.isProvince !== false);
-                const match = province && omni.oppProvinces.find((p) => p.location && p.location === province.location);
-                return match ? match.strength : Number.POSITIVE_INFINITY;
-            };
-            candidateLists = candidateLists
-                .map((list, index) => ({ list, index, strength: strengthOf(list) }))
-                .sort((a, b) => (a.strength - b.strength) || (a.index - b.index))
-                .map((entry) => entry.list);
-        }
+        const targeting = new ProvinceTargetingTactics(profile.provinceTargeting);
+        const candidateLists = targeting.rank(attackProvinceLists(opponent), omni?.oppProvinces || []);
 
         for(const list of candidateLists) {
             const province = (list || []).find((card: any) => card.isProvince !== false && (card.isProvince || card.facedown));

@@ -1,12 +1,15 @@
 'use strict';
 
-// Standardized self-play results consumed by jigoku-client. Only complete,
-// comparable 100-game runs should call writeBenchmarkSection.
+// Standardized self-play results consumed by jigoku-client. Win rates use 100
+// games per deck; the much larger round robin uses 40 games per matchup.
 
 const fs = require('fs');
 const path = require('path');
 
-const STANDARD_GAMES = 100;
+const STANDARD_WIN_RATE_GAMES = 100;
+const STANDARD_ROUND_ROBIN_GAMES = 40;
+// Backward-compatible win-rate name used by winRates.js.
+const STANDARD_GAMES = STANDARD_WIN_RATE_GAMES;
 const BENCHMARK_VERSION = 2;
 // Changing the standard opponent or the round-robin deck roster invalidates
 // previously recorded numbers. The client only displays matching sections.
@@ -34,8 +37,8 @@ function emptyBenchmark() {
         version: BENCHMARK_VERSION,
         standard: {
             suiteId: STANDARD_SUITE_ID,
-            gamesPerDeck: STANDARD_GAMES,
-            gamesPerMatchup: STANDARD_GAMES,
+            gamesPerDeck: STANDARD_WIN_RATE_GAMES,
+            gamesPerMatchup: STANDARD_ROUND_ROBIN_GAMES,
             sameSeedOpponents: true,
             seatsAlternate: true
         },
@@ -54,7 +57,9 @@ function readBenchmark(filePath = process.env.JIGOKU_BOT_BENCHMARK_PATH || DEFAU
             ...emptyBenchmark(),
             ...parsed,
             version: BENCHMARK_VERSION,
-            standard: { ...emptyBenchmark().standard, ...(parsed.standard || {}) },
+            // Code defines the current standard. Do not preserve obsolete game
+            // counts from an older generated config.
+            standard: { ...(parsed.standard || {}), ...emptyBenchmark().standard },
             seeds: parsed.seeds || {}
         };
     } catch(error) {
@@ -155,6 +160,8 @@ module.exports = {
     BENCHMARK_VERSION,
     SEED_LABELS,
     STANDARD_GAMES,
+    STANDARD_WIN_RATE_GAMES,
+    STANDARD_ROUND_ROBIN_GAMES,
     STANDARD_SUITE_ID,
     emptyBenchmark,
     mergeBenchmark,

@@ -122,7 +122,9 @@ describe('fate-aware Jigoku bot policy', function() {
             isBroken: false,
             facedown: true,
             strengthSummary: {},
-            getStrength: jasmine.createSpy('getStrength').and.returnValue(8)
+            getStrength: jasmine.createSpy('getStrength').and.returnValue(8),
+            hasEminent: () => false,
+            getProvinceAbilityClass: () => 'action'
         };
         const weakProvince = {
             id: 'hidden-garden',
@@ -160,9 +162,12 @@ describe('fate-aware Jigoku bot policy', function() {
         expect(omniscient.handThreatMatrix.military.map((plan) => plan.skill)).toEqual([0, 5, 8]);
         expect(omniscient.handThreatMatrix.political.map((plan) => plan.skill)).toEqual([0, 5, 6]);
         expect(omniscient.oppProvinces[0]).toEqual(jasmine.objectContaining({
+            id: 'hidden-fortress',
             location: 'province 1',
             strength: 8,
-            facedown: true
+            facedown: true,
+            eminent: false,
+            abilityClass: 'action'
         }));
         expect(hiddenProvince.getStrength).toHaveBeenCalled();
         expect(weakProvince.getStrength).toHaveBeenCalled();
@@ -280,6 +285,14 @@ describe('fate-aware Jigoku bot policy', function() {
         expect(controller.strongholdProvinceStrength({
             getProvinces: () => [liveStrongholdProvince]
         })).toBe(9);
+        expect(controller.weakestOuterProvinceStrength({
+            getProvinces: () => [
+                { isProvince: true, location: 'province 1', isBroken: false, getStrength: () => 6 },
+                { isProvince: true, location: 'province 2', isBroken: false, getStrength: () => 4 },
+                { isProvince: true, location: 'province 3', isBroken: true, getStrength: () => 1 },
+                liveStrongholdProvince
+            ]
+        })).toBe(4);
     });
 
     it('allows an explicit generic policy override for paired analysis', function() {

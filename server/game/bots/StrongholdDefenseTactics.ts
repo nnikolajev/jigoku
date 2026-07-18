@@ -12,6 +12,18 @@ export interface StrongholdDefenseProfile {
     skillBuffer: number;
     holdAllAgainstCovert: boolean;
     attackAllWhenOpponentHasNoConflict: boolean;
+    // One turn before the stronghold is exposed, first player must not bow its
+    // whole board while the opponent still has two conflict opportunities.
+    preStrongholdDefenseEnabled: boolean;
+    preStrongholdBrokenProvinceThreshold: number;
+    preStrongholdRequireFirstPlayer: boolean;
+    preStrongholdMinOpponentConflicts: number;
+    preStrongholdMinOpponentReady: number;
+    // Threat must meet (weakest outer + stronghold province) * ratio + buffer.
+    // Rush profiles can raise ratio/buffer or disable this stage entirely.
+    preStrongholdThreatRatio: number;
+    preStrongholdThreatBuffer: number;
+    preStrongholdMinDefenders: number;
 }
 
 export const STRONGHOLD_DEFENSE_DEFAULTS: StrongholdDefenseProfile = {
@@ -20,7 +32,15 @@ export const STRONGHOLD_DEFENSE_DEFAULTS: StrongholdDefenseProfile = {
     maxOmniscientDefenders: Number.POSITIVE_INFINITY,
     skillBuffer: 0,
     holdAllAgainstCovert: true,
-    attackAllWhenOpponentHasNoConflict: true
+    attackAllWhenOpponentHasNoConflict: true,
+    preStrongholdDefenseEnabled: true,
+    preStrongholdBrokenProvinceThreshold: 2,
+    preStrongholdRequireFirstPlayer: true,
+    preStrongholdMinOpponentConflicts: 2,
+    preStrongholdMinOpponentReady: 2,
+    preStrongholdThreatRatio: 1,
+    preStrongholdThreatBuffer: 0,
+    preStrongholdMinDefenders: 1
 };
 
 export interface StrongholdDefenseCharacter {
@@ -45,6 +65,9 @@ export interface StrongholdDefenseInput {
     // its affordable exact-hand result.
     defenderDisables?: number;
     omniscient?: boolean;
+    myBrokenOuterProvinces?: number;
+    isFirstPlayer?: boolean;
+    weakestOuterProvinceStrength?: number;
 }
 
 export type StrongholdDefenseMode = 'inactive' | 'open-attack' | 'last-conflict-all-in' |
@@ -71,7 +94,8 @@ export class StrongholdDefenseTactics {
 
     plan(input: StrongholdDefenseInput): StrongholdDefensePlan {
         const emptyThreats = { military: 0, political: 0 };
-        if(!this.profile.enabled || !input.active) {
+        const preStronghold = this.isPreStrongholdRisk(input);
+        if(!this.profile.enabled || (!input.active && !preStronghold)) {
             return this.result('inactive', [], false, 'stronghold-safe', emptyThreats);
         }
 
@@ -95,7 +119,7 @@ export class StrongholdDefenseTactics {
 
         if(this.profile.holdAllAgainstCovert && input.opponentReady.some((card) => card.covert)) {
             return this.result('hold-all', input.myReady.map((card) => card.uuid), false,
-                'stronghold-covert-risk', threats);
+                preStronghold ? 'two-broken-covert-risk' : 'stronghold-covert-risk', threats);
         }
 
         const axes = this.remainingAxes(input);
@@ -106,27 +130,49 @@ export class StrongholdDefenseTactics {
 
         // Stronghold can already absorb every possible counterattack. No body
         // needs reserving, so ordinary attack commitment may use all of them.
-        if(this.survives([], axes, threats, input.strongholdProvinceStrength, disables)) {
+        const minimumDefenders = preStronghold
+            ? Math.min(input.myReady.length, Math.max(1, Math.floor(this.profile.preStrongholdMinDefenders)))
+            : 0;
+        if(minimumDefenders === 0 && this.survives([], axes, threats, input.strongholdProvinceStrength, disables)) {
             return this.result('open-attack', [], false, 'stronghold-strength-safe', threats);
         }
 
-        for(let size = 1; size <= maxDefenders; size++) {
+        for(let size = Math.max(1, minimumDefenders); size <= maxDefenders; size++) {
             const safe = this.combinations(input.myReady, size)
                 .filter((cards) => this.survives(cards, axes, threats, input.strongholdProvinceStrength, disables))
                 .sort((left, right) => this.coverage(right, axes, disables) - this.coverage(left, axes, disables));
             if(safe.length > 0) {
                 const reserve = safe[0].map((card) => card.uuid);
                 if(reserve.length >= input.myReady.length) {
-                    return this.result('hold-all', reserve, false, 'stronghold-all-needed', threats);
+                    return this.result('hold-all', reserve, false,
+                        preStronghold ? 'two-broken-all-needed' : 'stronghold-all-needed', threats);
                 }
-                return this.result('reserve', reserve, false, 'stronghold-reserve-defense', threats);
+                return this.result('reserve', reserve, false,
+                    preStronghold ? 'two-broken-reserve-defense' : 'stronghold-reserve-defense', threats);
             }
         }
 
         // No allowed reserve can prove the stronghold safe. Primary directive
         // wins: skip the attack and make every body available to defend.
         return this.result('hold-all', input.myReady.map((card) => card.uuid), false,
-            'stronghold-defense-uncertain', threats);
+            preStronghold ? 'two-broken-defense-uncertain' : 'stronghold-defense-uncertain', threats);
+    }
+
+    private isPreStrongholdRisk(input: StrongholdDefenseInput): boolean {
+        if(!this.profile.preStrongholdDefenseEnabled || input.active ||
+            (this.profile.preStrongholdRequireFirstPlayer && !input.isFirstPlayer)) {
+            return false;
+        }
+        if((Number(input.myBrokenOuterProvinces) || 0) < this.profile.preStrongholdBrokenProvinceThreshold ||
+            (Number(input.opponentConflictsRemaining) || 0) < this.profile.preStrongholdMinOpponentConflicts ||
+            input.opponentReady.length < this.profile.preStrongholdMinOpponentReady) {
+            return false;
+        }
+        const outer = Math.max(0, Number(input.weakestOuterProvinceStrength) || 0);
+        const stronghold = Math.max(0, Number(input.strongholdProvinceStrength) || 0);
+        const required = (outer + stronghold) * Math.max(0, Number(this.profile.preStrongholdThreatRatio) || 0) +
+            (Number(this.profile.preStrongholdThreatBuffer) || 0);
+        return AXES.some((axis) => this.boardSkill(input.opponentReady, axis) >= required);
     }
 
     private result(mode: StrongholdDefenseMode, reserveUuids: string[], forceAllAttackers: boolean,

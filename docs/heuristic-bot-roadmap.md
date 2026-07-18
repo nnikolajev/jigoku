@@ -79,8 +79,14 @@ and deterministic fallback.
 
 ## Phase E — Stronghold survival (implemented)
 
-`StrongholdDefenseTactics` activates after three own provinces break. It reserves
-the minimum provably safe defenders or skips offense, with explicit exceptions
-for bowed opponents, last-conflict attacks, and exposed-stronghold races. Covert
-forces fair bots to hold all. Seed 5 additionally budgets exact affordable hand
-skill and known defender-disabling effects. The profile is injectable per deck.
+`StrongholdDefenseTactics` has two stages. At two broken provinces it guards the
+specific first-player double-attack window: two opponent conflicts remain, at
+least two opponent characters are ready, and their military or political board
+skill can reach the exact live weakest-outer-plus-stronghold strength. It keeps
+the minimum safe defender or passes the unsafe conflict, then releases the
+reserve when the second attack is no longer possible. After three own provinces
+break, full survival mode reserves the minimum provably safe defenders or skips
+offense, with explicit exceptions for bowed opponents, last-conflict attacks,
+and exposed-stronghold races. Covert forces fair bots to hold all. Seed 5
+additionally budgets exact affordable hand skill and known defender-disabling
+effects. Both stages and their thresholds are injectable per deck.

@@ -23,6 +23,98 @@ describe('StrongholdDefenseTactics', function() {
         expect(plan({ active: false }).mode).toBe('inactive');
     });
 
+    it('reserves at least one defender at two breaks on first player\'s first opportunity', function() {
+        const result = plan({
+            active: false,
+            myBrokenOuterProvinces: 2,
+            isFirstPlayer: true,
+            ownConflictsRemaining: 2,
+            opponentConflictsRemaining: 2,
+            strongholdProvinceStrength: 4,
+            weakestOuterProvinceStrength: 3,
+            myReady: [card('tower', 10, 10), card('body', 1, 1)],
+            opponentReady: [card('enemy-a', 6, 6), card('enemy-b', 6, 6)],
+            opponentMilitaryRemaining: 1,
+            opponentPoliticalRemaining: 1
+        });
+
+        expect(result.mode).toBe('reserve');
+        expect(result.reserveUuids).toEqual(['tower']);
+        expect(result.reason).toBe('two-broken-reserve-defense');
+    });
+
+    it('releases the two-break reserve outside the exact double-attack risk window', function() {
+        const base = {
+            active: false,
+            myBrokenOuterProvinces: 2,
+            isFirstPlayer: true,
+            ownConflictsRemaining: 2,
+            opponentConflictsRemaining: 2,
+            weakestOuterProvinceStrength: 3,
+            opponentReady: [card('enemy-a', 6, 6), card('enemy-b', 6, 6)]
+        };
+
+        expect(plan({ ...base, isFirstPlayer: false }).mode).toBe('inactive');
+        expect(plan({ ...base, opponentConflictsRemaining: 1 }).mode).toBe('inactive');
+        expect(plan({ ...base, opponentReady: [card('enemy', 12, 12)] }).mode).toBe('inactive');
+    });
+
+    it('keys on enemy conflicts and threat, not own conflict count', function() {
+        const active = plan({
+            active: false,
+            myBrokenOuterProvinces: 2,
+            isFirstPlayer: true,
+            ownConflictsRemaining: 1,
+            opponentConflictsRemaining: 2,
+            strongholdProvinceStrength: 4,
+            weakestOuterProvinceStrength: 3,
+            myReady: [card('tower', 10, 10), card('body', 1, 1)],
+            opponentReady: [card('enemy-a', 4, 0), card('enemy-b', 3, 0)]
+        });
+        const weak = plan({
+            active: false,
+            myBrokenOuterProvinces: 2,
+            isFirstPlayer: true,
+            opponentConflictsRemaining: 2,
+            strongholdProvinceStrength: 4,
+            weakestOuterProvinceStrength: 3,
+            opponentReady: [card('enemy-a', 3, 2), card('enemy-b', 3, 2)]
+        });
+
+        expect(active.mode).not.toBe('inactive');
+        expect(weak.mode).toBe('inactive');
+    });
+
+    it('lets per-deck profiles disable the two-break reserve', function() {
+        const result = plan({
+            active: false,
+            myBrokenOuterProvinces: 2,
+            isFirstPlayer: true,
+            ownConflictsRemaining: 2,
+            opponentConflictsRemaining: 2,
+            strongholdProvinceStrength: 4,
+            weakestOuterProvinceStrength: 3,
+            opponentReady: [card('enemy-a', 4, 4), card('enemy-b', 3, 3)]
+        }, { preStrongholdDefenseEnabled: false });
+
+        expect(result.mode).toBe('inactive');
+    });
+
+    it('lets rush profiles raise the two-break threat threshold', function() {
+        const input = {
+            active: false,
+            myBrokenOuterProvinces: 2,
+            isFirstPlayer: true,
+            opponentConflictsRemaining: 2,
+            strongholdProvinceStrength: 4,
+            weakestOuterProvinceStrength: 3,
+            opponentReady: [card('enemy-a', 4, 4), card('enemy-b', 3, 3)]
+        };
+
+        expect(plan(input).mode).not.toBe('inactive');
+        expect(plan(input, { preStrongholdThreatRatio: 1.5 }).mode).toBe('inactive');
+    });
+
     it('keeps the strongest relevant character and lets the rest attack', function() {
         const result = plan({
             strongholdProvinceStrength: 4,
@@ -99,4 +191,3 @@ describe('StrongholdDefenseTactics', function() {
         expect(result.mode).toBe('hold-all');
     });
 });
-

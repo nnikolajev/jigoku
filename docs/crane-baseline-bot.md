@@ -137,7 +137,7 @@ standard seed 1/2/5 records with:
 node tools/selfplay/winRates.js 100 1 1
 node tools/selfplay/winRates.js 100 2 2
 node tools/selfplay/winRates.js 100 5 5
-node tools/selfplay/botRoundRobin.js --games 100 --seed 1
-node tools/selfplay/botRoundRobin.js --games 100 --seed 2
-node tools/selfplay/botRoundRobin.js --games 100 --seed 5
+node tools/selfplay/botRoundRobin.js --seed 1
+node tools/selfplay/botRoundRobin.js --seed 2
+node tools/selfplay/botRoundRobin.js --seed 5
 ```

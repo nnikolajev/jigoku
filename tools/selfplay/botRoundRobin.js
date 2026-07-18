@@ -10,7 +10,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { DECK_LABELS } = require('./deckRegistry.js');
 const {
-    STANDARD_GAMES,
+    STANDARD_ROUND_ROBIN_GAMES,
     roundRobinPayload,
     writeBenchmarkSection
 } = require('./standardBenchmark.js');
@@ -25,7 +25,7 @@ function usage() {
 Runs every unique deck matchup. Seats alternate within each matchup.
 
 Options:
-  -n, --games <count>       Games per matchup (default: 100)
+  -n, --games <count>       Games per matchup (default: ${STANDARD_ROUND_ROBIN_GAMES})
   -w, --workers <count>     Parallel child processes (default: 32)
       --chunk-size <count>  Games per isolated job (default: ${DEFAULT_CHUNK_SIZE})
       --seed <number>       Both seats: 1 fate-aware, 2 old heuristic, 3 LLM,
@@ -40,7 +40,7 @@ Examples:
   node tools/selfplay/botRoundRobin.js
   node tools/selfplay/botRoundRobin.js --games 500 --workers 6
   node tools/selfplay/botRoundRobin.js --decks Crane,Crab,Lion --games 20
-  node tools/selfplay/botRoundRobin.js --seed 2 --games 100`;
+  node tools/selfplay/botRoundRobin.js --seed 2`;
 }
 
 function positiveInteger(value, flag) {
@@ -57,7 +57,7 @@ function defaultWorkers() {
 
 function parseArgs(argv) {
     const options = {
-        games: 100,
+        games: STANDARD_ROUND_ROBIN_GAMES,
         workers: defaultWorkers(),
         chunkSize: DEFAULT_CHUNK_SIZE,
         botSeed: 1,
@@ -111,11 +111,11 @@ function isStandardBenchmarkRun(options, report) {
     const allDecks = options.decks.length === DECK_LABELS.length &&
         DECK_LABELS.every((deck) => options.decks.includes(deck));
     const expectedMatchups = DECK_LABELS.length * (DECK_LABELS.length - 1) / 2;
-    return options.games === STANDARD_GAMES &&
+    return options.games === STANDARD_ROUND_ROBIN_GAMES &&
         allDecks &&
         report.matchups.length === expectedMatchups &&
         report.matchups.every((matchup) =>
-            matchup.played === STANDARD_GAMES && matchup.failedJobs.length === 0);
+            matchup.played === STANDARD_ROUND_ROBIN_GAMES && matchup.failedJobs.length === 0);
 }
 
 function buildJobs(decks, games, chunkSize) {
@@ -392,7 +392,7 @@ async function main() {
             roundRobinPayload(report)
         );
         console.log(`Standard client benchmark updated: ${configPath}`);
-    } else if(options.games === STANDARD_GAMES && options.decks.length === DECK_LABELS.length) {
+    } else if(options.games === STANDARD_ROUND_ROBIN_GAMES && options.decks.length === DECK_LABELS.length) {
         console.log('Standard client benchmark not updated: run was incomplete.');
     }
 }

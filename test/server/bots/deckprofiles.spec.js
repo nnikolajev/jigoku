@@ -7,6 +7,7 @@ describe('DeckProfiles', function() {
     const AGGRO = { holdingEngine: false, defensive: false, aggressive: true };
     const GENERIC = { holdingEngine: false, defensive: false, aggressive: false };
     const CRAB = { holdingEngine: true, defensive: true, aggressive: false };
+    const SHUGENJA = { holdingEngine: false, defensive: false, aggressive: false, shugenja: true };
 
     it('generic deck = the default profile', function() {
         expect(profileFromStrategy(GENERIC)).toEqual(DEFAULT_PROFILE);
@@ -19,6 +20,8 @@ describe('DeckProfiles', function() {
         first.conflictCardEconomy.priorityWeight = 99;
         first.strongholdDefense.skillBuffer = 99;
         first.personalHonor.persistentCharacterFate = 99;
+        first.provinceTargeting.effectiveStrengthById['public-forum'] = 99;
+        first.provinceTargeting.priorityTierById.tsuma = -99;
 
         expect(second.conflictCardEconomy.priorityWeight).toBe(DEFAULT_PROFILE.conflictCardEconomy.priorityWeight);
         expect(DEFAULT_PROFILE.conflictCardEconomy.priorityWeight).not.toBe(99);
@@ -26,6 +29,9 @@ describe('DeckProfiles', function() {
         expect(DEFAULT_PROFILE.strongholdDefense.skillBuffer).not.toBe(99);
         expect(second.personalHonor.persistentCharacterFate).toBe(DEFAULT_PROFILE.personalHonor.persistentCharacterFate);
         expect(DEFAULT_PROFILE.personalHonor.persistentCharacterFate).not.toBe(99);
+        expect(second.provinceTargeting.effectiveStrengthById['public-forum']).toBe(6);
+        expect(second.provinceTargeting.priorityTierById.tsuma).toBeUndefined();
+        expect(DEFAULT_PROFILE.provinceTargeting.effectiveStrengthById['public-forum']).toBe(6);
     });
 
     it('aggressive (Unicorn) keeps the rush knobs', function() {
@@ -83,5 +89,20 @@ describe('DeckProfiles', function() {
         expect(resolveDeckProfile([], AGGRO).defenseCommitment).toBe('win-only');
         expect(resolveDeckProfile(['cavalry-reserves'], GENERIC).defenseCommitment).toBe('prevent-break');
         expect(resolveDeckProfile(['cavalry-reserves'], GENERIC).aggressiveFate).toBe(false);
+    });
+
+    it('Phoenix Shugenja raises only the injectable pre-stronghold threat ratio', function() {
+        const first = resolveDeckProfile(['vassal-fields'], SHUGENJA);
+        const second = resolveDeckProfile(['vassal-fields'], SHUGENJA);
+
+        expect(first.strongholdProvinceId).toBe('vassal-fields');
+        expect(first.strongholdDefense.preStrongholdThreatRatio).toBe(1.5);
+        expect(first.strongholdDefense.preStrongholdDefenseEnabled).toBe(true);
+        expect(first.strongholdDefense.preStrongholdMinOpponentConflicts)
+            .toBe(DEFAULT_PROFILE.strongholdDefense.preStrongholdMinOpponentConflicts);
+
+        first.strongholdDefense.preStrongholdThreatRatio = 99;
+        expect(second.strongholdDefense.preStrongholdThreatRatio).toBe(1.5);
+        expect(DEFAULT_PROFILE.strongholdDefense.preStrongholdThreatRatio).toBe(1);
     });
 });

@@ -160,10 +160,13 @@ export interface HandThreatPlan {
 // strength of a still-face-down province (the cheat: a fair bot cannot see this).
 export interface OmniProvince {
     location: string;
+    id?: string;
     name: string;
     strength: number;
     broken: boolean;
     facedown: boolean;
+    eminent?: boolean;
+    abilityClass?: 'none' | 'reveal' | 'reaction' | 'action' | 'unknown';
 }
 
 // The complete cheat view handed to the policy for seed 5: the human's fate, the

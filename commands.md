@@ -34,6 +34,7 @@ Bot seeds:
 | `auditCards.js` | Per-card successful-click utilization audit. |
 | `auditConflictBehavior.js` | Focused attack/defense policy audit. |
 | `analyzePolicyGame.js` | Paired deterministic policy trace comparison. |
+| `compareProfileVariants.js` | Paired deterministic A/B for injectable deck-profile knobs. |
 | `validateBotInteractions.js` | Detect bot click loops, stalls, and budget pressure. |
 
 ## Basic self-play and training pipeline
@@ -182,15 +183,15 @@ node tools/selfplay/botRoundRobin.js [-n|--games N] [-w|--workers N]
 
 | Parameter | Default | Description |
 |---|---:|---|
-| `-n`, `--games N` | `100` | Games per matchup. |
-| `-w`, `--workers N` | auto, max `8` | Parallel child processes. Explicit value is capped at `32`. |
+| `-n`, `--games N` | `40` | Games per matchup. |
+| `-w`, `--workers N` | `32` | Parallel child processes. |
 | `--chunk-size N` | `10` | Games per isolated job, capped at games per matchup. |
 | `--seed 1..5` | `1` | Bot mode for both seats. |
 | `--decks A,B,...` | all | At least two unique case-sensitive deck labels. |
 | `--out PATH_PREFIX` | `tools/selfplay/out/round-robin-latest` | Writes `.md` and `.json`. |
 | `-h`, `--help` | — | Show built-in help and deck labels. |
 
-A standard full 100-game same-seed run also updates `../jigoku-client/client/botBenchmarkResults.json`.
+A standard full 40-game same-seed run also updates `../jigoku-client/client/botBenchmarkResults.json`.
 
 ```powershell
 node tools/selfplay/botRoundRobin.js
@@ -343,6 +344,27 @@ node tools/selfplay/analyzePolicyGame.js [options]
 ```powershell
 node tools/selfplay/analyzePolicyGame.js --deck PhoenixShugenja --control generic --candidate fate-aware --rng-seed 20260715
 node tools/selfplay/analyzePolicyGame.js --deck Lion --opponent Crane --challenger-second --out tools/selfplay/out/lion-policy
+```
+
+### `compareProfileVariants.js`
+
+Runs the target deck repeatedly with identical shuffle, seat, and random stream
+while changing only selected injectable profile knobs. The opponent always uses
+the current profile. This is a diagnostic run and never updates client benchmark
+results.
+
+```text
+node tools/selfplay/compareProfileVariants.js [--deck LABEL]
+    [--opponent LABEL] [--seed 1..5] [--games N]
+    [--variants CSV] [--rng-seed N] [--out PATH_PREFIX]
+```
+
+Built-in variants are `current`, `no-pre-defense`, `legacy-province`,
+`legacy-both`, `no-eminent`, and `no-ability-priority`. Parameterized variants
+are `ratio-N` and `public-forum-N`.
+
+```powershell
+node tools/selfplay/compareProfileVariants.js --deck PhoenixShugenja --opponent Unicorn --seed 5 --games 40 --variants current,ratio-1.5,no-pre-defense --out tools/selfplay/out/shugenja-profile-ab
 ```
 
 ### `validateBotInteractions.js`

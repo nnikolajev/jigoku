@@ -404,11 +404,15 @@ export class ShugenjaTactics {
         const mine = me?.cardPiles?.cardsInPlay || [];
         const theirs = opponent?.cardPiles?.cardsInPlay || [];
         const readyParticipant = mine.some((card: any) => card.inConflict && !card.bowed);
-        // Clarity's reliable payoff is political resolution: its participant
-        // stays ready for another conflict. Keep this plan active even when the
-        // current conflict is already won, where generic skill math would pass.
-        if(conflictType === 'political' && readyParticipant &&
-            hand.some((card: any) => card.id === 'clarity-of-purpose' && card.isPlayableByMe !== false)) {
+        // Keep an already-won window open when the shared hand/replay intent
+        // says Clarity has value. That gate owns political resolution, visible
+        // bow sources, seed-5 hand knowledge, and per-target deduplication.
+        const clarity = hand.find((card: any) =>
+            card.id === 'clarity-of-purpose' && card.isPlayableByMe !== false);
+        if(readyParticipant && clarity && (
+            typeof canPlayConflictCard === 'function'
+                ? canPlayConflictCard(clarity)
+                : conflictType === 'political')) {
             return true;
         }
         if(this.pickFiveFiresPlay(hand, mine, theirs, fate)) {

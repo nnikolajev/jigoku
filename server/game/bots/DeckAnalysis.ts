@@ -135,6 +135,9 @@ export interface KnownCard {
     // Live ability inspection: this hand card can bow, remove, or send home an
     // opposing defender during a conflict. Used only by seed 5.
     canDisableDefender?: boolean;
+    // Narrower Clarity of Purpose signal. Unlike canDisableDefender, this is
+    // true only when the card can bow an opposing character.
+    canBowOpponent?: boolean;
     conflictTypes?: ('military' | 'political')[];
 }
 

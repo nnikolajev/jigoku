@@ -36,11 +36,13 @@ forced rule or legal timing.
   five-cost character (normally Shiba Tsukune) is already in the dynasty
   discard pile for his leaving-play interrupt.
 - **Use Clarity on live participants.** Clarity of Purpose never falls back to
-  a character at home. A hand copy can still protect a military participant
-  from opposing bow effects, while an already-won political conflict remains
-  an active plan because Clarity also prevents resolution bowing. Kyūden Isawa
-  recasts Clarity only for that full political payoff: a ready participant must
-  exist, since the recast also spends another Spell from hand.
+  a character at home or one already bowed. Political conflicts are preferred
+  because Clarity also prevents resolution bowing. In military conflicts,
+  seed 5 requires an affordable opposing bow effect in the exact enemy hand;
+  every seed may act immediately when a visible participating enemy can bow.
+  Later copies spread to other ready participants and never protect the same
+  character twice in one conflict. Kyūden Isawa uses these same gates when it
+  considers recasting Clarity from discard.
 - **Bank for Five Fires.** When a Shugenja is in play and enemy characters have
   at least five actionable fate, Consumed by Five Fires in hand (or recyclable
   through ready Kyūden) makes the dynasty phase preserve five fate. The bot

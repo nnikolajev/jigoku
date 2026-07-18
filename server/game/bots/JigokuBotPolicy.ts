@@ -160,6 +160,9 @@ interface DecideContext {
     // Exact live total for our stronghold province, including stronghold and
     // holding modifiers even while the province remains facedown.
     strongholdProvinceStrength?: number;
+    // Public visible-board signal. Unlike omniscient hand data, every seed may
+    // react to a participating defender whose ability can bow its character.
+    opponentParticipantCanBow?: boolean;
 }
 
 class JigokuBotPolicy {
@@ -222,6 +225,13 @@ class JigokuBotPolicy {
     // opens (a new prompt signature) — remember which way the target went.
     private diplomatChoice: 'honor' | 'dishonor' = 'honor';
     private favorableGroundRetreatPending = false;
+    // Clarity lasts until conflict end. Player summaries do not serialize the
+    // lasting-effect source, so remember accepted targets and distribute later
+    // copies instead of protecting the same character twice.
+    private clarityConflictKey = '';
+    private clarityProtectedUuids = new Set<string>();
+    private currentOmniscient: Omniscient | undefined;
+    private currentOpponentParticipantCanBow = false;
     // Experimental fate-aware copy state. Generic policy never enters these
     // branches: FateAwareJigokuBotPolicy opts in through the protected hook.
     private fateAwareRoundNumber = 0;
@@ -265,6 +275,9 @@ class JigokuBotPolicy {
         }
 
         this.recordReturnedFailedPlay(playerState, me);
+        this.currentOmniscient = context.omniscient;
+        this.currentOpponentParticipantCanBow = !!context.opponentParticipantCanBow;
+        this.syncClarityConflict(playerState, context.roundNumber);
 
         if(this.usesFateAwareEconomy()) {
             const roundNumber = context.roundNumber ?? (this.fateAwareRoundNumber || 1);
@@ -311,6 +324,8 @@ class JigokuBotPolicy {
             this.yokuniCopyUsed = false;
             this.yokuniCopiedNiten = false;
             this.pendingDaimyoBearerUuid = null;
+            this.clarityConflictKey = '';
+            this.clarityProtectedUuids.clear();
         }
 
         const decision = this.decideForPrompt(playerState, me, context);
@@ -323,6 +338,10 @@ class JigokuBotPolicy {
         }
         if(decision?.reason === 'tadaka-disguise-base') {
             this.tadakaDisguiseAttempted = true;
+        }
+        if(context.targetHint?.sourceCardId === 'clarity-of-purpose' &&
+            decision?.command === 'cardClicked' && decision.args?.[0]) {
+            this.clarityProtectedUuids.add(String(decision.args[0]));
         }
         if(this.pendingPlay && context.targetHint?.sourceCardId === this.pendingPlay.id) {
             if(decision?.command === 'cardClicked') {
@@ -341,6 +360,7 @@ class JigokuBotPolicy {
             'play-preconflict-attachment',
             'duel-preconflict-attachment',
             'attachment-tower-preconflict',
+            'clarity-urgent-bow-protection',
             'replay-card-shared-play-intent',
             'replay-card-forced-fallback'
         ].includes(decision.reason)) {
@@ -355,6 +375,33 @@ class JigokuBotPolicy {
         }
 
         return decision;
+    }
+
+    private syncClarityConflict(playerState: any, roundNumber?: number): void {
+        const conflict = playerState?.conflict;
+        if(!conflict?.attackingPlayerId || !conflict?.defendingPlayerId) {
+            this.clarityConflictKey = '';
+            this.clarityProtectedUuids.clear();
+            return;
+        }
+        const players = Object.values(playerState?.players || {}) as any[];
+        const attacker = players.find((player) => player?.id === conflict.attackingPlayerId);
+        const claimedRings = Object.values(playerState?.rings || {})
+            .filter((ring: any) => ring?.claimed).length;
+        // Conflict type and ring element may change without ending the
+        // conflict. Attacker conflict count plus already-claimed rings remains
+        // stable inside this conflict and advances before the next one.
+        const key = [
+            roundNumber ?? playerState?.roundNumber ?? playerState?.round ?? '',
+            conflict.attackingPlayerId,
+            conflict.defendingPlayerId,
+            attacker?.stats?.conflictsRemaining ?? '',
+            claimedRings
+        ].join('|');
+        if(key !== this.clarityConflictKey) {
+            this.clarityConflictKey = key;
+            this.clarityProtectedUuids.clear();
+        }
     }
 
     private recordReturnedFailedPlay(playerState: any, me: any): void {
@@ -2380,10 +2427,30 @@ class JigokuBotPolicy {
             allowStrengthOvercommit: feedCards,
             stronghold: me?.stronghold,
             yokuniCopiedNiten: this.yokuniCopiedNiten,
-            activeConflict: true
+            activeConflict: true,
+            clarityProtectedUuids: sharedPlayCtx.clarityProtectedUuids,
+            opponentParticipantCanBow: sharedPlayCtx.opponentParticipantCanBow,
+            omniscient: sharedPlayCtx.omniscient,
+            opponentHasAffordableBowEffect: sharedPlayCtx.opponentHasAffordableBowEffect
         };
         playCtx.canPlayConflictCard = canPlayConflictCard;
         playCtx.conflictCosts = conflictCosts || {};
+
+        // A visible participating bow source, or an affordable exact seed-5
+        // hand bow, can act after our next pass. Protect now, before optional
+        // board actions and ordinary value plays give that threat priority.
+        const urgentClarityThreat = !!sharedPlayCtx.opponentParticipantCanBow ||
+            !!sharedPlayCtx.opponentHasAffordableBowEffect;
+        const urgentClarity = urgentClarityThreat
+            ? this.normalConflictPlayCandidates(me, opponent).find((card: any) =>
+                card.id === 'clarity-of-purpose' && card.uuid && card.isPlayableByMe &&
+                this.isDirectCardLegal(card, legalDirectCardUuids) &&
+                !this.isAttempted('cardClicked', [card.uuid]) &&
+                canPlayConflictCard(card))
+            : null;
+        if(urgentClarity) {
+            return this.cardClickDecision(urgentClarity, 'clarity-urgent-bow-protection');
+        }
 
         // Prepared five-fate plays must happen before Kyuden Isawa and other
         // board abilities. Kyuden can spend conflict fate on a recast and
@@ -2723,7 +2790,15 @@ class JigokuBotPolicy {
             cardsPlayed: me?.cardsPlayedThisConflict ?? 0,
             opponentCardsPlayed: opponent?.cardsPlayedThisConflict ?? 0,
             conflictsRemaining: me?.stats?.conflictsRemaining ?? 0,
-            strengthNeeded: this.conflictStrengthNeeded(playerState, me)
+            strengthNeeded: this.conflictStrengthNeeded(playerState, me),
+            clarityProtectedUuids: Array.from(this.clarityProtectedUuids),
+            opponentParticipantCanBow: this.currentOpponentParticipantCanBow,
+            omniscient: !!this.currentOmniscient,
+            opponentHasAffordableBowEffect: !!this.currentOmniscient &&
+                this.currentOmniscient.oppHand.some((card) =>
+                    card.canBowOpponent && card.fate <= this.currentOmniscient!.oppFate &&
+                    (!card.conflictTypes || card.conflictTypes.length === 0 ||
+                        card.conflictTypes.includes(playerState?.conflict?.type)))
         };
     }
 
@@ -4401,7 +4476,8 @@ class JigokuBotPolicy {
         }
 
         if(shugenja && targetHint.sourceCardId === 'clarity-of-purpose') {
-            const legal = mine.filter((card) => card.inConflict && !card.bowed);
+            const legal = mine.filter((card) => card.inConflict && !card.bowed &&
+                !this.clarityProtectedUuids.has(String(card.uuid || '')));
             const tower = shugenja.pickTower(legal,
                 (card) => this.skillValue(card, skillType) || 0);
             if(tower) {

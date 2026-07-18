@@ -51,6 +51,10 @@ export interface PlaybookContext {
     canPlayConflictCard?: (card: any) => boolean; // shared normal-play intent gate for replay sources
     strengthNeeded?: number; // exact extra skill needed to break/save the attacked province
     allowStrengthOvercommit?: boolean; // Dragon card-count payoff exception
+    clarityProtectedUuids?: string[]; // characters already protected by Clarity this conflict
+    opponentParticipantCanBow?: boolean; // public board threat from a participating defender
+    omniscient?: boolean; // seed 5 has exact opposing-hand information
+    opponentHasAffordableBowEffect?: boolean; // exact seed-5 hand threat after fate check
 }
 
 export interface PlaybookEntry extends CardHint {
@@ -1744,7 +1748,21 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'strongest',
         priority: 9,
         summary: 'protect an own tower from bowing and political resolution',
-        shouldPlay: (ctx) => participating(ctx.myCharacters).some((card) => !card.bowed)
+        shouldPlay: (ctx) => {
+            const protectedUuids = new Set(ctx.clarityProtectedUuids || []);
+            const hasUnprotectedReadyParticipant = participating(ctx.myCharacters)
+                .some((card) => !card.bowed && !protectedUuids.has(String(card.uuid || '')));
+            if(!hasUnprotectedReadyParticipant) {
+                return false;
+            }
+            // Political resolution supplies value even without a known bow
+            // card. During military, use Clarity only for an actual visible
+            // defender threat, an exact affordable seed-5 hand threat, or the
+            // ordinary fair-bot hedge against its hidden hand.
+            return ctx.conflictType === 'political' ||
+                !!ctx.opponentParticipantCanBow ||
+                (ctx.omniscient ? !!ctx.opponentHasAffordableBowEffect : true);
+        }
     }),
 
     // Reaction after an enemy character readies: bow that same enemy again.

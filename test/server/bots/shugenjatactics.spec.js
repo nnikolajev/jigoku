@@ -310,6 +310,226 @@ describe('Phoenix Shugenja tactics', function() {
         expect(decision.args[0]).toBe('clarity');
     });
 
+    it('uses exact seed-5 bow threats before playing Clarity in a military conflict', function() {
+        const clarity = {
+            id: 'clarity-of-purpose', uuid: 'clarity', type: 'event',
+            location: 'hand', isPlayableByMe: true
+        };
+        const participant = {
+            id: 'isawa-tadaka-2', uuid: 'tadaka', type: 'character',
+            bowed: false, inConflict: true,
+            militarySkillSummary: { stat: '5' }, politicalSkillSummary: { stat: '3' }
+        };
+        const state = stateFor({
+            id: 'phoenix-id', phase: 'conflict',
+            promptTitle: 'Conflict Action Window',
+            menuTitle: 'Military Air conflict\nAttacker: 5 Defender: 0',
+            buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+            stats: { fate: 1, honor: 10, conflictsRemaining: 1 },
+            cardPiles: { hand: [clarity], cardsInPlay: [participant] }
+        }, {
+            id: 'crane-id', stats: { fate: 0, conflictsRemaining: 1 },
+            cardPiles: { hand: [{ facedown: true }], cardsInPlay: [] }
+        });
+        state.conflict = {
+            type: 'military', elements: ['air'],
+            attackingPlayerId: 'phoenix-id', defendingPlayerId: 'crane-id',
+            attackerSkill: 5, defenderSkill: 0
+        };
+        const noBow = {
+            oppName: 'Crane', oppFate: 1, oppHand: [{
+                id: 'voice-of-honor', fate: 0, canBowOpponent: false, conflictTypes: []
+            }], oppProvinces: [], unmodeledEvents: []
+        };
+        const policy = new FateAwareJigokuBotPolicy(5);
+        const context = {
+            profile, cardHint: (cardId) => getPlaybookEntry(cardId),
+            conflictCosts: { clarity: 1 }, omniscient: noBow
+        };
+
+        const hold = policy.decide(state, 'Phoenix', { ...context, promptIdentity: 'no-bow' });
+        expect(hold.target).toBe('Pass');
+
+        state.conflict.type = 'political';
+        state.players.Phoenix.menuTitle = 'Political Air conflict\nAttacker: 3 Defender: 0';
+        const political = new FateAwareJigokuBotPolicy(5).decide(
+            state, 'Phoenix', { ...context, promptIdentity: 'political-resolution' }
+        );
+        expect(political.args[0]).toBe('clarity');
+        state.conflict.type = 'military';
+        state.players.Phoenix.menuTitle = 'Military Air conflict\nAttacker: 5 Defender: 0';
+
+        context.omniscient = {
+            ...noBow,
+            oppHand: [{ id: 'for-shame', fate: 1, canBowOpponent: true, conflictTypes: [] }]
+        };
+        const protect = policy.decide(state, 'Phoenix', { ...context, promptIdentity: 'affordable-bow' });
+        expect(protect.reason).toBe('clarity-urgent-bow-protection');
+        expect(protect.args[0]).toBe('clarity');
+
+        context.omniscient = { ...context.omniscient, oppFate: 0 };
+        const cannotAfford = new FateAwareJigokuBotPolicy(5).decide(
+            state, 'Phoenix', { ...context, promptIdentity: 'unaffordable-bow' }
+        );
+        expect(cannotAfford.target).toBe('Pass');
+    });
+
+    it('plays Clarity immediately against a visible bowing participant for every seed', function() {
+        const clarity = {
+            id: 'clarity-of-purpose', uuid: 'clarity-visible', type: 'event',
+            location: 'hand', isPlayableByMe: true
+        };
+        const participant = {
+            id: 'isawa-tadaka-2', uuid: 'tadaka', type: 'character',
+            bowed: false, inConflict: true, militarySkillSummary: { stat: '5' }
+        };
+        const state = stateFor({
+            id: 'phoenix-id', phase: 'conflict', promptTitle: 'Conflict Action Window',
+            menuTitle: 'Military Air conflict\nAttacker: 5 Defender: 2',
+            buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+            stats: { fate: 1, honor: 10, conflictsRemaining: 1 },
+            cardPiles: { hand: [clarity], cardsInPlay: [participant] }
+        }, {
+            id: 'crane-id', stats: { conflictsRemaining: 1 }, cardPiles: { cardsInPlay: [{
+                id: 'bowing-participant', uuid: 'enemy', type: 'character',
+                bowed: false, inConflict: true, militarySkillSummary: { stat: '2' }
+            }] }
+        });
+        state.conflict = {
+            type: 'military', elements: ['air'],
+            attackingPlayerId: 'phoenix-id', defendingPlayerId: 'crane-id',
+            attackerSkill: 5, defenderSkill: 2
+        };
+
+        for(const policy of [new JigokuBotPolicy(2), new FateAwareJigokuBotPolicy(1), new FateAwareJigokuBotPolicy(5)]) {
+            const decision = policy.decide(state, 'Phoenix', {
+                profile, cardHint: (cardId) => getPlaybookEntry(cardId),
+                conflictCosts: { 'clarity-visible': 1 },
+                opponentParticipantCanBow: true
+            });
+            expect(decision.reason).toBe('clarity-urgent-bow-protection');
+            expect(decision.args[0]).toBe('clarity-visible');
+        }
+    });
+
+    it('protects each ready participant at most once and spreads a second Clarity', function() {
+        const tadaka = {
+            id: 'isawa-tadaka-2', uuid: 'tadaka', type: 'character', selectable: true,
+            bowed: false, inConflict: true, fate: 2, politicalSkillSummary: { stat: '5' }
+        };
+        const tsukune = {
+            id: 'shiba-tsukune', uuid: 'tsukune', type: 'character', selectable: true,
+            bowed: false, inConflict: true, fate: 1, politicalSkillSummary: { stat: '4' }
+        };
+        const conflict = {
+            type: 'political', elements: ['air'], attackingPlayerId: 'phoenix-id',
+            defendingPlayerId: 'crane-id', attackerSkill: 9, defenderSkill: 0
+        };
+        const actionState = (uuid, characters) => {
+            const state = stateFor({
+                id: 'phoenix-id', phase: 'conflict', promptTitle: 'Conflict Action Window',
+                menuTitle: 'Political Air conflict\nAttacker: 9 Defender: 0',
+                buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                stats: { fate: 2, honor: 10, conflictsRemaining: 1 },
+                cardPiles: { hand: [{
+                    id: 'clarity-of-purpose', uuid, type: 'event', location: 'hand', isPlayableByMe: true
+                }], cardsInPlay: characters }
+            }, { id: 'crane-id', cardPiles: { cardsInPlay: [] } });
+            state.conflict = conflict;
+            return state;
+        };
+        const targetState = (characters) => {
+            const state = stateFor({
+                id: 'phoenix-id', promptTitle: 'Clarity of Purpose', menuTitle: 'Choose a character',
+                buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+                stats: { conflictsRemaining: 1 },
+                cardPiles: { cardsInPlay: characters }
+            }, { id: 'crane-id', cardPiles: { cardsInPlay: [] } });
+            state.conflict = conflict;
+            return state;
+        };
+        const policy = new FateAwareJigokuBotPolicy(1);
+        const playContext = {
+            profile, cardHint: (cardId) => getPlaybookEntry(cardId),
+            conflictCosts: { clarity1: 1, clarity2: 1 }
+        };
+
+        expect(policy.decide(actionState('clarity1', [tadaka, tsukune]), 'Phoenix', {
+            ...playContext, promptIdentity: 'play-one'
+        }).args[0]).toBe('clarity1');
+        expect(policy.decide(targetState([tadaka, tsukune]), 'Phoenix', {
+            ...playContext, promptIdentity: 'target-one', targetHint: {
+                sourceCardId: 'clarity-of-purpose', sourceIsMine: true,
+                gameActions: ['cardLastingEffect']
+            }
+        }).args[0]).toBe('tadaka');
+        // Shukujo and ring effects can change the conflict type without
+        // ending it. That must not clear Clarity's per-character memory.
+        conflict.type = 'military';
+        expect(policy.decide(actionState('clarity2', [tadaka, tsukune]), 'Phoenix', {
+            ...playContext, promptIdentity: 'play-two'
+        }).args[0]).toBe('clarity2');
+        expect(policy.decide(targetState([tadaka, tsukune]), 'Phoenix', {
+            ...playContext, promptIdentity: 'target-two', targetHint: {
+                sourceCardId: 'clarity-of-purpose', sourceIsMine: true,
+                gameActions: ['cardLastingEffect']
+            }
+        }).args[0]).toBe('tsukune');
+
+        tsukune.bowed = true;
+        const onlyProtectedReady = policy.decide(actionState('clarity3', [tadaka, tsukune]), 'Phoenix', {
+            ...playContext, promptIdentity: 'play-three', conflictCosts: { clarity3: 1 }
+        });
+        expect(onlyProtectedReady.target).toBe('Pass');
+    });
+
+    it('does not recast Clarity through Kyuden onto its already-protected participant', function() {
+        const tadaka = {
+            id: 'isawa-tadaka-2', uuid: 'tadaka', type: 'character', selectable: true,
+            bowed: false, inConflict: true, fate: 2, politicalSkillSummary: { stat: '5' }
+        };
+        const conflict = {
+            type: 'political', elements: ['air'], attackingPlayerId: 'phoenix-id',
+            defendingPlayerId: 'crane-id', attackerSkill: 5, defenderSkill: 0
+        };
+        const policy = new FateAwareJigokuBotPolicy(5);
+        const target = stateFor({
+            id: 'phoenix-id', promptTitle: 'Clarity of Purpose', menuTitle: 'Choose a character',
+            buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+            stats: { conflictsRemaining: 1 },
+            cardPiles: { cardsInPlay: [tadaka] }
+        }, { id: 'crane-id', cardPiles: { cardsInPlay: [] } });
+        target.conflict = conflict;
+        expect(policy.decide(target, 'Phoenix', {
+            profile, promptIdentity: 'first-clarity-target', targetHint: {
+                sourceCardId: 'clarity-of-purpose', sourceIsMine: true,
+                gameActions: ['cardLastingEffect']
+            }
+        }).args[0]).toBe('tadaka');
+
+        const replay = stateFor({
+            id: 'phoenix-id', promptTitle: 'Kyuden Isawa', menuTitle: 'Choose a Spell event',
+            buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+            stats: { fate: 1, conflictsRemaining: 1 },
+            cardPiles: {
+                hand: [], cardsInPlay: [tadaka], conflictDiscardPile: [{
+                    id: 'clarity-of-purpose', uuid: 'clarity-discard', type: 'event',
+                    location: 'conflict discard pile', selectable: true
+                }]
+            }
+        }, { id: 'crane-id', cardPiles: { cardsInPlay: [] } });
+        replay.conflict = conflict;
+        const decision = policy.decide(replay, 'Phoenix', {
+            profile, promptIdentity: 'kyuden-second-clarity',
+            cardHint: (cardId) => getPlaybookEntry(cardId),
+            conflictCosts: { 'clarity-discard': 1 },
+            targetHint: { sourceCardId: 'kyuden-isawa', sourceIsMine: true, gameActions: ['playCard'] },
+            omniscient: { oppName: 'Crane', oppFate: 0, oppHand: [], oppProvinces: [], unmodeledEvents: [] }
+        });
+        expect(decision.command).toBe('menuButton');
+        expect(decision.target).toBe('Cancel');
+    });
+
     it('selects Clarity of Purpose from Kyuden with the same participant gate as hand', function() {
         const clarity = {
             id: 'clarity-of-purpose', uuid: 'clarity-discard', type: 'event',

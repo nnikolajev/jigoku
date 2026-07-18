@@ -225,7 +225,36 @@ describe('fate-aware Jigoku bot policy', function() {
         };
         const controller = new JigokuBotController({}, { playerName, seed: 5 }, () => true);
         expect(controller.knownCard(bowEvent).canDisableDefender).toBe(true);
+        expect(controller.knownCard(bowEvent).canBowOpponent).toBe(true);
         expect(controller.knownCard(ownOnlyBow).canDisableDefender).toBe(false);
+        expect(controller.knownCard(ownOnlyBow).canBowOpponent).toBe(false);
+
+        const sendHomeEvent = {
+            id: 'send-home-event', type: 'event', isConflict: true,
+            cardData: { cost: '0', text: 'Send an opponent character home.' },
+            getCost: () => 0,
+            abilities: {
+                actions: [{
+                    targets: [{ properties: { controller: 'opponent' } }],
+                    properties: { gameAction: { name: 'sendHome' } }
+                }],
+                reactions: [], playActions: []
+            }
+        };
+        expect(controller.knownCard(sendHomeEvent).canDisableDefender).toBe(true);
+        expect(controller.knownCard(sendHomeEvent).canBowOpponent).toBe(false);
+
+        const bowingParticipant = {
+            ...bowEvent, type: 'character', inConflict: true, bowed: false,
+            attachments: []
+        };
+        expect(controller.opponentParticipantCanBow({
+            opponent: { cardsInPlay: { toArray: () => [bowingParticipant] } }
+        })).toBe(true);
+        bowingParticipant.inConflict = false;
+        expect(controller.opponentParticipantCanBow({
+            opponent: { cardsInPlay: { toArray: () => [bowingParticipant] } }
+        })).toBe(false);
 
         const secondBowEvent = {
             ...bowEvent,

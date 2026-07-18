@@ -166,6 +166,7 @@ class JigokuBotController {
             swing: model?.swing ?? 0,
             tag: model?.tag ?? 'utility',
             canDisableDefender: this.cardCanDisableDefender(card),
+            canBowOpponent: this.cardCanBowOpponent(card),
             conflictTypes: model?.conflictTypes || []
         };
     }
@@ -173,8 +174,7 @@ class JigokuBotController {
     // Inspect the real card implementation, not only curated threat metadata.
     // This catches cards such as For Shame whose nested choice can bow an
     // opposing participant. Used only by seed 5's hidden-hand reserve plan.
-    private cardCanDisableDefender(card: any): boolean {
-        const disabling = new Set(['bow', 'sendHome', 'discardFromPlay', 'returnToHand', 'returnToDeck', 'removeFromGame']);
+    private cardCanTargetOpponentWith(card: any, actions: Set<string>, textPattern: RegExp): boolean {
         const abilities = ([] as any[]).concat(
             card?.abilities?.actions || [],
             card?.abilities?.reactions || [],
@@ -194,7 +194,7 @@ class JigokuBotController {
             seen.add(value);
             const side = String(value.controller || value.player || '').toLowerCase();
             const targetsOpponent = opponentTarget || side === 'opponent' || side === 'any';
-            if(targetsOpponent && disabling.has(String(value.name || ''))) {
+            if(targetsOpponent && actions.has(String(value.name || ''))) {
                 return true;
             }
             const keys = [
@@ -220,10 +220,36 @@ class JigokuBotController {
         // printed-text fallback, excluding effects explicitly limited to own
         // characters so a self-ready/bow cost is not treated as a threat.
         const text = String(card?.cardData?.text || '').replace(/<[^>]*>/g, ' ').toLowerCase();
-        const controlEffect = /\bbow\b|send[^.]*\bhome\b|discard[^.]*character[^.]*from play|remove[^.]*character[^.]*from the conflict/.test(text);
+        const controlEffect = textPattern.test(text);
         const opposingTarget = /opponent|character in the conflict|participating character|a character|chosen character/.test(text);
         const ownOnly = /character you control/.test(text) && !/opponent/.test(text);
         return controlEffect && opposingTarget && !ownOnly;
+    }
+
+    private cardCanDisableDefender(card: any): boolean {
+        return this.cardCanTargetOpponentWith(
+            card,
+            new Set(['bow', 'sendHome', 'discardFromPlay', 'returnToHand', 'returnToDeck', 'removeFromGame']),
+            /\bbow\b|send[^.]*\bhome\b|discard[^.]*character[^.]*from play|remove[^.]*character[^.]*from the conflict/
+        );
+    }
+
+    private cardCanBowOpponent(card: any): boolean {
+        return this.cardCanTargetOpponentWith(card, new Set(['bow']), /\bbow\b/);
+    }
+
+    // Visible board information is fair for every seed. Include abilities on
+    // the participating defender and its attachments, because either can bow
+    // the protected attacker before conflict resolution.
+    private opponentParticipantCanBow(me: Player): boolean {
+        const opp = (me as any).opponent as Player | undefined;
+        const cards: any[] = typeof (opp as any)?.cardsInPlay?.toArray === 'function'
+            ? (opp as any).cardsInPlay.toArray()
+            : [];
+        return cards.some((card) => card?.type === 'character' && card.inConflict && !card.bowed && (
+            this.cardCanBowOpponent(card) ||
+            (card.attachments || []).some((attachment: any) => this.cardCanBowOpponent(attachment))
+        ));
     }
 
     private liveProvinceStrength(card: any): number {
@@ -516,6 +542,9 @@ class JigokuBotController {
                     // costs. Deck profiles need these to sequence reducers.
                     conflictCosts: this.conflictCostsHint(player),
                     strongholdProvinceStrength: this.strongholdProvinceStrength(player),
+                    // Public visible defender ability; every seed may protect
+                    // its participant immediately when that defender can bow.
+                    opponentParticipantCanBow: this.opponentParticipantCanBow(player),
                     // Seed 5 only: the cheat view (human hand/fate/true province
                     // strengths). Undefined for every other seed, so the policy's
                     // omniscient branches stay dormant for every other seed.

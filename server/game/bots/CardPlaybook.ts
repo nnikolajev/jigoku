@@ -1799,10 +1799,11 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     }),
 
     // Political duel: honor the winner, dishonor the loser. Steered by the
-    // policy (our best political vs their weakest) and bid via GloryTactics.
+    // policy (our best political vs their strongest beatable target) and bid
+    // via DuelTactics.
     'game-of-sadane': entry('game-of-sadane', {
         targetSide: 'enemy',
-        targetPreference: 'weakest',
+        targetPreference: 'strongest',
         priority: 7,
         summary: 'political duel: honor the winner, dishonor the loser',
         shouldPlay: (ctx) => participating(ctx.myCharacters).some((card) => !card.bowed) &&
@@ -2398,24 +2399,21 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
 
     // ---- duel initiators: characters ----
 
-    // Military duel vs a weaker attacker; good 2-cost stats.
+    // Forced military duel after defenders are declared. The engine triggers
+    // it automatically; do not expose it as a clickable Action.
     'arrogant-kakita': entry('arrogant-kakita', {
         conflictTypes: ['military'],
         targetSide: 'enemy',
-        targetPreference: 'weakest',
+        targetPreference: 'strongest',
         priority: 6,
-        summary: 'military duel action',
-        inPlayAction: true,
-        shouldUseAction: (ctx) => ctx.myCharacters.some((card) =>
-            card.id === 'arrogant-kakita' && card.inConflict && !card.bowed) &&
-            participating(ctx.opponentCharacters).some((card) => !card.bowed)
+        summary: 'forced military duel after defenders are declared'
     }),
 
     // Military duel action.
     'aspiring-challenger': entry('aspiring-challenger', {
         conflictTypes: ['military'],
         targetSide: 'enemy',
-        targetPreference: 'weakest',
+        targetPreference: 'strongest',
         priority: 6,
         summary: 'military duel action',
         inPlayAction: true,
@@ -2428,7 +2426,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'courtly-challenger': entry('courtly-challenger', {
         conflictTypes: ['political'],
         targetSide: 'enemy',
-        targetPreference: 'weakest',
+        targetPreference: 'strongest',
         priority: 6,
         summary: 'political duel action',
         inPlayAction: true,
@@ -2441,6 +2439,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // province's action (even the enemy's) — pure value, use every time.
     'cunning-negotiator': entry('cunning-negotiator', {
         conflictTypes: ['political'],
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
         priority: 7,
         summary: 'political duel: winner triggers the attacked province',
         inPlayAction: true,
@@ -2449,11 +2449,24 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
             participating(ctx.opponentCharacters).length > 0
     }),
 
+    // Conflict-deck character: political duel, then bow/send home the loser.
+    'arbiter-of-authority': entry('arbiter-of-authority', {
+        conflictTypes: ['political'],
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        summary: 'political duel: bow and send home the loser',
+        inPlayAction: true,
+        shouldUseAction: (ctx) => ctx.myCharacters.some((card) =>
+            card.id === 'arbiter-of-authority' && card.inConflict && !card.bowed) &&
+            participating(ctx.opponentCharacters).some((card) => !card.bowed)
+    }),
+
     // Military duelist who can move enemy characters home.
     'kakita-kaezin': entry('kakita-kaezin', {
         conflictTypes: ['military'],
         targetSide: 'enemy',
-        targetPreference: 'weakest',
+        targetPreference: 'strongest',
         priority: 9,
         summary: 'military duel: move the loser home',
         inPlayAction: true,
@@ -2613,7 +2626,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'policy-debate': entry('policy-debate', {
         conflictTypes: ['political'],
         targetSide: 'enemy',
-        targetPreference: 'weakest',
+        targetPreference: 'strongest',
         priority: 8,
         summary: 'political duel: loser discards',
         shouldPlay: (ctx) => participating(ctx.myCharacters).some((card) => !card.bowed) &&
@@ -2713,7 +2726,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
 
     'duelist-training': entry('duelist-training', {
         targetSide: 'enemy',
-        targetPreference: 'weakest',
+        targetPreference: 'strongest',
         attachSide: 'self',
         priority: 9,
         summary: 'grants a military duel action',
@@ -2779,7 +2792,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'kakita-dojo': entry('kakita-dojo', {
         conflictTypes: ['military'],
         targetSide: 'enemy',
-        targetPreference: 'weakest',
+        targetPreference: 'strongest',
         priority: 7,
         summary: 'holding: military duel; a Duelist winner bows the loser',
         inPlayAction: true,

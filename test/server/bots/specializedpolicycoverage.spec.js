@@ -970,6 +970,9 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         });
         run(profile, ringState([tower]));
         run(profile, makeState({ promptTitle: 'Honor Bid', menuTitle: 'Choose your bid for the duel', buttons: bids() }));
+        run(profile, makeState({ promptTitle: 'Honor Bid', menuTitle: 'Choose your bid for the duel', buttons: bids() }), {
+            duelGap: 0
+        });
         run(profile, makeState({
             phase: 'regroup', promptTitle: 'Regroup', menuTitle: 'Select dynasty cards to discard', buttons: [DONE],
             provinces: { one: [tower, helper], two: [], three: [], four: [] }
@@ -977,6 +980,36 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         run(profile, targetState('policy-debate', ['duel'], [tower], [character('enemy')]), {
             targetHint: { sourceCardId: 'policy-debate', sourceIsMine: true, gameActions: ['duel'] }
         });
+        // Favorable Make Your Case execution reaches the shared injectable
+        // start gate: projected duel skill, opponent-choice strongest target,
+        // and Iaijutsu Master's equal-skill allowance.
+        const favorite = character('favorite-duel', 'kakita-favorite', {
+            inConflict: true, bowed: false,
+            politicalSkillSummary: { stat: '5' },
+            attachments: [
+                attachment('blade-duel', 'kakita-blade'),
+                attachment('master-duel', 'iaijutsu-master')
+            ]
+        });
+        const makeCase = event('make-case-coverage', 'make-your-case');
+        run(profile, makeState({
+            promptTitle: 'Conflict Action Window', menuTitle: 'Political conflict',
+            cardPiles: { hand: [makeCase], cardsInPlay: [favorite] }
+        }, {
+            provinces: {
+                one: [{ uuid: 'duel-province', isProvince: true, type: 'province', inConflict: true,
+                    strengthSummary: { stat: '4' } }],
+                two: [], three: [], four: []
+            },
+            cardPiles: { cardsInPlay: [character('enemy-duelist', 'enemy-duelist', {
+                inConflict: true, bowed: false, politicalSkillSummary: { stat: '9' }
+            })] }
+        }, {
+            conflict: {
+                type: 'political', attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                attackerSkill: 3, defenderSkill: 4
+            }
+        }));
         run(profile, targetState('kakita-blade', ['attach'], [
             { ...tower, attachments: [attachment('fan', 'ornate-fan')] },
             character('toshimoko', 'kakita-toshimoko')

@@ -48,6 +48,120 @@ describe('Jigoku heuristic bot', function() {
         });
     });
 
+    it('recognizes the actionless first selector of an event-started duel', function() {
+        const controller = Object.create(JigokuBotController.prototype);
+        controller.currentPromptStep = () => ({
+            properties: { gameAction: [] },
+            context: {
+                player: { name: 'Jigoku Bot' },
+                source: {
+                    uuid: 'make-your-case-source', type: 'event',
+                    cardData: { id: 'make-your-case' }
+                },
+                ability: { properties: { initiateDuel: { type: 'political' } } },
+                targets: {}
+            }
+        });
+
+        expect(controller.currentTargetHint({ name: 'Jigoku Bot' })).toEqual({
+            gameActions: ['duel'],
+            sourceIsMine: true,
+            sourceType: 'event',
+            sourceCardId: 'make-your-case',
+            sourceUuid: 'make-your-case-source',
+            duelAxis: 'political'
+        });
+    });
+
+    it('exposes the chosen challenger when an opponent makes us select our duel target', function() {
+        const controller = Object.create(JigokuBotController.prototype);
+        controller.currentPromptStep = () => ({
+            properties: { gameAction: [{ name: 'duel' }], dependsOn: 'challenger' },
+            context: {
+                player: { name: 'Opponent' },
+                source: { uuid: 'case', type: 'event', cardData: { id: 'make-your-case' } },
+                ability: { properties: { initiateDuel: { type: 'political' } } },
+                targets: { challenger: { uuid: 'enemy-challenger' } }
+            }
+        });
+
+        expect(controller.currentTargetHint({ name: 'Jigoku Bot' })).toEqual({
+            gameActions: ['duel'],
+            sourceIsMine: false,
+            sourceType: 'event',
+            sourceCardId: 'make-your-case',
+            sourceUuid: 'case',
+            duelAxis: 'political',
+            duelOpponentUuid: 'enemy-challenger'
+        });
+    });
+
+    it('reads duel axis from a direct DuelAction used by character abilities', function() {
+        const controller = Object.create(JigokuBotController.prototype);
+        controller.currentPromptStep = () => ({
+            properties: {
+                gameAction: [{
+                    name: 'duel',
+                    getProperties: () => ({ type: 'military' })
+                }]
+            },
+            context: {
+                player: { name: 'Opponent' },
+                source: {
+                    uuid: 'kaezin', type: 'character', cardData: { id: 'kakita-kaezin' }
+                },
+                ability: { properties: {} },
+                targets: {}
+            }
+        });
+
+        expect(controller.currentTargetHint({ name: 'Jigoku Bot' })).toEqual({
+            gameActions: ['duel'],
+            sourceIsMine: false,
+            sourceType: 'character',
+            sourceCardId: 'kakita-kaezin',
+            sourceUuid: 'kaezin',
+            duelAxis: 'military',
+            duelOpponentUuid: 'kaezin'
+        });
+    });
+
+    it('reads political axis from a manually-defined dependent duel target', function() {
+        const controller = Object.create(JigokuBotController.prototype);
+        const duelAction = {
+            name: 'duel',
+            getProperties: () => ({ type: 'political' })
+        };
+        controller.currentPromptStep = () => ({
+            properties: { gameAction: [] },
+            context: {
+                player: { name: 'Jigoku Bot' },
+                source: {
+                    uuid: 'policy-source', type: 'event',
+                    cardData: { id: 'policy-debate' }
+                },
+                ability: {
+                    properties: {
+                        targets: {
+                            challenger: { gameAction: [] },
+                            duelTarget: { gameAction: duelAction }
+                        }
+                    }
+                },
+                targets: {}
+            }
+        });
+
+        expect(controller.currentTargetHint({ name: 'Jigoku Bot' })).toEqual({
+            gameActions: ['duel'],
+            sourceIsMine: true,
+            sourceType: 'event',
+            sourceCardId: 'policy-debate',
+            sourceUuid: 'policy-source',
+            duelAxis: 'political'
+        });
+    });
+
     it('expands composite target actions into their named leaf actions', function() {
         const controller = Object.create(JigokuBotController.prototype);
         controller.currentPromptStep = () => ({

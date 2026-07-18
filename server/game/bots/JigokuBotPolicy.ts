@@ -85,6 +85,8 @@ interface TargetHint {
     sourceCardId?: string;
     sourceUuid?: string;
     playCardFateCostIgnored?: boolean;
+    duelAxis?: 'military' | 'political';
+    duelOpponentUuid?: string;
 }
 
 type HandStats = Record<string, { military: number | null; political: number | null }>;
@@ -501,7 +503,9 @@ class JigokuBotPolicy {
                 // bank the honor their higher bid pays us; the uncertain 1-3
                 // deficit is honor-gated (spend when rich, bank when poor).
                 if(context.duelGap !== undefined) {
-                    const desired = this.duelBidForGap(context.duelGap, myHonor);
+                    const desired = duelist
+                        ? duelist.desiredDuelBidForGap(context.duelGap, myHonor)
+                        : this.duelBidForGap(context.duelGap, myHonor);
                     return this.buttonDecision(this.closestBidButton(buttons, desired), 'duel-bid-skill-gap');
                 }
                 // No mil/pol gap available (Glory-type duels): per-deck honor-
@@ -2422,7 +2426,7 @@ class JigokuBotPolicy {
             }
             return false;
         };
-        const abilitySource = this.conflictAbilitySources(me, playCtx, cardHint, dishonor, lion, dragon, glory, shugenja, attachmentTower, crane)
+        const abilitySource = this.conflictAbilitySources(me, playCtx, cardHint, dishonor, lion, dragon, glory, shugenja, attachmentTower, crane, duelist)
             .filter((card) => this.isDirectCardLegal(card, legalDirectCardUuids))
             .find(canSelectAbility);
         if(abilitySource) {
@@ -2586,7 +2590,7 @@ class JigokuBotPolicy {
     // Own in-play cards worth clicking for their Action abilities during a
     // conflict: the stronghold, the attacked province, and any board card
     // (holding, attachment, character) with a playbook-known Action.
-    private conflictAbilitySources(me: any, playCtx?: any, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, glory: GloryTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null): any[] {
+    private conflictAbilitySources(me: any, playCtx?: any, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, glory: GloryTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, duelist: DuelTactics | null = null): any[] {
         const stronghold = (me?.strongholdProvince || []).filter((card: any) => {
             if(card.type !== 'stronghold' || !card.uuid || card.bowed) {
                 return false;
@@ -2651,7 +2655,12 @@ class JigokuBotPolicy {
                     if(!card.uuid || !card.id || card.facedown || !onBoard(String(card.location || '')) || this.isCancelVetoed(card.id)) {
                         return false;
                     }
-                    const hint: any = cardHint(card.id);
+                    // Duelist Training grants the Action to its bearer. The
+                    // public source is therefore the character, not the
+                    // attachment; resolve its playbook metadata through the
+                    // injectable duel source map.
+                    const duelSourceId = duelist?.duelSourceId(card);
+                    const hint: any = cardHint(duelSourceId || card.id);
                     if(!hint || !hint.inPlayAction) {
                         return false;
                     }
@@ -2670,10 +2679,19 @@ class JigokuBotPolicy {
                     if(crane && card.id === 'doji-challenger') {
                         return crane.shouldUseDojiChallenger(playCtx);
                     }
+                    if(duelist && duelSourceId && !duelist.shouldStartDuel(
+                        card,
+                        playCtx?.myCharacters || [],
+                        playCtx?.opponentCharacters || [],
+                        (candidate, axis) => this.skillValue(candidate, axis) || 0
+                    )) {
+                        return false;
+                    }
                     return typeof hint.shouldUseAction !== 'function' || !playCtx || hint.shouldUseAction(playCtx);
                 })
                 .sort((a, b) => {
-                    const priorityOf = (card: any) => (cardHint(card.id) as any)?.priority ?? 5;
+                    const priorityOf = (card: any) =>
+                        (cardHint(duelist?.duelSourceId(card) || card.id) as any)?.priority ?? 5;
                     const priorityDiff = priorityOf(b) - priorityOf(a);
                     return priorityDiff !== 0 ? priorityDiff : String(a.uuid).localeCompare(String(b.uuid));
                 });
@@ -2756,6 +2774,14 @@ class JigokuBotPolicy {
         const hint: any = card.id && cardHint ? cardHint(card.id) : undefined;
         if(duelist?.isTowerAttachment(card.id) &&
             !duelist.pickAttachmentTarget(myCharacters, card.id, hint?.maxCopiesPerTarget)) {
+            return false;
+        }
+        if(duelist?.duelSourceId(card) && !duelist.shouldStartDuel(
+            card,
+            myCharacters,
+            playCtx?.opponentCharacters || [],
+            (candidate, axis) => this.skillValue(candidate, axis) || 0
+        )) {
             return false;
         }
         if(attachmentTower?.isAttachment(card.id)) {
@@ -3745,6 +3771,17 @@ class JigokuBotPolicy {
                     if(card.id === 'voice-of-honor' && interruptedEventIsMine === true) {
                         return false;
                     }
+                    if(duelist?.duelSourceId(card)) {
+                        const opponent = this.opponentPlayer(playerState, me);
+                        if(!duelist.shouldStartDuel(
+                            card,
+                            this.myCharactersInPlay(me),
+                            this.myCharactersInPlay(opponent),
+                            (candidate, axis) => this.skillValue(candidate, axis) || 0
+                        )) {
+                            return false;
+                        }
+                    }
                     return card.id !== 'feeding-an-army' || !lion ||
                         lion.shouldUseFeedingArmy(this.myCharactersInPlay(me));
                 })
@@ -4428,10 +4465,10 @@ class JigokuBotPolicy {
 
         // Duel deck: duels compare a specific axis. When the prompt offers
         // OUR characters (send the duelist) pick our strongest on that axis;
-        // when it offers THEIRS, duel their weakest. Attachments stack on
+        // when it offers THEIRS, duel their strongest beatable body. Attachments stack on
         // the ranked key duelists.
         if(duelist) {
-            const axis = duelist.duelAxis(targetHint.sourceCardId);
+            const axis = targetHint.duelAxis || duelist.duelAxis(targetHint.sourceCardId);
             if(duelist.isTowerAttachment(targetHint.sourceCardId) &&
                 (targetHint.gameActions || []).includes('attach')) {
                 const maxCopiesPerTarget = targetHint.sourceCardId && cardHint
@@ -4455,11 +4492,52 @@ class JigokuBotPolicy {
             }
             if(axis) {
                 if(mine.length > 0 && theirs.length === 0) {
-                    return this.cardClickDecision(this.sortBySkillDesc(mine, axis)[0], 'duel-own-strongest');
+                    const opposing = targetHint.duelOpponentUuid
+                        ? this.findVisibleCards(playerState).find((card) => card.uuid === targetHint.duelOpponentUuid)
+                        : undefined;
+                    const baseSkill = (card: any, type: 'military' | 'political') =>
+                        this.skillValue(card, type) || 0;
+                    const initiatedByMe = targetHint.sourceIsMine !== false;
+                    const pick = duelist.pickOwnDuelParticipant(
+                        mine,
+                        axis,
+                        initiatedByMe,
+                        opposing,
+                        Number(me?.stats?.honor) || 0,
+                        baseSkill
+                    );
+                    const strongest = duelist.pickOwnDuelParticipant(
+                        mine,
+                        axis,
+                        true,
+                        opposing,
+                        Number(me?.stats?.honor) || 0,
+                        baseSkill
+                    );
+                    const reason = initiatedByMe || !opposing
+                        ? 'duel-own-strongest'
+                        : pick === strongest
+                            ? 'duel-opponent-started-contest'
+                            : 'duel-opponent-started-protect-tower';
+                    return this.cardClickDecision(pick, reason);
                 }
                 if(theirs.length > 0) {
-                    const sorted = this.sortBySkillDesc(theirs, axis);
-                    return this.cardClickDecision(sorted[sorted.length - 1], 'duel-enemy-weakest');
+                    const challenger = targetHint.duelOpponentUuid
+                        ? this.findVisibleCards(playerState).find((card) => card.uuid === targetHint.duelOpponentUuid)
+                        : undefined;
+                    const pick = duelist.pickOpponentDuelTarget(
+                        theirs,
+                        axis,
+                        challenger,
+                        (card, type) => this.skillValue(card, type) || 0
+                    );
+                    const reason = challenger && duelist.canBeat(
+                        challenger,
+                        pick,
+                        axis,
+                        (card, type) => this.skillValue(card, type) || 0
+                    ) ? 'duel-enemy-strongest-beatable' : 'duel-enemy-safest-fallback';
+                    return this.cardClickDecision(pick, reason);
                 }
             }
         }
@@ -4599,8 +4677,8 @@ class JigokuBotPolicy {
             }
         }
         if(targetHint.sourceCardId === 'game-of-sadane') {
-            // Stage 1 offers OWN participants (send our best political
-            // duelist), stage 2 the opponent's (duel their weakest).
+            // Non-duelist fallback. Duel-profile decks are handled above with
+            // projected skill and strongest-beatable targeting.
             if(mine.length > 0) {
                 return this.cardClickDecision(this.sortBySkillDesc(mine, 'political')[0], 'sadane-own-duelist');
             }

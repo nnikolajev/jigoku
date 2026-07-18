@@ -35,10 +35,27 @@ Tsuma and deliberately receives the shared duel package.
   the OPPONENT's honor victory (honor flows to the lower bidder): Crane won
   6/40 games by honor at bid 3, 2/40 at bid 2 — and the deck's duelists win
   on skill difference anyway because of the target steering.
-- **Duel target steering** (`duelAxes`): every duel-initiating card is
-  mapped to the axis it compares. A prompt offering OUR characters sends our
-  strongest on that axis; a prompt offering THEIRS duels their weakest
-  (`duel-own-strongest` / `duel-enemy-weakest`).
+- **Duel type metadata** (`duelAxes`): every supported duel source is explicitly
+  mapped to military or political. The prompt controller also reads the engine's
+  `DuelAction` type for actionless and dependent selectors, so an unknown prompt
+  does not silently turn a political duel into a military duel.
+- **Injectable duel starts** (`duelStartRules`): each source records who chooses
+  the bot's challenger, who chooses the opponent's character, and whether the
+  duel is forced. Optional duels start only when the relevant bot skill is
+  strictly higher than the strongest legal opponent; equality is acceptable
+  when the bot controls Iaijutsu Master. Arrogant Kakita remains forced and is
+  never suppressed by this check.
+- **Duel target steering**: when the bot chooses its own challenger it sends its
+  strongest character on the correct axis. When it chooses the opposing target,
+  it selects the strongest character that challenger can beat, maximizing the
+  value of duel debuffs. If an already-started or forced duel cannot be won, it
+  falls back to the weakest opposing target. Opponent-initiated duels are
+  contested when winnable; otherwise the bot protects its strong characters by
+  choosing its weakest, least-invested legal character and bidding low.
+- **Prospective duel skill** (`duelSkillBonuses`): conditional bonuses that are
+  not present in the pre-duel player summary are projected while selecting a
+  challenger. Kakita Blade and Kakita Favorite each contribute +2 political for
+  these decisions.
 - **Tower deployment**: buy a preferred character only when it can be funded;
   ordinary three-cost duelists seek at least 3 fate, while a normal seven-fate
   opening may establish a five-cost champion with 2. Retain an unfunded tower

@@ -3,7 +3,7 @@
 // board and grinds value out of every duel:
 //
 // - duels are initiated with our best character on the duel's axis against
-//   their weakest (when we choose the enemy), and the honor dial is bid to
+//   the strongest opposing character it can safely beat, and the honor dial is bid to
 //   WIN — Kyuden Kakita honors our duelist after every resolved duel,
 //   Proving Ground draws, Kakita Blade gains honor, Policy Debate strips
 //   their hand, Storied Defeat bows the loser,
@@ -21,8 +21,26 @@
 export interface DuelProfile {
     duelBid: number; // bid to WIN duels — the deck's payoffs all key on winning
     honorFloor: number; // below this, stop paying the dial
+    minimumBid: number;
+    maximumBid: number;
+    lowHonorFloor: number;
+    gambleHonorFloor: number;
+    unwinnableSkillGap: number;
     // duel-initiating card id -> the skill axis the duel compares
     duelAxes: Record<string, 'military' | 'political'>;
+    // Duel source metadata is kept separate from policy flow so decks can
+    // override individual matchup requirements without duplicating selectors.
+    duelStartRules: Record<string, {
+        challenger: 'source' | 'choose-own';
+        targetChooser: 'self' | 'opponent';
+        forced?: boolean;
+    }>;
+    // Player summaries are generated before a prospective duel. Conditional
+    // "while in a duel" bonuses are therefore absent and must be projected.
+    duelSkillBonuses: {
+        characters: Record<string, Partial<Record<'military' | 'political', number>>>;
+        attachments: Record<string, Partial<Record<'military' | 'political', number>>>;
+    };
     // ranked bearers for the duel attachments and fate investment
     keyCharacters: string[];
     // Other dynasty characters worth preserving with fate, but which must not
@@ -43,6 +61,11 @@ export interface DuelProfile {
 export const DUEL_DEFAULTS: DuelProfile = {
     duelBid: 2,
     honorFloor: 4,
+    minimumBid: 1,
+    maximumBid: 5,
+    lowHonorFloor: 3,
+    gambleHonorFloor: 8,
+    unwinnableSkillGap: -4,
     duelAxes: {
         'kakita-dojo': 'military',
         'duelist-training': 'military',
@@ -51,12 +74,43 @@ export const DUEL_DEFAULTS: DuelProfile = {
         'duel-to-the-death': 'military',
         'aspiring-challenger': 'military',
         'kakita-kaezin': 'military',
+        'kakita-toshimoko': 'military',
         'arrogant-kakita': 'military',
         'policy-debate': 'political',
         'make-your-case': 'political',
+        'game-of-sadane': 'political',
+        'arbiter-of-authority': 'political',
+        'kakita-yuri': 'political',
         'disparaging-challenge': 'political',
         'courtly-challenger': 'political',
         'cunning-negotiator': 'political'
+    },
+    duelStartRules: {
+        'kakita-dojo': { challenger: 'choose-own', targetChooser: 'self' },
+        'make-your-case': { challenger: 'choose-own', targetChooser: 'opponent' },
+        'duelist-training': { challenger: 'source', targetChooser: 'self' },
+        'daimyo-s-gunbai': { challenger: 'choose-own', targetChooser: 'opponent' },
+        'aspiring-challenger': { challenger: 'source', targetChooser: 'self' },
+        'kakita-kaezin': { challenger: 'source', targetChooser: 'self' },
+        'kakita-yuri': { challenger: 'source', targetChooser: 'opponent' },
+        'kakita-toshimoko': { challenger: 'source', targetChooser: 'opponent' },
+        'policy-debate': { challenger: 'choose-own', targetChooser: 'self' },
+        'duel-to-the-death': { challenger: 'choose-own', targetChooser: 'self' },
+        'game-of-sadane': { challenger: 'choose-own', targetChooser: 'self' },
+        'arbiter-of-authority': { challenger: 'source', targetChooser: 'self' },
+        'cunning-negotiator': { challenger: 'source', targetChooser: 'self' },
+        'courtly-challenger': { challenger: 'source', targetChooser: 'self' },
+        // This reaction is mandatory. Matchup scoring may steer its target,
+        // but must never suppress the engine's forced trigger.
+        'arrogant-kakita': { challenger: 'source', targetChooser: 'self', forced: true }
+    },
+    duelSkillBonuses: {
+        characters: {
+            'kakita-favorite': { political: 2 }
+        },
+        attachments: {
+            'kakita-blade': { political: 2 }
+        }
     },
     keyCharacters: [
         'tengu-sensei', 'doji-kuwanan', 'kakita-kaezin', 'kakita-toshimoko',
@@ -93,7 +147,30 @@ export class DuelTactics {
     // honor, the duel effects themselves) keys on WINNING — pay for it while
     // honor allows.
     desiredDuelBid(myHonor: number): number {
-        return myHonor > this.profile.honorFloor ? this.profile.duelBid : 1;
+        return myHonor > this.profile.honorFloor ? this.profile.duelBid : this.profile.minimumBid;
+    }
+
+    // Shared gap-aware bid plan. Close deficits are gambled on only while
+    // honor-rich; hopeless duels bid minimum and bank the honor transfer.
+    desiredDuelBidForGap(gap: number, honor: number): number {
+        if(honor <= this.profile.lowHonorFloor) {
+            return this.profile.minimumBid;
+        }
+        if(gap >= this.profile.maximumBid) {
+            return this.profile.minimumBid;
+        }
+        if(gap >= 2) {
+            return this.profile.maximumBid + 1 - gap;
+        }
+        if(gap >= 0) {
+            return this.profile.maximumBid;
+        }
+        if(gap <= this.profile.unwinnableSkillGap) {
+            return this.profile.minimumBid;
+        }
+        return honor >= this.profile.gambleHonorFloor
+            ? this.profile.maximumBid
+            : this.profile.minimumBid;
     }
 
     // Iaijutsu Master reacts after both dials are revealed. Use the live
@@ -117,9 +194,162 @@ export class DuelTactics {
     }
 
     // The axis a duel source compares — used to send our strongest on that
-    // axis and target their weakest.
+    // axis and find the strongest opposing target it can beat.
     duelAxis(cardId: string | undefined): 'military' | 'political' | null {
         return (cardId && this.profile.duelAxes[cardId]) || null;
+    }
+
+    duelSourceId(card: any): string | null {
+        // Duelist Training is an attachment when played, but its duel Action's
+        // source is the attached character. Do not mistake playing the setup
+        // attachment itself for starting a duel.
+        if(card?.id && this.profile.duelStartRules[card.id] &&
+            !(card.id === 'duelist-training' && card.type !== 'character')) {
+            return card.id;
+        }
+        if((card?.attachments || []).some((attachment: any) => attachment.id === 'duelist-training')) {
+            return 'duelist-training';
+        }
+        return null;
+    }
+
+    // Prospective score includes conditional effects absent from the ordinary
+    // pre-duel skill summary (Kakita Favorite and each Kakita Blade).
+    duelSkill(
+        card: any,
+        axis: 'military' | 'political',
+        baseSkill: (card: any, axis: 'military' | 'political') => number
+    ): number {
+        let total = baseSkill(card, axis);
+        total += this.profile.duelSkillBonuses.characters[card?.id]?.[axis] || 0;
+        for(const attachment of card?.attachments || []) {
+            total += this.profile.duelSkillBonuses.attachments[attachment?.id]?.[axis] || 0;
+        }
+        return total;
+    }
+
+    hasIaijutsuMaster(card: any): boolean {
+        return (card?.attachments || []).some((attachment: any) => attachment.id === 'iaijutsu-master');
+    }
+
+    canBeat(
+        challenger: any,
+        target: any,
+        axis: 'military' | 'political',
+        baseSkill: (card: any, axis: 'military' | 'political') => number
+    ): boolean {
+        const margin = this.duelSkill(challenger, axis, baseSkill) -
+            this.duelSkill(target, axis, baseSkill);
+        return margin > 0 || (margin === 0 && this.hasIaijutsuMaster(challenger));
+    }
+
+    // Start optional duels only with a favorable printed/live matchup. When
+    // the opponent chooses its participant, it will expose our challenger to
+    // its strongest legal body. When we choose, at least one legal opposing
+    // body must be beatable. Iaijutsu Master makes an equal-skill matchup safe.
+    shouldStartDuel(
+        source: any,
+        myCharacters: any[],
+        opponentCharacters: any[],
+        baseSkill: (card: any, axis: 'military' | 'political') => number
+    ): boolean {
+        const sourceId = this.duelSourceId(source);
+        const rule = sourceId ? this.profile.duelStartRules[sourceId] : undefined;
+        const axis = sourceId ? this.duelAxis(sourceId) : null;
+        if(!rule || !axis || rule.forced) {
+            return true;
+        }
+
+        const mine = myCharacters.filter((card) => card.inConflict);
+        const theirs = opponentCharacters.filter((card) => card.inConflict);
+        if(theirs.length === 0) {
+            return false;
+        }
+        const challenger = rule.challenger === 'source'
+            ? mine.find((card) => card.uuid === source?.uuid) ||
+                mine.find((card) => card.id === source?.id)
+            : this.pickOwnDuelParticipant(mine, axis, true, undefined, 0, baseSkill);
+        if(!challenger) {
+            return false;
+        }
+
+        if(rule.targetChooser === 'opponent') {
+            const strongest = this.strongestDuelCharacter(theirs, axis, baseSkill);
+            return !!strongest && this.canBeat(challenger, strongest, axis, baseSkill);
+        }
+        return theirs.some((target) => this.canBeat(challenger, target, axis, baseSkill));
+    }
+
+    // Own-started duel: strongest legal character. Opponent-started duel:
+    // contest with strongest only when the gap/bid plan is viable; otherwise
+    // expose the weakest, least-invested body and protect the tower.
+    pickOwnDuelParticipant(
+        cards: any[],
+        axis: 'military' | 'political',
+        initiatedByMe: boolean,
+        opponent: any | undefined,
+        honor: number,
+        baseSkill: (card: any, axis: 'military' | 'political') => number
+    ): any {
+        if(cards.length === 0) {
+            return null;
+        }
+        const strongestFirst = cards.slice().sort((a, b) =>
+            this.duelSkill(b, axis, baseSkill) - this.duelSkill(a, axis, baseSkill) ||
+            (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
+            (b.attachments || []).length - (a.attachments || []).length ||
+            String(a.uuid).localeCompare(String(b.uuid)));
+        if(initiatedByMe || !opponent) {
+            return strongestFirst[0];
+        }
+
+        const gap = this.duelSkill(strongestFirst[0], axis, baseSkill) -
+            this.duelSkill(opponent, axis, baseSkill);
+        if(gap >= 0 ||
+            (gap > this.profile.unwinnableSkillGap && honor >= this.profile.gambleHonorFloor)) {
+            return strongestFirst[0];
+        }
+
+        return cards.slice().sort((a, b) =>
+            this.duelSkill(a, axis, baseSkill) - this.duelSkill(b, axis, baseSkill) ||
+            (Number(a.fate) || 0) - (Number(b.fate) || 0) ||
+            (a.attachments || []).length - (b.attachments || []).length ||
+            String(a.uuid).localeCompare(String(b.uuid)))[0];
+    }
+
+    // Choose the highest-value opposing character the challenger can beat.
+    // If a forced/already-started duel has no favorable target, sacrifice the
+    // least threatening target instead of feeding a tower into their best one.
+    pickOpponentDuelTarget(
+        cards: any[],
+        axis: 'military' | 'political',
+        challenger: any | undefined,
+        baseSkill: (card: any, axis: 'military' | 'political') => number
+    ): any {
+        const strongestFirst = cards.slice().sort((a, b) =>
+            this.duelSkill(b, axis, baseSkill) - this.duelSkill(a, axis, baseSkill) ||
+            (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
+            (b.attachments || []).length - (a.attachments || []).length ||
+            String(a.uuid).localeCompare(String(b.uuid)));
+        if(challenger) {
+            const beatable = strongestFirst.find((target) =>
+                this.canBeat(challenger, target, axis, baseSkill));
+            if(beatable) {
+                return beatable;
+            }
+        }
+        return strongestFirst[strongestFirst.length - 1] || null;
+    }
+
+    private strongestDuelCharacter(
+        cards: any[],
+        axis: 'military' | 'political',
+        baseSkill: (card: any, axis: 'military' | 'political') => number
+    ): any {
+        return cards.slice().sort((a, b) =>
+            this.duelSkill(b, axis, baseSkill) - this.duelSkill(a, axis, baseSkill) ||
+            (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
+            String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
     isTowerCharacter(cardId: string | undefined): boolean {

@@ -1287,7 +1287,16 @@ class JigokuBotController {
     // When the current prompt is an ability target selection, expose the game
     // actions it will resolve (bow, honor, removeFate, ...) so the policy can
     // aim harmful effects at the opponent and helpful ones at its own cards.
-    private currentTargetHint(player: Player): { gameActions: string[]; sourceIsMine: boolean; sourceType?: string; sourceCardId?: string; sourceUuid?: string; playCardFateCostIgnored?: boolean } | undefined {
+    private currentTargetHint(player: Player): {
+        gameActions: string[];
+        sourceIsMine: boolean;
+        sourceType?: string;
+        sourceCardId?: string;
+        sourceUuid?: string;
+        playCardFateCostIgnored?: boolean;
+        duelAxis?: 'military' | 'political';
+        duelOpponentUuid?: string;
+    } | undefined {
         const step = this.currentPromptStep(player);
         const configuredActions = step?.properties?.gameAction;
         const gameActions = Array.isArray(configuredActions)
@@ -1295,7 +1304,50 @@ class JigokuBotController {
             : configuredActions
                 ? [configuredActions]
                 : [];
-        if(gameActions.length === 0) {
+        // Event/holding-started duels have two selectors. The first
+        // `challenger` selector has no gameAction; only dependent duelTarget
+        // owns DuelAction. Recover axis from original card ability so bot does
+        // not mistake a political challenger prompt for generic military.
+        let duelProperties = step?.context?.ability?.properties?.initiateDuel;
+        if(typeof duelProperties === 'function') {
+            try {
+                duelProperties = duelProperties(step.context);
+            } catch(_error) {
+                duelProperties = undefined;
+            }
+        }
+        let duelAxis = duelProperties?.type === 'military' || duelProperties?.type === 'political'
+            ? duelProperties.type
+            : undefined;
+        // Character and gained-attachment abilities may define DuelAction
+        // directly instead of using CardAbility.initiateDuel (Kaezin and
+        // Duelist Training). Read its resolved type as the second generic path.
+        if(!duelAxis) {
+            // Policy Debate and Game of Sadane define their two selectors
+            // manually. Their first `challenger` step has no action, while the
+            // dependent `duelTarget` selector owns DuelAction. Inspect all
+            // original target definitions so their first prompt still carries
+            // the correct political axis.
+            const targetDefinitions = step?.context?.ability?.properties?.targets;
+            const dependentActions = targetDefinitions && typeof targetDefinitions === 'object'
+                ? Object.values(targetDefinitions).flatMap((target: any) => {
+                    const action = target?.gameAction;
+                    return Array.isArray(action) ? action : action ? [action] : [];
+                })
+                : [];
+            const duelAction = gameActions.concat(dependentActions)
+                .find((action: any) => action?.name === 'duel');
+            try {
+                const properties = duelAction?.getProperties?.(step.context);
+                if(properties?.type === 'military' || properties?.type === 'political') {
+                    duelAxis = properties.type;
+                }
+            } catch(_error) {
+                // Dynamic action may require a later resolution context. Deck
+                // source-axis metadata remains the safe policy fallback.
+            }
+        }
+        if(gameActions.length === 0 && !duelAxis) {
             return undefined;
         }
 
@@ -1329,16 +1381,26 @@ class JigokuBotController {
             return action.name ? [action.name] : [];
         };
 
+        const source = step.context?.source;
+        const sourceType = source?.type || source?.getType?.();
+        const challenger = step.context?.targets?.challenger ||
+            (sourceType === 'character' ? source : undefined);
+
         return {
-            gameActions: [...new Set(gameActions.flatMap((action: any) => actionNames(action)))],
+            gameActions: [...new Set([
+                ...gameActions.flatMap((action: any) => actionNames(action)),
+                ...(duelAxis ? ['duel'] : [])
+            ])],
             sourceIsMine: step.context?.player?.name === player.name,
-            sourceType: step.context?.source?.type,
-            sourceCardId: step.context?.source?.cardData?.id,
+            sourceType,
+            sourceCardId: source?.cardData?.id,
             // Replay effects such as Inventive Mirumoto force the replayed
             // attachment onto the exact character that started the action.
             // Card id alone is ambiguous when two copies are in play.
-            ...(step.context?.source?.uuid ? { sourceUuid: step.context.source.uuid } : {}),
-            ...(playCardFateCostIgnored ? { playCardFateCostIgnored: true } : {})
+            ...(source?.uuid ? { sourceUuid: source.uuid } : {}),
+            ...(playCardFateCostIgnored ? { playCardFateCostIgnored: true } : {}),
+            ...(duelAxis ? { duelAxis } : {}),
+            ...(challenger?.uuid ? { duelOpponentUuid: challenger.uuid } : {})
         };
     }
 

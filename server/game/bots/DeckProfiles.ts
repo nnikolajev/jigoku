@@ -241,7 +241,22 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         // Duel deck: few durable bodies, balanced generic attack/defense;
         // the playstyle (duel bids, duel target axes, attachment stacking)
         // lives in the DuelTactics knobs.
-        profile.duelist = { ...DUEL_DEFAULTS };
+        profile.duelist = {
+            ...DUEL_DEFAULTS,
+            duelAxes: { ...DUEL_DEFAULTS.duelAxes },
+            duelStartRules: Object.fromEntries(Object.entries(DUEL_DEFAULTS.duelStartRules)
+                .map(([id, rule]) => [id, { ...rule }])),
+            duelSkillBonuses: {
+                characters: Object.fromEntries(Object.entries(DUEL_DEFAULTS.duelSkillBonuses.characters)
+                    .map(([id, bonuses]) => [id, { ...bonuses }])),
+                attachments: Object.fromEntries(Object.entries(DUEL_DEFAULTS.duelSkillBonuses.attachments)
+                    .map(([id, bonuses]) => [id, { ...bonuses }]))
+            },
+            keyCharacters: [...DUEL_DEFAULTS.keyCharacters],
+            durableCharacters: [...DUEL_DEFAULTS.durableCharacters],
+            towerAttachments: [...DUEL_DEFAULTS.towerAttachments],
+            restrictedAttachments: [...DUEL_DEFAULTS.restrictedAttachments]
+        };
         profile.fateAwareEconomy = {
             ...profile.fateAwareEconomy,
             preferDeckCharacters: true,

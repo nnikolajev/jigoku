@@ -39,6 +39,21 @@ describe('DuelTactics', function() {
             expect(profileFromStrategy({ ...DUELIST, duelist: false }).duelist).toBeUndefined();
         });
 
+        it('clones injectable duel axes, start rules, bonuses, and card lists per resolved profile', function() {
+            const first = profileFromStrategy(DUELIST).duelist;
+            const second = profileFromStrategy(DUELIST).duelist;
+            first.duelAxes['custom-duel'] = 'political';
+            first.duelStartRules['custom-duel'] = { challenger: 'source', targetChooser: 'self' };
+            first.duelSkillBonuses.attachments['custom-blade'] = { political: 9 };
+            first.keyCharacters.push('custom-duelist');
+
+            expect(second.duelAxes['custom-duel']).toBeUndefined();
+            expect(second.duelStartRules['custom-duel']).toBeUndefined();
+            expect(second.duelSkillBonuses.attachments['custom-blade']).toBeUndefined();
+            expect(second.keyCharacters).not.toContain('custom-duelist');
+            expect(DUEL_DEFAULTS.duelAxes['custom-duel']).toBeUndefined();
+        });
+
         it('parks Vassal Fields under the stronghold', function() {
             expect(resolveDeckProfile(['tsuma', 'vassal-fields'], DUELIST).strongholdProvinceId).toBe('vassal-fields');
             expect(resolveDeckProfile(['tsuma'], DUELIST).strongholdProvinceId).toBeUndefined();
@@ -51,11 +66,159 @@ describe('DuelTactics', function() {
             expect(tactics.desiredDuelBid(DUEL_DEFAULTS.honorFloor)).toBe(1);
         });
 
-        it('knows each duel source axis', function() {
-            expect(tactics.duelAxis('policy-debate')).toBe('political');
-            expect(tactics.duelAxis('kakita-dojo')).toBe('military');
+        it('knows every Crane Baseline and Crane Duels source axis', function() {
+            const expected = {
+                'kakita-dojo': 'military',
+                'duelist-training': 'military',
+                'daimyo-s-gunbai': 'military',
+                'aspiring-challenger': 'military',
+                'kakita-kaezin': 'military',
+                'kakita-toshimoko': 'military',
+                'arrogant-kakita': 'military',
+                'duel-to-the-death': 'military',
+                'make-your-case': 'political',
+                'kakita-yuri': 'political',
+                'policy-debate': 'political',
+                'game-of-sadane': 'political',
+                'arbiter-of-authority': 'political',
+                'cunning-negotiator': 'political',
+                'courtly-challenger': 'political'
+            };
+            for(const [source, axis] of Object.entries(expected)) {
+                expect(tactics.duelAxis(source)).withContext(source).toBe(axis);
+                expect(DUEL_DEFAULTS.duelStartRules[source]).withContext(source).toBeDefined();
+            }
             expect(tactics.duelAxis('banzai')).toBeNull();
             expect(tactics.duelAxis(undefined)).toBeNull();
+        });
+
+        it('recognizes Duelist Training through its character bearer, not while attaching it', function() {
+            expect(tactics.duelSourceId({
+                uuid: 'bearer', id: 'doji-kuwanan', type: 'character',
+                attachments: [{ id: 'duelist-training' }]
+            })).toBe('duelist-training');
+            expect(tactics.duelSourceId({ id: 'duelist-training', type: 'attachment' })).toBeNull();
+        });
+
+        it('projects Kakita Blade and Kakita Favorite skill before a political duel starts', function() {
+            const skill = (card, axis) => card[axis];
+            const kaezin = {
+                uuid: 'kaezin', id: 'kakita-kaezin', military: 3, political: 5,
+                attachments: [{ id: 'kakita-blade' }]
+            };
+            const legion = {
+                uuid: 'legion', id: 'iron-crane-legion', military: 8, political: 6,
+                attachments: []
+            };
+            const favorite = {
+                uuid: 'favorite', id: 'kakita-favorite', military: 2, political: 4,
+                attachments: []
+            };
+
+            expect(tactics.duelSkill(kaezin, 'political', skill)).toBe(7);
+            expect(tactics.duelSkill(favorite, 'political', skill)).toBe(6);
+            expect(tactics.pickOwnDuelParticipant(
+                [legion, kaezin], 'political', true, undefined, 10, skill
+            )).toBe(kaezin);
+        });
+
+        it('targets the strongest enemy it can beat, with Iaijutsu Master breaking equal-skill matchups', function() {
+            const skill = (card, axis) => card[axis];
+            const challenger = {
+                uuid: 'challenger', id: 'kakita-kaezin', military: 3, political: 5,
+                attachments: [{ id: 'kakita-blade' }]
+            };
+            const equal = { uuid: 'equal', military: 1, political: 7, fate: 4, attachments: [] };
+            const beatable = { uuid: 'beatable', military: 1, political: 6, fate: 3, attachments: [] };
+            const weak = { uuid: 'weak', military: 1, political: 1, fate: 0, attachments: [] };
+
+            expect(tactics.pickOpponentDuelTarget(
+                [weak, equal, beatable], 'political', challenger, skill
+            )).toBe(beatable);
+            challenger.attachments.push({ id: 'iaijutsu-master' });
+            expect(tactics.pickOpponentDuelTarget(
+                [weak, equal, beatable], 'political', challenger, skill
+            )).toBe(equal);
+        });
+
+        it('gates self-choice and opponent-choice duel starts by the correct legal matchup', function() {
+            const skill = (card, axis) => card[axis];
+            const challenger = {
+                uuid: 'challenger', id: 'kakita-kaezin', type: 'character', inConflict: true,
+                military: 5, political: 5, attachments: [{ id: 'kakita-blade' }]
+            };
+            const six = { uuid: 'six', inConflict: true, military: 6, political: 6, attachments: [] };
+            const eight = { uuid: 'eight', inConflict: true, military: 8, political: 8, attachments: [] };
+
+            // Game of Sadane lets us choose the strongest beatable enemy (6).
+            expect(tactics.shouldStartDuel(
+                { id: 'game-of-sadane', type: 'event' }, [challenger], [six, eight], skill
+            )).toBe(true);
+            // Make Your Case lets the opponent choose its strongest body (8).
+            expect(tactics.shouldStartDuel(
+                { id: 'make-your-case', type: 'event' }, [challenger], [six, eight], skill
+            )).toBe(false);
+            challenger.attachments.push({ id: 'iaijutsu-master' });
+            eight.political = 7;
+            expect(tactics.shouldStartDuel(
+                { id: 'make-your-case', type: 'event' }, [challenger], [six, eight], skill
+            )).toBe(true);
+        });
+
+        it('never suppresses Arrogant Kakita forced duel even in a losing matchup', function() {
+            const skill = (card, axis) => card[axis];
+            const arrogant = {
+                uuid: 'arrogant', id: 'arrogant-kakita', type: 'character', inConflict: true,
+                military: 1, political: 1, attachments: []
+            };
+            const tower = { uuid: 'tower', inConflict: true, military: 12, political: 12, attachments: [] };
+            expect(tactics.shouldStartDuel(arrogant, [arrogant], [tower], skill)).toBe(true);
+        });
+
+        it('protects a tower in an opponent-started unwinnable duel and bids low', function() {
+            const skill = (card, axis) => card[axis];
+            const tower = {
+                uuid: 'tower', id: 'kakita-kaezin', military: 3, political: 5, fate: 3,
+                attachments: [{ id: 'kakita-blade' }]
+            };
+            const scout = {
+                uuid: 'scout', id: 'cautious-scout', military: 2, political: 0, fate: 0,
+                attachments: []
+            };
+            const enemy = {
+                uuid: 'enemy', id: 'kakita-toshimoko', military: 8, political: 12,
+                attachments: []
+            };
+
+            expect(tactics.pickOwnDuelParticipant(
+                [tower, scout], 'political', false, enemy, 10, skill
+            )).toBe(scout);
+            expect(tactics.desiredDuelBidForGap(-5, 10)).toBe(1);
+        });
+
+        it('contests a winnable opponent-started duel only while honor-rich', function() {
+            const skill = (card, axis) => card[axis];
+            const tower = {
+                uuid: 'tower', id: 'kakita-kaezin', military: 3, political: 5, fate: 3,
+                attachments: [{ id: 'kakita-blade' }]
+            };
+            const scout = {
+                uuid: 'scout', id: 'cautious-scout', military: 2, political: 0, fate: 0,
+                attachments: []
+            };
+            const enemy = {
+                uuid: 'enemy', id: 'kakita-toshimoko', military: 8, political: 8,
+                attachments: []
+            };
+
+            expect(tactics.pickOwnDuelParticipant(
+                [tower, scout], 'political', false, enemy, 10, skill
+            )).toBe(tower);
+            expect(tactics.desiredDuelBidForGap(-1, 10)).toBe(5);
+            expect(tactics.pickOwnDuelParticipant(
+                [tower, scout], 'political', false, enemy, 6, skill
+            )).toBe(scout);
+            expect(tactics.desiredDuelBidForGap(-1, 6)).toBe(1);
         });
 
         it('funds five-cost towers with two fate and gives durable bodies 2-5 fate', function() {
@@ -175,6 +338,161 @@ describe('DuelTactics', function() {
             });
             expect(decision.reason).toBe('duel-play-tower');
             expect(decision.args[0]).toBe('tengu');
+        });
+
+        it('uses political duel score, including Kakita Blade, for Make Your Case', function() {
+            const kaezin = {
+                uuid: 'kaezin', id: 'kakita-kaezin', type: 'character', location: 'play area',
+                selectable: true, controller: { name: 'Jigoku Bot' }, attachments: [{ id: 'kakita-blade' }],
+                militarySkillSummary: { stat: '10' }, politicalSkillSummary: { stat: '5' }
+            };
+            const legion = {
+                uuid: 'legion', id: 'iron-crane-legion', type: 'character', location: 'play area',
+                selectable: true, controller: { name: 'Jigoku Bot' }, attachments: [],
+                militarySkillSummary: { stat: '14' }, politicalSkillSummary: { stat: '6' }
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', promptTitle: 'Make Your Case', menuTitle: 'Select one',
+                        selectCard: true, buttons: [], stats: { honor: 10 },
+                        cardPiles: { cardsInPlay: [kaezin, legion] }
+                    }
+                }
+            };
+            const decision = new JigokuBotPolicy('make-your-case-duelist').decide(
+                state,
+                'Jigoku Bot',
+                {
+                    strategy: DUELIST,
+                    targetHint: {
+                        sourceCardId: 'make-your-case', sourceIsMine: true,
+                        gameActions: ['duel'], duelAxis: 'political'
+                    }
+                }
+            );
+
+            expect(decision.reason).toBe('duel-own-strongest');
+            expect(decision.args[0]).toBe('kaezin');
+        });
+
+        it('uses the chosen challenger to target the strongest beatable opposing duelist', function() {
+            const challenger = {
+                uuid: 'challenger-target', id: 'kakita-kaezin', type: 'character',
+                location: 'play area', selectable: false, attachments: [{ id: 'kakita-blade' }],
+                militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '5' }
+            };
+            const equal = {
+                uuid: 'equal-target', id: 'equal-target', type: 'character', location: 'play area',
+                selectable: true, fate: 4, attachments: [],
+                militarySkillSummary: { stat: '1' }, politicalSkillSummary: { stat: '7' }
+            };
+            const beatable = {
+                uuid: 'beatable-target', id: 'beatable-target', type: 'character', location: 'play area',
+                selectable: true, fate: 3, attachments: [],
+                militarySkillSummary: { stat: '1' }, politicalSkillSummary: { stat: '6' }
+            };
+            const weak = {
+                uuid: 'weak-target', id: 'weak-target', type: 'character', location: 'play area',
+                selectable: true, fate: 0, attachments: [],
+                militarySkillSummary: { stat: '1' }, politicalSkillSummary: { stat: '1' }
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', promptTitle: 'Policy Debate', menuTitle: 'Choose a character',
+                        buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }], stats: { honor: 10 },
+                        cardPiles: { cardsInPlay: [challenger] }
+                    },
+                    Opponent: {
+                        name: 'Opponent', cardPiles: { cardsInPlay: [equal, beatable, weak] }
+                    }
+                }
+            };
+            const context = {
+                strategy: DUELIST,
+                targetHint: {
+                    sourceCardId: 'policy-debate', sourceIsMine: true,
+                    gameActions: ['duel'], duelAxis: 'political',
+                    duelOpponentUuid: challenger.uuid
+                }
+            };
+
+            const decision = new JigokuBotPolicy('strongest-beatable-target').decide(
+                state, 'Jigoku Bot', context
+            );
+            expect(decision.reason).toBe('duel-enemy-strongest-beatable');
+            expect(decision.args[0]).toBe(beatable.uuid);
+
+            challenger.attachments.push({ id: 'iaijutsu-master' });
+            const tied = new JigokuBotPolicy('equal-with-master-target').decide(
+                state, 'Jigoku Bot', context
+            );
+            expect(tied.reason).toBe('duel-enemy-strongest-beatable');
+            expect(tied.args[0]).toBe(equal.uuid);
+        });
+
+        it('does not play an opponent-choice duel unless its strongest legal target is beatable', function() {
+            const makeState = (withMaster) => {
+                const favorite = {
+                    uuid: 'favorite-start', id: 'kakita-favorite', type: 'character',
+                    location: 'play area', inConflict: true, bowed: false,
+                    attachments: [
+                        { id: 'kakita-blade' },
+                        ...(withMaster ? [{ id: 'iaijutsu-master' }] : [])
+                    ],
+                    militarySkillSummary: { stat: '1' }, politicalSkillSummary: { stat: '5' }
+                };
+                const enemy = {
+                    uuid: 'enemy-start', id: 'enemy-start', type: 'character',
+                    location: 'play area', inConflict: true, bowed: false, attachments: [],
+                    militarySkillSummary: { stat: '1' }, politicalSkillSummary: { stat: '9' }
+                };
+                return {
+                    players: {
+                        'Jigoku Bot': {
+                            id: 'bot-id', name: 'Jigoku Bot', phase: 'conflict',
+                            promptTitle: 'Conflict Action Window', menuTitle: 'Political conflict',
+                            buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                            stats: { fate: 10, honor: 10, conflictsRemaining: 2 },
+                            provinces: { one: [], two: [], three: [], four: [] }, strongholdProvince: [],
+                            cardPiles: {
+                                hand: [{ uuid: 'case-start', id: 'make-your-case', name: 'Make Your Case', type: 'event', isPlayableByMe: true }],
+                                cardsInPlay: [favorite], conflictDiscardPile: [], dynastyDiscardPile: []
+                            }
+                        },
+                        Opponent: {
+                            id: 'opponent-id', name: 'Opponent', stats: { conflictsRemaining: 2 },
+                            provinces: {
+                                one: [{ uuid: 'province-start', type: 'province', isProvince: true, inConflict: true,
+                                    strengthSummary: { stat: '4' } }],
+                                two: [], three: [], four: []
+                            },
+                            strongholdProvince: [],
+                            cardPiles: { hand: [], cardsInPlay: [enemy], conflictDiscardPile: [], dynastyDiscardPile: [] }
+                        }
+                    },
+                    conflict: {
+                        type: 'political', attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                        attackerSkill: 3, defenderSkill: 4
+                    }
+                };
+            };
+            const context = {
+                strategy: DUELIST, cardHint: getPlaybookEntry,
+                conflictCosts: { 'case-start': 1 }
+            };
+
+            const noMaster = new JigokuBotPolicy('unfavorable-duel-start').decide(
+                makeState(false), 'Jigoku Bot', context
+            );
+            expect(noMaster.target).toBe('Pass');
+
+            const withMaster = new JigokuBotPolicy('equal-master-duel-start').decide(
+                makeState(true), 'Jigoku Bot', context
+            );
+            expect(withMaster.reason).toBe('play-conflict-card');
+            expect(withMaster.args[0]).toBe('case-start');
         });
 
         it('chooses Iaijutsu Master direction from the live margin', function() {

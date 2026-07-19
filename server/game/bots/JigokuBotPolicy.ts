@@ -22,6 +22,8 @@ import type { StrongholdDefenseCharacter, StrongholdDefensePlan } from './Strong
 import { CraneBaselineTactics } from './CraneBaselineTactics.js';
 import { AttachmentControlTactics } from './AttachmentControlTactics.js';
 import { PersonalHonorTactics, PERSONAL_HONOR_DEFAULTS } from './PersonalHonorTactics.js';
+import { UnicornTactics } from './UnicornTactics.js';
+import type { UnicornMoveContext } from './UnicornTactics';
 import type { PersonalHonorConflict } from './PersonalHonorTactics';
 import {
     attackProvinceLists,
@@ -151,6 +153,9 @@ interface DecideContext {
     // Exact public in-play character values omitted from serialized state.
     characterPrintedCosts?: Record<string, number>;
     characterBaseMilitary?: Record<string, number>;
+    participatingCharacterCounts?: { self: number; opponent: number };
+    cavalryCharacterUuids?: Record<string, true>;
+    readyAfterMoveCharacterUuids?: Record<string, true>;
     // Seed-5 cheat view: the human's true hand/fate/province strengths. Present
     // only for the omniscient bot; every omniscient branch is gated on it, so
     // Non-omniscient seeds (undefined here) keep identical behavior.
@@ -267,6 +272,11 @@ class JigokuBotPolicy {
     private currentDuelParticipantIaijutsuReady: Record<string, boolean> | undefined;
     private currentCharacterPrintedCosts: Record<string, number> | undefined;
     private currentCharacterBaseMilitary: Record<string, number> | undefined;
+    private currentParticipatingCharacterCounts: { self: number; opponent: number } | undefined;
+    private currentCavalryCharacterUuids: Record<string, true> | undefined;
+    private currentReadyAfterMoveCharacterUuids: Record<string, true> | undefined;
+    private currentUnicorn: UnicornTactics | null = null;
+    private currentDuelBidProfile: DuelBidProfile = DEFAULT_PROFILE.duelBidding;
     // Experimental fate-aware copy state. Generic policy never enters these
     // branches: FateAwareJigokuBotPolicy opts in through the protected hook.
     private fateAwareRoundNumber = 0;
@@ -318,6 +328,9 @@ class JigokuBotPolicy {
         this.currentDuelParticipantIaijutsuReady = context.duelParticipantIaijutsuReady;
         this.currentCharacterPrintedCosts = context.characterPrintedCosts;
         this.currentCharacterBaseMilitary = context.characterBaseMilitary;
+        this.currentParticipatingCharacterCounts = context.participatingCharacterCounts;
+        this.currentCavalryCharacterUuids = context.cavalryCharacterUuids;
+        this.currentReadyAfterMoveCharacterUuids = context.readyAfterMoveCharacterUuids;
         this.syncClarityConflict(playerState, context.roundNumber);
 
         if(this.usesFateAwareEconomy()) {
@@ -401,6 +414,7 @@ class JigokuBotPolicy {
             'play-preconflict-attachment',
             'duel-preconflict-attachment',
             'attachment-tower-preconflict',
+            'unicorn-preconflict-attachment',
             'clarity-urgent-bow-protection',
             'replay-card-shared-play-intent',
             'replay-card-forced-fallback'
@@ -472,8 +486,9 @@ class JigokuBotPolicy {
     private boardAbilityKey(card: any, dragon: DragonTactics | null = null): string {
         // Way belongs to one specific bearer and copies are deliberately
         // spread. Track each Way-enabled character independently; preserve the
-        // historical printed-id behavior for all other board actions.
-        return String(dragon && dragon.hasWayOfTheDragon(card) ?
+        // historical printed-id behavior for other board actions. Each Barcha
+        // is a separate attachment with its own once-per-round action.
+        return String((dragon && dragon.hasWayOfTheDragon(card)) || card?.id === 'adorned-barcha' ?
             (card?.uuid || card?.id) : (card?.id || card?.uuid || ''));
     }
 
@@ -488,6 +503,41 @@ class JigokuBotPolicy {
     private recordBoardAbility(card: any, dragon: DragonTactics | null = null): void {
         const key = this.boardAbilityKey(card, dragon);
         this.boardAbilityUsed.set(key, (this.boardAbilityUsed.get(key) || 0) + 1);
+    }
+
+    private availableBarchaBearerUuids(characters: any[]): Record<string, true> {
+        const result: Record<string, true> = {};
+        for(const bearer of characters) {
+            const barcha = (bearer?.attachments || []).find((attachment: any) =>
+                attachment.id === 'adorned-barcha');
+            if(bearer?.uuid && barcha && !this.boardAbilityIsUsed(barcha)) {
+                result[bearer.uuid] = true;
+            }
+        }
+        return result;
+    }
+
+    private unicornMoveContext(
+        me: any,
+        conflictType: 'military' | 'political',
+        characters: any[],
+        skillOf: (card: any) => number,
+        overrides: Partial<UnicornMoveContext> = {}
+    ): UnicornMoveContext {
+        return {
+            conflictType,
+            characters,
+            cavalryUuids: this.currentCavalryCharacterUuids,
+            readyAfterMoveUuids: this.currentReadyAfterMoveCharacterUuids,
+            barchaReadyBearerUuids: this.availableBarchaBearerUuids(characters),
+            skillOf,
+            hasMotoStables: this.findVisibleCards(me).some((card) => card.id === 'moto-stables'),
+            hasOutskirtsSentry: characters.some((card) =>
+                card.id === 'outskirts-sentry' && card.inConflict),
+            selfParticipantCount: this.currentParticipatingCharacterCounts?.self,
+            opponentParticipantCount: this.currentParticipatingCharacterCounts?.opponent,
+            ...overrides
+        };
     }
 
     private wayAbilityIsUsed(card: any, dragon: DragonTactics): boolean {
@@ -551,6 +601,8 @@ class JigokuBotPolicy {
             : null;
         const attachmentControl = new AttachmentControlTactics(profile.attachmentControl);
         const personalHonor = new PersonalHonorTactics(profile.personalHonor || PERSONAL_HONOR_DEFAULTS);
+        this.currentUnicorn = profile.unicorn ? new UnicornTactics(profile.unicorn) : null;
+        this.currentDuelBidProfile = profile.duelBidding;
 
         // Card-name controls have no prompt buttons and cannot use the normal
         // button fallback. Gossip must name a card from the opponent's actual,
@@ -1721,12 +1773,32 @@ class JigokuBotPolicy {
             const legalUncommitted = ready.filter((card) =>
                 !card.inConflict && !reserved.has(String(card.uuid)));
             const eligible = legalUncommitted.filter((card) => (this.skillValue(card, type) || 0) > 0);
-            const candidates = this.sortBySkillDesc(
+            let candidates = this.sortBySkillDesc(
                 finalStrongholdPush
                     ? eligible
                     : this.withoutHonorCostDeclares(eligible, dishonor, me?.stats?.honor ?? 10, cardHint),
                 type
             );
+            const allOwnCharacters = this.myCharactersInPlay(me);
+            const skillOf = (card: any) => Math.max(this.skillValue(card, type) || 0, 0);
+            let unicornMover: any | null = null;
+            let unicornMoveCtx: UnicornMoveContext | null = null;
+            if(this.currentUnicorn && type === 'military') {
+                unicornMoveCtx = this.unicornMoveContext(me, 'military', allOwnCharacters, skillOf, {
+                    requireCavalry: true,
+                    opponentCharacters: this.myCharactersInPlay(opponent),
+                    hasOutskirtsSentry: committed.some((card) => card.id === 'outskirts-sentry') ||
+                        candidates.some((card) => card.id === 'outskirts-sentry')
+                });
+                const hasMoveSource = this.currentUnicorn.hasMoveSource(
+                    me?.strongholdProvince || [], me?.cardPiles?.hand || [], allOwnCharacters,
+                    unicornMoveCtx.barchaReadyBearerUuids);
+                if(hasMoveSource) {
+                    const plan = this.currentUnicorn.orderDeclarationCandidates(candidates, unicornMoveCtx);
+                    candidates = plan.ordered;
+                    unicornMover = plan.mover;
+                }
+            }
 
             // Cautious Scout blanks a facedown province only while attacking
             // alone; Brash Samurai honors itself only while it is the sole
@@ -1761,9 +1833,13 @@ class JigokuBotPolicy {
             // possible defense. When even everyone together cannot reach
             // that, normal profiles keep their configured home defense; a
             // final stronghold push sends everyone because breaking it wins.
-            const skillOf = (card: any) => Math.max(this.skillValue(card, type) || 0, 0);
             const committedSkill = committed.reduce((total, card) => total + skillOf(card), 0);
-            const potentialSkill = committedSkill + candidates.reduce((total, card) => total + skillOf(card), 0);
+            const moverIsDirectCandidate = !!unicornMover && candidates.includes(unicornMover);
+            const externalMoveSkill = unicornMover && unicornMoveCtx && !moverIsDirectCandidate
+                ? this.currentUnicorn?.projectedMoveSwing(unicornMover, unicornMoveCtx) || 0
+                : 0;
+            const potentialSkill = committedSkill + candidates.reduce((total, card) => total + skillOf(card), 0) +
+                externalMoveSkill;
             const defenseEstimate = (opponent?.cardPiles?.cardsInPlay || [])
                 .filter((card: any) => card.type === 'character' && !card.bowed)
                 .reduce((total: number, card: any) => total + skillOf(card), 0);
@@ -1825,14 +1901,19 @@ class JigokuBotPolicy {
             } else {
                 unbreakableCommit = committed.length < Math.max(1, totalEligible - 1);
             }
+            const projectedMoveSkill = committed.length > 0 && unicornMover && unicornMoveCtx
+                ? this.currentUnicorn?.projectedMoveSwing(unicornMover, unicornMoveCtx) || 0
+                : 0;
             const needMore = strongholdPlan.forceAllAttackers
                 ? committed.length < totalEligible
                 : potentialSkill >= breakTarget
-                    ? committedSkill < breakTarget || !!payoffCandidate
+                    ? committedSkill + projectedMoveSkill < breakTarget || !!payoffCandidate
                     : unbreakableCommit;
 
             if(needMore) {
-                const next = payoffCandidate || candidates.find((card) => !this.isAttempted('cardClicked', [card.uuid]));
+                const next = payoffCandidate || candidates.find((card) => card !== unicornMover &&
+                    !this.isAttempted('cardClicked', [card.uuid])) ||
+                    (committed.length === 0 && moverIsDirectCandidate ? unicornMover : null);
                 if(next) {
                     return this.cardClickDecision(next, 'declare-attacker');
                 }
@@ -2067,7 +2148,7 @@ class JigokuBotPolicy {
         const attackerSkill = skillMatch ? parseInt(skillMatch[1], 10) : null;
         const defenderSkill = skillMatch ? parseInt(skillMatch[2], 10) : 0;
 
-        const candidates = this.sortBySkillDesc(
+        let candidates = this.sortBySkillDesc(
             this.withoutHonorCostDeclares(
                 this.readyCharacters(me).filter((card) =>
                     this.isDirectCardLegal(card, legalDirectCardUuids) &&
@@ -2077,6 +2158,25 @@ class JigokuBotPolicy {
                 dishonor, me?.stats?.honor ?? 10, cardHint),
             type
         );
+        const allOwnCharacters = this.myCharactersInPlay(me);
+        const skillOf = (card: any) => Math.max(this.skillValue(card, type) || 0, 0);
+        let unicornMover: any | null = null;
+        let unicornMoveCtx: UnicornMoveContext | null = null;
+        if(this.currentUnicorn && type === 'military') {
+            unicornMoveCtx = this.unicornMoveContext(me, 'military', allOwnCharacters, skillOf, {
+                requireCavalry: true,
+                opponentCharacters: this.myCharactersInPlay(opponent),
+                winSkillNeeded: attackerSkill === null ? null : Math.max(attackerSkill - defenderSkill + 1, 0)
+            });
+            const hasMoveSource = this.currentUnicorn.hasMoveSource(
+                me?.strongholdProvince || [], me?.cardPiles?.hand || [], allOwnCharacters,
+                unicornMoveCtx.barchaReadyBearerUuids);
+            if(hasMoveSource) {
+                const plan = this.currentUnicorn.orderDeclarationCandidates(candidates, unicornMoveCtx);
+                candidates = plan.ordered;
+                unicornMover = plan.mover;
+            }
+        }
 
         // Forced defender declaration without skills shown: commit one body.
         if(attackerSkill === null) {
@@ -2152,7 +2252,12 @@ class JigokuBotPolicy {
         // least the province strength. Defend to win when reachable, otherwise
         // defend just enough to prevent the break, otherwise keep the board.
         const provinceStrength = this.attackedProvinceStrength(me);
-        const potential = defenderSkill + candidates.reduce((total, card) => total + Math.max(this.skillValue(card, type) || 0, 0), 0);
+        const moverIsDirectCandidate = !!unicornMover && candidates.includes(unicornMover);
+        const externalMoveSkill = unicornMover && unicornMoveCtx && !moverIsDirectCandidate
+            ? this.currentUnicorn?.projectedMoveSwing(unicornMover, unicornMoveCtx) || 0
+            : 0;
+        const potential = defenderSkill + candidates.reduce((total, card) => total + skillOf(card), 0) +
+            externalMoveSkill;
 
         const defenseCommitment = profile.preventBreakAfterBrokenProvinces > 0 &&
             this.brokenOuterProvinceCount(me) < profile.preventBreakAfterBrokenProvinces
@@ -2186,12 +2291,16 @@ class JigokuBotPolicy {
             return this.buttonDecision(done, 'defense-hopeless');
         }
 
-        if(defenderSkill >= target) {
+        const projectedMoveSkill = unicornMover && unicornMoveCtx
+            ? this.currentUnicorn?.projectedMoveSwing(unicornMover, unicornMoveCtx) || 0
+            : 0;
+        if(defenderSkill >= target || (projectedMoveSkill > 0 && defenderSkill + projectedMoveSkill >= target)) {
             return this.buttonDecision(done, 'defense-sufficient');
         }
 
         if(candidates.length > 0) {
-            return this.cardClickDecision(candidates[0], 'declare-defender');
+            const direct = candidates.find((card) => card !== unicornMover) || candidates[0];
+            return this.cardClickDecision(direct, 'declare-defender');
         }
 
         return this.buttonDecision(done, 'finish-defenders');
@@ -2687,6 +2796,14 @@ class JigokuBotPolicy {
                         return orderDiff;
                     }
                 }
+                if(this.currentUnicorn && myCharacters.some((card) =>
+                    card.id === 'worldly-shiotome' && !card.honored)) {
+                    const gaijinDiff = Number(this.currentUnicorn.profile.gaijinCardIds.includes(b.id)) -
+                        Number(this.currentUnicorn.profile.gaijinCardIds.includes(a.id));
+                    if(gaijinDiff !== 0) {
+                        return gaijinDiff;
+                    }
+                }
                 const priorityOf = (card: any) => (card.id && cardHint ? cardHint(card.id)?.priority : undefined) ?? 5;
                 const priorityDiff = priorityOf(b) - priorityOf(a);
                 if(priorityDiff !== 0) {
@@ -2725,7 +2842,7 @@ class JigokuBotPolicy {
     // (holding, attachment, character) with a playbook-known Action.
     private conflictAbilitySources(me: any, playCtx?: any, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, glory: GloryTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, duelist: DuelTactics | null = null): any[] {
         const stronghold = (me?.strongholdProvince || []).filter((card: any) => {
-            if(card.type !== 'stronghold' || !card.uuid || card.bowed) {
+            if(card.type !== 'stronghold' || !card.uuid || card.bowed || this.isCancelVetoed(card.id)) {
                 return false;
             }
             // City of the Open Hand gains 1 honor — for the dishonor deck
@@ -2753,15 +2870,26 @@ class JigokuBotPolicy {
             if(shugenja && card.id === 'kyuden-isawa') {
                 return !this.boardAbilityIsUsed(card) && shugenja.shouldUseKyuden(playCtx);
             }
-            // Golden Plains Outpost (Unicorn) bows itself to MOVE a cavalry
-            // character into the conflict — worth it only to add a BOWED body
-            // that cannot otherwise fight (a ready home body just gets declared
-            // normally). Hold the bow unless a bowed home character exists.
-            // The move target is engine-restricted to cavalry and the target
-            // handler cancels when none of those bodies is bowed, so this
-            // trait-free approximation only avoids a wasted activate/cancel.
+            // Compare ready skill with a bowed body backed by an exact ready
+            // follow-up, movement triggers, or an after-win payoff. Preserve
+            // an unused Barcha for its stronger bow+move action.
             if(card.id === 'golden-plains-outpost') {
-                return (playCtx?.myCharacters || []).some((c: any) => c.bowed && !c.inConflict);
+                const moveCharacters = playCtx?.myCharacters || [];
+                return !!this.currentUnicorn && playCtx?.conflictType === 'military' &&
+                    this.currentUnicorn.shouldUseMove(this.unicornMoveContext(
+                        me, 'military', moveCharacters,
+                        (candidate) => this.skillValue(candidate, 'military') || 0, {
+                            strengthNeeded: playCtx?.strengthNeeded,
+                            winSkillNeeded: playCtx?.winSkillNeeded,
+                            requireCavalry: true,
+                            opponentCharacters: playCtx?.opponentCharacters || [],
+                            barchaReadyBearerUuids: (playCtx?.opponentCharacters || [])
+                                .some((candidate: any) => candidate.inConflict && !candidate.bowed)
+                                ? this.availableBarchaBearerUuids(moveCharacters)
+                                : {},
+                            hasOutskirtsSentry: (playCtx?.myCharacters || []).some((candidate: any) =>
+                                candidate.id === 'outskirts-sentry' && candidate.inConflict)
+                        }));
             }
             return true;
         });
@@ -2867,6 +2995,7 @@ class JigokuBotPolicy {
             opponentCardsPlayed: opponent?.cardsPlayedThisConflict ?? 0,
             conflictsRemaining: me?.stats?.conflictsRemaining ?? 0,
             strengthNeeded: this.conflictStrengthNeeded(playerState, me),
+            winSkillNeeded: standing?.losing ? standing.gap : 0,
             clarityProtectedUuids: Array.from(this.clarityProtectedUuids),
             opponentParticipantCanBow: this.currentOpponentParticipantCanBow,
             omniscient: !!omniscient,
@@ -2876,7 +3005,10 @@ class JigokuBotPolicy {
                     (!card.conflictTypes || card.conflictTypes.length === 0 ||
                         card.conflictTypes.includes(playerState?.conflict?.type))),
             characterPrintedCosts: this.currentCharacterPrintedCosts,
-            characterBaseMilitary: this.currentCharacterBaseMilitary
+            characterBaseMilitary: this.currentCharacterBaseMilitary,
+            participatingCharacterCounts: this.currentParticipatingCharacterCounts,
+            cavalryCharacterUuids: this.currentCavalryCharacterUuids,
+            readyAfterMoveCharacterUuids: this.currentReadyAfterMoveCharacterUuids
         };
     }
 
@@ -2951,6 +3083,68 @@ class JigokuBotPolicy {
             this.currentCharacterBaseMilitary
         )) {
             return false;
+        }
+        if(this.currentUnicorn && card.id === 'ride-on') {
+            const opponentCharacters = playCtx?.opponentCharacters || [];
+            const barchaAvailable = opponentCharacters.some((candidate: any) =>
+                candidate.inConflict && !candidate.bowed)
+                ? this.availableBarchaBearerUuids(myCharacters)
+                : {};
+            const target = this.currentUnicorn.pickMoveTarget({
+                conflictType: playCtx?.conflictType === 'political' ? 'political' : 'military',
+                characters: myCharacters,
+                opponentCharacters,
+                cavalryUuids: this.currentCavalryCharacterUuids,
+                readyAfterMoveUuids: this.currentReadyAfterMoveCharacterUuids,
+                barchaReadyBearerUuids: barchaAvailable,
+                skillOf: (candidate) => this.skillValue(candidate,
+                    playCtx?.conflictType === 'political' ? 'political' : 'military') || 0,
+                requireCavalry: true,
+                strengthNeeded: playCtx?.strengthNeeded,
+                winSkillNeeded: playCtx?.winSkillNeeded,
+                selfParticipantCount: this.currentParticipatingCharacterCounts?.self,
+                opponentParticipantCount: this.currentParticipatingCharacterCounts?.opponent,
+                hasOutskirtsSentry: myCharacters.some((candidate: any) =>
+                    candidate.id === 'outskirts-sentry' && candidate.inConflict)
+            });
+            if(!target) {
+                return false;
+            }
+        }
+        if(this.currentUnicorn?.profile.singletonAttachments.includes(card.id) &&
+            !this.currentUnicorn.pickAttachmentTarget(
+                card.id,
+                myCharacters,
+                (candidate) => Math.max(this.skillValue(candidate, 'military') || 0,
+                    this.skillValue(candidate, 'political') || 0),
+                this.currentCavalryCharacterUuids,
+                playCtx?.strengthNeeded,
+                this.currentReadyAfterMoveCharacterUuids
+            )) {
+            return false;
+        }
+        if(this.currentUnicorn && card.id === 'challenge-on-the-fields') {
+            const unicorn = this.currentUnicorn;
+            const mine = myCharacters.filter((candidate: any) => candidate.inConflict);
+            const theirs = (playCtx?.opponentCharacters || []).filter((candidate: any) =>
+                candidate.inConflict && !candidate.bowed);
+            const myCount = this.currentUnicorn.effectiveParticipantCount(
+                playCtx?.participatingCharacterCounts?.self, myCharacters);
+            const theirCount = this.currentUnicorn.effectiveParticipantCount(
+                playCtx?.participatingCharacterCounts?.opponent, playCtx?.opponentCharacters || []);
+            const expanded = (candidate: any, count: number) => unicorn.challengeSkill(
+                candidate, count, (target) => this.skillValue(target, 'military') || 0);
+            const challenger = mine.sort((a: any, b: any) => expanded(b, myCount) - expanded(a, myCount))[0];
+            if(!challenger || !theirs.some((target: any) =>
+                new DuelBidTactics(this.currentDuelBidProfile).shouldContest({
+                    mySkill: expanded(challenger, myCount),
+                    opponentSkill: expanded(target, theirCount),
+                    myHonor: Number(playCtx?.honor) || 0,
+                    opponentHonor: 10,
+                    roundNumber: this.currentRoundNumber
+                }))) {
+                return false;
+            }
         }
         if(attachmentTower?.isAttachment(card.id)) {
             const target = attachmentTower.pickAttachmentTarget(
@@ -3209,6 +3403,40 @@ class JigokuBotPolicy {
                 return this.cardClickDecision(setup, setup.id === 'elegant-tessen'
                     ? 'lion-tessen-ready-setup'
                     : 'lion-true-strike-setup');
+            }
+        }
+
+        // Install movement engines before declaring: the selected bearer is
+        // deliberately left home and moved in by Outpost/Ride On/Barcha.
+        if(this.currentUnicorn && me?.phase === 'conflict') {
+            const unicorn = this.currentUnicorn;
+            const mine = this.myCharactersInPlay(me);
+            const availableFate = Math.max(0, Number(me?.stats?.fate) || 0);
+            const priorities: Record<string, number> = {
+                'adorned-barcha': 9,
+                spyglass: 8,
+                'utaku-battle-steed': 7
+            };
+            const setup = (me?.cardPiles?.hand || [])
+                .filter((card: any) => card?.uuid && card?.id && card.isPlayableByMe &&
+                    unicorn.profile.singletonAttachments.includes(card.id) &&
+                    this.isDirectCardLegal(card, legalDirectCardUuids) &&
+                    !this.isAttempted('cardClicked', [card.uuid]) &&
+                    !this.failedPlayCards.has(card.uuid) &&
+                    (!conflictCosts || !Object.prototype.hasOwnProperty.call(conflictCosts, card.uuid) ||
+                        Math.max(0, Number(conflictCosts[card.uuid]) || 0) <= availableFate) &&
+                    !!unicorn.pickAttachmentTarget(
+                        card.id,
+                        mine,
+                        (candidate) => Math.max(this.skillValue(candidate, 'military') || 0,
+                            this.skillValue(candidate, 'political') || 0),
+                        this.currentCavalryCharacterUuids,
+                        undefined,
+                        this.currentReadyAfterMoveCharacterUuids
+                    ))
+                .sort((a: any, b: any) => (priorities[b.id] || 0) - (priorities[a.id] || 0));
+            if(setup.length > 0) {
+                return this.cardClickDecision(setup[0], 'unicorn-preconflict-attachment');
             }
         }
 
@@ -4371,6 +4599,77 @@ class JigokuBotPolicy {
         const mine = cards.filter((card) => this.cardBelongsToPlayer(card, me, myUuids));
         const theirs = cards.filter((card) => !this.cardBelongsToPlayer(card, me, myUuids));
         const actionNames = targetHint.gameActions || [];
+        const unicorn = this.currentUnicorn;
+        if(unicorn && actionNames.includes('attach') && targetHint.sourceCardId &&
+            unicorn.profile.singletonAttachments.includes(targetHint.sourceCardId)) {
+            const target = unicorn.pickAttachmentTarget(
+                targetHint.sourceCardId,
+                mine,
+                (card) => Math.max(this.skillValue(card, 'military') || 0,
+                    this.skillValue(card, 'political') || 0),
+                this.currentCavalryCharacterUuids,
+                this.conflictStrengthNeeded(playerState, me),
+                this.currentReadyAfterMoveCharacterUuids
+            );
+            if(target) {
+                return this.cardClickDecision(target, `unicorn-${targetHint.sourceCardId}-target`);
+            }
+            const cancel = this.findButton(buttons, ['cancel']);
+            if(cancel) {
+                return this.buttonDecision(cancel, 'cancel-redundant-unicorn-attachment');
+            }
+        }
+
+        if(unicorn && targetHint.sourceCardId === 'outskirts-sentry' && mine.length > 0) {
+            const target = unicorn.pickOutskirtsHonorTarget(mine,
+                (card) => Math.max(this.skillValue(card, 'military') || 0,
+                    this.skillValue(card, 'political') || 0));
+            if(target) {
+                return this.cardClickDecision(target, 'unicorn-outskirts-highest-glory');
+            }
+        }
+        if(unicorn && targetHint.sourceCardId === 'twilight-rider' && mine.length > 0) {
+            const target = unicorn.pickTwilightReadyTarget(mine,
+                (card) => Math.max(this.skillValue(card, 'military') || 0,
+                    this.skillValue(card, 'political') || 0));
+            if(target) {
+                return this.cardClickDecision(target, 'unicorn-twilight-ready-strongest-bowed');
+            }
+        }
+
+        if(unicorn && targetHint.sourceCardId === 'challenge-on-the-fields' && actionNames.includes('duel')) {
+            const myCount = unicorn.effectiveParticipantCount(
+                this.currentParticipatingCharacterCounts?.self,
+                this.myCharactersInPlay(me));
+            const opponentCount = unicorn.effectiveParticipantCount(
+                this.currentParticipatingCharacterCounts?.opponent,
+                this.myCharactersInPlay(this.opponentPlayer(playerState, me)));
+            const bidTactics = new DuelBidTactics(profile.duelBidding);
+            const challengeSkill = (card: any, count: number) =>
+                unicorn.challengeSkill(card, count, (candidate) => this.skillValue(candidate, 'military') || 0);
+            if(mine.length > 0 && theirs.length === 0) {
+                const target = mine.slice().sort((a, b) => challengeSkill(b, myCount) - challengeSkill(a, myCount))[0];
+                return this.cardClickDecision(target, 'unicorn-challenge-strongest-expanded');
+            }
+            if(theirs.length > 0) {
+                const challenger = targetHint.duelOpponentUuid
+                    ? this.findVisibleCards(playerState).find((card) => card.uuid === targetHint.duelOpponentUuid)
+                    : this.myCharactersInPlay(me).filter((card) => card.inConflict)
+                        .sort((a, b) => challengeSkill(b, myCount) - challengeSkill(a, myCount))[0];
+                const ordered = theirs.slice().sort((a, b) => challengeSkill(b, opponentCount) - challengeSkill(a, opponentCount));
+                const beatable = ordered.find((target) => challenger && bidTactics.shouldContest({
+                    mySkill: challengeSkill(challenger, myCount),
+                    opponentSkill: challengeSkill(target, opponentCount),
+                    myHonor: Number(me?.stats?.honor) || 0,
+                    opponentHonor: Number(this.opponentPlayer(playerState, me)?.stats?.honor) || 0,
+                    roundNumber: this.currentRoundNumber,
+                    opponentProfile: this.currentOpponentDuelBidding
+                }));
+                return this.cardClickDecision(beatable || ordered[ordered.length - 1], beatable
+                    ? 'unicorn-challenge-strongest-beatable'
+                    : 'unicorn-challenge-safest-target');
+            }
+        }
         // The bot's own optional abilities offer Cancel at the targeting
         // stage (before costs are paid); aborting always beats aiming an
         // effect at the wrong side of the board.
@@ -4667,11 +4966,9 @@ class JigokuBotPolicy {
             }
         }
 
-        // Ride On / Favorable Ground move a character in or home; the bot plays
-        // them to add a body, so aim at a ready character sitting at home —
-        // moving that one INTO the conflict is the useful direction. The card
-        // offers both sendHome and moveToConflict on the target, so picking a
-        // participant would move our own body OUT (self-harm) — never do that.
+        // Ride On uses the Unicorn sequence scorer (ready skill, movement
+        // triggers, or bowed+ready/after-win payoff). Favorable Ground keeps
+        // its generic tower retreat/reinforcement behavior.
         if(targetHint.sourceCardId === 'favorable-ground') {
             const standing = this.conflictStanding(playerState, me);
             const opponent = this.opponentPlayer(playerState, me);
@@ -4694,9 +4991,29 @@ class JigokuBotPolicy {
             }
         }
         if(targetHint.sourceCardId === 'ride-on') {
-            const home = mine.filter((card) => !card.bowed && !card.inConflict);
-            if(home.length > 0) {
-                return this.cardClickDecision(this.sortBySkillDesc(home, skillType)[0], `${targetHint.sourceCardId}-target-home`);
+            const moveType = playerState?.conflict?.type === 'political' ? 'political' : 'military';
+            const standing = this.conflictStanding(playerState, me);
+            const moveOpponent = this.myCharactersInPlay(this.opponentPlayer(playerState, me));
+            const allOwn = this.myCharactersInPlay(me);
+            const selectableOwnUuids = new Set(mine.map((card) => card.uuid));
+            // Selectors sometimes expose a thinner card summary than the
+            // action window. Rank the exact legal UUIDs with their full live
+            // state so attachments, bow state, and in-conflict state cannot
+            // disappear between activation and target choice.
+            const moveCandidates = allOwn.filter((card) => selectableOwnUuids.has(card.uuid));
+            const target = this.currentUnicorn?.pickMoveTarget(this.unicornMoveContext(
+                me, moveType, moveCandidates.length > 0 ? moveCandidates : mine,
+                (card) => this.skillValue(card, moveType) || 0, {
+                    requireCavalry: true,
+                    winSkillNeeded: standing?.losing ? standing.gap : 0,
+                    opponentCharacters: moveOpponent,
+                    barchaReadyBearerUuids: moveOpponent.some((card) => card.inConflict && !card.bowed)
+                        ? this.availableBarchaBearerUuids(allOwn)
+                        : {},
+                    hasOutskirtsSentry: allOwn.some((card) => card.id === 'outskirts-sentry' && card.inConflict)
+                }));
+            if(target) {
+                return this.cardClickDecision(target, 'unicorn-ride-on-move-target');
             }
             // No home body to add: sending an own participant home is never
             // the plan — abort rather than self-harm.
@@ -4881,18 +5198,34 @@ class JigokuBotPolicy {
                 return this.cardClickDecision(pick, 'dragon-attach-key-character');
             }
         }
-        // Golden Plains Outpost (Unicorn stronghold): bows itself to MOVE a
-        // cavalry character into the conflict. The whole point is to add a
-        // BOWED body that could not otherwise defend/attack — a ready home
-        // character can just be declared normally, so moving one in is
-        // wasted. Aim at the strongest BOWED cavalry; if none is bowed the
-        // move has no value, so abort rather than spend the stronghold's bow.
+        // Choose the highest-value move sequence. Bowed Spyglass/Barcha
+        // carriers are valid with ready support; Minami/Higashi are valid
+        // while already winning because their after-win reactions still fire.
         if(targetHint.sourceCardId === 'golden-plains-outpost') {
-            const bowed = mine.filter((card) => card.bowed && !card.inConflict);
-            if(bowed.length > 0) {
-                return this.cardClickDecision(this.sortBySkillDesc(bowed, skillType)[0], 'golden-plains-move-bowed');
+            const standing = this.conflictStanding(playerState, me);
+            const moveOpponent = this.myCharactersInPlay(this.opponentPlayer(playerState, me));
+            const allOwn = this.myCharactersInPlay(me);
+            const selectableOwnUuids = new Set(mine.map((card) => card.uuid));
+            const moveCandidates = allOwn.filter((card) => selectableOwnUuids.has(card.uuid));
+            const target = this.currentUnicorn?.pickMoveTarget(this.unicornMoveContext(
+                me, 'military', moveCandidates.length > 0 ? moveCandidates : mine,
+                (card) => this.skillValue(card, 'military') || 0, {
+                    requireCavalry: true,
+                    winSkillNeeded: standing?.losing ? standing.gap : 0,
+                    opponentCharacters: moveOpponent,
+                    barchaReadyBearerUuids: moveOpponent.some((card) => card.inConflict && !card.bowed)
+                        ? this.availableBarchaBearerUuids(allOwn)
+                        : {},
+                    hasOutskirtsSentry: allOwn.some((card) => card.id === 'outskirts-sentry' && card.inConflict)
+                }));
+            if(target) {
+                return this.cardClickDecision(target, 'unicorn-golden-plains-move-target');
             }
             if(cancel) {
+                // Engine legality can still narrow targets after costs. One
+                // failed GPO selector must not become activate/cancel forever;
+                // retire this once-per-round stronghold attempt until reset.
+                this.cancelledSources.set('golden-plains-outpost', 2);
                 return this.buttonDecision(cancel, 'cancel-wrong-side-target');
             }
         }

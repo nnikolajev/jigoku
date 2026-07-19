@@ -6,7 +6,7 @@ const DeckHintService = require('../../../build/server/game/bots/llm/DeckHintSer
 const LlmActionPlanner = require('../../../build/server/game/bots/llm/LlmActionPlanner.js').default;
 const { validateCardHint } = require('../../../build/server/game/bots/llm/CardHints.js');
 const { getPlaybookEntry, deriveDeckStrategy } = require('../../../build/server/game/bots/CardPlaybook.js');
-const { profileFromStrategy } = require('../../../build/server/game/bots/DeckProfiles.js');
+const { profileFromStrategy, resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
 
 describe('Jigoku heuristic bot', function() {
     function makePlayer(prompt, selectableCards = [], selectableRings = []) {
@@ -120,6 +120,44 @@ describe('Jigoku heuristic bot', function() {
         expect(controller.characterPrintedCosts(bot)).toEqual({ own: 2, enemy: 5 });
         // Uses getBaseMilitarySkill(), not total skill summaries or attachment/status boosts.
         expect(controller.characterBaseMilitary(bot)).toEqual({ own: 6, enemy: 4 });
+    });
+
+    it('injects exact move-then-ready support for bowed Unicorn characters', function() {
+        const character = (uuid, id, extras = {}) => ({
+            uuid, id, type: 'character', cardData: { id }, fate: 0,
+            isFaction: (faction) => faction === 'unicorn',
+            hasTrait: () => false,
+            ...extras
+        });
+        const paid = character('paid', 'border-rider', { fate: 1 });
+        const encampmentTarget = character('cavalry', 'moto-youth', {
+            hasTrait: (trait) => trait === 'cavalry'
+        });
+        const twilight = character('twilight', 'twilight-rider');
+        const unsupported = character('unsupported', 'border-rider', {
+            isFaction: () => false
+        });
+        const holding = { type: 'holding', cardData: { id: 'shiotome-encampment' } };
+        const bot = {
+            name: 'Jigoku Bot',
+            cardsInPlay: { toArray: () => [paid, encampmentTarget, twilight, unsupported, holding] },
+            hand: { toArray: () => [{ cardData: { id: 'i-am-ready' } }] }
+        };
+        bot.opponent = { name: 'Human', cardsInPlay: { toArray: () => [] } };
+        const game = makeGame(bot, { players: {} });
+        game.rings = {
+            fire: {
+                isConsideredClaimed: (player) => player === bot,
+                isConflictType: (type) => type === 'military'
+            }
+        };
+        const controller = new JigokuBotController(game, { playerName: bot.name, seed: 1 }, () => true);
+
+        expect(controller.readyAfterMoveCharacterUuids(bot)).toEqual({
+            paid: true,
+            cavalry: true,
+            twilight: true
+        });
     });
 
     it('tracks only uninterrupted Display of Power and resets it after the conflict', function() {
@@ -1147,7 +1185,7 @@ describe('Jigoku heuristic bot', function() {
         expect(decision.target).toBe('Cancel');
     });
 
-    it('Golden Plains Outpost moves the strongest BOWED cavalry into the conflict', function() {
+    it('Golden Plains Outpost prefers a supported bowed Spyglass carrier over a ready mover', function() {
         const char = (uuid, mil, bowed, inConflict) => ({
             uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: !!inConflict,
             militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
@@ -1157,20 +1195,31 @@ describe('Jigoku heuristic bot', function() {
                 'Jigoku Bot': {
                     name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
                     buttons: [],
-                    // ready home body (declarable normally, useless to move), plus
-                    // two bowed home bodies — pick the strongest bowed one.
-                    cardPiles: { cardsInPlay: [char('ownReady', 8, false), char('bowedWeak', 3, true), char('bowedStrong', 6, true)] }
+                    cardPiles: { cardsInPlay: [
+                        char('ownReady', 4, false),
+                        char('bowedWeak', 3, true),
+                        { ...char('bowedStrong', 6, true), attachments: [{ id: 'spyglass' }] }
+                    ] }
                 },
                 'Human': { name: 'Human', cardPiles: { cardsInPlay: [] } }
             }
         };
-        const ctx = { targetHint: { gameActions: ['moveToConflict'], sourceCardId: 'golden-plains-outpost', sourceIsMine: true } };
+        const profile = resolveDeckProfile(['cavalry-reserves', 'ride-on'], {
+            holdingEngine: false, defensive: false, aggressive: true, dishonor: false,
+            glory: false, monk: false, duelist: false, shugenja: false, attachmentTower: false
+        });
+        const ctx = {
+            profile,
+            targetHint: { gameActions: ['moveToConflict'], sourceCardId: 'golden-plains-outpost', sourceIsMine: true },
+            cavalryCharacterUuids: { ownReady: true, bowedWeak: true, bowedStrong: true },
+            readyAfterMoveCharacterUuids: { bowedStrong: true }
+        };
         const decision = new JigokuBotPolicy('gpo').decide(state, 'Jigoku Bot', ctx);
         expect(decision.command).toBe('cardClicked');
         expect(decision.args[0]).toBe('bowedStrong');
     });
 
-    it('Golden Plains Outpost cancels rather than move a READY body into the conflict', function() {
+    it('Golden Plains Outpost can move a ready body when it is the best legal target', function() {
         const char = (uuid, mil, bowed) => ({
             uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: bowed, inConflict: false,
             militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
@@ -1185,10 +1234,18 @@ describe('Jigoku heuristic bot', function() {
                 'Human': { name: 'Human', cardPiles: { cardsInPlay: [] } }
             }
         };
-        const ctx = { targetHint: { gameActions: ['moveToConflict'], sourceCardId: 'golden-plains-outpost', sourceIsMine: true } };
+        const profile = resolveDeckProfile(['cavalry-reserves', 'ride-on'], {
+            holdingEngine: false, defensive: false, aggressive: true, dishonor: false,
+            glory: false, monk: false, duelist: false, shugenja: false, attachmentTower: false
+        });
+        const ctx = {
+            profile,
+            targetHint: { gameActions: ['moveToConflict'], sourceCardId: 'golden-plains-outpost', sourceIsMine: true },
+            cavalryCharacterUuids: { ownReady: true }
+        };
         const decision = new JigokuBotPolicy('gpo-ready').decide(state, 'Jigoku Bot', ctx);
-        expect(decision.command).toBe('menuButton');
-        expect(decision.target).toBe('Cancel');
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('ownReady');
     });
 
     it('I Am Ready readies the strongest bowed CONFLICT participant with fate', function() {
@@ -3507,7 +3564,7 @@ describe('Jigoku heuristic bot', function() {
                         },
                         {
                             uuid: 'tired', name: 'tired', type: 'character', location: 'play area',
-                            bowed: true, inConflict: true,
+                            bowed: true, inConflict: true, traits: ['cavalry'],
                             militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '0' }
                         }
                     ]

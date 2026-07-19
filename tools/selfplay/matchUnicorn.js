@@ -1,6 +1,6 @@
 'use strict';
 
-// Unicorn "Poison Mill" (dishonor deck) vs the Crane precon. Seats alternate
+// Unicorn Cavalry Rush vs the Crane baseline. Seats alternate
 // to cancel first-player advantage. Usage:
 //   node tools/selfplay/matchUnicorn.js [games] [unicornSeed] [--trace]
 // Seeds: 1 fate-aware (default), 2 old heuristic, 5 omniscient. Crane uses seed 1.
@@ -71,7 +71,7 @@ async function main() {
     console.log('win reasons:', JSON.stringify(reasons, null, 1));
     if(trace) {
         const sorted = Object.entries(traceHistogram).sort((a, b) => b[1] - a[1]);
-        console.log('scorpion decision reasons:');
+        console.log('unicorn decision reasons:');
         for(const [reason, count] of sorted) {
             console.log(`  ${count}\t${reason}`);
         }

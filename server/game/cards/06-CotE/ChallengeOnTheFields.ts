@@ -4,7 +4,8 @@ import DrawCard from '../../drawcard';
 import Player from '../../player';
 
 function participatingCharacters(player: Player): number {
-    return player.filterCardsInPlay((card) => card.isParticipating()).length;
+    const conflict = player.game.currentConflict;
+    return conflict ? Number(conflict.getNumberOfParticipantsFor(player)) : 0;
 }
 
 export default class ChallengeOnTheFields extends DrawCard {

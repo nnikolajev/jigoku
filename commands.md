@@ -447,6 +447,7 @@ node tools/selfplay/validateBotInteractions.js
 node tools/selfplay/validateBotInteractions.js --games 5 --seeds 1,2,5
 node tools/selfplay/validateBotInteractions.js --opponents all --games 2 --out tools/selfplay/out/all-opponents
 node tools/selfplay/validateBotInteractions.js --decks Lion --opponents all --games 1 --seeds 1,2,5 --out tools/selfplay/out/lion-attachments-all-opponents-click-audit
+node tools/selfplay/validateBotInteractions.js --decks Unicorn --opponents all --games 1 --seeds 1,2,5 --out tools/selfplay/out/unicorn-all-opponents-click-audit
 ```
 
 The Lion-specific example is the regression audit for Elegant Tessen and True
@@ -454,6 +455,19 @@ Strike Kenjutsu. It covers every registered opponent on seeds 1, 2, and 5;
 inspect `topInteractions` in the JSON report to confirm setup card use, while
 the policy specs prove the gained True Strike Action and exact base-skill gate
 deterministically.
+
+The Unicorn-specific audit covers Golden Plains Outpost, Ride On, and Adorned
+Barcha movement across every registered opponent. Use the focused specs and a
+25-game-per-matchup tuning matrix together:
+
+```powershell
+npm run jasmine -- --filter="Unicorn"
+node tools/selfplay/matchUnicorn.js 50 1 --trace
+node tools/selfplay/botRoundRobin.js --games 25 --workers 32 --seed 1 --out tools/selfplay/out/unicorn-round-robin
+```
+
+The 25-game round robin is a tuning run. Only the complete default 40-game run
+updates `jigoku-client/client/botBenchmarkResults.json`.
 
 ## Internal modules and workers
 

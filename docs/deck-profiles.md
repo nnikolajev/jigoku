@@ -41,7 +41,7 @@ reads the knobs; the profile is chosen per deck.
 | `chumpBlock` | declare one cheap defender in a hopeless conflict to avoid unopposed honor loss |
 | `defenseSkillBuffer` | extra committed defense above exact prevent-break math |
 | `strongholdProvinceId` | province deliberately placed under the stronghold |
-| tactics sub-profiles | `dishonor`, `lion`, `glory`, `dragon`, `duelist`, `craneBaseline`, `shugenja`, and `attachmentTower` |
+| tactics sub-profiles | `dishonor`, `lion`, `glory`, `dragon`, `duelist`, `craneBaseline`, `shugenja`, `attachmentTower`, and `unicorn` |
 
 ## How a deck gets its profile
 
@@ -73,9 +73,9 @@ DeckStrategy flags ──profileFromStrategy()──▶ base profile ──resol
 3. Measure with self-play before/after (see below). Keep the change only if it
    is a clear, repeatable improvement.
 
-Anything a deck needs that is NOT expressible as a knob stays hard-coded for the
-Unicorn default — do not generalize the shared code for one deck's quirk; add a
-knob or an override instead.
+Anything a deck needs that is not expressible as an existing knob gets a new
+tactics/profile boundary. Do not duplicate a deck quirk through generic prompt
+code when an injectable target scorer or override can own it.
 
 A deck with a genuinely different PLAYSTYLE (not just different values for the
 generic knobs) gets its own tactics module hung off the profile: see
@@ -94,7 +94,9 @@ Duels tower/duel plan, and
 `dragon-attachments-bot.md`) for the Iron Mountain Castle Restricted-attachment
 tower deck, and `craneBaseline?: CraneBaselineProfile`
 (`CraneBaselineTactics.ts`, doc `crane-baseline-bot.md`) for the mixed
-duel/honor/control baseline. Same gating rule:
+duel/honor/control baseline, and `unicorn?: UnicornProfile`
+(`UnicornTactics.ts`, doc `unicorn-bot.md`) for Cavalry movement, effective
+participants, and movement-trigger setup. Same gating rule:
 the sub-profile exists only for decks whose strategy/override derives it, and
 every policy hook checks its presence.
 
@@ -262,6 +264,19 @@ for Pilgrimage / Elemental Fury / Ancestral Lands / Meditations:
 
 Utilization audit of the new list: every card fires, zero-clicks empty.
 Band unchanged: 26-14 (65%, N=40) vs Crane.
+
+**Movement planner update (2026-07-19):** Unicorn now reserves a useful home
+target and scores Golden Plains Outpost, Ride On, and Adorned Barcha moves by
+skill, Spyglass, Moto Stables, Outskirts Sentry glory, post-move ready support,
+Barcha bow value, and bowed Minami/Higashi win reactions. Effective participant
+counts include Shiksha Scout and Iuchi Soulweaver where their text applies;
+Ujik Tactics deliberately remains physical-participants-only. Challenge on the
+Fields injects its expanded military value into the universal duel planner.
+Attachment distribution and Worldly Shiotome/Gaijin ordering use the same
+injectable module. Two retained-build seed-1 RR25 samples pooled 228-221 (+1),
+50.8% of decided games, against the stored 97-128 baseline (43.1%). See
+`unicorn-bot.md` for variance and matchup details. A separate alternating-seat
+N=100 Crane match finished 59-41, versus the stored 47% direct baseline.
 
 ## Case study: Lion Swarm v0.3 (EmeraldDB 27a913d1)
 

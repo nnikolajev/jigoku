@@ -50,6 +50,7 @@ export interface PlaybookContext {
     conflictCosts?: Record<string, number>; // live printed costs for hand/discard cards
     canPlayConflictCard?: (card: any) => boolean; // shared normal-play intent gate for replay sources
     strengthNeeded?: number; // exact extra skill needed to break/save the attacked province
+    winSkillNeeded?: number; // exact extra skill needed to win the current conflict
     allowStrengthOvercommit?: boolean; // Dragon card-count payoff exception
     clarityProtectedUuids?: string[]; // characters already protected by Clarity this conflict
     opponentParticipantCanBow?: boolean; // public board threat from a participating defender
@@ -57,6 +58,9 @@ export interface PlaybookContext {
     opponentHasAffordableBowEffect?: boolean; // exact seed-5 hand threat after fate check
     characterPrintedCosts?: Record<string, number>; // exact live printed cost by in-play character UUID
     characterBaseMilitary?: Record<string, number>; // exact live base military by in-play character UUID
+    participatingCharacterCounts?: { self: number; opponent: number }; // exact live count, including virtual participants
+    cavalryCharacterUuids?: Record<string, true>; // live traits, including Utaku Battle Steed
+    readyAfterMoveCharacterUuids?: Record<string, true>; // exact move-then-ready support
 }
 
 export interface PlaybookEntry extends CardHint {
@@ -290,7 +294,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 8,
         summary: 'holding: ready a Cavalry character',
         inPlayAction: true,
-        shouldUseAction: (ctx) => ctx.myCharacters.some((card) => card.bowed)
+        shouldUseAction: (ctx) => ctx.myCharacters.some((card) => card.bowed &&
+            (!!ctx.cavalryCharacterUuids?.[card.uuid] || (card.traits || []).includes('cavalry')))
     }),
 
     // Holding reaction: +2 military after a character moves to a conflict.
@@ -405,13 +410,14 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 8,
         summary: 'bows an enemy participant and rides the bearer in',
         inPlayAction: true,
+        oncePerRound: true,
         shouldUseAction: (ctx) => {
             if(ctx.conflictType !== 'military') {
                 return false;
             }
             const bearer = ctx.myCharacters.find((card) =>
                 (card.attachments || []).some((attachment: any) => attachment.id === 'adorned-barcha'));
-            return !!bearer && !bearer.inConflict && !bearer.bowed &&
+            return !!bearer && !bearer.inConflict &&
                 participating(ctx.opponentCharacters).some((card) => !card.bowed);
         }
     }),
@@ -537,7 +543,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         conflictTypes: ['military'],
         priority: 7,
         summary: 'while outnumbering, the opponent bows a participant',
-        shouldPlay: (ctx) => participating(ctx.myCharacters).length > participating(ctx.opponentCharacters).length
+        shouldPlay: (ctx) => (ctx.participatingCharacterCounts?.self ?? participating(ctx.myCharacters).length) >
+            (ctx.participatingCharacterCounts?.opponent ?? participating(ctx.opponentCharacters).length)
     }),
 
     // Convert a political conflict to military (lose 1 honor) so the deck's
@@ -558,22 +565,37 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'strongest',
         priority: 7,
         summary: 'military duel (+1 per participant), move the loser home',
-        shouldPlay: (ctx) => ctx.amAttacker && participating(ctx.myCharacters).length >= 3 &&
+        shouldPlay: (ctx) => ctx.amAttacker &&
+            (ctx.participatingCharacterCounts?.self ?? participating(ctx.myCharacters).length) >= 2 &&
             participating(ctx.opponentCharacters).some((card) => !card.bowed)
     }),
 
-    // Tactic: move a Cavalry character to/home during a conflict. The bot uses
-    // it to pull a ready home body INTO its attack (adding skill and triggering
-    // Moto Stables / Twilight Rider move-in reactions); the mode menu resolves
-    // to "move to the conflict" and the target is steered to a home character.
+    // Move a Cavalry body in. A bowed target is valid with an exact ready
+    // follow-up, or when Minami/Higashi can collect a projected win payoff.
     'ride-on': entry('ride-on', {
-        conflictTypes: ['military'],
+        conflictTypes: [],
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 5,
         summary: 'move a home Cavalry character into the conflict',
-        shouldPlay: (ctx) => ctx.amAttacker &&
-            ctx.myCharacters.some((card) => !card.bowed && !card.inConflict)
+        shouldPlay: (ctx) => ctx.myCharacters.some((card) => {
+            if(card.inConflict ||
+                (!ctx.cavalryCharacterUuids?.[card.uuid] && !(card.traits || []).includes('cavalry'))) {
+                return false;
+            }
+            if(!card.bowed || ctx.readyAfterMoveCharacterUuids?.[card.uuid]) {
+                return true;
+            }
+            if(Number(ctx.winSkillNeeded) > 0) {
+                return false;
+            }
+            if(card.id === 'minami-kaze-regulars') {
+                return (ctx.participatingCharacterCounts?.self ?? participating(ctx.myCharacters).length) + 1 >
+                    (ctx.participatingCharacterCounts?.opponent ?? participating(ctx.opponentCharacters).length);
+            }
+            return card.id === 'higashi-kaze-company' && ctx.myCharacters.some((other) =>
+                other !== card && other.inConflict && !other.bowed && (Number(other.fate) || 0) === 0);
+        })
     }),
 
     // ==================================================================

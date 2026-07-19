@@ -131,6 +131,12 @@ node tools/selfplay/validateBotInteractions.js
 # broader repeat coverage or every opposing deck
 node tools/selfplay/validateBotInteractions.js --games 5 --seeds 1,2,5
 node tools/selfplay/validateBotInteractions.js --opponents all --games 2
+
+# Unicorn movement regression: focused behavior, all opponents, then RR25
+npm run jasmine -- --filter="Unicorn"
+node tools/selfplay/matchUnicorn.js 50 1 --trace
+node tools/selfplay/validateBotInteractions.js --decks Unicorn --opponents all --games 1 --seeds 1,2,5 --out tools/selfplay/out/unicorn-all-opponents-click-audit
+node tools/selfplay/botRoundRobin.js --games 25 --workers 32 --seed 1 --out tools/selfplay/out/unicorn-round-robin
 ```
 
 `analyzePolicyGame.js` runs one control game and one candidate game with the

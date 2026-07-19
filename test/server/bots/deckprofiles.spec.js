@@ -89,6 +89,7 @@ describe('DeckProfiles', function() {
         expect(p.attackCommitment).toBe('all-but-one');
         expect(p.aggressiveFate).toBe(false);
         expect(p.conflictCardEconomy.enabled).toBe(false);
+        expect(p.unicorn).toBeDefined();
         // The rush attack identity stays.
         expect(p.forceMilitaryConflict).toBe(true);
     });

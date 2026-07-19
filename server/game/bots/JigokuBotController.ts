@@ -562,6 +562,9 @@ class JigokuBotController {
                     // and True Strike Kenjutsu's base-skill matchup.
                     characterPrintedCosts: this.characterPrintedCosts(player),
                     characterBaseMilitary: this.characterBaseMilitary(player),
+                    participatingCharacterCounts: this.participatingCharacterCounts(player),
+                    cavalryCharacterUuids: this.cavalryCharacterUuids(player),
+                    readyAfterMoveCharacterUuids: this.readyAfterMoveCharacterUuids(player),
                     // Exact live duel skills/honor/Iaijutsu state for shared
                     // 5x5 bid analysis. Gap remains for old synthetic callers.
                     duelBidContext: this.currentDuelBidContext(player),
@@ -1575,6 +1578,68 @@ class JigokuBotController {
                 ? Math.max(value, 0)
                 : undefined;
         });
+    }
+
+    private participatingCharacterCounts(player: Player): { self: number; opponent: number } {
+        const conflict: any = (this.game as any).currentConflict;
+        if(!conflict || typeof conflict.getNumberOfParticipantsFor !== 'function') {
+            return { self: 0, opponent: 0 };
+        }
+        return {
+            self: conflict.getNumberOfParticipantsFor(player),
+            opponent: conflict.getNumberOfParticipantsFor(player.opponent)
+        };
+    }
+
+    private cavalryCharacterUuids(player: Player): Record<string, true> {
+        const result: Record<string, true> = {};
+        for(const side of [player, player.opponent]) {
+            const cards: any[] = typeof (side as any)?.cardsInPlay?.toArray === 'function'
+                ? (side as any).cardsInPlay.toArray()
+                : [];
+            for(const card of cards) {
+                const type = card?.type || card?.getType?.();
+                if(card?.uuid && type === 'character' && card.hasTrait?.('cavalry')) {
+                    result[card.uuid] = true;
+                }
+            }
+        }
+        return result;
+    }
+
+    /** Live legality support omitted by serialized summaries. A bowed cavalry
+     * mover is useful when it can ready itself, pay I Am Ready from hand, or
+     * use an available Shiotome Encampment under its claimed-military-ring
+     * condition. The policy then compares that sequence against moving a
+     * character which is already ready. */
+    private readyAfterMoveCharacterUuids(player: Player): Record<string, true> {
+        const result: Record<string, true> = {};
+        const characters: any[] = typeof (player as any)?.cardsInPlay?.toArray === 'function'
+            ? (player as any).cardsInPlay.toArray().filter((card: any) =>
+                (card?.type || card?.getType?.()) === 'character')
+            : [];
+        const hand: any[] = typeof (player as any)?.hand?.toArray === 'function'
+            ? (player as any).hand.toArray()
+            : [];
+        const hasIAmReady = hand.some((card) => (card?.cardData?.id || card?.id) === 'i-am-ready');
+        const hasEncampment = typeof (player as any)?.cardsInPlay?.toArray === 'function' &&
+            (player as any).cardsInPlay.toArray().some((card: any) =>
+                (card?.cardData?.id || card?.id) === 'shiotome-encampment');
+        const hasClaimedMilitaryRing = Object.values((this.game as any)?.rings || {}).some((ring: any) =>
+            ring?.isConsideredClaimed?.(player) && ring?.isConflictType?.('military'));
+
+        for(const card of characters) {
+            if(!card?.uuid) {
+                continue;
+            }
+            const id = card?.cardData?.id || card?.id;
+            if(['moto-outrider', 'twilight-rider'].includes(id) ||
+                (hasIAmReady && card?.isFaction?.('unicorn') && (Number(card?.fate) || 0) > 0) ||
+                (hasEncampment && hasClaimedMilitaryRing && card?.hasTrait?.('cavalry'))) {
+                result[card.uuid] = true;
+            }
+        }
+        return result;
     }
 
     private characterNumberHint(

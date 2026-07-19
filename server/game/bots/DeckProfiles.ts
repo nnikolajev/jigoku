@@ -47,6 +47,8 @@ import { PERSONAL_HONOR_DEFAULTS } from './PersonalHonorTactics.js';
 import type { PersonalHonorProfile } from './PersonalHonorTactics';
 import { PROVINCE_TARGETING_DEFAULTS } from './ProvinceTargeting.js';
 import type { ProvinceTargetingProfile } from './ProvinceTargeting';
+import { UNICORN_DEFAULTS } from './UnicornTactics.js';
+import type { UnicornProfile } from './UnicornTactics';
 
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
@@ -161,6 +163,10 @@ export interface DeckProfile {
     // Deep-fate tower buying, a three-slot Restricted cap, attachment search,
     // and Niten Master / Togashi Yokuni ability steering.
     attachmentTower?: DragonAttachmentProfile;
+
+    // ---- Unicorn cavalry movement/rush playstyle ----
+    // Exact participation, move-in sequencing and movement attachment targets.
+    unicorn?: UnicornProfile;
 }
 
 // Generic baseline = a deck with no strategy flags (e.g. Crane, unknown). These
@@ -475,7 +481,13 @@ const OVERRIDES: ProfileOverride[] = [
             // Body-flood rush: every fate belongs on the board, not reserved.
             reserveDynastyFate: false,
             fateAwareEconomy: { ...SWARM_FATE_AWARE_ECONOMY },
-            conflictCardEconomy: { ...SWARM_CONFLICT_CARD_ECONOMY }
+            conflictCardEconomy: { ...SWARM_CONFLICT_CARD_ECONOMY },
+            unicorn: {
+                ...UNICORN_DEFAULTS,
+                movementCardIds: [...UNICORN_DEFAULTS.movementCardIds],
+                gaijinCardIds: [...UNICORN_DEFAULTS.gaijinCardIds],
+                singletonAttachments: [...UNICORN_DEFAULTS.singletonAttachments]
+            }
         }
     },
     {
@@ -692,6 +704,14 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     bushiCharacters: [...override.apply.lion.bushiCharacters],
                     forgeAttachmentRanking: [...override.apply.lion.forgeAttachmentRanking],
                     setupAttachmentPriority: [...override.apply.lion.setupAttachmentPriority]
+                };
+            }
+            if(override.apply.unicorn) {
+                apply.unicorn = {
+                    ...override.apply.unicorn,
+                    movementCardIds: [...override.apply.unicorn.movementCardIds],
+                    gaijinCardIds: [...override.apply.unicorn.gaijinCardIds],
+                    singletonAttachments: [...override.apply.unicorn.singletonAttachments]
                 };
             }
             if(strongholdDefense) {

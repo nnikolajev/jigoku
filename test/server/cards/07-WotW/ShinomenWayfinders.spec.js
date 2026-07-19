@@ -67,5 +67,36 @@ describe('Shinomen Wayfinders', function() {
             });
 
         });
+
+        describe('exact effective participant discounts', function() {
+            beforeEach(function() {
+                this.setupTest({
+                    phase: 'conflict',
+                    player1: {
+                        fate: 4,
+                        inPlay: ['border-rider', 'shiksha-scout', 'iuchi-soulweaver'],
+                        hand: ['shinomen-wayfinders']
+                    },
+                    player2: { inPlay: ['iuchi-wayfinder'] }
+                });
+                this.borderRider = this.player1.findCardByName('border-rider');
+                this.shikshaScout = this.player1.findCardByName('shiksha-scout');
+                this.wayfinders = this.player1.findCardByName('shinomen-wayfinders');
+                this.noMoreActions();
+            });
+
+            it('counts Shiksha Scout as two and a dire Soulweaver from home', function() {
+                this.initiateConflict({
+                    attackers: [this.borderRider, this.shikshaScout],
+                    defenders: ['iuchi-wayfinder']
+                });
+                this.player2.pass();
+                this.player1.clickCard(this.wayfinders);
+                this.player1.clickPrompt('0');
+                this.player1.clickPrompt('Conflict');
+                expect(this.player1.player.fate).toBe(4);
+                expect(this.game.currentConflict.attackers).toContain(this.wayfinders);
+            });
+        });
     });
 });

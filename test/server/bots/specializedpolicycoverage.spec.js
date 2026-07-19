@@ -473,7 +473,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         });
     });
 
-    it('executes tacticless Unicorn profile branches through every shipped heuristic seed', function() {
+    it('executes Unicorn movement profile branches through every shipped heuristic seed', function() {
         const profile = resolveDeckProfile(
             ['cavalry-reserves', 'ride-on'],
             flags({ aggressive: true })
@@ -483,6 +483,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
             character('b', 'moto-youth', { location: 'play area', inConflict: true }),
             character('c', 'shinjo-scout', { location: 'play area' })
         ];
+        expect(profile.unicorn).toBeDefined();
 
         const military = decideWithEveryPolicy(profile, makeState({
             promptTitle: 'Political Earth Conflict', menuTitle: 'Choose province to attack', buttons: [],
@@ -521,6 +522,165 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         expectEveryPolicy(fate, (decision, policyCase) => {
             expect(decision.target).withContext(policyCase.label).toBe('2');
         });
+
+        const sentry = character('sentry', 'outskirts-sentry', { inConflict: true });
+        const spyMover = character('spy-mover', 'border-rider', {
+            inConflict: false,
+            attachments: [{ id: 'spyglass' }],
+            militarySkillSummary: { stat: '3' }
+        });
+        const plainMover = character('plain-mover', 'moto-youth', {
+            inConflict: false,
+            militarySkillSummary: { stat: '4' }
+        });
+        const moveTarget = decideWithEveryPolicy(profile, makeState({
+            promptTitle: 'Choose a character', menuTitle: 'Golden Plains Outpost',
+            buttons: [CANCEL], cardPiles: { cardsInPlay: [sentry, spyMover, plainMover] }
+        }), {
+            targetHint: {
+                sourceCardId: 'golden-plains-outpost', sourceIsMine: true,
+                gameActions: ['moveToConflict']
+            },
+            cavalryCharacterUuids: { 'spy-mover': true, 'plain-mover': true }
+        });
+        expectEveryPolicy(moveTarget, (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('unicorn-golden-plains-move-target');
+            expect(decision.args[0]).withContext(policyCase.label).toBe('spy-mover');
+        });
+
+        const supportedBowed = character('supported-bowed', 'border-rider', {
+            bowed: true, inConflict: false, fate: 2,
+            militarySkillSummary: { stat: '8' }, attachments: [{ id: 'spyglass' }]
+        });
+        const readyMover = character('ready-mover', 'moto-youth', {
+            bowed: false, inConflict: false, militarySkillSummary: { stat: '4' }
+        });
+        const supportedMove = decideWithEveryPolicy(profile, makeState({
+            promptTitle: 'Choose a character', menuTitle: 'Golden Plains Outpost',
+            buttons: [CANCEL], cardPiles: { cardsInPlay: [supportedBowed, readyMover] }
+        }), {
+            targetHint: {
+                sourceCardId: 'golden-plains-outpost', sourceIsMine: true,
+                gameActions: ['moveToConflict']
+            },
+            cavalryCharacterUuids: { 'supported-bowed': true, 'ready-mover': true },
+            readyAfterMoveCharacterUuids: { 'supported-bowed': true }
+        });
+        expectEveryPolicy(supportedMove, (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('unicorn-golden-plains-move-target');
+            expect(decision.args[0]).withContext(policyCase.label).toBe('supported-bowed');
+        });
+
+        const barchaAttachment = attachment('barcha-attachment', 'adorned-barcha', {
+            location: 'play area'
+        });
+        const bowedBarchaBearer = character('barcha-bearer', 'worldly-shiotome', {
+            bowed: true, inConflict: false, attachments: [barchaAttachment]
+        });
+        const barchaAction = decideWithEveryPolicy(profile, makeState({
+            promptTitle: 'Conflict Action Window', menuTitle: 'Military conflict',
+            cardPiles: { cardsInPlay: [bowedBarchaBearer] }
+        }, {
+            cardPiles: { cardsInPlay: [character('enemy-participant', 'enemy', {
+                inConflict: true, bowed: false, militarySkillSummary: { stat: '5' }
+            })] }
+        }, {
+            conflict: {
+                type: 'military', attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                attackerSkill: 1, defenderSkill: 3
+            }
+        }));
+        expectEveryPolicy(barchaAction, (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('use-board-ability');
+            expect(decision.args[0]).withContext(policyCase.label).toBe('barcha-attachment');
+        });
+
+        const honorTarget = decideWithEveryPolicy(profile, makeState({
+            promptTitle: 'Choose a character to honor', menuTitle: 'Outskirts Sentry',
+            cardPiles: { cardsInPlay: [
+                character('low-glory', 'low', { inConflict: true, glorySummary: { stat: '1' } }),
+                character('high-glory', 'high', { inConflict: true, glorySummary: { stat: '3' } })
+            ] }
+        }), {
+            targetHint: { sourceCardId: 'outskirts-sentry', sourceIsMine: true, gameActions: ['honor'] }
+        });
+        expectEveryPolicy(honorTarget, (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('unicorn-outskirts-highest-glory');
+            expect(decision.args[0]).withContext(policyCase.label).toBe('high-glory');
+        });
+
+        // Both reactions care only that the character won while
+        // participating. Bowed participants remain valid sources.
+        for(const payoffId of ['minami-kaze-regulars', 'higashi-kaze-company']) {
+            const bowedPayoff = decideWithEveryPolicy(profile, makeState({
+                promptTitle: 'Triggered Abilities', menuTitle: 'Any reactions?',
+                buttons: [PASS],
+                cardPiles: { cardsInPlay: [character(payoffId, payoffId, {
+                    bowed: true, inConflict: true, selectable: true
+                })] }
+            }));
+            expectEveryPolicy(bowedPayoff, (decision, policyCase) => {
+                expect(decision.reason).withContext(`${policyCase.label} ${payoffId}`)
+                    .toBe('trigger-hinted-ability');
+                expect(decision.args[0]).withContext(`${policyCase.label} ${payoffId}`)
+                    .toBe(payoffId);
+            });
+        }
+    });
+
+    it('retires Golden Plains Outpost after engine targeting finds no legal move', function() {
+        const profile = resolveDeckProfile(
+            ['cavalry-reserves', 'ride-on'],
+            flags({ aggressive: true })
+        );
+        for(const policyCase of POLICY_CASES) {
+            const policy = new policyCase.Policy(policyCase.seed);
+            const omniscient = policyCase.omniscient ? {
+                oppName: 'Opponent', oppFate: 5, oppHand: [], oppProvinces: [], unmodeledEvents: []
+            } : undefined;
+            const context = {
+                ...(omniscient ? { omniscient } : {}),
+                profile,
+                roundNumber: 2,
+                cardHint: getPlaybookEntry,
+                cavalryCharacterUuids: {}
+            };
+            const cancel = policy.decide(makeState({
+                promptTitle: 'Choose a character', menuTitle: 'Golden Plains Outpost',
+                buttons: [CANCEL],
+                cardPiles: { cardsInPlay: [character('not-cavalry', 'not-cavalry')] }
+            }), BOT, {
+                ...context,
+                targetHint: {
+                    sourceCardId: 'golden-plains-outpost', sourceIsMine: true,
+                    gameActions: ['moveToConflict']
+                }
+            });
+            expect(cancel.reason).withContext(policyCase.label).toBe('cancel-wrong-side-target');
+
+            const source = {
+                uuid: 'gpo', id: 'golden-plains-outpost', name: 'Golden Plains Outpost',
+                type: 'stronghold', location: 'stronghold province', bowed: false
+            };
+            const cavalry = character('cavalry', 'border-rider', {
+                location: 'play area', militarySkillSummary: { stat: '5' }
+            });
+            const next = policy.decide(makeState({
+                promptTitle: 'Conflict Action Window', menuTitle: 'Military conflict',
+                buttons: [PASS], strongholdProvince: [source],
+                cardPiles: { cardsInPlay: [cavalry] }
+            }, {}, {
+                conflict: {
+                    type: 'military', attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                    attackerSkill: 0, defenderSkill: 3
+                }
+            }), BOT, {
+                ...context,
+                cavalryCharacterUuids: { cavalry: true }
+            });
+            expect(next.reason).withContext(policyCase.label).toBe('pass-window');
+            expect(next.args[0]).withContext(policyCase.label).toBe('pass');
+        }
     });
 
     it('executes every Scorpion dishonor tactic method', function() {

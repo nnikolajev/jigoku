@@ -9,7 +9,6 @@
 
 export interface ShugenjaProfile {
     ringCardBonus: number;
-    offeringsFateValue: number;
     togamaFateValue: number;
     immediateRingPayoffValue: number;
     displayRingMinimum: number;
@@ -75,10 +74,9 @@ const PRINTED_COSTS: Record<string, number> = {
 export const SHUGENJA_DEFAULTS: ShugenjaProfile = {
     ringCardBonus: 18,
     // Ring-claim abilities need different economics from ordinary conflict
-    // declaration. Offerings receives ring fate immediately, but a live card
-    // payoff can beat one fate. Togama should take the largest fate pile first
-    // and use character/ring-effect value only to break close ties.
-    offeringsFateValue: 120,
+    // declaration. Offerings handles fate as a strict primary key, so a live
+    // card payoff never beats one additional fate. Togama uses a large fate
+    // weight and live payoffs to break close ties.
     togamaFateValue: 1000,
     immediateRingPayoffValue: 100,
     // Display costs two fate and an undefended province. Spend it proactively
@@ -132,11 +130,13 @@ export class ShugenjaTactics {
         return (inPlay + inHand) * this.profile.ringCardBonus;
     }
 
-    offeringsRingScore(ring: any, myCharacters: any[], opponentCharacters: any[]): number {
-        const fate = typeof ring === 'string' ? 0 : (Number(ring?.fate) || 0);
-        const element = typeof ring === 'string' ? ring : String(ring?.element || '');
-        return fate * this.profile.offeringsFateValue +
-            this.immediateRingScore(element, myCharacters, opponentCharacters);
+    offeringsRingPriority(rings: any[], myCharacters: any[], opponentCharacters: any[]): any[] {
+        // Generate this list from the live board every time Offerings reveals.
+        // Fate is deliberately absent: caller first compares fate, then uses
+        // this board-aware order only among rings tied for the largest pile.
+        return (rings || []).slice().sort((a, b) =>
+            this.immediateRingScore(String(b?.element || ''), myCharacters, opponentCharacters) -
+            this.immediateRingScore(String(a?.element || ''), myCharacters, opponentCharacters));
     }
 
     togamaRingScore(ring: any, myCharacters: any[], opponentCharacters: any[]): number {

@@ -11,12 +11,13 @@ forced rule or legal timing.
 - **Manipulate rings.** Conflict declaration still takes the largest fate pile
   first, with live Water/Air/Void bonuses for Prodigy of the Waves, Asako
   Tsuki, Ethereal Dreamer, Feral Ningyo, Adept of the Waves, Kudaka, and Isawa
-  Ujina. Other claim effects now combine fate and immediate payoff instead of
-  using one global order. Offerings to the Kami values each ring's fate plus
-  live character and ring-effect value. Asako Togama takes the largest fate
-  pile first, then uses those same live payoffs to break ties; a home Togama is
-  no longer treated as an available action until he participates. Ujina's Void
-  bonus requires a legal zero-fate enemy target.
+  Ujina. Other claim effects use live board priorities instead of one global
+  order. Offerings to the Kami always takes the largest fate pile, generating
+  a fresh live character/ring-effect priority to break equal-fate ties. Asako
+  Togama takes the largest fate pile first, then uses those same live payoffs
+  to break ties; a home Togama is no longer treated as an available action
+  until he participates. Ujina's Void bonus requires a legal zero-fate enemy
+  target.
 - **Recycle Spell Actions.** Kyūden Isawa discards the weakest Spell while
   protecting Display of Power, Consumed by Five Fires, and The Path of Man.
   It recasts only Spell Actions legal in the current action window; reaction
@@ -80,10 +81,11 @@ on Cancel.
 
 ## Implementation
 
-- `ShugenjaTactics.ts` owns ring bonuses, practical towers, Kyūden legality,
-  Tadaka setup/Disguised target ranking, Fushichō gating, spell/discard
-  ordering, Display defense, and the conditional five-fate reserve. Its
-  `offeringsFateValue`, `togamaFateValue`, `immediateRingPayoffValue`, and
+- `ShugenjaTactics.ts` owns ring bonuses, live Offerings tie priority,
+  practical towers, Kyūden legality, Tadaka setup/Disguised target ranking,
+  Fushichō gating, spell/discard ordering, Display defense, and the conditional
+  five-fate reserve. Its
+  `togamaFateValue`, `immediateRingPayoffValue`, and
   `displayRingMinimum` profile fields are injectable tuning knobs.
 - `CardPlaybook.ts` contains the active/reaction metadata for the deck cards.
 - `DeckProfiles.ts` derives the sub-profile from Kyūden Isawa and parks Vassal
@@ -93,7 +95,21 @@ on Cancel.
 - `matchPhoenixShugenja.js` alternates seats against the Crane baseline;
   `auditCards.js phoenix-shugenja` reports every successful card click.
 
-## Verification (2026-07-15)
+## Verification (2026-07-19)
+
+- Strict fate-first Offerings regression: pass. A larger fate pile beats a live
+  Water payoff; equal-fate Water and Air ties follow Prodigy and Kudaka board
+  payoffs respectively.
+- Full Jigoku suite: 10,235 specs, 0 failures, 8 pending.
+- Phoenix Shugenja interaction audit against Crane: seeds 1, 2, and 5 all pass
+  with 0 rejected clicks, loops, or decision-budget exhaustion.
+- Standard seed-1 win rates (100 games/deck) moved from 455–442 (+3), 50.6%, to
+  466–434, 51.8%. Phoenix Shugenja moved from 74–26 to 75–25.
+- Standard seed-1 round robin (40 games/matchup) left Phoenix Shugenja exactly
+  195–165, 54.2%. Its individual matchup changes stayed between −3 and +3
+  wins, consistent with sample noise.
+
+## Historical verification (2026-07-15)
 
 - TypeScript typecheck: pass.
 - Focused Phoenix Shugenja tactics: 22 specs, 0 failures.
@@ -102,9 +118,9 @@ on Cancel.
   seed-1 execution coverage for every specialized tactic method.
 - Deterministic replay (`rng-seed 20260716`) kept the Phoenix conquest win and
   removed seven invalid ring clicks: five during Kyuden Isawa discard prompts
-  and two during Assassination target prompts. In the same replay, Offerings
-  chose zero-fate Water over one-fate Air because Water immediately bowed an
-  18-skill attacker.
+  and two during Assassination target prompts. Its old Offerings selector chose
+  zero-fate Water over one-fate Air; the 2026-07-19 strict fate-first rule
+  intentionally supersedes that behavior.
 - Independent alternating-seat N=100 samples against seed-1 Crane moved from
   the retained pre-change baseline of **64 wins** (2 undecided), to **69 wins**
   after ring orchestration (1 undecided), then **72 wins** after the

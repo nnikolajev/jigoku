@@ -3801,10 +3801,18 @@ class JigokuBotPolicy {
         if(shugenja && title.includes('claim and resolve')) {
             const mine = this.myCharactersInPlay(me);
             const theirs = this.myCharactersInPlay(opponent);
+            // Start from deterministic normal ring order, then generate a live
+            // Phoenix priority list. Offerings always takes the largest fate
+            // pile; that live list breaks ties only.
+            rings.sort((a: any, b: any) =>
+                RING_ORDER.indexOf(a.element) - RING_ORDER.indexOf(b.element));
+            const livePriority = shugenja.offeringsRingPriority(rings, mine, theirs);
+            const liveRank = new Map(livePriority.map((ring: any, index: number) => [ring.element, index]));
             rings.sort((a: any, b: any) => {
-                const scoreDiff = shugenja.offeringsRingScore(b, mine, theirs) -
-                    shugenja.offeringsRingScore(a, mine, theirs);
-                return scoreDiff !== 0 ? scoreDiff : RING_ORDER.indexOf(a.element) - RING_ORDER.indexOf(b.element);
+                const fateDiff = (Number(b.fate) || 0) - (Number(a.fate) || 0);
+                return fateDiff !== 0
+                    ? fateDiff
+                    : (liveRank.get(a.element) ?? rings.length) - (liveRank.get(b.element) ?? rings.length);
             });
         } else if(shugenja && title.includes('ring to return')) {
             rings.sort((a: any, b: any) =>

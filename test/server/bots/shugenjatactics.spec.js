@@ -688,7 +688,7 @@ describe('Phoenix Shugenja tactics', function() {
         expect(pass.reason).toBe('pass-window');
     });
 
-    it('Offerings balances ring fate against live Air and Water payoffs', function() {
+    it('Offerings takes the most fate, then regenerates live ring priority for ties', function() {
         const offeringsState = (characters) => stateFor({
             promptTitle: 'Choose a ring to claim and resolve',
             menuTitle: 'Choose a ring to claim and resolve',
@@ -716,7 +716,19 @@ describe('Phoenix Shugenja tactics', function() {
             void: { element: 'void', fate: 0, unselectable: false },
             water: { element: 'water', fate: 0, unselectable: false }
         };
-        expect(new JigokuBotPolicy('offerings-water').decide(withWater, 'Phoenix', { profile }).args[0]).toBe('water');
+        expect(new JigokuBotPolicy('offerings-strict-fate').decide(withWater, 'Phoenix', { profile }).args[0]).toBe('air');
+
+        withWater.rings.water.fate = 1;
+        expect(new JigokuBotPolicy('offerings-water-tie').decide(withWater, 'Phoenix', { profile }).args[0]).toBe('water');
+
+        const withKudaka = offeringsState([
+            { id: 'kudaka', uuid: 'kudaka', type: 'character' }
+        ]);
+        withKudaka.rings = {
+            air: { element: 'air', fate: 2, unselectable: false },
+            water: { element: 'water', fate: 2, unselectable: false }
+        };
+        expect(new JigokuBotPolicy('offerings-air-tie').decide(withKudaka, 'Phoenix', { profile }).args[0]).toBe('air');
     });
 
     it('Asako Togama takes the highest-fate ring and uses live payoffs to break fate ties', function() {

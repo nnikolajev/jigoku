@@ -61,11 +61,6 @@ describe('DuelTactics', function() {
     });
 
     describe('decisions', function() {
-        it('bids duels to win until honor runs low', function() {
-            expect(tactics.desiredDuelBid(10)).toBe(DUEL_DEFAULTS.duelBid);
-            expect(tactics.desiredDuelBid(DUEL_DEFAULTS.honorFloor)).toBe(1);
-        });
-
         it('knows every Crane Baseline and Crane Duels source axis', function() {
             const expected = {
                 'kakita-dojo': 'military',
@@ -118,7 +113,7 @@ describe('DuelTactics', function() {
             expect(tactics.duelSkill(kaezin, 'political', skill)).toBe(7);
             expect(tactics.duelSkill(favorite, 'political', skill)).toBe(6);
             expect(tactics.pickOwnDuelParticipant(
-                [legion, kaezin], 'political', true, undefined, 10, skill
+                [legion, kaezin], 'political', true, undefined, skill
             )).toBe(kaezin);
         });
 
@@ -139,6 +134,10 @@ describe('DuelTactics', function() {
             expect(tactics.pickOpponentDuelTarget(
                 [weak, equal, beatable], 'political', challenger, skill
             )).toBe(equal);
+            expect(tactics.pickOpponentDuelTarget(
+                [weak, equal, beatable], 'political', challenger, skill,
+                { challenger: false }
+            )).toBe(beatable);
         });
 
         it('gates self-choice and opponent-choice duel starts by the correct legal matchup', function() {
@@ -163,6 +162,10 @@ describe('DuelTactics', function() {
             expect(tactics.shouldStartDuel(
                 { id: 'make-your-case', type: 'event' }, [challenger], [six, eight], skill
             )).toBe(true);
+            expect(tactics.shouldStartDuel(
+                { id: 'make-your-case', type: 'event' }, [challenger], [six, eight], skill,
+                { challenger: false }
+            )).toBe(false);
         });
 
         it('never suppresses Arrogant Kakita forced duel even in a losing matchup', function() {
@@ -175,7 +178,7 @@ describe('DuelTactics', function() {
             expect(tactics.shouldStartDuel(arrogant, [arrogant], [tower], skill)).toBe(true);
         });
 
-        it('protects a tower in an opponent-started unwinnable duel and bids low', function() {
+        it('protects a tower in an opponent-started unwinnable duel', function() {
             const skill = (card, axis) => card[axis];
             const tower = {
                 uuid: 'tower', id: 'kakita-kaezin', military: 3, political: 5, fate: 3,
@@ -191,12 +194,11 @@ describe('DuelTactics', function() {
             };
 
             expect(tactics.pickOwnDuelParticipant(
-                [tower, scout], 'political', false, enemy, 10, skill
+                [tower, scout], 'political', false, enemy, skill
             )).toBe(scout);
-            expect(tactics.desiredDuelBidForGap(-5, 10)).toBe(1);
         });
 
-        it('contests a winnable opponent-started duel only while honor-rich', function() {
+        it('protects a tower whenever its live duel skill starts behind', function() {
             const skill = (card, axis) => card[axis];
             const tower = {
                 uuid: 'tower', id: 'kakita-kaezin', military: 3, political: 5, fate: 3,
@@ -212,13 +214,11 @@ describe('DuelTactics', function() {
             };
 
             expect(tactics.pickOwnDuelParticipant(
-                [tower, scout], 'political', false, enemy, 10, skill
-            )).toBe(tower);
-            expect(tactics.desiredDuelBidForGap(-1, 10)).toBe(5);
-            expect(tactics.pickOwnDuelParticipant(
-                [tower, scout], 'political', false, enemy, 6, skill
+                [tower, scout], 'political', false, enemy, skill
             )).toBe(scout);
-            expect(tactics.desiredDuelBidForGap(-1, 6)).toBe(1);
+            expect(tactics.pickOwnDuelParticipant(
+                [tower, scout], 'political', false, enemy, skill
+            )).toBe(scout);
         });
 
         it('funds five-cost towers with two fate and gives durable bodies 2-5 fate', function() {
@@ -242,14 +242,6 @@ describe('DuelTactics', function() {
             expect(tactics.isTowerCharacter(legion.id)).toBe(false);
             expect(tactics.pickDynastyTower([legion], { legion: 3 }, 6, [], []).id).toBe('iron-crane-legion');
             expect(tactics.pickAttachmentTarget([legion, kaezin], 'duelist-training')).toBe(kaezin);
-        });
-
-        it('changes Iaijutsu Master bids only when the live duel margin improves', function() {
-            expect(tactics.iaijutsuBidChoice(-2)).toBeNull();
-            expect(tactics.iaijutsuBidChoice(-1)).toBe('Increase honor bid');
-            expect(tactics.iaijutsuBidChoice(0)).toBe('Increase honor bid');
-            expect(tactics.iaijutsuBidChoice(1)).toBeNull();
-            expect(tactics.iaijutsuBidChoice(2)).toBe('Decrease honor bid');
         });
 
         it('honors a persistent tower and trades the cheapest honored body for the best dishonored enemy', function() {

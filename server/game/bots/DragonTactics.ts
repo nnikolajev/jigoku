@@ -28,7 +28,6 @@ export interface DragonProfile {
     // Card-count payoffs are this deck's win condition. When reachable, their
     // exact target overrides normal province-break strength budgeting.
     allowCardCountOvercommit: boolean;
-    duelBid: number; // Defend Your Honor duels — enough to win, no more
     voidRecursionBonus: number; // ring-score bonus per Keeper Initiate
                                 // waiting in the dynasty discard
     // ranked targets for the build-around attachments (Way of the Dragon,
@@ -53,7 +52,6 @@ export const DRAGON_DEFAULTS: DragonProfile = {
     firstRoundBid: 5,
     drawBid: 2,
     allowCardCountOvercommit: true,
-    duelBid: 2,
     voidRecursionBonus: 20,
     keyCharacters: ['togashi-mitsu-2', 'togashi-ichi', 'togashi-tadakatsu', 'teacher-of-empty-thought'],
     wayTargets: ['togashi-mitsu-2', 'tranquil-philosopher', 'teacher-of-empty-thought'],
@@ -164,10 +162,6 @@ export class DragonTactics {
 
     allowsCardCountOvercommit(): boolean {
         return this.profile.allowCardCountOvercommit;
-    }
-
-    desiredDuelBid(myHonor: number): number {
-        return myHonor > 3 ? this.profile.duelBid : 1;
     }
 
     // Draw dials: full hand on round 1, then use the profile's conservative

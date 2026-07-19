@@ -31,6 +31,8 @@ import { DRAGON_DEFAULTS } from './DragonTactics.js';
 import type { DragonProfile } from './DragonTactics';
 import { DUEL_DEFAULTS } from './DuelTactics.js';
 import type { DuelProfile } from './DuelTactics';
+import { DEFAULT_DUEL_BID_PROFILE } from './DuelBidTactics.js';
+import type { DuelBidProfile } from './DuelBidTactics';
 import { SHUGENJA_DEFAULTS } from './ShugenjaTactics.js';
 import type { ShugenjaProfile } from './ShugenjaTactics';
 import { DRAGON_ATTACHMENT_DEFAULTS } from './DragonAttachmentTactics.js';
@@ -71,6 +73,7 @@ export interface DeckProfile {
     provinceTargeting: ProvinceTargetingProfile; // shared injectable Eminent/strength/ability target priority for every seed
     attachmentControl: AttachmentControlProfile; // shared Let Go / attachment-removal value policy
     personalHonor: PersonalHonorProfile; // shared glory-aware honor/dishonor target policy
+    duelBidding: DuelBidProfile; // shared skill/honor/round/Iaijutsu bid matrix for every deck and seed
     mulliganForHoldings: boolean; // dig opening provinces toward holdings
     digWithActions: boolean; // fire dynasty Action diggers (Kyuden Hida, engineers)
     digMinBoardCharacters: number; // only dig once this many own characters are already in play
@@ -178,6 +181,7 @@ export const DEFAULT_PROFILE: DeckProfile = {
         enemyAttachmentScores: { ...ATTACHMENT_CONTROL_DEFAULTS.enemyAttachmentScores }
     },
     personalHonor: { ...PERSONAL_HONOR_DEFAULTS },
+    duelBidding: { ...DEFAULT_DUEL_BID_PROFILE },
     mulliganForHoldings: false,
     digWithActions: false,
     digMinBoardCharacters: 0,
@@ -215,7 +219,8 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             ownDebuffScores: { ...DEFAULT_PROFILE.attachmentControl.ownDebuffScores },
             enemyAttachmentScores: { ...DEFAULT_PROFILE.attachmentControl.enemyAttachmentScores }
         },
-        personalHonor: { ...DEFAULT_PROFILE.personalHonor }
+        personalHonor: { ...DEFAULT_PROFILE.personalHonor },
+        duelBidding: { ...DEFAULT_PROFILE.duelBidding }
     };
     if(!strategy) {
         return profile;
@@ -244,6 +249,13 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         // the GloryTactics knobs (ring preference by board, glory pumps,
         // duel bids).
         profile.glory = { ...GLORY_DEFAULTS };
+        profile.duelBidding = {
+            ...profile.duelBidding,
+            objective: 'honor',
+            duelWinUtility: 6,
+            duelLossUtility: 4,
+            honorRaceUtility: 1.5
+        };
     }
     if(strategy.monk) {
         // Monk/card-engine deck: generic balanced attack/defense knobs stay;
@@ -276,6 +288,13 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             durableCharacters: [...DUEL_DEFAULTS.durableCharacters],
             towerAttachments: [...DUEL_DEFAULTS.towerAttachments],
             restrictedAttachments: [...DUEL_DEFAULTS.restrictedAttachments]
+        };
+        profile.duelBidding = {
+            ...profile.duelBidding,
+            objective: 'honor',
+            duelWinUtility: 6.5,
+            duelLossUtility: 4.5,
+            honorRaceUtility: 1.5
         };
         profile.fateAwareEconomy = {
             ...profile.fateAwareEconomy,
@@ -333,6 +352,14 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             ...DISHONOR_DEFAULTS,
             importantCharacterIds: [...DISHONOR_DEFAULTS.importantCharacterIds]
         };
+        profile.duelBidding = {
+            ...profile.duelBidding,
+            objective: 'dishonor',
+            duelWinUtility: 3.5,
+            duelLossUtility: 2.5,
+            honorSwingUtility: 1.15,
+            opponentLowHonorUtility: 2
+        };
         profile.fateAwareEconomy = {
             ...profile.fateAwareEconomy,
             preferDeckCharacters: true,
@@ -345,13 +372,14 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
 // A named per-deck override: when `match` is true for the bot's deck, `apply` is
 // merged over the strategy-derived profile. Matched by card contents + derived
 // strategy so it works in both live play and self-play (no deck-id needed).
-type DeckProfileOverride = Omit<Partial<DeckProfile>, 'strongholdDefense' | 'provinceTargeting'> & {
+type DeckProfileOverride = Omit<Partial<DeckProfile>, 'strongholdDefense' | 'provinceTargeting' | 'duelBidding'> & {
     strongholdDefense?: Partial<StrongholdDefenseProfile>;
     provinceTargeting?: Omit<Partial<ProvinceTargetingProfile>, 'abilityPriority' | 'effectiveStrengthById' | 'priorityTierById'> & {
         abilityPriority?: Partial<ProvinceTargetingProfile['abilityPriority']>;
         effectiveStrengthById?: Record<string, number>;
         priorityTierById?: Record<string, number>;
     };
+    duelBidding?: Partial<DuelBidProfile>;
 };
 
 interface ProfileOverride {
@@ -555,9 +583,14 @@ const OVERRIDES: ProfileOverride[] = [
                 ...SWARM_FATE_AWARE_ECONOMY,
                 preferDeckCharacters: true,
                 preferDeckAdditionalFate: true,
-                durableCharacterIds: [...LION_DEFAULTS.towerCharacters],
+                durableCharacterIds: [...LION_DEFAULTS.towerCharacters]
             },
             conflictCardEconomy: { ...SWARM_CONFLICT_CARD_ECONOMY },
+            duelBidding: {
+                objective: 'honor',
+                duelWinUtility: 5.5,
+                honorRaceUtility: 1.5
+            },
             lion: { ...LION_DEFAULTS }
         }
     },
@@ -605,6 +638,11 @@ const OVERRIDES: ProfileOverride[] = [
                 durableCharacterIds: [...LION_DEFAULTS.towerCharacters]
             },
             conflictCardEconomy: { ...SWARM_CONFLICT_CARD_ECONOMY },
+            duelBidding: {
+                objective: 'honor',
+                duelWinUtility: 5.5,
+                honorRaceUtility: 1.5
+            },
             lion: { ...LION_DEFAULTS }
         }
     },
@@ -629,7 +667,7 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
     const ids = cardIds instanceof Set ? cardIds : new Set(cardIds);
     for(const override of OVERRIDES) {
         if(override.match(ids, strategy)) {
-            const { strongholdDefense, provinceTargeting, ...flatApply } = override.apply;
+            const { strongholdDefense, provinceTargeting, duelBidding, ...flatApply } = override.apply;
             const apply: Partial<DeckProfile> = { ...flatApply };
             // Overrides are module-level constants. Clone injectable nested
             // profiles so tuning one resolved bot can never mutate another.
@@ -642,6 +680,18 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     ...(Array.isArray(override.apply.fateAwareEconomy.durableCharacterIds)
                         ? { durableCharacterIds: [...override.apply.fateAwareEconomy.durableCharacterIds] }
                         : {})
+                };
+            }
+            if(override.apply.lion) {
+                apply.lion = {
+                    ...override.apply.lion,
+                    strongholdReadyTargets: [...override.apply.lion.strongholdReadyTargets],
+                    towerCharacters: [...override.apply.lion.towerCharacters],
+                    strongReadyTargets: [...override.apply.lion.strongReadyTargets],
+                    cheapCharacters: [...override.apply.lion.cheapCharacters],
+                    bushiCharacters: [...override.apply.lion.bushiCharacters],
+                    forgeAttachmentRanking: [...override.apply.lion.forgeAttachmentRanking],
+                    setupAttachmentPriority: [...override.apply.lion.setupAttachmentPriority]
                 };
             }
             if(strongholdDefense) {
@@ -666,6 +716,12 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                         ...profile.provinceTargeting.priorityTierById,
                         ...provinceTargeting.priorityTierById
                     }
+                };
+            }
+            if(duelBidding) {
+                apply.duelBidding = {
+                    ...profile.duelBidding,
+                    ...duelBidding
                 };
             }
             if(override.apply.attachmentControl) {

@@ -6,6 +6,7 @@ const DeckHintService = require('../../../build/server/game/bots/llm/DeckHintSer
 const LlmActionPlanner = require('../../../build/server/game/bots/llm/LlmActionPlanner.js').default;
 const { validateCardHint } = require('../../../build/server/game/bots/llm/CardHints.js');
 const { getPlaybookEntry, deriveDeckStrategy } = require('../../../build/server/game/bots/CardPlaybook.js');
+const { profileFromStrategy } = require('../../../build/server/game/bots/DeckProfiles.js');
 
 describe('Jigoku heuristic bot', function() {
     function makePlayer(prompt, selectableCards = [], selectableRings = []) {
@@ -29,6 +30,97 @@ describe('Jigoku heuristic bot', function() {
             continue: jasmine.createSpy('continue')
         };
     }
+
+    it('reads exact duel stats and only counts an unspent Iaijutsu Master', function() {
+        const bot = { name: 'Jigoku Bot', honor: 7, currentPrompt: () => null };
+        const human = { name: 'Human', honor: 4 };
+        bot.opponent = human;
+        human.opponent = bot;
+        let masterSpent = false;
+        const master = {
+            cardData: { id: 'iaijutsu-master' }, controller: bot,
+            getReactions: () => [{
+                title: 'Change your bid by 1 during a duel',
+                limit: { isAtMax: () => masterSpent }
+            }]
+        };
+        const challenger = {
+            uuid: 'challenger',
+            controller: bot,
+            duelSkill: 6,
+            attachments: [master],
+            anyEffect: () => false
+        };
+        const target = {
+            uuid: 'target',
+            controller: human,
+            duelSkill: 8,
+            attachments: [],
+            anyEffect: () => false
+        };
+        const game = makeGame(bot, { players: {} });
+        game.roundNumber = 4;
+        game.allCards = [];
+        game.currentDuel = {
+            challenger,
+            challengingPlayer: bot,
+            targets: [target],
+            duelType: 'glory',
+            getSkillStatistic: (card) => card.duelSkill
+        };
+        const controller = new JigokuBotController(
+            game,
+            { playerName: bot.name, seed: 1 },
+            () => true
+        );
+
+        expect(controller.currentDuelBidContext(bot)).toEqual({
+            mySkill: 6,
+            opponentSkill: 8,
+            myHonor: 7,
+            opponentHonor: 4,
+            roundNumber: 4,
+            myIaijutsuMasterReady: true,
+            opponentIaijutsuMasterReady: false,
+            myWinsTies: false,
+            opponentWinsTies: false,
+            opponentProfile: undefined
+        });
+        bot.cardsInPlay = { toArray: () => [challenger] };
+        human.cardsInPlay = { toArray: () => [target] };
+        expect(controller.iaijutsuMasterReadyByCharacter(bot)).toEqual({
+            challenger: true,
+            target: false
+        });
+
+        masterSpent = true;
+        expect(controller.currentDuelBidContext(bot).myIaijutsuMasterReady).toBeFalse();
+        expect(controller.iaijutsuMasterReadyByCharacter(bot).challenger).toBeFalse();
+    });
+
+    it('injects exact character printed costs and base military from live cards', function() {
+        const own = {
+            uuid: 'own', type: 'character', cardData: { cost: '2' },
+            printedMilitarySkill: 3, getBaseMilitarySkill: () => 6
+        };
+        const enemy = {
+            uuid: 'enemy', type: 'character', cardData: { cost: '5' },
+            printedMilitarySkill: 5, getBaseMilitarySkill: () => 4
+        };
+        const bot = { name: 'Jigoku Bot', cardsInPlay: { toArray: () => [own] } };
+        const human = { name: 'Human', cardsInPlay: { toArray: () => [enemy] } };
+        bot.opponent = human;
+        human.opponent = bot;
+        const controller = new JigokuBotController(
+            makeGame(bot, { players: {} }),
+            { playerName: bot.name, seed: 1 },
+            () => true
+        );
+
+        expect(controller.characterPrintedCosts(bot)).toEqual({ own: 2, enemy: 5 });
+        // Uses getBaseMilitarySkill(), not total skill summaries or attachment/status boosts.
+        expect(controller.characterBaseMilitary(bot)).toEqual({ own: 6, enemy: 4 });
+    });
 
     it('tracks only uninterrupted Display of Power and resets it after the conflict', function() {
         const listeners = {};
@@ -99,6 +191,33 @@ describe('Jigoku heuristic bot', function() {
             sourceCardId: 'make-your-case',
             sourceUuid: 'make-your-case-source',
             duelAxis: 'political'
+        });
+    });
+
+    it('preserves attachment origin for a gained True Strike duel Action', function() {
+        const controller = Object.create(JigokuBotController.prototype);
+        controller.currentPromptStep = () => ({
+            properties: { gameAction: [] },
+            context: {
+                player: { name: 'Jigoku Bot' },
+                source: { uuid: 'beiona', type: 'character', cardData: { id: 'matsu-beiona' } },
+                ability: {
+                    origin: { uuid: 'kenjutsu', cardData: { id: 'true-strike-kenjutsu' } },
+                    properties: { initiateDuel: { type: 'military' } }
+                },
+                targets: {}
+            }
+        });
+
+        expect(controller.currentTargetHint({ name: 'Jigoku Bot' })).toEqual({
+            gameActions: ['duel'],
+            sourceIsMine: true,
+            sourceType: 'character',
+            sourceCardId: 'matsu-beiona',
+            sourceUuid: 'beiona',
+            duelAxis: 'military',
+            duelSourceCardId: 'true-strike-kenjutsu',
+            duelOpponentUuid: 'beiona'
         });
     });
 
@@ -489,31 +608,58 @@ describe('Jigoku heuristic bot', function() {
         expect(policy.decide(makeBidState(0, 2), 'Jigoku Bot').target).toBe('1');
     });
 
-    it('bids a duel on the skill gap: max when ahead/even, 1 when hopeless, honor-gated when close', function() {
-        const duelBidState = (gap, honor) => ({
+    it('routes every policy/deck profile through the shared duel matrix', function() {
+        const duelBidState = {
             players: {
                 'Jigoku Bot': {
                     name: 'Jigoku Bot',
                     promptTitle: 'Honor Bid',
                     menuTitle: 'Choose your bid for the duel with Kakita Toshimoko',
                     buttons: bidButtons,
-                    stats: { honor: honor },
+                    stats: { honor: 12 },
+                    cardPiles: { hand: [] }
+                },
+                Human: {
+                    name: 'Human',
+                    stats: { honor: 12 },
                     cardPiles: { hand: [] }
                 }
             }
-        });
-        const bid = (gap, honor) => new JigokuBotPolicy('duel-bid').decide(duelBidState(gap, honor), 'Jigoku Bot', { duelGap: gap }).target;
-        // Comfortably ahead: bid only the MINIMUM that beats their max bid of 5.
-        expect(bid(5, 10)).toBe('1'); // lead >=5 wins on any bid
-        expect(bid(4, 10)).toBe('2'); // 6-gap
-        expect(bid(2, 10)).toBe('4');
-        expect(bid(1, 10)).toBe('5'); // gap 0-1 needs the full 5
-        expect(bid(0, 10)).toBe('5'); // even: bid to equalize
-        expect(bid(-4, 15)).toBe('1'); // unwinnable even at max: bank honor
-        expect(bid(-6, 15)).toBe('1');
-        expect(bid(-2, 15)).toBe('5'); // close + honor-rich: commit
-        expect(bid(-2, 5)).toBe('1'); // close + honor-poor: bank honor
-        expect(bid(2, 3)).toBe('1'); // near the cliff: never bleed honor
+        };
+        const blank = {
+            holdingEngine: false, defensive: false, aggressive: false,
+            dishonor: false, glory: false, monk: false, duelist: false,
+            shugenja: false, attachmentTower: false
+        };
+        const profiles = [
+            profileFromStrategy(blank),
+            profileFromStrategy({ ...blank, dishonor: true }),
+            profileFromStrategy({ ...blank, glory: true }),
+            profileFromStrategy({ ...blank, monk: true }),
+            profileFromStrategy({ ...blank, duelist: true })
+        ];
+        const policies = [
+            new JigokuBotPolicy('seed-2'),
+            new FateAwareJigokuBotPolicy('seed-1'),
+            new FateAwareJigokuBotPolicy('seed-5')
+        ];
+        for(const policy of policies) {
+            for(const profile of profiles) {
+                const decision = policy.decide(duelBidState, 'Jigoku Bot', {
+                    profile,
+                    roundNumber: 3,
+                    duelBidContext: {
+                        mySkill: 1,
+                        opponentSkill: 7,
+                        myHonor: 12,
+                        opponentHonor: 12,
+                        roundNumber: 3
+                    }
+                });
+                expect(decision.target).toBe('1');
+                expect(decision.reason).toBe('duel-bid-matrix-near-zero-win');
+            }
+        }
     });
 
     it('always bids 5 on the first round', function() {
@@ -1056,9 +1202,9 @@ describe('Jigoku heuristic bot', function() {
                     name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
                     buttons: [],
                     cardPiles: { cardsInPlay: [
-                        char('homeTower', 9, true, false, 3),      // stronger but at home
-                        char('fightWeak', 4, true, true, 1),       // participant, low fate ok
-                        char('fightStrong', 7, true, true, 1)       // participant, strongest in fight
+                        char('homeTower', 9, true, false, 3), // stronger but at home
+                        char('fightWeak', 4, true, true, 1), // participant, low fate ok
+                        char('fightStrong', 7, true, true, 1) // participant, strongest in fight
                     ] }
                 },
                 'Human': { name: 'Human', cardPiles: { cardsInPlay: [] } }
@@ -1081,8 +1227,8 @@ describe('Jigoku heuristic bot', function() {
                     name: 'Jigoku Bot', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
                     buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'c' }],
                     cardPiles: { cardsInPlay: [
-                        char('cheapBody', 8, true, 1),   // strongest but only 1 fate — readying strips it
-                        char('tower', 6, true, 2)         // spare fate (>1) — the safe tower pick
+                        char('cheapBody', 8, true, 1), // strongest but only 1 fate — readying strips it
+                        char('tower', 6, true, 2) // spare fate (>1) — the safe tower pick
                     ] }
                 },
                 'Human': { name: 'Human', cardPiles: { cardsInPlay: [] } }
@@ -1382,28 +1528,32 @@ describe('Jigoku heuristic bot', function() {
         expect(decision.args[0]).toBe('tower');
     });
 
-    it('sends our STRONGEST character into a duel the opponent initiated', function() {
-        // The opponent initiates the duel, so the source is their card (not in
-        // any duelAxes map). The `duel` action is HARMFUL and the old generic
-        // path picked our WEAKEST; the general duel rule must send our strongest
-        // on the duel axis instead.
+    it('contests a viable opponent duel but protects the strongest body in a hopeless duel', function() {
         const char = (uuid, mil) => ({
             uuid: uuid, name: uuid, type: 'character', selectable: true, bowed: false, inConflict: true,
             militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
         });
-        const state = {
+        const state = (enemySkill) => ({
             players: {
                 'Jigoku Bot': {
                     name: 'Jigoku Bot', id: 'BOT', promptTitle: 'Military Air Conflict', menuTitle: 'Choose a character',
-                    buttons: [], cardPiles: { cardsInPlay: [char('weak', 2), char('strong', 6)] }
+                    buttons: [], stats: { honor: 11 },
+                    cardPiles: { cardsInPlay: [char('weak', 2), char('strong', 6)] }
                 },
-                'Human': { name: 'Human', id: 'HUMAN', cardPiles: { cardsInPlay: [] } }
+                'Human': {
+                    name: 'Human', id: 'HUMAN', stats: { honor: 11 },
+                    cardPiles: { cardsInPlay: [{ ...char('enemy', enemySkill), selectable: false }] }
+                }
             }
-        };
-        const ctx = { targetHint: { gameActions: ['duel'], sourceCardId: 'issue-a-challenge', sourceIsMine: false } };
-        const decision = new JigokuBotPolicy('duel-defend').decide(state, 'Jigoku Bot', ctx);
-        expect(decision.command).toBe('cardClicked');
-        expect(decision.args[0]).toBe('strong');
+        });
+        const ctx = { targetHint: {
+            gameActions: ['duel'], duelAxis: 'military', duelOpponentUuid: 'enemy',
+            sourceCardId: 'issue-a-challenge', sourceIsMine: false
+        } };
+        const viable = new JigokuBotPolicy('duel-defend-viable').decide(state(5), 'Jigoku Bot', ctx);
+        const hopeless = new JigokuBotPolicy('duel-defend-hopeless').decide(state(12), 'Jigoku Bot', ctx);
+        expect(viable.args[0]).toBe('strong');
+        expect(hopeless.args[0]).toBe('weak');
     });
 
     it('picks conflict rings by value: fate piles, then void/earth/fire', function() {

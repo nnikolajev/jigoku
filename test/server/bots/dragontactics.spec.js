@@ -47,11 +47,6 @@ describe('DragonTactics', function() {
             expect(tactics.ringBonus('earth', [{ id: 'keeper-initiate' }])).toBe(0);
         });
 
-        it('bids duels until honor runs low', function() {
-            expect(tactics.desiredDuelBid(10)).toBe(DRAGON_DEFAULTS.duelBid);
-            expect(tactics.desiredDuelBid(3)).toBe(1);
-        });
-
         it('uses the exact live threshold and counts both players for Togashi Ichi', function() {
             expect(tactics.cardTargets([{ id: 'togashi-mitsu-2', inConflict: true }], true)).toEqual([5]);
             expect(tactics.cardTargets([{ id: 'teacher-of-empty-thought', inConflict: true }], true)).toEqual([3]);

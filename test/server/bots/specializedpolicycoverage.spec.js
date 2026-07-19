@@ -64,10 +64,9 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         const me = {
             id: 'bot-id', name: BOT, phase: 'conflict',
             promptTitle: 'Action Window', menuTitle: 'Initiate an action',
-            buttons: [PASS], stats: { fate: 10, honor: 10, conflictsRemaining: 2 },
+            buttons: [PASS],
             provinces: { one: [], two: [], three: [], four: [] },
             strongholdProvince: [],
-            cardPiles: { hand: [], cardsInPlay: [], conflictDiscardPile: [], dynastyDiscardPile: [] },
             ...meOverrides,
             stats: { fate: 10, honor: 10, conflictsRemaining: 2, ...(meOverrides.stats || {}) },
             cardPiles: {
@@ -77,10 +76,8 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         };
         const opponent = {
             id: 'opponent-id', name: 'Opponent',
-            stats: { fate: 5, honor: 10, conflictsRemaining: 2 },
             provinces: { one: [], two: [], three: [], four: [] },
             strongholdProvince: [],
-            cardPiles: { hand: [], cardsInPlay: [], conflictDiscardPile: [], dynastyDiscardPile: [] },
             ...opponentOverrides,
             stats: { fate: 5, honor: 10, conflictsRemaining: 2, ...(opponentOverrides.stats || {}) },
             cardPiles: {
@@ -533,7 +530,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         run(profile, ringState([character('liar', 'bayushi-liar')]));
         run(profile, makeState({ promptTitle: 'Honor Bid', menuTitle: 'Choose your bid', buttons: bids() }), { roundNumber: 2 });
         run(profile, makeState({ buttons: [
-            { text: `${BOT}'s Conflict` }, { text: "Opponent's Conflict" }
+            { text: `${BOT}'s Conflict` }, { text: 'Opponent\'s Conflict' }
         ] }));
         run(profile, makeState({ buttons: [{ text: BOT }, { text: 'Opponent' }] }));
         run(profile, makeState({
@@ -1115,6 +1112,41 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
             promptTitle: 'Illustrious Forge', menuTitle: 'Choose an attachment', buttons: [CANCEL],
             cardPiles: { hand: [attachment('tessen', 'elegant-tessen'), attachment('katana', 'fine-katana')] }
         }), { targetHint: { sourceCardId: 'illustrious-forge', sourceIsMine: true, gameActions: [] } });
+        run(profile, makeState({
+            phase: 'conflict', promptTitle: 'Action Window', menuTitle: 'Initiate an action', buttons: [PASS],
+            cardPiles: {
+                cardsInPlay: [cheap],
+                hand: [attachment('setup-tessen', 'elegant-tessen')]
+            }
+        }), { characterPrintedCosts: { cheap: 2 }, conflictCosts: { 'setup-tessen': 1 } });
+        run(profile, makeState({
+            phase: 'conflict', promptTitle: 'Action Window', menuTitle: 'Initiate an action', buttons: [PASS],
+            cardPiles: {
+                cardsInPlay: [{ ...tower, bowed: false }],
+                hand: [attachment('setup-kenjutsu', 'true-strike-kenjutsu')]
+            }
+        }), { characterBaseMilitary: { toturi: 6 }, conflictCosts: { 'setup-kenjutsu': 1 } });
+        const trueStrikeBearer = character('true-strike-bearer', 'matsu-beiona', {
+            inConflict: true, location: 'play area',
+            attachments: [attachment('installed-kenjutsu', 'true-strike-kenjutsu')]
+        });
+        run(profile, makeState({
+            promptTitle: 'Conflict Action Window', menuTitle: 'Military Conflict', buttons: [PASS],
+            cardPiles: { cardsInPlay: [trueStrikeBearer] }
+        }, {
+            cardPiles: { cardsInPlay: [character('true-strike-enemy', 'enemy', { inConflict: true, bowed: false })] }
+        }, { conflict: { type: 'military', attackingPlayerId: 'bot-id', attackerSkill: 3, defenderSkill: 2 } }), {
+            characterBaseMilitary: { 'true-strike-bearer': 4, 'true-strike-enemy': 3 }
+        });
+        run(profile, targetState('matsu-beiona', ['duel'], [trueStrikeBearer], [
+            character('true-strike-target', 'enemy', { inConflict: true, bowed: false })
+        ]), {
+            targetHint: {
+                sourceCardId: 'matsu-beiona', duelSourceCardId: 'true-strike-kenjutsu',
+                sourceIsMine: true, gameActions: ['duel'], duelAxis: 'military'
+            },
+            characterBaseMilitary: { 'true-strike-bearer': 4, 'true-strike-target': 3 }
+        });
         for(const scenario of [
             ['emperor-s-summons', ['putIntoPlay']],
             ['forebearer-s-echoes', ['putIntoPlay']],
@@ -1125,7 +1157,9 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
             ['in-service-to-my-lord', ['ready']]
         ]) {
             run(profile, targetState(scenario[0], scenario[1], [cheap, tower], [character('enemy')]), {
-                targetHint: { sourceCardId: scenario[0], sourceIsMine: true, gameActions: scenario[1] }
+                targetHint: { sourceCardId: scenario[0], sourceIsMine: true, gameActions: scenario[1] },
+                characterPrintedCosts: { cheap: 2, toturi: 5 },
+                characterBaseMilitary: { cheap: 2, toturi: 6 }
             });
         }
         run(profile, targetState('in-service-to-my-lord', ['ready'], [
@@ -1215,6 +1249,62 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         }), (decision) => {
             expect(decision.reason).toBe('lion-in-service-ready-strong');
             expect(decision.args[0]).toBe('own-unique');
+        });
+
+        const bowedCheap = character('bowed-cheap', 'unlisted-cost-two', { bowed: true });
+        const tessenSetup = makeState({
+            phase: 'conflict', promptTitle: 'Action Window', menuTitle: 'Initiate an action', buttons: [PASS],
+            cardPiles: {
+                cardsInPlay: [bowedCheap],
+                hand: [attachment('tessen-setup', 'elegant-tessen')]
+            }
+        });
+        expectEveryPolicy(decideWithEveryPolicy(profile, tessenSetup, {
+            characterPrintedCosts: { 'bowed-cheap': 2 }, conflictCosts: { 'tessen-setup': 1 }
+        }), (decision) => {
+            expect(decision.reason).toBe('lion-tessen-ready-setup');
+            expect(decision.args[0]).toBe('tessen-setup');
+        });
+
+        const installed = character('installed', 'matsu-beiona', {
+            inConflict: true, location: 'play area', militarySkillSummary: { stat: '9' },
+            attachments: [attachment('kenjutsu-installed', 'true-strike-kenjutsu')]
+        });
+        const enemy = character('enemy-base-four', 'enemy-base-four', {
+            inConflict: true, bowed: false, militarySkillSummary: { stat: '1' }
+        });
+        const trueStrikeWindow = makeState({
+            promptTitle: 'Conflict Action Window', menuTitle: 'Military Conflict', buttons: [PASS],
+            cardPiles: { cardsInPlay: [installed] }
+        }, { cardPiles: { cardsInPlay: [enemy] } }, {
+            conflict: { type: 'military', attackingPlayerId: 'bot-id', attackerSkill: 3, defenderSkill: 2 }
+        });
+        expectEveryPolicy(decideWithEveryPolicy(profile, trueStrikeWindow, {
+            characterBaseMilitary: { installed: 5, 'enemy-base-four': 4 }
+        }), (decision) => {
+            expect(decision.reason).toBe('use-board-ability');
+            expect(decision.args[0]).toBe('installed');
+        });
+        expectEveryPolicy(decideWithEveryPolicy(profile, trueStrikeWindow, {
+            // Total summaries say 9 vs 1, but True Strike must compare these
+            // exact base values and therefore decline the duel.
+            characterBaseMilitary: { installed: 3, 'enemy-base-four': 4 }
+        }), (decision) => {
+            expect(decision.command).toBe('menuButton');
+            expect(decision.reason).toBe('pass-window');
+        });
+
+        const duplicateBearer = character('duplicate', 'honored-general', {
+            attachments: [attachment('existing', 'true-strike-kenjutsu')]
+        });
+        const openBearer = character('open', 'akodo-toturi');
+        const trueStrikeTarget = targetState('true-strike-kenjutsu', ['attach'], [duplicateBearer, openBearer], []);
+        expectEveryPolicy(decideWithEveryPolicy(profile, trueStrikeTarget, {
+            targetHint: { sourceCardId: 'true-strike-kenjutsu', sourceIsMine: true, gameActions: ['attach'] },
+            characterBaseMilitary: { duplicate: 5, open: 6 }
+        }), (decision) => {
+            expect(decision.reason).toBe('lion-kenjutsu-base-duelist');
+            expect(decision.args[0]).toBe('open');
         });
     });
 

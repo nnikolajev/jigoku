@@ -6,7 +6,6 @@
 export interface LionProfile {
     firstRoundBid: number;
     drawBid: number;
-    duelBid: number;
     honorFloor: number;
     strongholdReadyTargets: string[];
     towerCharacters: string[];
@@ -15,12 +14,19 @@ export interface LionProfile {
     bushiCharacters: string[];
     forgeAttachmentRanking: string[];
     feedingArmyMinimum: number;
+    elegantTessenMaxPrintedCost: number;
+    trueStrikeAttachmentId: string;
+    trueStrikeMaxCopiesPerCharacter: number;
+    trueStrikeMinimumBaseLead: number;
+    trueStrikeTargetBaseSkillWeight: number;
+    trueStrikeTargetFateWeight: number;
+    trueStrikeTargetTowerBonus: number;
+    setupAttachmentPriority: string[];
 }
 
 export const LION_DEFAULTS: LionProfile = {
     firstRoundBid: 5,
     drawBid: 2,
-    duelBid: 3,
     honorFloor: 4,
     strongholdReadyTargets: [
         'matsu-berserker', 'miwaku-kabe-guard', 'tactician-s-apprentice',
@@ -54,7 +60,19 @@ export const LION_DEFAULTS: LionProfile = {
         'tactical-ingenuity', 'seal-of-the-lion', 'true-strike-kenjutsu',
         'sashimono', 'ornate-fan'
     ],
-    feedingArmyMinimum: 5
+    feedingArmyMinimum: 5,
+    elegantTessenMaxPrintedCost: 2,
+    trueStrikeAttachmentId: 'true-strike-kenjutsu',
+    trueStrikeMaxCopiesPerCharacter: 1,
+    // True Strike lets the opposing side choose from its participating
+    // characters in normal tabletop play. Only expose the Action when the
+    // bearer leads every possible target on the exact base-military axis.
+    trueStrikeMinimumBaseLead: 1,
+    trueStrikeTargetBaseSkillWeight: 4,
+    trueStrikeTargetFateWeight: 2,
+    trueStrikeTargetTowerBonus: 2,
+    // Immediate ready is worth more than installing a later duel Action.
+    setupAttachmentPriority: ['elegant-tessen', 'true-strike-kenjutsu']
 };
 
 export class LionTactics {
@@ -64,12 +82,9 @@ export class LionTactics {
         this.profile = profile;
     }
 
-    desiredBid(roundNumber: number | undefined, myHonor: number, isDuel: boolean): number {
+    desiredBid(roundNumber: number | undefined, myHonor: number): number {
         if(myHonor <= this.profile.honorFloor) {
             return 1;
-        }
-        if(isDuel) {
-            return this.profile.duelBid;
         }
         if(roundNumber !== undefined && roundNumber <= 1) {
             return this.profile.firstRoundBid;
@@ -181,9 +196,88 @@ export class LionTactics {
             String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
-    pickTessenTarget(cards: any[], skill: (card: any) => number): any | null {
-        const cheapBowed = cards.filter((card) => card.bowed && this.isCheap(card));
+    pickTessenTarget(
+        cards: any[],
+        skill: (card: any) => number,
+        printedCostsByUuid?: Record<string, number>
+    ): any | null {
+        const cheapBowed = cards.filter((card) => card.bowed &&
+            this.printedCost(card, printedCostsByUuid) <= this.profile.elegantTessenMaxPrintedCost);
         return this.pickTower(cheapBowed, skill);
+    }
+
+    trueStrikeSourceId(card: any): string | null {
+        return (card?.attachments || []).some((attachment: any) =>
+            attachment?.id === this.profile.trueStrikeAttachmentId)
+            ? this.profile.trueStrikeAttachmentId
+            : null;
+    }
+
+    pickTrueStrikeTarget(cards: any[], baseMilitaryByUuid?: Record<string, number>): any | null {
+        const candidates = cards.filter((card) =>
+            this.attachmentCopyCount(card, this.profile.trueStrikeAttachmentId) <
+                this.profile.trueStrikeMaxCopiesPerCharacter &&
+            this.baseMilitary(card, baseMilitaryByUuid) > 0);
+        return candidates.slice().sort((a, b) =>
+            this.trueStrikeTargetScore(b, baseMilitaryByUuid) -
+                this.trueStrikeTargetScore(a, baseMilitaryByUuid) ||
+            String(a.uuid || '').localeCompare(String(b.uuid || '')))[0] || null;
+    }
+
+    shouldStartTrueStrikeDuel(
+        source: any,
+        opponentCharacters: any[],
+        baseMilitaryByUuid?: Record<string, number>
+    ): boolean {
+        if(!source?.inConflict || !this.trueStrikeSourceId(source)) {
+            return false;
+        }
+        const participants = opponentCharacters.filter((card) => card.inConflict);
+        if(participants.length === 0 || !participants.some((card) => !card.bowed)) {
+            return false;
+        }
+        const sourceSkill = this.baseMilitary(source, baseMilitaryByUuid);
+        const strongestOpponent = Math.max(...participants.map((card) =>
+            this.baseMilitary(card, baseMilitaryByUuid)));
+        return sourceSkill - strongestOpponent >= this.profile.trueStrikeMinimumBaseLead;
+    }
+
+    pickTrueStrikeOpponent(cards: any[], baseMilitaryByUuid?: Record<string, number>): any | null {
+        const ready = cards.filter((card) => !card.bowed);
+        const pool = ready.length > 0 ? ready : cards;
+        return pool.slice().sort((a, b) =>
+            this.baseMilitary(b, baseMilitaryByUuid) - this.baseMilitary(a, baseMilitaryByUuid) ||
+            String(a.uuid || '').localeCompare(String(b.uuid || '')))[0] || null;
+    }
+
+    pickSetupAttachment(
+        cards: any[],
+        myCharacters: any[],
+        fate: number,
+        conflictCosts: Record<string, number> | undefined,
+        baseMilitaryByUuid?: Record<string, number>,
+        printedCostsByUuid?: Record<string, number>
+    ): any | null {
+        const useful = cards.filter((card) => {
+            const cost = Number(conflictCosts?.[card.uuid] ?? card.cost ?? card.printedCost ?? 0);
+            if(Number.isFinite(cost) && cost > fate) {
+                return false;
+            }
+            if(card.id === 'elegant-tessen') {
+                return !!this.pickTessenTarget(myCharacters, () => 0, printedCostsByUuid);
+            }
+            if(card.id === this.profile.trueStrikeAttachmentId) {
+                return !!this.pickTrueStrikeTarget(myCharacters, baseMilitaryByUuid);
+            }
+            return false;
+        });
+        return useful.slice().sort((a, b) => {
+            const rank = (card: any) => {
+                const index = this.profile.setupAttachmentPriority.indexOf(card.id);
+                return index < 0 ? this.profile.setupAttachmentPriority.length : index;
+            };
+            return rank(a) - rank(b) || String(a.uuid || '').localeCompare(String(b.uuid || ''));
+        })[0] || null;
     }
 
     pickForgeAttachment(cards: any[]): any {
@@ -201,5 +295,38 @@ export class LionTactics {
     private glory(card: any): number {
         const value = Number(card?.glorySummary?.stat);
         return Number.isFinite(value) ? value : 0;
+    }
+
+    private printedCost(card: any, printedCostsByUuid?: Record<string, number>): number {
+        const hinted = card?.uuid ? printedCostsByUuid?.[card.uuid] : undefined;
+        const value = hinted ?? card?.printedCost ?? card?.cost;
+        const parsed = Number(value);
+        // Missing live data is not permission to spend Tessen's ready on a
+        // potentially illegal target. Synthetic callers can pass `cost`.
+        return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+    }
+
+    private baseMilitary(card: any, baseMilitaryByUuid?: Record<string, number>): number {
+        const hinted = card?.uuid ? baseMilitaryByUuid?.[card.uuid] : undefined;
+        const explicit = hinted ?? card?.baseMilitarySkill ?? card?.printedMilitarySkill;
+        const parsed = Number(explicit);
+        if(Number.isFinite(parsed)) {
+            return Math.max(parsed, 0);
+        }
+        // Compatibility for old synthetic policy callers. Live games always
+        // provide the exact getBaseMilitarySkill() map from the controller.
+        const summary = Number(card?.militarySkillSummary?.stat);
+        return Number.isFinite(summary) ? Math.max(summary, 0) : 0;
+    }
+
+    private attachmentCopyCount(card: any, attachmentId: string): number {
+        return (card?.attachments || []).filter((attachment: any) =>
+            attachment?.id === attachmentId).length;
+    }
+
+    private trueStrikeTargetScore(card: any, baseMilitaryByUuid?: Record<string, number>): number {
+        return this.baseMilitary(card, baseMilitaryByUuid) * this.profile.trueStrikeTargetBaseSkillWeight +
+            (Number(card?.fate) || 0) * this.profile.trueStrikeTargetFateWeight +
+            (this.isTower(card) ? this.profile.trueStrikeTargetTowerBonus : 0);
     }
 }

@@ -25,6 +25,7 @@ reads the knobs; the profile is chosen per deck.
 | `strongholdDefense` | three-broken survival planner plus injectable two-broken risk gate and fair/omniscient defender limits |
 | `attachmentControl` | shared Let Go policy comparing own debuff removal with enemy attachment removal |
 | `personalHonor` | shared glory-aware honor/dishonor targeting; conflict swing and home-target preferences are overridable |
+| `duelBidding` | universal duel matrix: duel value, honor risk, round scaling, opponent model, mixed strategy, and participant-contest threshold |
 | `mulliganForHoldings` | dig opening provinces toward holdings (Kaiu Wall) |
 | `digWithActions` | fire dynasty Action diggers (Kyuden Hida, engineers) |
 | `digMinBoardCharacters` | only dig once this many own characters are in play (0 = always) |
@@ -102,6 +103,14 @@ generic injectable profile. `PersonalHonorTactics.ts` centralizes high-glory
 friendly honor, low-glory forced self-dishonor, low-glory forced enemy honor,
 and conflict-aware enemy dishonor. A deck override may change its conflict/home
 preferences without duplicating target code.
+
+`duelBidding: DuelBidProfile` is also universal. Every seed and deck evaluates
+the same bid matrix; strategy profiles and deck overrides deep-merge only their
+objective/weights. Duelist and glory decks raise duel value and use the
+`honor` objective, Scorpion uses `dishonor`, and Lion's override uses `honor`.
+The controller supplies exact live duel skill, both honor pools, round, tie
+effects, opponent public profile, and unspent Iaijutsu state. See
+`duel-bot.md` and `tools/selfplay/analyzeDuelBids.js`.
 
 `provinceTargeting: ProvinceTargetingProfile` is also universal. Its cloned
 maps let a deck change one province's effective priority without leaking the
@@ -268,6 +277,15 @@ Alternating-seat comparison across eight opponents, N=192 per deck: old Lion
 75-117 (39.1%); Lion Swarm 102-90 (53.1%). The +27 wins / +14.1-point result
 cleared the replacement bar. Full card logic, matchup table, rules divergence,
 and 1120-game non-Lion regression check: `lion-bot.md`.
+
+The Lion sub-profile also owns the conflict-attachment injection boundary.
+`elegantTessenMaxPrintedCost` controls exact Tessen ready targets;
+`trueStrikeMaxCopiesPerCharacter`, `trueStrikeMinimumBaseLead`, and the three
+True Strike target weights control singleton placement and base-skill duel
+safety; `setupAttachmentPriority` controls between-conflict installation order.
+The controller supplies printed cost and base military by live character UUID,
+and resolved profiles clone the priority array before use. See `lion-bot.md`
+for the complete behavior and 2026-07-19 validation.
 
 ## Generic stronghold and province logic (all decks, 2026-07-10)
 

@@ -20,6 +20,7 @@ describe('DeckProfiles', function() {
         first.conflictCardEconomy.priorityWeight = 99;
         first.strongholdDefense.skillBuffer = 99;
         first.personalHonor.persistentCharacterFate = 99;
+        first.duelBidding.duelWinUtility = 99;
         first.provinceTargeting.effectiveStrengthById['public-forum'] = 99;
         first.provinceTargeting.priorityTierById.tsuma = -99;
 
@@ -29,9 +30,24 @@ describe('DeckProfiles', function() {
         expect(DEFAULT_PROFILE.strongholdDefense.skillBuffer).not.toBe(99);
         expect(second.personalHonor.persistentCharacterFate).toBe(DEFAULT_PROFILE.personalHonor.persistentCharacterFate);
         expect(DEFAULT_PROFILE.personalHonor.persistentCharacterFate).not.toBe(99);
+        expect(second.duelBidding.duelWinUtility).toBe(DEFAULT_PROFILE.duelBidding.duelWinUtility);
+        expect(DEFAULT_PROFILE.duelBidding.duelWinUtility).not.toBe(99);
         expect(second.provinceTargeting.effectiveStrengthById['public-forum']).toBe(6);
         expect(second.provinceTargeting.priorityTierById.tsuma).toBeUndefined();
         expect(DEFAULT_PROFILE.provinceTargeting.effectiveStrengthById['public-forum']).toBe(6);
+    });
+
+    it('injects different shared duel risk objectives without replacing duel flow', function() {
+        const honor = profileFromStrategy({ ...GENERIC, duelist: true });
+        const dishonor = profileFromStrategy({ ...GENERIC, dishonor: true });
+        const lion = resolveDeckProfile(['hayaken-no-shiro', 'way-of-the-lion'], AGGRO);
+
+        expect(honor.duelBidding.objective).toBe('honor');
+        expect(dishonor.duelBidding.objective).toBe('dishonor');
+        expect(lion.duelBidding.objective).toBe('honor');
+        expect(honor.duelBidding.duelWinUtility).toBeGreaterThan(DEFAULT_PROFILE.duelBidding.duelWinUtility);
+        expect(dishonor.duelBidding.opponentLowHonorUtility)
+            .toBeGreaterThan(DEFAULT_PROFILE.duelBidding.opponentLowHonorUtility);
     });
 
     it('aggressive (Unicorn) keeps the rush knobs', function() {
@@ -83,6 +99,16 @@ describe('DeckProfiles', function() {
         first.conflictCardEconomy.priorityWeight = 99;
 
         expect(second.conflictCardEconomy.priorityWeight).toBe(DEFAULT_PROFILE.conflictCardEconomy.priorityWeight);
+    });
+
+    it('clones Lion attachment tactics per resolved profile', function() {
+        const first = resolveDeckProfile(['hayaken-no-shiro', 'way-of-the-lion'], AGGRO);
+        const second = resolveDeckProfile(['hayaken-no-shiro', 'way-of-the-lion'], AGGRO);
+        first.lion.trueStrikeMinimumBaseLead = 99;
+        first.lion.setupAttachmentPriority.push('mutated');
+
+        expect(second.lion.trueStrikeMinimumBaseLead).toBe(1);
+        expect(second.lion.setupAttachmentPriority).not.toContain('mutated');
     });
 
     it('does NOT apply the Unicorn override without the marker card or flag', function() {

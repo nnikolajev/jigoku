@@ -9,6 +9,7 @@ import { getPlaybookEntry, deriveDeckStrategy } from './CardPlaybook.js';
 import type { DeckStrategy } from './CardPlaybook';
 import { resolveDeckProfile } from './DeckProfiles.js';
 import type { DeckProfile } from './DeckProfiles';
+import type { DuelBidContext } from './DuelBidTactics';
 import { buildHandThreatMatrix, getCardModel } from './DeckAnalysis.js';
 import type { KnownCard, OmniProvince, Omniscient } from './DeckAnalysis';
 import { stateFeatures, optionFeatures } from './ml/features.js';
@@ -20,7 +21,7 @@ import type Player from '../player';
 import type Ring from '../ring';
 import type BaseCard from '../basecard';
 import type { JigokuBotConfig } from './JigokuBotConfig';
-import { EventNames } from '../Constants';
+import { EffectNames, EventNames } from '../Constants';
 
 interface BotDecision {
     command: 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
@@ -554,7 +555,16 @@ class JigokuBotController {
                     strategy: this.currentDeckStrategy(player),
                     profile: this.currentDeckProfile(player),
                     opponentConflictDeck: this.opponentConflictDeck(player),
-                    // Live duel skill gap (our side - their side) for the bid.
+                    opponentDuelBidding: this.opponentDuelBidProfile(player),
+                    duelParticipantIaijutsuReady: this.iaijutsuMasterReadyByCharacter(player),
+                    // Exact public character data omitted by serialized player
+                    // summaries. Lion uses these for Elegant Tessen legality
+                    // and True Strike Kenjutsu's base-skill matchup.
+                    characterPrintedCosts: this.characterPrintedCosts(player),
+                    characterBaseMilitary: this.characterBaseMilitary(player),
+                    // Exact live duel skills/honor/Iaijutsu state for shared
+                    // 5x5 bid analysis. Gap remains for old synthetic callers.
+                    duelBidContext: this.currentDuelBidContext(player),
                     duelGap: this.currentDuelGap(player),
                     // Effective post-reveal margin, including bid modifiers.
                     duelMargin: this.currentDuelMargin(player),
@@ -1352,6 +1362,7 @@ class JigokuBotController {
         playCardFateCostIgnored?: boolean;
         duelAxis?: 'military' | 'political';
         duelOpponentUuid?: string;
+        duelSourceCardId?: string;
     } | undefined {
         const step = this.currentPromptStep(player);
         const configuredActions = step?.properties?.gameAction;
@@ -1368,7 +1379,7 @@ class JigokuBotController {
         if(typeof duelProperties === 'function') {
             try {
                 duelProperties = duelProperties(step.context);
-            } catch(_error) {
+            } catch{
                 duelProperties = undefined;
             }
         }
@@ -1398,7 +1409,7 @@ class JigokuBotController {
                 if(properties?.type === 'military' || properties?.type === 'political') {
                     duelAxis = properties.type;
                 }
-            } catch(_error) {
+            } catch{
                 // Dynamic action may require a later resolution context. Deck
                 // source-axis metadata remains the safe policy fallback.
             }
@@ -1421,7 +1432,7 @@ class JigokuBotController {
             if(!properties && typeof action.getProperties === 'function') {
                 try {
                     properties = action.getProperties(step?.context);
-                } catch(_error) {
+                } catch{
                     // A dynamic action may need resolution-only context. Its
                     // own name remains a safe fallback for the bot hint.
                 }
@@ -1439,6 +1450,14 @@ class JigokuBotController {
 
         const source = step.context?.source;
         const sourceType = source?.type || source?.getType?.();
+        // Gained duel Actions have the character as `source`, but CardAbility
+        // retains the attachment that granted them as `origin`. Preserve that
+        // printed id so deck tactics can identify True Strike Kenjutsu instead
+        // of seeing only Matsu Beiona (or another bearer).
+        const abilityOrigin = step.context?.ability?.origin;
+        const duelSourceCardId = duelAxis
+            ? abilityOrigin?.cardData?.id || abilityOrigin?.id
+            : undefined;
         const challenger = step.context?.targets?.challenger ||
             (sourceType === 'character' ? source : undefined);
 
@@ -1456,35 +1475,141 @@ class JigokuBotController {
             ...(source?.uuid ? { sourceUuid: source.uuid } : {}),
             ...(playCardFateCostIgnored ? { playCardFateCostIgnored: true } : {}),
             ...(duelAxis ? { duelAxis } : {}),
+            ...(duelSourceCardId ? { duelSourceCardId } : {}),
             ...(challenger?.uuid ? { duelOpponentUuid: challenger.uuid } : {})
         };
     }
 
     // The base skill gap of the live duel from `player`'s point of view:
     // (our side's skill) - (their side's skill) on the duel's axis, BEFORE
-    // honor bids are added. The bot uses it to bid to win when it is ahead or
-    // even and to bank honor when the duel is unwinnable. Undefined when there
-    // is no duel or for Glory duels (which compare glory, not military/
-    // political) so the bid falls back to the honor-only tactic.
+    // honor bids are added. The bot uses it for the post-reveal Iaijutsu
+    // decision. The full bid matrix reads exact military, political, glory,
+    // custom, and multi-target skill through currentDuelBidContext().
     private currentDuelGap(player: Player): number | undefined {
+        const context = this.currentDuelBidContext(player);
+        return context ? context.mySkill - context.opponentSkill : undefined;
+    }
+
+    private currentDuelBidContext(player: Player): DuelBidContext | undefined {
         const duel: any = (this.game as any).currentDuel;
-        if(!duel || !duel.challenger || (duel.duelType !== 'military' && duel.duelType !== 'political')) {
+        if(!duel || !duel.challenger || !player.opponent || typeof duel.getSkillStatistic !== 'function') {
             return undefined;
         }
-        const axis = duel.duelType;
         const skillOf = (card: any): number => {
             if(!card) {
                 return 0;
             }
-            const value = axis === 'political' ? card.getPoliticalSkill?.() : card.getMilitarySkill?.();
-            return typeof value === 'number' ? value : 0;
+            const value = duel.getSkillStatistic(card);
+            return typeof value === 'number' && Number.isFinite(value) ? value : 0;
         };
         const targets: any[] = duel.targets || [];
-        const challengerIsMine = duel.challenger.controller?.name === player.name;
-        const sumTargets = targets.reduce((total: number, card: any) => total + skillOf(card), 0);
-        const mySkill = challengerIsMine ? skillOf(duel.challenger) : sumTargets;
-        const oppSkill = challengerIsMine ? sumTargets : skillOf(duel.challenger);
-        return mySkill - oppSkill;
+        const challengerIsMine = duel.challengingPlayer?.name === player.name ||
+            duel.challenger.controller?.name === player.name;
+        const challengerSide = [duel.challenger];
+        const myCards = challengerIsMine ? challengerSide : targets;
+        const opponentCards = challengerIsMine ? targets : challengerSide;
+        const hasReadyIaijutsuMaster = (cards: any[]): boolean => cards.some((card) =>
+            this.characterHasReadyIaijutsuMaster(card));
+        const winsTies = (cards: any[]): boolean => cards.some((card) =>
+            typeof card.anyEffect === 'function' && card.anyEffect(EffectNames.WinDuelTies));
+        return {
+            mySkill: myCards.reduce((total, card) => total + skillOf(card), 0),
+            opponentSkill: opponentCards.reduce((total, card) => total + skillOf(card), 0),
+            myHonor: player.honor,
+            opponentHonor: player.opponent.honor,
+            roundNumber: (this.game as any).roundNumber,
+            myIaijutsuMasterReady: hasReadyIaijutsuMaster(myCards),
+            opponentIaijutsuMasterReady: hasReadyIaijutsuMaster(opponentCards),
+            myWinsTies: winsTies(myCards),
+            opponentWinsTies: winsTies(opponentCards),
+            opponentProfile: this.opponentDuelBidProfile(player)
+        };
+    }
+
+    // CardAbility defaults every printed ability to once per round. Preserve
+    // that live limit state: merely having Iaijutsu Master attached does not
+    // mean its post-reveal +/-1 is still available for another duel.
+    private characterHasReadyIaijutsuMaster(card: any): boolean {
+        return (card?.attachments || []).some((attachment: any) => {
+            if((attachment.cardData?.id || attachment.id) !== 'iaijutsu-master' ||
+                attachment.isBlank?.()) {
+                return false;
+            }
+            const reactions = typeof attachment.getReactions === 'function'
+                ? attachment.getReactions()
+                : attachment.reactions || attachment.abilities?.reactions || [];
+            const reaction = reactions.find((ability: any) =>
+                String(ability.title || '').toLowerCase().includes('change your bid')) || reactions[0];
+            return !reaction?.limit?.isAtMax?.(attachment.controller);
+        });
+    }
+
+    private iaijutsuMasterReadyByCharacter(player: Player): Record<string, boolean> {
+        const ready: Record<string, boolean> = {};
+        for(const side of [player, player.opponent]) {
+            const cards: any[] = typeof (side as any)?.cardsInPlay?.toArray === 'function'
+                ? (side as any).cardsInPlay.toArray()
+                : [];
+            for(const card of cards) {
+                if(card?.uuid) {
+                    ready[card.uuid] = this.characterHasReadyIaijutsuMaster(card);
+                }
+            }
+        }
+        return ready;
+    }
+
+    private characterPrintedCosts(player: Player): Record<string, number> {
+        return this.characterNumberHint(player, (card) => {
+            const value = Number(card?.cardData?.cost ?? card?.printedCost);
+            return Number.isFinite(value) ? value : undefined;
+        });
+    }
+
+    private characterBaseMilitary(player: Player): Record<string, number> {
+        return this.characterNumberHint(player, (card) => {
+            const value = typeof card?.getBaseMilitarySkill === 'function'
+                ? card.getBaseMilitarySkill()
+                : card?.printedMilitarySkill;
+            return typeof value === 'number' && Number.isFinite(value)
+                ? Math.max(value, 0)
+                : undefined;
+        });
+    }
+
+    private characterNumberHint(
+        player: Player,
+        valueOf: (card: any) => number | undefined
+    ): Record<string, number> {
+        const values: Record<string, number> = {};
+        for(const side of [player, player.opponent]) {
+            const cards: any[] = typeof (side as any)?.cardsInPlay?.toArray === 'function'
+                ? (side as any).cardsInPlay.toArray()
+                : [];
+            for(const card of cards) {
+                const type = card?.type || card?.getType?.();
+                if(type !== 'character' || !card?.uuid) {
+                    continue;
+                }
+                const value = valueOf(card);
+                if(value !== undefined) {
+                    values[card.uuid] = value;
+                }
+            }
+        }
+        return values;
+    }
+
+    private opponentDuelBidProfile(player: Player) {
+        const opponent = player.opponent;
+        if(!opponent) {
+            return undefined;
+        }
+        const ids = this.deckCardIds(opponent);
+        if(ids.length === 0) {
+            return undefined;
+        }
+        return resolveDeckProfile(ids, deriveDeckStrategy(ids)).duelBidding;
     }
 
     private currentDuelMargin(player: Player): number | undefined {

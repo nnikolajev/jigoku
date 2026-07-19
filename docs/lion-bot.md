@@ -65,11 +65,53 @@ The offline fixture is the source used by self-play; it contains 5 provinces,
   contribution reaches a province break or prevents one. Once that result is
   already secured, the shared conflict-economy gate preserves it instead of
   overcommitting.
-- True Strike Kenjutsu attaches to a listed tower; its action starts the duel
-  while a ready enemy participates.
-- Elegant Tessen is played to ready a bowed printed-cost-2-or-lower Lion body.
+- True Strike Kenjutsu is limited to one copy per character and is spread onto
+  durable characters with high **base** military. During a conflict, the bot
+  recognizes the gained Action as coming from True Strike rather than from the
+  printed character. It starts the duel only when the bearer has at least one
+  more base military than every ready opposing participant, then targets the
+  strongest legal opposing participant exposed by Jigoku's selector.
+- Elegant Tessen is played during the between-conflict Action Window when it
+  can ready a bowed character whose exact printed cost is 2 or less. The
+  controller supplies live printed costs by UUID, so this is no longer a
+  hard-coded list of known Lion character ids.
 - Fine Katana and Daidoji Yari use normal military-attachment scoring.
 - Hayaken no Shiro readies a bowed cheap Bushi so the swarm can fight again.
+
+### True Strike's base-skill duel
+
+True Strike deliberately has two skill paths:
+
+1. Before the duel, `LionTactics` compares the exact live
+   `getBaseMilitarySkill()` values supplied by the controller. Total skill,
+   honor/dishonor, attachments, and temporary pumps do not enter the activation
+   or target decision.
+2. Once the duel exists, the shared `DuelBidTactics` receives each side's skill
+   from the live engine duel through `Duel.getSkillStatistic()`. True Strike's
+   engine statistic is `card.getBaseMilitarySkill()`, so the same bid matrix
+   automatically evaluates the exact base-skill duel without duplicating the
+   duel or honor-risk model.
+
+The physical card says the opponent chooses its character. Jigoku's current
+card implementation exposes that selector to True Strike's controller. The bot
+therefore uses the conservative tabletop-safe precondition (it must beat every
+possible ready opposing participant), then chooses the strongest target only
+because that is the legal prompt Jigoku presents.
+
+All tuning is injectable through `LionProfile`:
+
+| Knob | Default | Purpose |
+|---|---:|---|
+| `elegantTessenMaxPrintedCost` | `2` | Maximum printed cost Tessen may ready. |
+| `trueStrikeMaxCopiesPerCharacter` | `1` | Per-character attachment limit. |
+| `trueStrikeMinimumBaseLead` | `1` | Required lead over the strongest opposing participant. |
+| `trueStrikeTargetBaseSkillWeight` | `4` | Prefer strong base-military bearers. |
+| `trueStrikeTargetFateWeight` | `2` | Prefer persistent bearers. |
+| `trueStrikeTargetTowerBonus` | `2` | Small durable-tower tie breaker. |
+| `setupAttachmentPriority` | Tessen, True Strike | Between-conflict setup order. |
+
+The resolved deck profile clones the priority array, so a deck override or test
+can tune these values without mutating another bot instance.
 
 ## Shared bot improvements
 
@@ -103,6 +145,31 @@ Seed 1, 24 games per opponent, seats alternating (192 games per deck):
 
 The new list gains 27 wins and 14.1 percentage points, so it replaces the old
 Lion fixture.
+
+## Tessen / True Strike validation (2026-07-19)
+
+The starting point was the final shared-duel benchmark: Lion was 49-51 versus
+Crane Baseline and 143-82 (63.6%) in the N=25 round robin. After adding exact
+Tessen targeting, singleton True Strike placement, gained-action routing, and
+base-skill preflight:
+
+| Run | Before | After | Delta |
+|---|---:|---:|---:|
+| vs Crane Baseline, N=100 | 49% | 50% | +1 point |
+| Round robin, N=25/matchup | 63.6% | 61.8% | -1.8 points / 4 games |
+
+The round-robin movement was mixed: Lion gained one game each against Crane,
+Crane Duels, and Dragon Attachments, was unchanged against Crab and Unicorn,
+and lost games across Dragon, Phoenix, and Scorpion. That pattern and sample
+size do not justify weakening the exact base-skill safety rule, so no
+matchup-specific tuning was added.
+
+Regression coverage executes both card paths for seeds 1, 2, and 5, verifies
+that total skill cannot override a losing base-skill matchup, verifies the
+injectable equal-skill threshold, and verifies singleton distribution. The
+all-opponent interaction audit ran 30 Lion games (10 opponents x 3 seeds) with
+zero rejected clicks, cycles, forced progress, budget exhaustion, or stalls;
+its reports are `tools/selfplay/out/lion-attachments-all-opponents-click-audit.*`.
 
 ## Non-Lion regression check
 

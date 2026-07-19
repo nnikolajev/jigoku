@@ -55,6 +55,8 @@ export interface PlaybookContext {
     opponentParticipantCanBow?: boolean; // public board threat from a participating defender
     omniscient?: boolean; // seed 5 has exact opposing-hand information
     opponentHasAffordableBowEffect?: boolean; // exact seed-5 hand threat after fate check
+    characterPrintedCosts?: Record<string, number>; // exact live printed cost by in-play character UUID
+    characterBaseMilitary?: Record<string, number>; // exact live base military by in-play character UUID
 }
 
 export interface PlaybookEntry extends CardHint {
@@ -115,9 +117,9 @@ export interface DeckStrategy {
     // keep bodies ready for the next attack. The whole plan is to break
     // provinces faster than the opponent, racing the game to 2-3 turns.
     aggressive: boolean;
-    // Dishonor/mill: win by driving the opponent to 0 honor — bid low on every
-    // dial, take honor with the air ring, dishonor enemy characters, mill the
-    // opponent's conflict deck, and keep own honor in the low-but-alive band.
+    // Dishonor/mill: win by driving the opponent to 0 honor — bid low on draw
+    // dials, use the shared duel matrix, take honor with the air ring, dishonor
+    // enemy characters, mill their deck, and keep own honor low-but-alive.
     dishonor: boolean;
     // Glory/honor engine: build a persistent honored board (honored adds
     // glory to both skills), hold the Imperial Favor through glory counts,
@@ -127,7 +129,7 @@ export interface DeckStrategy {
     // on the cards-played payoffs around Togashi Mitsu.
     monk: boolean;
     // Duel-centric (upgraded Crane Duels): few durable honored duelists,
-    // every duel bid to win, payoffs on every resolved duel.
+    // context-aware duel bids, payoffs on every resolved duel.
     duelist: boolean;
     // Phoenix spell/ring control: Kyuden Isawa recursion, Display of Power
     // province trades, ring manipulation, and Disguised Isawa Tadaka.
@@ -1082,10 +1084,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
             ctx.myCharacters.some((card) => card.id === 'moto-eviscerator' && !card.inConflict && !card.bowed)
     }),
 
-    // Military duel that dishonors the loser. Our low duel bid usually loses
-    // the duel — but a dishonored own character bleeds only when it dies,
-    // while a WON duel dishonors theirs. Fire while clearly participating
-    // with a strong duelist and honor to trade.
+    // Military duel that dishonors the loser. Shared bid tactics weigh the
+    // skill matchup against both honor pools; start only with a useful body.
     'insolent-rival': entry('insolent-rival', {
         targetSide: 'enemy',
         targetPreference: 'strongest',
@@ -1288,9 +1288,10 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: 'duel on base military: bow the loser',
         abilityValue: true,
         attachSide: 'self',
+        maxCopiesPerTarget: 1,
         inPlayAction: true,
         shouldUseAction: (ctx) => ctx.myCharacters.some((card) =>
-            card.inConflict && !card.bowed &&
+            card.inConflict &&
             (card.attachments || []).some((attachment: any) => attachment.id === 'true-strike-kenjutsu')) &&
             participating(ctx.opponentCharacters).some((card) => !card.bowed)
     }),
@@ -1371,7 +1372,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     }),
 
     // Duelist Action: military duel, the winner does not bow from this
-    // conflict's resolution. High duel bids make him win it.
+    // conflict's resolution. Shared duel tactics choose the risk-aware bid.
     'honorable-challenger': entry('honorable-challenger', {
         conflictTypes: ['military'],
         targetSide: 'enemy',
@@ -1556,13 +1557,14 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: '+1/+1 and ready a cheap attached character',
         abilityValue: true,
         preConflict: true,
-        shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.bowed &&
-            ['ashigaru-levy', 'matsu-berserker', 'akodo-gunso', 'ikoma-tsanuri',
-                'ikoma-tsanuri-2', 'matsu-gohei', 'samurai-of-integrity',
-                'niten-adept', 'stoic-rival', 'keen-warrior', 'doomed-shugenja',
-                'agasha-swordsmith', 'kitsuki-counselor', 'inventive-mirumoto',
-                'hiruma-skirmisher'].includes(card.id)) ||
-            ctx.myCharacters.some((card) => card.id === 'niten-master')
+        shouldPlay: (ctx) => ctx.myCharacters.some((card) => {
+            if(!card.bowed) {
+                return false;
+            }
+            const cost = card.uuid ? ctx.characterPrintedCosts?.[card.uuid] : undefined;
+            const visibleCost = Number(cost ?? card.printedCost ?? card.cost);
+            return Number.isFinite(visibleCost) && visibleCost <= 2;
+        })
     }),
 
     // Kyuden Isawa recasts a high-impact Spell event from the conflict
@@ -2794,8 +2796,9 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: 'duel weapon; +1 honor on duel wins'
     }),
 
-    // Post-reveal bid nudge. DuelTactics gates the reaction on the actual
-    // post-reveal margin and chooses increase/decrease without wasting honor.
+    // Post-reveal bid nudge. DuelBidTactics gates the reaction on the actual
+    // post-reveal margin and chooses increase/decrease without wasting honor;
+    // the controller also reports whether its once-per-round use remains.
     'iaijutsu-master': entry('iaijutsu-master', {
         targetSide: 'self',
         targetPreference: 'strongest',

@@ -13,6 +13,8 @@ import { LionTactics } from './LionTactics.js';
 import { GloryTactics } from './GloryTactics.js';
 import { DragonTactics } from './DragonTactics.js';
 import { DuelTactics } from './DuelTactics.js';
+import { DuelBidTactics } from './DuelBidTactics.js';
+import type { DuelBidContext, DuelBidProfile } from './DuelBidTactics';
 import { ShugenjaTactics } from './ShugenjaTactics.js';
 import { DragonAttachmentTactics } from './DragonAttachmentTactics.js';
 import { StrongholdDefenseTactics } from './StrongholdDefenseTactics.js';
@@ -95,6 +97,9 @@ interface TargetHint {
     playCardFateCostIgnored?: boolean;
     duelAxis?: 'military' | 'political';
     duelOpponentUuid?: string;
+    // Printed attachment/event that created a duel Action. For gained
+    // abilities `sourceCardId` is the bearer character, not the attachment.
+    duelSourceCardId?: string;
 }
 
 type HandStats = Record<string, { military: number | null; political: number | null }>;
@@ -139,13 +144,25 @@ interface DecideContext {
     // is available to every seed and never reveals which cards are currently
     // held. Used by card-name effects such as Gossip.
     opponentConflictDeck?: KnownCard[];
+    opponentDuelBidding?: DuelBidProfile;
+    // Public once-per-round state from the live engine, keyed by the attached
+    // character UUID. False means every Iaijutsu Master there is spent.
+    duelParticipantIaijutsuReady?: Record<string, boolean>;
+    // Exact public in-play character values omitted from serialized state.
+    characterPrintedCosts?: Record<string, number>;
+    characterBaseMilitary?: Record<string, number>;
     // Seed-5 cheat view: the human's true hand/fate/province strengths. Present
     // only for the omniscient bot; every omniscient branch is gated on it, so
     // Non-omniscient seeds (undefined here) keep identical behavior.
     omniscient?: Omniscient;
     // Live duel skill gap (our side - their side) on the duel axis, before
     // honor bids. Present only during a duel bid; drives the bid heuristic.
+    // Deprecated compatibility input; live controllers provide duelBidContext.
     duelGap?: number;
+    // Exact duel participants, both honor pools, round, tie rules, and each
+    // side's Iaijutsu Master access. Shared bid matrix consumes this for every
+    // deck/seed instead of fixed per-deck duel bids.
+    duelBidContext?: DuelBidContext;
     // Live post-reveal duel margin (skill gap + both effective honor bids).
     // Used by Iaijutsu Master to change a result or retain a win cheaply.
     duelMargin?: number;
@@ -246,9 +263,14 @@ class JigokuBotPolicy {
     private clarityProtectedUuids = new Set<string>();
     private currentOmniscient: Omniscient | undefined;
     private currentOpponentParticipantCanBow = false;
+    private currentOpponentDuelBidding: DuelBidProfile | undefined;
+    private currentDuelParticipantIaijutsuReady: Record<string, boolean> | undefined;
+    private currentCharacterPrintedCosts: Record<string, number> | undefined;
+    private currentCharacterBaseMilitary: Record<string, number> | undefined;
     // Experimental fate-aware copy state. Generic policy never enters these
     // branches: FateAwareJigokuBotPolicy opts in through the protected hook.
     private fateAwareRoundNumber = 0;
+    private currentRoundNumber = 1;
     private fateAwareDynastyStartFate: number | null = null;
     private fateAwareBoughtCharacter = false;
     private fateAwareStrongCharacter = false;
@@ -289,8 +311,13 @@ class JigokuBotPolicy {
         }
 
         this.recordReturnedFailedPlay(playerState, me);
+        this.currentRoundNumber = context.roundNumber ?? this.currentRoundNumber;
         this.currentOmniscient = context.omniscient;
         this.currentOpponentParticipantCanBow = !!context.opponentParticipantCanBow;
+        this.currentOpponentDuelBidding = context.opponentDuelBidding;
+        this.currentDuelParticipantIaijutsuReady = context.duelParticipantIaijutsuReady;
+        this.currentCharacterPrintedCosts = context.characterPrintedCosts;
+        this.currentCharacterBaseMilitary = context.characterBaseMilitary;
         this.syncClarityConflict(playerState, context.roundNumber);
 
         if(this.usesFateAwareEconomy()) {
@@ -511,6 +538,7 @@ class JigokuBotPolicy {
         const dragon = profile.dragon ? new DragonTactics(profile.dragon) : null;
         // Duel-centric decks likewise; null for every other deck.
         const duelist = profile.duelist ? new DuelTactics(profile.duelist) : null;
+        const duelBidding = new DuelBidTactics(profile.duelBidding);
         // Phoenix spell/ring-control deck; null for every other profile.
         const shugenja = profile.shugenja ? new ShugenjaTactics(profile.shugenja) : null;
         // Iron Mountain Castle attachment tower; separate from the High House
@@ -553,42 +581,39 @@ class JigokuBotPolicy {
         if(promptTitle === 'Honor Bid') {
             const isDuelBid = menuTitle.startsWith('Choose your bid for the duel');
             const myHonor = me?.stats?.honor ?? 10;
-            // Dishonor decks bid low on EVERY dial (draw phase and duels) so
-            // the opponent's higher bid pays them the difference in honor.
+            if(isDuelBid) {
+                const legalBids = buttons
+                    .map((button) => parseInt(String(button.text), 10))
+                    .filter((bid) => Number.isFinite(bid));
+                const gap = context.duelGap ?? 0;
+                const bidContext: DuelBidContext = context.duelBidContext || {
+                    mySkill: Math.max(gap, 0),
+                    opponentSkill: Math.max(-gap, 0),
+                    myHonor,
+                    opponentHonor: opponent?.stats?.honor ?? 10,
+                    roundNumber: context.roundNumber
+                };
+                const analysis = duelBidding.analyze({
+                    ...bidContext,
+                    myHonor,
+                    opponentHonor: opponent?.stats?.honor ?? bidContext.opponentHonor,
+                    roundNumber: context.roundNumber ?? bidContext.roundNumber,
+                    legalBids
+                }, this.duelBidRoll(me?.name, opponent?.name, bidContext));
+                return this.buttonDecision(
+                    this.closestBidButton(buttons, analysis.selectedBid),
+                    `duel-bid-matrix-${analysis.reason}`
+                );
+            }
+            // Duel bids were handled above. Dishonor draw bidding stays low so
+            // the opponent's higher bid pays it the difference in honor.
             if(dishonor) {
                 const desired = dishonor.desiredBid(context.roundNumber, myHonor);
                 return this.buttonDecision(this.closestBidButton(buttons, desired), 'dishonor-honor-bid');
             }
-            if(isDuelBid) {
-                // Duel bids: bid on the SKILL GAP when we know it. Ahead or even
-                // -> bid max to win/equalize; unwinnable (behind 4+) -> bid 1 to
-                // bank the honor their higher bid pays us; the uncertain 1-3
-                // deficit is honor-gated (spend when rich, bank when poor).
-                if(context.duelGap !== undefined) {
-                    const desired = duelist
-                        ? duelist.desiredDuelBidForGap(context.duelGap, myHonor)
-                        : this.duelBidForGap(context.duelGap, myHonor);
-                    return this.buttonDecision(this.closestBidButton(buttons, desired), 'duel-bid-skill-gap');
-                }
-                // No mil/pol gap available (Glory-type duels): per-deck honor-
-                // only fallbacks, else bid to win.
-                if(glory) {
-                    return this.buttonDecision(this.closestBidButton(buttons, glory.desiredDuelBid(myHonor)), 'glory-duel-bid');
-                }
-                if(dragon) {
-                    return this.buttonDecision(this.closestBidButton(buttons, dragon.desiredDuelBid(myHonor)), 'dragon-duel-bid');
-                }
-                if(lion) {
-                    return this.buttonDecision(this.closestBidButton(buttons, lion.desiredBid(context.roundNumber, myHonor, true)), 'lion-duel-bid');
-                }
-                if(duelist) {
-                    return this.buttonDecision(this.closestBidButton(buttons, duelist.desiredDuelBid(myHonor)), 'duel-honor-bid');
-                }
-                return this.buttonDecision(this.closestBidButton(buttons, this.duelBidForGap(0, myHonor)), 'duel-bid-default');
-            }
             if(lion) {
                 return this.buttonDecision(
-                    this.closestBidButton(buttons, lion.desiredBid(context.roundNumber, myHonor, false)),
+                    this.closestBidButton(buttons, lion.desiredBid(context.roundNumber, myHonor)),
                     'lion-draw-bid'
                 );
             }
@@ -615,9 +640,9 @@ class JigokuBotPolicy {
         // Iaijutsu Master's post-reveal modifier menu. The reaction itself is
         // gated below using the same live margin, so this menu only opens when
         // one of the two choices improves the duel or preserves a win cheaply.
-        if(duelist && buttons.some((button) => String(button.text || '') === 'Increase honor bid') &&
+        if(buttons.some((button) => String(button.text || '') === 'Increase honor bid') &&
             buttons.some((button) => String(button.text || '') === 'Decrease honor bid')) {
-            const choice = duelist.iaijutsuBidChoice(context.duelMargin);
+            const choice = duelBidding.iaijutsuBidChoice(context.duelMargin);
             if(choice) {
                 return this.buttonDecision(
                     buttons.find((button) => String(button.text || '') === choice),
@@ -1421,41 +1446,27 @@ class JigokuBotPolicy {
         return numeric[0].button;
     }
 
-    // Duel honor bid keyed on the base skill gap (our side - their side), with
-    // the dial spanning 1..5. A duel is decided by (skill + bid), so:
-    //  - gap >= 0 : we already win or tie on skill, bid the max to win/equalize
-    //    (worth the honor we pay the loser for the duel payoff);
-    //  - gap <= -4 : even a max bid cannot close the gap against any bid they
-    //    make, so bid 1 and bank the honor their higher bid pays us;
-    //  - gap of -1..-3 : winnable only if they bid low — a gamble. Commit the
-    //    max when we are honor-rich (can afford to bleed a few honor), bid 1 to
-    //    bank honor when we are poor.
-    private duelBidForGap(gap: number, honor: number): number {
-        // A duel is decided by (skill + bid), bids 1..5, and the LOWER bidder
-        // takes the difference in honor — so even winning with a high bid pays
-        // the loser. Safety rails:
-        //  - near the dishonor cliff (honor <= 3) never bleed honor for a duel;
-        //  - when comfortably ahead, bid only the MINIMUM that still wins
-        //    against their max bid of 5 (gap>=5 wins on any bid -> 1; gap 4->2,
-        //    3->3, 2->4), banking the honor a flat 5 would have paid away;
-        //  - gap 0-1 needs the full 5 to secure the win/tie;
-        //  - behind 4+ is unwinnable -> 1; behind 1-3 is an honor-gated gamble.
-        if(honor <= 3) {
-            return 1;
+    private duelBidRoll(myName: string | undefined, opponentName: string | undefined, context: DuelBidContext): number {
+        const text = [myName, opponentName, context.mySkill, context.opponentSkill,
+            context.myHonor, context.opponentHonor, context.roundNumber || 1].join('|');
+        let hash = 2166136261;
+        for(let index = 0; index < text.length; index++) {
+            hash ^= text.charCodeAt(index);
+            hash = Math.imul(hash, 16777619);
         }
-        if(gap >= 5) {
-            return 1;
+        return (this.random.next() + (hash >>> 0) / 0x100000000) % 1;
+    }
+
+    private hasReadyIaijutsuMaster(card: any): boolean {
+        const attached = (card?.attachments || []).some((attachment: any) =>
+            attachment.id === 'iaijutsu-master');
+        if(!attached) {
+            return false;
         }
-        if(gap >= 2) {
-            return 6 - gap;
-        }
-        if(gap >= 0) {
-            return 5;
-        }
-        if(gap <= -4) {
-            return 1;
-        }
-        return honor >= 8 ? 5 : 1;
+        const liveReady = card?.uuid
+            ? this.currentDuelParticipantIaijutsuReady?.[card.uuid]
+            : undefined;
+        return liveReady !== false;
     }
 
     // Draw-phase honor bid: bid to DRAW cards (you draw cards equal to your
@@ -1804,18 +1815,21 @@ class JigokuBotPolicy {
             // Final stronghold pushes override these caps and commit all eligible
             // attackers when a guaranteed break is not yet reachable.
             const keepHome = Math.max(1, profile.attackKeepHome);
-            const unbreakableCommit =
-                strongholdPlan.forceAllAttackers ? committed.length < totalEligible
-                    : finalStrongholdPush ? committed.length < totalEligible
-                    : profile.attackCommitment === 'all' ? committed.length < totalEligible
-                        : profile.attackCommitment === 'breakable-or-hold' ? false
-                            : profile.attackCommitment === 'breakable-or-pressure' ? committed.length < Math.max(1, totalEligible - keepHome)
-                                : committed.length < Math.max(1, totalEligible - 1);
+            let unbreakableCommit: boolean;
+            if(strongholdPlan.forceAllAttackers || finalStrongholdPush || profile.attackCommitment === 'all') {
+                unbreakableCommit = committed.length < totalEligible;
+            } else if(profile.attackCommitment === 'breakable-or-hold') {
+                unbreakableCommit = false;
+            } else if(profile.attackCommitment === 'breakable-or-pressure') {
+                unbreakableCommit = committed.length < Math.max(1, totalEligible - keepHome);
+            } else {
+                unbreakableCommit = committed.length < Math.max(1, totalEligible - 1);
+            }
             const needMore = strongholdPlan.forceAllAttackers
                 ? committed.length < totalEligible
                 : potentialSkill >= breakTarget
                     ? committedSkill < breakTarget || !!payoffCandidate
-                : unbreakableCommit;
+                    : unbreakableCommit;
 
             if(needMore) {
                 const next = payoffCandidate || candidates.find((card) => !this.isAttempted('cardClicked', [card.uuid]));
@@ -2408,6 +2422,7 @@ class JigokuBotPolicy {
             cardHint,
             handStats,
             false,
+            lion,
             duelist,
             attachmentTower
         );
@@ -2629,6 +2644,7 @@ class JigokuBotPolicy {
                     cardHint,
                     handStats,
                     feedCards,
+                    lion,
                     duelist,
                     attachmentTower
                 );
@@ -2777,7 +2793,8 @@ class JigokuBotPolicy {
                     // attachment; resolve its playbook metadata through the
                     // injectable duel source map.
                     const duelSourceId = duelist?.duelSourceId(card);
-                    const hint: any = cardHint(duelSourceId || card.id);
+                    const lionDuelSourceId = lion?.trueStrikeSourceId(card);
+                    const hint: any = cardHint(duelSourceId || lionDuelSourceId || card.id);
                     if(!hint || !hint.inPlayAction) {
                         return false;
                     }
@@ -2800,7 +2817,15 @@ class JigokuBotPolicy {
                         card,
                         playCtx?.myCharacters || [],
                         playCtx?.opponentCharacters || [],
-                        (candidate, axis) => this.skillValue(candidate, axis) || 0
+                        (candidate, axis) => this.skillValue(candidate, axis) || 0,
+                        this.currentDuelParticipantIaijutsuReady
+                    )) {
+                        return false;
+                    }
+                    if(lion && lionDuelSourceId && !lion.shouldStartTrueStrikeDuel(
+                        card,
+                        playCtx?.opponentCharacters || [],
+                        this.currentCharacterBaseMilitary
                     )) {
                         return false;
                     }
@@ -2808,7 +2833,7 @@ class JigokuBotPolicy {
                 })
                 .sort((a, b) => {
                     const priorityOf = (card: any) =>
-                        (cardHint(duelist?.duelSourceId(card) || card.id) as any)?.priority ?? 5;
+                        (cardHint(duelist?.duelSourceId(card) || lion?.trueStrikeSourceId(card) || card.id) as any)?.priority ?? 5;
                     const priorityDiff = priorityOf(b) - priorityOf(a);
                     return priorityDiff !== 0 ? priorityDiff : String(a.uuid).localeCompare(String(b.uuid));
                 });
@@ -2823,6 +2848,7 @@ class JigokuBotPolicy {
     private playbookContext(playerState: any, me: any, dishonor: DishonorTactics | null = null): any {
         const opponent = this.opponentPlayer(playerState, me);
         const standing = this.conflictStanding(playerState, me);
+        const omniscient = this.currentOmniscient;
         return {
             conflictType: playerState?.conflict?.type === 'political' ? 'political' : 'military',
             losing: standing?.losing ?? false,
@@ -2843,12 +2869,14 @@ class JigokuBotPolicy {
             strengthNeeded: this.conflictStrengthNeeded(playerState, me),
             clarityProtectedUuids: Array.from(this.clarityProtectedUuids),
             opponentParticipantCanBow: this.currentOpponentParticipantCanBow,
-            omniscient: !!this.currentOmniscient,
-            opponentHasAffordableBowEffect: !!this.currentOmniscient &&
-                this.currentOmniscient.oppHand.some((card) =>
-                    card.canBowOpponent && card.fate <= this.currentOmniscient!.oppFate &&
+            omniscient: !!omniscient,
+            opponentHasAffordableBowEffect: !!omniscient &&
+                omniscient.oppHand.some((card) =>
+                    card.canBowOpponent && card.fate <= omniscient.oppFate &&
                     (!card.conflictTypes || card.conflictTypes.length === 0 ||
-                        card.conflictTypes.includes(playerState?.conflict?.type)))
+                        card.conflictTypes.includes(playerState?.conflict?.type))),
+            characterPrintedCosts: this.currentCharacterPrintedCosts,
+            characterBaseMilitary: this.currentCharacterBaseMilitary
         };
     }
 
@@ -2890,6 +2918,7 @@ class JigokuBotPolicy {
         cardHint?: CardHintLookup,
         handStats?: HandStats,
         feedCards = false,
+        lion: LionTactics | null = null,
         duelist: DuelTactics | null = null,
         attachmentTower: DragonAttachmentTactics | null = null,
         forcedAttachmentBearerUuid?: string,
@@ -2905,7 +2934,21 @@ class JigokuBotPolicy {
             card,
             myCharacters,
             playCtx?.opponentCharacters || [],
-            (candidate, axis) => this.skillValue(candidate, axis) || 0
+            (candidate, axis) => this.skillValue(candidate, axis) || 0,
+            this.currentDuelParticipantIaijutsuReady
+        )) {
+            return false;
+        }
+        if(lion && card.id === 'elegant-tessen' && !lion.pickTessenTarget(
+            myCharacters,
+            (candidate) => this.skillValue(candidate, playCtx?.conflictType || 'military') || 0,
+            this.currentCharacterPrintedCosts
+        )) {
+            return false;
+        }
+        if(lion && card.id === 'true-strike-kenjutsu' && !lion.pickTrueStrikeTarget(
+            myCharacters,
+            this.currentCharacterBaseMilitary
         )) {
             return false;
         }
@@ -2940,7 +2983,7 @@ class JigokuBotPolicy {
                 return false;
             }
             const maxCopiesPerTarget = hint.maxCopiesPerTarget;
-            if(maxCopiesPerTarget && hint.targetSide === 'self' &&
+            if(maxCopiesPerTarget && (hint.targetSide === 'self' || hint.attachSide === 'self') &&
                 !myCharacters.some((target: any) =>
                     this.attachmentCopyCount(target, card.id) < maxCopiesPerTarget)) {
                 return false;
@@ -3015,7 +3058,7 @@ class JigokuBotPolicy {
                 priority: hint?.priority ?? 5,
                 contribution,
                 abilityValue: !!hint?.abilityValue,
-                cost: hasCost ? conflictCosts![card.uuid] : undefined,
+                cost: hasCost ? conflictCosts?.[card.uuid] : undefined,
                 legacyIndex
             };
         });
@@ -3140,6 +3183,32 @@ class JigokuBotPolicy {
             );
             if(tadaka && this.isDirectCardLegal(tadaka, legalDirectCardUuids) && !this.isAttempted('cardClicked', [tadaka.uuid])) {
                 return this.cardClickDecision(tadaka, 'tadaka-prepared-disguise');
+            }
+        }
+
+        // Lion setup attachments must also work in phase action windows.
+        // Elegant Tessen commonly readies a body between conflicts; True
+        // Strike Kenjutsu must be installed before its bearer attacks so the
+        // gained duel Action is available in that conflict.
+        if(lion && me?.phase === 'conflict') {
+            const setupCards = (me?.cardPiles?.hand || []).filter((card: any) =>
+                card?.uuid && card?.id && card.isPlayableByMe &&
+                this.isDirectCardLegal(card, legalDirectCardUuids) &&
+                !this.isAttempted('cardClicked', [card.uuid]) &&
+                !this.failedPlayCards.has(card.uuid) &&
+                !this.isCancelVetoed(card.id));
+            const setup = lion.pickSetupAttachment(
+                setupCards,
+                this.myCharactersInPlay(me),
+                me?.stats?.fate ?? 0,
+                conflictCosts,
+                this.currentCharacterBaseMilitary,
+                this.currentCharacterPrintedCosts
+            );
+            if(setup) {
+                return this.cardClickDecision(setup, setup.id === 'elegant-tessen'
+                    ? 'lion-tessen-ready-setup'
+                    : 'lion-true-strike-setup');
             }
         }
 
@@ -3846,6 +3915,7 @@ class JigokuBotPolicy {
     // character and event reactions stay passed until per-card knowledge
     // exists, because firing them blindly wastes fate and honor.
     private triggeredWindowDecision(playerState: any, me: any, buttons: any[], windowTitle: string, playCost?: number, cardHint?: CardHintLookup, profile: DeckProfile = DEFAULT_PROFILE, conflictCosts?: Record<string, number>, lion: LionTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, duelist: DuelTactics | null = null, duelMargin?: number, interruptedEventIsMine?: boolean, displayOfPowerActive = false): BotDecision | null {
+        const duelBidding = new DuelBidTactics(profile.duelBidding);
         // A cost increase can make the engine expose Castle while a printed
         // cost-zero attachment is being played. Preserve the once-per-round
         // bow for a printed paid attachment instead of discounting that card.
@@ -3901,7 +3971,7 @@ class JigokuBotPolicy {
                         return false;
                     }
                     if(card.id === 'iaijutsu-master' &&
-                        (!duelist || !duelist.shouldUseIaijutsuMaster(duelMargin))) {
+                        !duelBidding.shouldUseIaijutsuMaster(duelMargin)) {
                         return false;
                     }
                     if(card.id === 'voice-of-honor' && interruptedEventIsMine === true) {
@@ -3916,7 +3986,8 @@ class JigokuBotPolicy {
                             card,
                             this.myCharactersInPlay(me),
                             this.myCharactersInPlay(opponent),
-                            (candidate, axis) => this.skillValue(candidate, axis) || 0
+                            (candidate, axis) => this.skillValue(candidate, axis) || 0,
+                            this.currentDuelParticipantIaijutsuReady
                         )) {
                             return false;
                         }
@@ -3994,6 +4065,7 @@ class JigokuBotPolicy {
         handStats?: HandStats,
         conflictCosts?: Record<string, number>,
         dishonor: DishonorTactics | null = null,
+        lion: LionTactics | null = null,
         duelist: DuelTactics | null = null,
         shugenja: ShugenjaTactics | null = null,
         attachmentTower: DragonAttachmentTactics | null = null
@@ -4045,6 +4117,7 @@ class JigokuBotPolicy {
             cardHint,
             handStats,
             false,
+            lion,
             duelist,
             attachmentTower,
             forcedBearerUuid,
@@ -4149,6 +4222,7 @@ class JigokuBotPolicy {
             handStats,
             conflictCosts,
             dishonor,
+            lion,
             duelist,
             shugenja,
             attachmentTower
@@ -4251,6 +4325,7 @@ class JigokuBotPolicy {
                 targetHint,
                 buttons,
                 personalHonor,
+                profile,
                 cardHint,
                 glory,
                 lion,
@@ -4291,7 +4366,7 @@ class JigokuBotPolicy {
     // hit the opponent's strongest card (or our weakest when only own cards
     // are legal, e.g. a forced sacrifice), helpful effects go to our own side
     // (preferring characters already in the conflict).
-    private polarityTargetDecision(cards: any[], playerState: any, me: any, skillType: string, targetHint: TargetHint, buttons: any[], personalHonor: PersonalHonorTactics, cardHint?: CardHintLookup, glory: GloryTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, attachmentControl: AttachmentControlTactics | null = null): BotDecision | null {
+    private polarityTargetDecision(cards: any[], playerState: any, me: any, skillType: string, targetHint: TargetHint, buttons: any[], personalHonor: PersonalHonorTactics, profile: DeckProfile, cardHint?: CardHintLookup, glory: GloryTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, attachmentControl: AttachmentControlTactics | null = null): BotDecision | null {
         const myUuids = new Set(this.findVisibleCards(me).map((card) => card.uuid));
         const mine = cards.filter((card) => this.cardBelongsToPlayer(card, me, myUuids));
         const theirs = cards.filter((card) => !this.cardBelongsToPlayer(card, me, myUuids));
@@ -4458,7 +4533,11 @@ class JigokuBotPolicy {
 
         if(lion && targetHint.sourceCardId === 'elegant-tessen' &&
             (targetHint.gameActions || []).includes('attach')) {
-            const cheap = lion.pickTessenTarget(mine, (card) => this.skillValue(card, skillType) || 0);
+            const cheap = lion.pickTessenTarget(
+                mine,
+                (card) => this.skillValue(card, skillType) || 0,
+                this.currentCharacterPrintedCosts
+            );
             if(cheap) {
                 return this.cardClickDecision(cheap, 'lion-tessen-ready-cheap');
             }
@@ -4469,10 +4548,12 @@ class JigokuBotPolicy {
 
         if(lion && targetHint.sourceCardId === 'true-strike-kenjutsu' &&
             (targetHint.gameActions || []).includes('attach')) {
-            const tower = lion.pickTower(mine.filter((card) => lion.isTower(card)),
-                (card) => this.skillValue(card, 'military') || 0);
-            if(tower) {
-                return this.cardClickDecision(tower, 'lion-kenjutsu-tower');
+            const bearer = lion.pickTrueStrikeTarget(mine, this.currentCharacterBaseMilitary);
+            if(bearer) {
+                return this.cardClickDecision(bearer, 'lion-kenjutsu-base-duelist');
+            }
+            if(cancel) {
+                return this.buttonDecision(cancel, 'lion-kenjutsu-no-singleton-target');
             }
         }
 
@@ -4624,6 +4705,19 @@ class JigokuBotPolicy {
             }
         }
 
+        // True Strike's gained Action reports the bearer as source and the
+        // attachment through `duelSourceCardId`. Jigoku currently lets its
+        // controller choose the opposing participant; take the strongest
+        // ready body on the exact base-military axis. The activation gate has
+        // already proved every possible participant is beatable.
+        if(lion && targetHint.duelSourceCardId === 'true-strike-kenjutsu' &&
+            actionNames.includes('duel') && theirs.length > 0) {
+            const target = lion.pickTrueStrikeOpponent(theirs, this.currentCharacterBaseMilitary);
+            if(target) {
+                return this.cardClickDecision(target, 'lion-true-strike-strongest-base-target');
+            }
+        }
+
         // Duel deck: duels compare a specific axis. When the prompt offers
         // OUR characters (send the duelist) pick our strongest on that axis;
         // when it offers THEIRS, duel their strongest beatable body. Attachments stack on
@@ -4664,15 +4758,25 @@ class JigokuBotPolicy {
                         axis,
                         initiatedByMe,
                         opposing,
-                        Number(me?.stats?.honor) || 0,
-                        baseSkill
+                        baseSkill,
+                        (challenger, target) => new DuelBidTactics(profile.duelBidding).shouldContest({
+                            mySkill: duelist.duelSkill(challenger, axis, baseSkill),
+                            opponentSkill: duelist.duelSkill(target, axis, baseSkill),
+                            myHonor: Number(me?.stats?.honor) || 0,
+                            opponentHonor: Number(this.opponentPlayer(playerState, me)?.stats?.honor) || 0,
+                            roundNumber: this.currentRoundNumber,
+                            myIaijutsuMasterReady: duelist.hasReadyIaijutsuMaster(
+                                challenger, this.currentDuelParticipantIaijutsuReady),
+                            opponentIaijutsuMasterReady: duelist.hasReadyIaijutsuMaster(
+                                target, this.currentDuelParticipantIaijutsuReady),
+                            opponentProfile: this.currentOpponentDuelBidding
+                        })
                     );
                     const strongest = duelist.pickOwnDuelParticipant(
                         mine,
                         axis,
                         true,
                         opposing,
-                        Number(me?.stats?.honor) || 0,
                         baseSkill
                     );
                     const reason = initiatedByMe || !opposing
@@ -4690,13 +4794,15 @@ class JigokuBotPolicy {
                         theirs,
                         axis,
                         challenger,
-                        (card, type) => this.skillValue(card, type) || 0
+                        (card, type) => this.skillValue(card, type) || 0,
+                        this.currentDuelParticipantIaijutsuReady
                     );
                     const reason = challenger && duelist.canBeat(
                         challenger,
                         pick,
                         axis,
-                        (card, type) => this.skillValue(card, type) || 0
+                        (card, type) => this.skillValue(card, type) || 0,
+                        this.currentDuelParticipantIaijutsuReady
                     ) ? 'duel-enemy-strongest-beatable' : 'duel-enemy-safest-fallback';
                     return this.cardClickDecision(pick, reason);
                 }
@@ -4711,6 +4817,7 @@ class JigokuBotPolicy {
         // pick our WEAKEST); when we pick the character to CHALLENGE, aim at the
         // opponent's weakest. Axis = the conflict/prompt skill type.
         if((targetHint.gameActions || []).includes('duel')) {
+            const duelSkillType = targetHint.duelAxis || skillType;
             // Duelist Training grants its duel to the attached character, so
             // the prompt source is the bearer rather than the attachment. On
             // Doji Kuwanan the duel payoff is bowing its loser: do not keep
@@ -4728,10 +4835,29 @@ class JigokuBotPolicy {
                 }
             }
             if(mine.length > 0) {
-                return this.cardClickDecision(this.sortBySkillDesc(mine, skillType)[0], 'duel-participant-own-strongest');
+                const sorted = this.sortBySkillDesc(mine, duelSkillType);
+                const strongest = sorted[0];
+                const opponentCard = targetHint.duelOpponentUuid
+                    ? this.findVisibleCards(playerState).find((card) => card.uuid === targetHint.duelOpponentUuid)
+                    : undefined;
+                const initiatedByMe = targetHint.sourceIsMine !== false;
+                const shouldContest = initiatedByMe || !opponentCard || new DuelBidTactics(profile.duelBidding).shouldContest({
+                    mySkill: this.skillValue(strongest, duelSkillType) || 0,
+                    opponentSkill: this.skillValue(opponentCard, duelSkillType) || 0,
+                    myHonor: Number(me?.stats?.honor) || 0,
+                    opponentHonor: Number(this.opponentPlayer(playerState, me)?.stats?.honor) || 0,
+                    roundNumber: this.currentRoundNumber,
+                    myIaijutsuMasterReady: this.hasReadyIaijutsuMaster(strongest),
+                    opponentIaijutsuMasterReady: this.hasReadyIaijutsuMaster(opponentCard),
+                    opponentProfile: this.currentOpponentDuelBidding
+                });
+                return this.cardClickDecision(
+                    shouldContest ? strongest : sorted[sorted.length - 1],
+                    shouldContest ? 'duel-participant-own-strongest' : 'duel-participant-protect-strongest'
+                );
             }
             if(theirs.length > 0) {
-                const sorted = this.sortBySkillDesc(theirs, skillType);
+                const sorted = this.sortBySkillDesc(theirs, duelSkillType);
                 return this.cardClickDecision(sorted[sorted.length - 1], 'duel-target-enemy-weakest');
             }
         }

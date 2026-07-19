@@ -65,11 +65,6 @@ describe('GloryTactics', function() {
     });
 
     describe('decisions', function() {
-        it('bids to win duels until honor runs low', function() {
-            expect(tactics.desiredDuelBid(10)).toBe(GLORY_DEFAULTS.duelBid);
-            expect(tactics.desiredDuelBid(3)).toBe(1);
-        });
-
         it('Ofushikai goes to Shiba Tsukune first', function() {
             const mine = [{ id: 'isawa-kaede' }, { id: 'shiba-tsukune' }];
             expect(tactics.pickOfushikaiTarget(mine).id).toBe('shiba-tsukune');

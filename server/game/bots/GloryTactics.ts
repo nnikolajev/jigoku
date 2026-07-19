@@ -22,7 +22,6 @@
 // Tuning knobs for the glory playstyle. Every value a future glory deck
 // might want to tune differently lives here, not in the policy code.
 export interface GloryProfile {
-    duelBid: number; // Game of Sadane honors the winner — bid to win it
     ringCardBonus: number; // ring-score bonus per own in-play card that wants
                            // that ring's element
     // element -> printed ids (in play) that make contesting it better
@@ -35,7 +34,6 @@ export interface GloryProfile {
 }
 
 export const GLORY_DEFAULTS: GloryProfile = {
-    duelBid: 4,
     ringCardBonus: 12,
     ringPreferences: {
         earth: ['solemn-scholar'],
@@ -71,12 +69,6 @@ export class GloryTactics {
         // from hand too.
         const inHand = (hand || []).filter((card) => card.id && wanted.includes(card.id)).length;
         return (inPlay + inHand) * this.profile.ringCardBonus;
-    }
-
-    // Duel dials: Game of Sadane honors the winner and dishonors the loser —
-    // the whole deck is honored-character stats, so pay to win.
-    desiredDuelBid(myHonor: number): number {
-        return myHonor > 3 ? this.profile.duelBid : 1;
     }
 
     // Ofushikai attaches to the Champion (its move-home Action only exists

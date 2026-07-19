@@ -2,8 +2,8 @@
 // EmeraldDB 914dc4d4). The deck wins by driving the OPPONENT to 0 honor while
 // deliberately keeping its OWN honor low-but-alive:
 //
-// - bid LOW on every honor dial (draw phase and duels) so a value-bidding
-//   opponent pays the difference in honor every round,
+// - bid LOW after the first-round draw dial so a value-bidding opponent pays
+//   the difference in honor every round; duels use shared matrix tactics,
 // - take honor with the air ring instead of gaining it,
 // - dishonor enemy characters (a dishonored character that leaves play costs
 //   its controller another honor),
@@ -24,7 +24,7 @@
 // might want to tune differently lives here, not in the policy code.
 export interface DishonorProfile {
     firstRoundBid: number; // draw-phase bid while honor is full (cards > honor early)
-    lowBid: number; // every later dial: draw phase AND duels — farm the difference
+    lowBid: number; // every later draw dial: farm the difference
     honorFloor: number; // never pay honor costs at or below this own-honor value
     honorCeiling: number; // the "6 or fewer" band many deck cards want; the
                           // stronghold stops climbing once the next gain would
@@ -66,9 +66,9 @@ export class DishonorTactics {
         this.profile = profile;
     }
 
-    // Every honor dial (draw phase and duels): first round buys the full hand,
-    // afterwards bid low so the opponent's higher bid pays us the difference.
-    // Duels reach here too — losing a duel is fine, the honor flows in.
+    // Draw dial only: first round buys the full hand, afterwards bid low so
+    // the opponent's higher draw bid pays us the difference. Duel bidding is
+    // centralized in DuelBidTactics and receives the dishonor objective.
     desiredBid(roundNumber: number | undefined, myHonor: number): number {
         if(roundNumber !== undefined && roundNumber <= 1 && myHonor > this.profile.honorFloor) {
             return this.profile.firstRoundBid;

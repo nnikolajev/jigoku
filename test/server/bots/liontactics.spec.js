@@ -58,17 +58,12 @@ describe('LionTactics', function() {
 
     describe('honor dial', function() {
         it('bids 5 on the first round, then the draw bid', function() {
-            expect(tactics.desiredBid(1, 10, false)).toBe(LION_DEFAULTS.firstRoundBid);
-            expect(tactics.desiredBid(3, 10, false)).toBe(LION_DEFAULTS.drawBid);
-        });
-
-        it('bids high in duels (the deck duels bow the loser)', function() {
-            expect(tactics.desiredBid(3, 10, true)).toBe(LION_DEFAULTS.duelBid);
+            expect(tactics.desiredBid(1, 10)).toBe(LION_DEFAULTS.firstRoundBid);
+            expect(tactics.desiredBid(3, 10)).toBe(LION_DEFAULTS.drawBid);
         });
 
         it('collapses to 1 at the honor floor', function() {
-            expect(tactics.desiredBid(3, LION_DEFAULTS.honorFloor, false)).toBe(1);
-            expect(tactics.desiredBid(3, LION_DEFAULTS.honorFloor, true)).toBe(1);
+            expect(tactics.desiredBid(3, LION_DEFAULTS.honorFloor)).toBe(1);
         });
     });
 
@@ -131,6 +126,55 @@ describe('LionTactics', function() {
             expect(tactics.pickTower(bodies, (card) => Number(card.militarySkillSummary.stat)).uuid).toBe('tower');
         });
 
+        it('uses exact printed cost to ready any bowed cost-2-or-less body with Elegant Tessen', function() {
+            const cards = [
+                { id: 'unlisted-cheap', uuid: 'cheap', bowed: true },
+                { id: 'matsu-berserker', uuid: 'expensive', bowed: true },
+                { id: 'akodo-gunso', uuid: 'ready', bowed: false }
+            ];
+            const costs = { cheap: 2, expensive: 3, ready: 1 };
+            expect(tactics.pickTessenTarget(cards, (card) => card.uuid === 'cheap' ? 4 : 10, costs).uuid).toBe('cheap');
+            expect(tactics.pickTessenTarget(cards, () => 1, { cheap: 3, expensive: 3, ready: 1 })).toBeNull();
+        });
+
+        it('spreads True Strike Kenjutsu and prefers a durable high-base bearer', function() {
+            const cards = [
+                { id: 'akodo-toturi', uuid: 'toturi', fate: 2, attachments: [] },
+                { id: 'honored-general', uuid: 'general', fate: 2,
+                    attachments: [{ id: 'true-strike-kenjutsu' }] },
+                { id: 'matsu-berserker', uuid: 'cheap', fate: 0, attachments: [] }
+            ];
+            expect(tactics.pickTrueStrikeTarget(cards, { toturi: 6, general: 5, cheap: 7 }).uuid).toBe('toturi');
+            expect(tactics.pickTrueStrikeTarget([cards[1]], { general: 5 })).toBeNull();
+        });
+
+        it('starts True Strike only when its base military beats every opposing participant', function() {
+            const source = {
+                uuid: 'source', inConflict: true,
+                attachments: [{ id: 'true-strike-kenjutsu' }]
+            };
+            const opponents = [
+                { uuid: 'weak', inConflict: true, bowed: false },
+                { uuid: 'strong', inConflict: true, bowed: false }
+            ];
+            expect(tactics.shouldStartTrueStrikeDuel(source, opponents, {
+                source: 5, weak: 2, strong: 4
+            })).toBe(true);
+            expect(tactics.shouldStartTrueStrikeDuel(source, opponents, {
+                source: 5, weak: 2, strong: 5
+            })).toBe(false);
+            expect(tactics.shouldStartTrueStrikeDuel(source, opponents.map((card) => ({ ...card, bowed: true })), {
+                source: 5, weak: 2, strong: 4
+            })).toBe(false);
+        });
+
+        it('keeps True Strike matchup threshold injectable', function() {
+            const equalAllowed = new LionTactics({ ...LION_DEFAULTS, trueStrikeMinimumBaseLead: 0 });
+            const source = { uuid: 'source', inConflict: true, attachments: [{ id: 'true-strike-kenjutsu' }] };
+            const target = { uuid: 'target', inConflict: true, bowed: false };
+            expect(equalAllowed.shouldStartTrueStrikeDuel(source, [target], { source: 4, target: 4 })).toBe(true);
+        });
+
         it('requires three participating Bushi for Ikoma Tsanuri', function() {
             const gate = getPlaybookEntry('ikoma-tsanuri').shouldUseAction;
             const context = (traits) => ({
@@ -160,6 +204,21 @@ describe('LionTactics', function() {
         it('keeps phase-start and break reactions out of ordinary Action selection', function() {
             expect(getPlaybookEntry('feeding-an-army').shouldPlay({})).toBe(false);
             expect(getPlaybookEntry('for-greater-glory').shouldPlay({})).toBe(false);
+        });
+
+        it('publishes exact Tessen and singleton True Strike playbook guards', function() {
+            const tessen = getPlaybookEntry('elegant-tessen');
+            const trueStrike = getPlaybookEntry('true-strike-kenjutsu');
+            expect(tessen.shouldPlay({
+                myCharacters: [{ uuid: 'cheap', bowed: true }],
+                characterPrintedCosts: { cheap: 2 }
+            })).toBe(true);
+            expect(tessen.shouldPlay({
+                myCharacters: [{ uuid: 'expensive', bowed: true }],
+                characterPrintedCosts: { expensive: 3 }
+            })).toBe(false);
+            expect(trueStrike.maxCopiesPerTarget).toBe(1);
+            expect(trueStrike.attachSide).toBe('self');
         });
     });
 });

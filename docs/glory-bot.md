@@ -32,8 +32,9 @@ gated on its presence.
   helpful-polarity; Benten's Touch bows a home Shugenja to honor a
   participant; Magnificent Kimono (pride, `abilityValue`) stacks more.
 - **Duels**: Game of Sadane sends our best political participant against
-  their weakest and bids 4 (`glory-duel-bid`) — the winner is honored, the
-  loser dishonored.
+  their strongest beatable target. Shared `DuelBidTactics` uses the exact
+  political duel skills and the glory deck's `honor` risk profile; there is no
+  fixed bid 4.
 - **Cancels**: Censure (with the Favor) and Voice of Honor (more honored
   characters) fire through the priority>=6 interrupt path.
 - **Void punishes**: Isawa Ujina's forced reaction removes their strongest

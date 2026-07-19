@@ -35,6 +35,7 @@ Bot seeds:
 | `auditConflictBehavior.js` | Focused attack/defense policy audit. |
 | `analyzePolicyGame.js` | Paired deterministic policy trace comparison. |
 | `compareProfileVariants.js` | Paired deterministic A/B for injectable deck-profile knobs. |
+| `analyzeDuelBids.js` | Run the shared duel bid matrix over curated, custom, or 1,200-position grids. |
 | `validateBotInteractions.js` | Detect bot click loops, stalls, and budget pressure. |
 
 ## Basic self-play and training pipeline
@@ -222,6 +223,54 @@ node tools/selfplay/winRates.js 100 1
 node tools/selfplay/winRates.js 100 1 2 fate-aware
 ```
 
+### `analyzeDuelBids.js`
+
+Runs no game. It executes the same `DuelBidTactics` class used by live bots,
+so risk-weight tuning is fast and deterministic. With no position flags it
+prints curated equal/behind/ahead, early/late, honor-cliff, honor-victory,
+dishonor-pressure, and Iaijutsu cases. Output distinguishes forced-low,
+ordinary modeled-utility, and close-duel mind-game decisions. `--grid` covers
+1,200 combinations.
+
+```text
+node tools/selfplay/analyzeDuelBids.js [--my-skill N]
+    [--opponent-skill N] [--my-honor N] [--opponent-honor N]
+    [--round N] [--my-master] [--opponent-master]
+    [--objective balanced|honor|dishonor] [--set K=V[,K=V...]]
+    [--matrix] [--grid] [--json] [--out FILE.json] [-h|--help]
+```
+
+| Parameter | Default | Description |
+|---|---:|---|
+| position values | `5,5,11,11,1` | Exact bot/opponent duel skill, honor, and round for one custom scenario. Supplying any position flag selects custom mode. |
+| `--my-master` | off | Bot participant has an attached, **unspent** Iaijutsu Master. |
+| `--opponent-master` | off | Opponent participant has an attached, **unspent** Iaijutsu Master. |
+| `--objective` | `balanced` | Select generic, honor-race, or dishonor risk weighting. |
+| `--set K=V,...` | none | Override any numeric `DuelBidProfile` field; unknown/non-numeric fields fail. |
+| `--matrix` | off | Print all 25 win/draw/loss cells and each bid's uniform/modeled win rate, expected honor, utility, and mixed share. |
+| `--grid` | off | Analyze 4x4 skill, 5x5 honor, and 3-round combinations (1,200 positions). |
+| `--json` | off | Print the complete report as JSON. |
+| `--out FILE.json` | none | Also write complete JSON; parent directories are created. |
+
+Read `bid` as the best pure action and `mix E` as the average bid produced by
+the seeded mixed strategy. A close duel can intentionally recommend bid 5 but
+have a lower `mix E`; that is the anti-exploitation behavior. In grid output,
+`decision modes` shows how broadly the wider mind-game mix applies. It should
+remain a minority of positions; hopeless, guaranteed, and honor-terminal
+positions should remain forced-low or narrow modeled-utility decisions.
+
+Useful mixing overrides are
+`mindGameMinimumWinProbability`, `mindGameMaximumWinProbability`,
+`mindGameStrategySharpness`, and `mindGameUtilityWindow`. They are numeric and
+can be tested through `--set` before changing `DeckProfiles.ts`.
+
+```powershell
+node tools/selfplay/analyzeDuelBids.js
+node tools/selfplay/analyzeDuelBids.js --my-skill 4 --opponent-skill 5 --my-honor 11 --opponent-honor 4 --round 2 --matrix
+node tools/selfplay/analyzeDuelBids.js --grid --set mindGameUtilityWindow=3,mindGameStrategySharpness=0.7
+node tools/selfplay/analyzeDuelBids.js --grid --objective dishonor --set duelWinUtility=3,honorSwingUtility=1.4 --out tools/selfplay/out/duel-grid.json
+```
+
 ### Focused `match*.js` commands
 
 Each command plays named deck against seed-1 Crane, alternating seats and reporting wins/reasons. Same parameter shape:
@@ -397,7 +446,14 @@ node tools/selfplay/validateBotInteractions.js [options]
 node tools/selfplay/validateBotInteractions.js
 node tools/selfplay/validateBotInteractions.js --games 5 --seeds 1,2,5
 node tools/selfplay/validateBotInteractions.js --opponents all --games 2 --out tools/selfplay/out/all-opponents
+node tools/selfplay/validateBotInteractions.js --decks Lion --opponents all --games 1 --seeds 1,2,5 --out tools/selfplay/out/lion-attachments-all-opponents-click-audit
 ```
+
+The Lion-specific example is the regression audit for Elegant Tessen and True
+Strike Kenjutsu. It covers every registered opponent on seeds 1, 2, and 5;
+inspect `topInteractions` in the JSON report to confirm setup card use, while
+the policy specs prove the gained True Strike Action and exact base-skill gate
+deterministically.
 
 ## Internal modules and workers
 

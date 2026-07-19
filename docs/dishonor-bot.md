@@ -8,9 +8,11 @@ behavior changes (the fine-tuned Unicorn default is untouched).
 
 ## How the deck wins
 
-- **Bid low on every honor dial** (draw phase AND duels). A value-bidding
-  opponent pays the bid difference in honor every round. First round still
-  bids 5 (honor is full, cards matter most).
+- **Bid low on later draw dials.** A value-bidding opponent pays the bid
+  difference in honor every round; round 1 still bids 5 for cards. Duels use
+  the shared `DuelBidTactics` matrix with a `dishonor` objective: it presses a
+  low-honor opponent, protects its own last honor, and does not throw away a
+  duel that is cheap to win.
 - **Air ring = honor drain.** The ring choice is biased to air and the air
   resolution always takes 1 honor from the opponent instead of gaining 2.
 - **Dishonor enemy characters** with the fire ring — a dishonored character

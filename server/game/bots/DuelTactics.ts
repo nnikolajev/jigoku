@@ -3,8 +3,9 @@
 // board and grinds value out of every duel:
 //
 // - duels are initiated with our best character on the duel's axis against
-//   the strongest opposing character it can safely beat, and the honor dial is bid to
-//   WIN — Kyuden Kakita honors our duelist after every resolved duel,
+//   the strongest opposing character it can safely beat. The shared duel-bid matrix
+//   balances winning against both players' honor risk. Kyuden Kakita honors our
+//   duelist after every resolved duel,
 //   Proving Ground draws, Kakita Blade gains honor, Policy Debate strips
 //   their hand, Storied Defeat bows the loser,
 // - attachments land on key duelists; singleton utility copies spread before
@@ -19,13 +20,6 @@
 
 // Tuning knobs for the duel playstyle.
 export interface DuelProfile {
-    duelBid: number; // bid to WIN duels — the deck's payoffs all key on winning
-    honorFloor: number; // below this, stop paying the dial
-    minimumBid: number;
-    maximumBid: number;
-    lowHonorFloor: number;
-    gambleHonorFloor: number;
-    unwinnableSkillGap: number;
     // duel-initiating card id -> the skill axis the duel compares
     duelAxes: Record<string, 'military' | 'political'>;
     // Duel source metadata is kept separate from policy flow so decks can
@@ -59,13 +53,6 @@ export interface DuelProfile {
 }
 
 export const DUEL_DEFAULTS: DuelProfile = {
-    duelBid: 2,
-    honorFloor: 4,
-    minimumBid: 1,
-    maximumBid: 5,
-    lowHonorFloor: 3,
-    gambleHonorFloor: 8,
-    unwinnableSkillGap: -4,
     duelAxes: {
         'kakita-dojo': 'military',
         'duelist-training': 'military',
@@ -143,56 +130,6 @@ export class DuelTactics {
         this.profile = profile;
     }
 
-    // Every duel payoff (stronghold honor, Proving Ground draw, Kakita Blade
-    // honor, the duel effects themselves) keys on WINNING — pay for it while
-    // honor allows.
-    desiredDuelBid(myHonor: number): number {
-        return myHonor > this.profile.honorFloor ? this.profile.duelBid : this.profile.minimumBid;
-    }
-
-    // Shared gap-aware bid plan. Close deficits are gambled on only while
-    // honor-rich; hopeless duels bid minimum and bank the honor transfer.
-    desiredDuelBidForGap(gap: number, honor: number): number {
-        if(honor <= this.profile.lowHonorFloor) {
-            return this.profile.minimumBid;
-        }
-        if(gap >= this.profile.maximumBid) {
-            return this.profile.minimumBid;
-        }
-        if(gap >= 2) {
-            return this.profile.maximumBid + 1 - gap;
-        }
-        if(gap >= 0) {
-            return this.profile.maximumBid;
-        }
-        if(gap <= this.profile.unwinnableSkillGap) {
-            return this.profile.minimumBid;
-        }
-        return honor >= this.profile.gambleHonorFloor
-            ? this.profile.maximumBid
-            : this.profile.minimumBid;
-    }
-
-    // Iaijutsu Master reacts after both dials are revealed. Use the live
-    // margin (our duel total - theirs):
-    // - -1 -> increase to a tie (a second Master may then turn it into a win),
-    // -  0 -> increase to a win,
-    // - 2+ -> decrease, retain the win, and reduce the honor transferred,
-    // - otherwise the modifier cannot improve the result efficiently.
-    iaijutsuBidChoice(duelMargin: number | undefined): 'Increase honor bid' | 'Decrease honor bid' | null {
-        if(duelMargin === -1 || duelMargin === 0) {
-            return 'Increase honor bid';
-        }
-        if(duelMargin !== undefined && duelMargin >= 2) {
-            return 'Decrease honor bid';
-        }
-        return null;
-    }
-
-    shouldUseIaijutsuMaster(duelMargin: number | undefined): boolean {
-        return this.iaijutsuBidChoice(duelMargin) !== null;
-    }
-
     // The axis a duel source compares — used to send our strongest on that
     // axis and find the strongest opposing target it can beat.
     duelAxis(cardId: string | undefined): 'military' | 'political' | null {
@@ -228,19 +165,27 @@ export class DuelTactics {
         return total;
     }
 
-    hasIaijutsuMaster(card: any): boolean {
-        return (card?.attachments || []).some((attachment: any) => attachment.id === 'iaijutsu-master');
+    hasReadyIaijutsuMaster(card: any, readyByCharacterUuid?: Record<string, boolean>): boolean {
+        const attached = (card?.attachments || []).some((attachment: any) =>
+            attachment.id === 'iaijutsu-master');
+        if(!attached) {
+            return false;
+        }
+        const liveReady = card?.uuid ? readyByCharacterUuid?.[card.uuid] : undefined;
+        return liveReady !== false;
     }
 
     canBeat(
         challenger: any,
         target: any,
         axis: 'military' | 'political',
-        baseSkill: (card: any, axis: 'military' | 'political') => number
+        baseSkill: (card: any, axis: 'military' | 'political') => number,
+        readyByCharacterUuid?: Record<string, boolean>
     ): boolean {
         const margin = this.duelSkill(challenger, axis, baseSkill) -
             this.duelSkill(target, axis, baseSkill);
-        return margin > 0 || (margin === 0 && this.hasIaijutsuMaster(challenger));
+        return margin > 0 || (margin === 0 &&
+            this.hasReadyIaijutsuMaster(challenger, readyByCharacterUuid));
     }
 
     // Start optional duels only with a favorable printed/live matchup. When
@@ -251,7 +196,8 @@ export class DuelTactics {
         source: any,
         myCharacters: any[],
         opponentCharacters: any[],
-        baseSkill: (card: any, axis: 'military' | 'political') => number
+        baseSkill: (card: any, axis: 'military' | 'political') => number,
+        readyByCharacterUuid?: Record<string, boolean>
     ): boolean {
         const sourceId = this.duelSourceId(source);
         const rule = sourceId ? this.profile.duelStartRules[sourceId] : undefined;
@@ -268,16 +214,18 @@ export class DuelTactics {
         const challenger = rule.challenger === 'source'
             ? mine.find((card) => card.uuid === source?.uuid) ||
                 mine.find((card) => card.id === source?.id)
-            : this.pickOwnDuelParticipant(mine, axis, true, undefined, 0, baseSkill);
+            : this.pickOwnDuelParticipant(mine, axis, true, undefined, baseSkill);
         if(!challenger) {
             return false;
         }
 
         if(rule.targetChooser === 'opponent') {
             const strongest = this.strongestDuelCharacter(theirs, axis, baseSkill);
-            return !!strongest && this.canBeat(challenger, strongest, axis, baseSkill);
+            return !!strongest && this.canBeat(
+                challenger, strongest, axis, baseSkill, readyByCharacterUuid);
         }
-        return theirs.some((target) => this.canBeat(challenger, target, axis, baseSkill));
+        return theirs.some((target) => this.canBeat(
+            challenger, target, axis, baseSkill, readyByCharacterUuid));
     }
 
     // Own-started duel: strongest legal character. Opponent-started duel:
@@ -288,8 +236,8 @@ export class DuelTactics {
         axis: 'military' | 'political',
         initiatedByMe: boolean,
         opponent: any | undefined,
-        honor: number,
-        baseSkill: (card: any, axis: 'military' | 'political') => number
+        baseSkill: (card: any, axis: 'military' | 'political') => number,
+        contestWhenBehind?: (challenger: any, opponent: any) => boolean
     ): any {
         if(cards.length === 0) {
             return null;
@@ -305,8 +253,7 @@ export class DuelTactics {
 
         const gap = this.duelSkill(strongestFirst[0], axis, baseSkill) -
             this.duelSkill(opponent, axis, baseSkill);
-        if(gap >= 0 ||
-            (gap > this.profile.unwinnableSkillGap && honor >= this.profile.gambleHonorFloor)) {
+        if(gap >= 0 || contestWhenBehind?.(strongestFirst[0], opponent)) {
             return strongestFirst[0];
         }
 
@@ -324,7 +271,8 @@ export class DuelTactics {
         cards: any[],
         axis: 'military' | 'political',
         challenger: any | undefined,
-        baseSkill: (card: any, axis: 'military' | 'political') => number
+        baseSkill: (card: any, axis: 'military' | 'political') => number,
+        readyByCharacterUuid?: Record<string, boolean>
     ): any {
         const strongestFirst = cards.slice().sort((a, b) =>
             this.duelSkill(b, axis, baseSkill) - this.duelSkill(a, axis, baseSkill) ||
@@ -333,7 +281,7 @@ export class DuelTactics {
             String(a.uuid).localeCompare(String(b.uuid)));
         if(challenger) {
             const beatable = strongestFirst.find((target) =>
-                this.canBeat(challenger, target, axis, baseSkill));
+                this.canBeat(challenger, target, axis, baseSkill, readyByCharacterUuid));
             if(beatable) {
                 return beatable;
             }

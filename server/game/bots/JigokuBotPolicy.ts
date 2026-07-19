@@ -3880,7 +3880,10 @@ class JigokuBotPolicy {
         // Character/event reactions fire only with an LLM hint that rates the
         // ability worth using — blind triggers waste fate and honor.
         if(cardHint) {
-            let hinted = this.findVisibleCards(me)
+            // Attachments remain nested under their bearer in the public state.
+            // An attachment we own on an opposing character therefore is not in
+            // `me`, even when its interrupt is selectable for us (Tainted Koku).
+            let hinted = this.findVisibleCards(playerState)
                 .filter((card) => {
                     if(!card.selectable || !card.uuid || !card.id || this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id)) {
                         return false;

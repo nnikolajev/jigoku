@@ -4457,6 +4457,89 @@ describe('Jigoku heuristic bot', function() {
             expect(cautious.decide(state, 'Jigoku Bot').target).toBe('Pass');
         });
 
+        it('triggers Tainted Koku while it is attached to an opposing character', function() {
+            const koku = {
+                uuid: 'tainted-koku-1', id: 'tainted-koku', name: 'Tainted Koku',
+                type: 'attachment', location: 'play area', selectable: true
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot',
+                        promptTitle: 'Triggered Abilities',
+                        menuTitle: 'Any interrupts to Doji Kuwanan leaving play?',
+                        selectCard: true,
+                        buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        cardPiles: { cardsInPlay: [] }
+                    },
+                    Human: {
+                        name: 'Human',
+                        cardPiles: {
+                            cardsInPlay: [{
+                                uuid: 'doji-kuwanan', id: 'doji-kuwanan', name: 'Doji Kuwanan',
+                                type: 'character', location: 'play area', attachments: [koku]
+                            }]
+                        }
+                    }
+                }
+            };
+
+            const decision = new JigokuBotPolicy('tainted-koku-interrupt').decide(
+                state,
+                'Jigoku Bot',
+                { cardHint: getPlaybookEntry }
+            );
+
+            expect(decision.command).toBe('cardClicked');
+            expect(decision.args[0]).toBe('tainted-koku-1');
+
+            const moveState = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot',
+                        promptTitle: 'Tainted Koku',
+                        menuTitle: 'Choose a character',
+                        selectCard: true,
+                        buttons: [],
+                        cardPiles: { cardsInPlay: [] }
+                    },
+                    Human: {
+                        name: 'Human',
+                        cardPiles: {
+                            cardsInPlay: [
+                                {
+                                    uuid: 'kakita-kaezin', id: 'kakita-kaezin', name: 'Kakita Kaezin',
+                                    type: 'character', location: 'play area', selectable: true,
+                                    militarySkillSummary: { stat: '2' }, politicalSkillSummary: { stat: '2' },
+                                    attachments: []
+                                },
+                                {
+                                    uuid: 'kakita-yoshi', id: 'kakita-yoshi', name: 'Kakita Yoshi',
+                                    type: 'character', location: 'play area', selectable: true,
+                                    militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '6' },
+                                    attachments: []
+                                }
+                            ]
+                        }
+                    }
+                }
+            };
+            const target = new JigokuBotPolicy('tainted-koku-target').decide(
+                moveState,
+                'Jigoku Bot',
+                {
+                    targetHint: {
+                        gameActions: ['attach'], sourceIsMine: true,
+                        sourceType: 'attachment', sourceCardId: 'tainted-koku'
+                    },
+                    cardHint: getPlaybookEntry
+                }
+            );
+
+            expect(target.command).toBe('cardClicked');
+            expect(target.args[0]).toBe('kakita-yoshi');
+        });
+
         it('overrides target polarity with the source card hint', function() {
             const character = (uuid, mil, fate) => ({
                 uuid: uuid, name: uuid, type: 'character', location: 'play area',

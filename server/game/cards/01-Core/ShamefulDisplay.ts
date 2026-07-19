@@ -77,9 +77,13 @@ export default class ShamefulDisplay extends ProvinceCard {
             promptTitle = 'Choose a character to honor';
             condition = (card) => cards.includes(card) && card.allowGameAction('honor', context);
         }
+        const gameAction = choice === 'Honor'
+            ? AbilityDsl.actions.honor()
+            : AbilityDsl.actions.dishonor();
         this.game.promptForSelect(context.player, {
             activePromptTitle: promptTitle,
             context: context,
+            gameAction: gameAction,
             cardCondition: condition,
             buttons: [{ text: 'Back', arg: 'back' }],
             onSelect: (player, card) => {

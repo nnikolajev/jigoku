@@ -1342,7 +1342,13 @@ class JigokuBotPolicy {
         const controllerName = typeof card?.controller === 'string'
             ? card.controller
             : card?.controller?.name;
-        return knownUuids.has(card?.uuid) || (!!controllerName && controllerName === player?.name);
+        // Select prompts cache every legal card under the active player's
+        // serialized prompt state. `knownUuids` therefore contains enemy
+        // targets too while those prompts are open. An explicit controller is
+        // authoritative; use UUID membership only for summaries that omit it.
+        return controllerName
+            ? controllerName === player?.name
+            : knownUuids.has(card?.uuid);
     }
 
     private skillValue(card: any, type: string): number | null {
@@ -5359,17 +5365,18 @@ class JigokuBotPolicy {
         // an enemy — cancel instead.
         if(targetHint.sourceCardId === 'shameful-display') {
             const promptTitle = String(me.promptTitle || '');
+            const menuTitle = String(me.menuTitle || '');
             // Follow-up prompts after both targets are picked: the honored
             // character must be OURS and the dishonored one THEIRS. When the
             // right side is not legal (own pick already honored / enemy pick
             // already dishonored), give the leftover to the weakest legal
             // card so the misdirected token costs the least.
-            if(promptTitle === 'Choose a character to honor') {
+            if(promptTitle === 'Choose a character to honor' || menuTitle === 'Choose a character to honor') {
                 const pick = personalHonor.pickOwnHonor(mine) ||
                     personalHonor.pickForcedEnemyHonor(theirs);
                 return pick ? this.cardClickDecision(pick, 'shameful-honor-own') : null;
             }
-            if(promptTitle === 'Choose a character to dishonor') {
+            if(promptTitle === 'Choose a character to dishonor' || menuTitle === 'Choose a character to dishonor') {
                 const pick = personalHonor.pickEnemyDishonor(theirs) ||
                     personalHonor.pickForcedOwnDishonor(mine);
                 return pick ? this.cardClickDecision(pick, 'shameful-dishonor-enemy') : null;

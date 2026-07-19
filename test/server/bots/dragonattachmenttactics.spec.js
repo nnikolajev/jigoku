@@ -299,7 +299,7 @@ describe('DragonAttachmentTactics', function() {
                 players: {
                     'Jigoku Bot': {
                         name: 'Jigoku Bot', promptTitle: 'Honor Bid', menuTitle: '',
-                        buttons: bidButtons, stats: { honor: 10 },
+                        buttons: bidButtons, stats: { honor: 10, fate: 6 },
                         cardPiles: { hand: [{}] }
                     },
                     Opponent: {
@@ -312,8 +312,8 @@ describe('DragonAttachmentTactics', function() {
                 strategy: ATTACHMENTS,
                 roundNumber: 2
             });
-            expect(decision.reason).toBe('draw-bid-honor');
-            expect(decision.target).toBe('5');
+            expect(decision.reason).toBe('draw-bid-adaptive-fate-cost-pressure');
+            expect(decision.target).toBe('4');
         });
 
         it('does not bow Daimyo\'s Favor for a free attachment', function() {

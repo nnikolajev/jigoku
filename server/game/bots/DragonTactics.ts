@@ -23,8 +23,6 @@
 
 // Tuning knobs for the monk playstyle.
 export interface DragonProfile {
-    firstRoundBid: number; // full hand for the card engine
-    drawBid: number; // conservative later dial; still profile-injectable
     // Card-count payoffs are this deck's win condition. When reachable, their
     // exact target overrides normal province-break strength budgeting.
     allowCardCountOvercommit: boolean;
@@ -49,8 +47,6 @@ export interface DragonProfile {
 }
 
 export const DRAGON_DEFAULTS: DragonProfile = {
-    firstRoundBid: 5,
-    drawBid: 2,
     allowCardCountOvercommit: true,
     voidRecursionBonus: 20,
     keyCharacters: ['togashi-mitsu-2', 'togashi-ichi', 'togashi-tadakatsu', 'teacher-of-empty-thought'],
@@ -162,18 +158,6 @@ export class DragonTactics {
 
     allowsCardCountOvercommit(): boolean {
         return this.profile.allowCardCountOvercommit;
-    }
-
-    // Draw dials: full hand on round 1, then use the profile's conservative
-    // later-round value while the deck's own card engine is online.
-    desiredBid(roundNumber: number | undefined, myHonor: number): number {
-        if(myHonor <= 3) {
-            return 1;
-        }
-        if(roundNumber !== undefined && roundNumber <= 1) {
-            return this.profile.firstRoundBid;
-        }
-        return this.profile.drawBid;
     }
 
     // Build-around attachments go to Mitsu first.

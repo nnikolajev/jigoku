@@ -17,11 +17,10 @@ as `DragonAttachments` in the self-play tools.
 - The board target is two towers and at most three support characters. A tower
   is bought only when at least 3 additional fate is affordable; it receives up
   to 4.
-- Draw bids use the shared honor-safe heuristic instead of a deck-specific
-  Composure bid. At normal honor (7+) the bot bids 5 to refill its hand, so a
-  one-card turn-two hand is not stranded by a forced bid of 1. It steps down to
-  3 at 4-6 honor and 1 at 3 or less, with the generic opponent-honor safety
-  caps still applied.
+- Draw bids use the shared injectable tower profile in `DrawBidTactics`.
+  Round 1 remains 5. Later bids keep a floor of 4, but can step down as the
+  persistent attachment tower, hand, and fate demand become saturated. Honor
+  rails and exposed-stronghold urgency remain universal.
 - Ancestral Lands is placed under the stronghold. Its +5 political strength is
   more useful on the final province than Pilgrimage: if the stronghold province
   breaks, the game has already ended.

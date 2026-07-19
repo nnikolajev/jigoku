@@ -60,7 +60,8 @@ function buildGame(names) {
     return { game, state };
 }
 
-function makeController(game, playerName, seed, trace = false, recorder = undefined, evaluator = undefined, explore = 0, policy = undefined) {
+function makeController(game, playerName, seed, trace = false, recorder = undefined, evaluator = undefined,
+    explore = 0, policy = undefined, drawBidPolicy = undefined) {
     const runCommand = (command, name, args) => {
         if(!BOT_COMMANDS.has(command)) {
             return false;
@@ -75,7 +76,16 @@ function makeController(game, playerName, seed, trace = false, recorder = undefi
     };
     return new JigokuBotController(
         game,
-        { playerName: playerName, seed: seed, trace: trace, maxDecisionsPerTick: 40, policy: policy, llm: { enabled: false }, explore: explore },
+        {
+            playerName: playerName,
+            seed: seed,
+            trace: trace,
+            maxDecisionsPerTick: 40,
+            policy: policy,
+            drawBidPolicy: drawBidPolicy,
+            llm: { enabled: false },
+            explore: explore
+        },
         runCommand,
         { recorder: recorder, evaluator: evaluator }
     );
@@ -120,6 +130,7 @@ async function runGame(options = {}) {
     const evaluators = options.evaluators || [];
     const explore = options.explore || [];
     const policies = options.policies || [];
+    const drawBidPolicies = options.drawBidPolicies || [];
     const controllers = names.map((name, i) => makeController(
         game,
         name,
@@ -128,7 +139,8 @@ async function runGame(options = {}) {
         makeRecorder(name),
         evaluators[i],
         explore[i] || 0,
-        policies[i]
+        policies[i],
+        drawBidPolicies[i]
     ));
     if(options.onControllers) {
         options.onControllers(controllers);

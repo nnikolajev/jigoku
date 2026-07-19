@@ -4,9 +4,6 @@
 // fate on every dynasty character.
 
 export interface LionProfile {
-    firstRoundBid: number;
-    drawBid: number;
-    honorFloor: number;
     strongholdReadyTargets: string[];
     towerCharacters: string[];
     strongReadyTargets: string[];
@@ -25,9 +22,6 @@ export interface LionProfile {
 }
 
 export const LION_DEFAULTS: LionProfile = {
-    firstRoundBid: 5,
-    drawBid: 2,
-    honorFloor: 4,
     strongholdReadyTargets: [
         'matsu-berserker', 'miwaku-kabe-guard', 'tactician-s-apprentice',
         'ikoma-reservist', 'akodo-gunso', 'akodo-toshiro', 'gifted-tactician',
@@ -80,16 +74,6 @@ export class LionTactics {
 
     constructor(profile: LionProfile) {
         this.profile = profile;
-    }
-
-    desiredBid(roundNumber: number | undefined, myHonor: number): number {
-        if(myHonor <= this.profile.honorFloor) {
-            return 1;
-        }
-        if(roundNumber !== undefined && roundNumber <= 1) {
-            return this.profile.firstRoundBid;
-        }
-        return this.profile.drawBid;
     }
 
     desiredAdditionalFate(cardId: string | undefined): number {

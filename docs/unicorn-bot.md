@@ -7,6 +7,10 @@ target scoring and tunable constants stay in `UnicornProfile`. Seeds 1, 2, and
 
 ## Conflict plan
 
+The shared card-engine draw profile keeps a routine bid floor of 4 after the
+opening round. Unicorn needs movement, ready, and payoff cards to sustain its
+aggression, while universal honor rails can still force a safe bid of 1.
+
 The bot does not declare every useful character immediately. During a military
 conflict it may leave a movement target at home, declare Outskirts Sentry first,
 then move the reserved character with Golden Plains Outpost, Ride On, or

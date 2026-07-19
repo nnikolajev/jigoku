@@ -89,8 +89,11 @@ remaining cards stay in hand.
 - Keeper Initiate in the dynasty discard adds a large Void-ring priority.
 - Togashi Tadakatsu gives the attacking opponent the lowest-valued legal ring.
 - Sacred Sanctuary is placed under the stronghold and readies a bowed Monk.
-- Round 1 draw bid is 5 and later draw bids are 2. Duel bids use the shared
-  skill/honor/round matrix and protect the dishonor/honor loss cliffs.
+- Draw-phase bids use the shared card-engine `DrawBidTactics` profile: round 1
+  is 5, later bids normally remain high for the five/ten-card engine, with
+  honor safety and conquest-emergency rails. The old fixed later bid of 2 is
+  available only through the legacy A/B policy. Duel bids still use the shared
+  skill/honor/round matrix.
 - Defend Your Honor is interrupt-only and is never clicked proactively.
 
 ## Verification, 2026-07-14

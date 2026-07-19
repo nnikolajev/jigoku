@@ -8,6 +8,7 @@ export interface JigokuBotLlmConfig {
 }
 
 export type JigokuBotPolicyVariant = 'generic' | 'fate-aware';
+export type JigokuBotDrawBidPolicyVariant = 'adaptive' | 'legacy';
 
 export interface JigokuBotConfig {
     playerName: string;
@@ -19,6 +20,9 @@ export interface JigokuBotConfig {
     // Seed 1 defaults to fate-aware; seed 2 selects the old generic heuristic.
     // Explicit variants remain available for controlled policy comparisons.
     policy?: JigokuBotPolicyVariant;
+    // Adaptive is live default. Legacy preserves pre-refactor draw bids for
+    // controlled self-play comparisons without reverting other bot logic.
+    drawBidPolicy?: JigokuBotDrawBidPolicyVariant;
     llm?: JigokuBotLlmConfig;
     // Seed-3 exploration rate (0..1): probability of taking a random legal move
     // instead of the evaluator's argmax. Used during self-play data generation

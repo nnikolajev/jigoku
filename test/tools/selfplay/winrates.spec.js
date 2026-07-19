@@ -6,6 +6,7 @@ const {
     isStandardBenchmarkRun,
     parseArgs,
     parseBotSeed,
+    parseDrawBidPolicy,
     parsePolicyOverride,
     seatSeeds,
     seedLabel
@@ -30,6 +31,10 @@ describe('self-play win-rate deck selection', function() {
         expect(parsePolicyOverride('generic')).toBe('generic');
         expect(parsePolicyOverride('fate-aware')).toBe('fate-aware');
         expect(parsePolicyOverride(undefined)).toBeUndefined();
+        expect(parseDrawBidPolicy('legacy')).toBe('legacy');
+        expect(parseDrawBidPolicy('adaptive')).toBe('adaptive');
+        expect(() => parseDrawBidPolicy('random')).toThrowError('draw bid policy must be adaptive or legacy');
+        expect(parseDrawBidPolicy(undefined)).toBe('adaptive');
     });
 
     it('parses challenger and Crane seeds independently', function() {
@@ -37,7 +42,9 @@ describe('self-play win-rate deck selection', function() {
             games: 100,
             botSeed: 1,
             craneSeed: 1,
-            challengerPolicy: undefined
+            challengerPolicy: undefined,
+            challengerDrawBidPolicy: 'adaptive',
+            craneDrawBidPolicy: 'adaptive'
         }));
         expect(parseArgs(['100', '2'])).toEqual(jasmine.objectContaining({
             games: 100,
@@ -50,6 +57,7 @@ describe('self-play win-rate deck selection', function() {
             craneSeed: 2
         }));
         expect(parseArgs(['40', '1', '2', 'generic']).challengerPolicy).toBe('generic');
+        expect(parseArgs(['40', '1', '2', '', 'adaptive', 'legacy']).craneDrawBidPolicy).toBe('legacy');
     });
 
     it('keeps each bot seed attached to its deck when seats alternate', function() {
@@ -63,6 +71,7 @@ describe('self-play win-rate deck selection', function() {
         expect(isStandardBenchmarkRun(parseArgs(['40', '2']), rows)).toBe(false);
         expect(isStandardBenchmarkRun(parseArgs(['100', '2', '1']), rows)).toBe(false);
         expect(isStandardBenchmarkRun(parseArgs(['100', '2', '2', 'generic']), rows)).toBe(false);
+        expect(isStandardBenchmarkRun(parseArgs(['100', '2', '2', '', 'legacy']), rows)).toBe(false);
         expect(isStandardBenchmarkRun(parseArgs(['100', '2']), [
             ...rows.slice(0, -1),
             { ...rows[rows.length - 1], played: 99, died: 'incomplete' }

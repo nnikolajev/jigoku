@@ -56,17 +56,6 @@ describe('LionTactics', function() {
         });
     });
 
-    describe('honor dial', function() {
-        it('bids 5 on the first round, then the draw bid', function() {
-            expect(tactics.desiredBid(1, 10)).toBe(LION_DEFAULTS.firstRoundBid);
-            expect(tactics.desiredBid(3, 10)).toBe(LION_DEFAULTS.drawBid);
-        });
-
-        it('collapses to 1 at the honor floor', function() {
-            expect(tactics.desiredBid(3, LION_DEFAULTS.honorFloor)).toBe(1);
-        });
-    });
-
     describe('stronghold ready', function() {
         it('clicks Hayaken no Shiro only when a known cheap Bushi sits bowed', function() {
             expect(tactics.shouldReadyWithStronghold([{ id: 'matsu-berserker', bowed: true }])).toBe(true);

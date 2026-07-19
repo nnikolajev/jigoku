@@ -5,7 +5,8 @@
 // so a rare synchronous engine loop or out-of-memory game kills only that child; the
 // parent keeps every game that already streamed and prints the board anyway,
 // marking a deck whose child died before finishing. Usage:
-//   node tools/selfplay/winRates.js [gamesPerDeck] [botSeed] [craneSeed] [challengerPolicy]
+//   node tools/selfplay/winRates.js [gamesPerDeck] [botSeed] [craneSeed]
+//     [challengerPolicy] [challengerDrawBidPolicy] [craneDrawBidPolicy]
 // gamesPerDeck default 100. Seeds: 1 fate-aware (default), 2 old heuristic,
 // 3 LLM, 4 learned evaluator, 5 omniscient. challengerPolicy is an optional
 // generic/fate-aware challenger override. Challenger and Crane seeds are
@@ -37,13 +38,25 @@ function parsePolicyOverride(value) {
     return value === 'generic' || value === 'fate-aware' ? value : undefined;
 }
 
+function parseDrawBidPolicy(value) {
+    if(value === undefined || value === '' || value === 'adaptive') {
+        return 'adaptive';
+    }
+    if(value === 'legacy') {
+        return 'legacy';
+    }
+    throw new Error('draw bid policy must be adaptive or legacy');
+}
+
 function parseArgs(argv = []) {
     const botSeed = parseBotSeed(argv[1]);
     return {
         games: parseInt(argv[0], 10) || STANDARD_GAMES,
         botSeed,
         craneSeed: argv[2] === undefined ? botSeed : parseBotSeed(argv[2]),
-        challengerPolicy: parsePolicyOverride(argv[3])
+        challengerPolicy: parsePolicyOverride(argv[3]),
+        challengerDrawBidPolicy: parseDrawBidPolicy(argv[4]),
+        craneDrawBidPolicy: parseDrawBidPolicy(argv[5])
     };
 }
 
@@ -51,6 +64,8 @@ function isStandardBenchmarkRun(options, rows) {
     return options.games === STANDARD_GAMES &&
         options.botSeed === options.craneSeed &&
         !options.challengerPolicy &&
+        options.challengerDrawBidPolicy === 'adaptive' &&
+        options.craneDrawBidPolicy === 'adaptive' &&
         rows.length === DECKS.length &&
         rows.every((row) => !row.died && row.played === STANDARD_GAMES);
 }
@@ -69,11 +84,13 @@ function seedLabel(seed) {
     })[seed];
 }
 
-function runDeckChild(label, games, botSeed, craneSeed, challengerPolicy) {
+function runDeckChild(label, games, botSeed, craneSeed, challengerPolicy,
+    challengerDrawBidPolicy, craneDrawBidPolicy) {
     return new Promise((resolve) => {
         const child = spawn(process.execPath, [
             '--max-old-space-size=1024', WORKER, label, String(games), String(botSeed),
-            String(craneSeed), challengerPolicy || ''
+            String(craneSeed), challengerPolicy || '',
+            challengerDrawBidPolicy, craneDrawBidPolicy
         ], {
             cwd: path.join(__dirname, '..', '..'),
             env: { ...process.env, LOG_LEVEL: 'error' }
@@ -119,12 +136,16 @@ function runDeckChild(label, games, botSeed, craneSeed, challengerPolicy) {
 
 async function main() {
     const options = parseArgs(process.argv.slice(2));
-    const { games, botSeed, craneSeed, challengerPolicy } = options;
+    const {
+        games, botSeed, craneSeed, challengerPolicy,
+        challengerDrawBidPolicy, craneDrawBidPolicy
+    } = options;
     const challengerLabel = challengerPolicy || seedLabel(botSeed);
 
-    process.stderr.write(`running ${DECKS.length} deck simulations in parallel (${games} games each, challenger seed ${botSeed} ${seedLabel(botSeed)}, Crane seed ${craneSeed} ${seedLabel(craneSeed)}${challengerPolicy ? `, challenger override ${challengerPolicy}` : ''})\n`);
+    process.stderr.write(`running ${DECKS.length} deck simulations in parallel (${games} games each, challenger seed ${botSeed} ${seedLabel(botSeed)} draw ${challengerDrawBidPolicy}, Crane seed ${craneSeed} ${seedLabel(craneSeed)} draw ${craneDrawBidPolicy}${challengerPolicy ? `, challenger override ${challengerPolicy}` : ''})\n`);
     const deckRuns = await Promise.all(DECKS.map((label) =>
-        runDeckChild(label, games, botSeed, craneSeed, challengerPolicy)));
+        runDeckChild(label, games, botSeed, craneSeed, challengerPolicy,
+            challengerDrawBidPolicy, craneDrawBidPolicy)));
     const rows = [];
     for(const { label, results, died } of deckRuns) {
         let wins = 0;
@@ -147,7 +168,7 @@ async function main() {
 
     rows.sort((a, b) => (b.played ? b.wins / b.played : 0) - (a.played ? a.wins / a.played : 0));
 
-    console.log(`\n=== Bot win rates vs Crane Baseline (challenger seed ${botSeed}, ${challengerLabel}; Crane seed ${craneSeed}, ${seedLabel(craneSeed)}; N=${games}/deck, seats alternate) ===\n`);
+    console.log(`\n=== Bot win rates vs Crane Baseline (challenger seed ${botSeed}, ${challengerLabel}, draw ${challengerDrawBidPolicy}; Crane seed ${craneSeed}, ${seedLabel(craneSeed)}, draw ${craneDrawBidPolicy}; N=${games}/deck, seats alternate) ===\n`);
     const deckWidth = Math.max('deck'.length, ...rows.map((row) => row.label.length));
     console.log(`${'deck'.padEnd(deckWidth)}  record     win%   played  top loss / note`);
     console.log(`${'-'.repeat(deckWidth)}  ---------  -----  ------  ------------------------`);
@@ -168,7 +189,8 @@ async function main() {
     if(isStandardBenchmarkRun(options, rows)) {
         const configPath = writeBenchmarkSection(botSeed, 'winRates', winRatesPayload(options, rows));
         console.log(`Standard client benchmark updated: ${configPath}`);
-    } else if(games === STANDARD_GAMES && botSeed === craneSeed && !challengerPolicy) {
+    } else if(games === STANDARD_GAMES && botSeed === craneSeed && !challengerPolicy &&
+        challengerDrawBidPolicy === 'adaptive' && craneDrawBidPolicy === 'adaptive') {
         console.log('Standard client benchmark not updated: run was incomplete.');
     }
 }
@@ -185,6 +207,7 @@ module.exports = {
     isStandardBenchmarkRun,
     parseArgs,
     parseBotSeed,
+    parseDrawBidPolicy,
     parsePolicyOverride,
     seatSeeds,
     seedLabel

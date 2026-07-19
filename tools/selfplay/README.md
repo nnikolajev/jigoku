@@ -108,6 +108,9 @@ node tools/selfplay/botRoundRobin.js
 # old heuristic on both seats (seed 1 fate-aware is the default)
 node tools/selfplay/botRoundRobin.js --seed 2
 
+# frozen pre-refactor draw policy for A/B only
+node tools/selfplay/botRoundRobin.js --games 25 --draw-bid legacy --out tools/selfplay/out/draw-bid-legacy
+
 # larger sample or explicit concurrency
 node tools/selfplay/botRoundRobin.js --games 500 --workers 6
 
@@ -115,6 +118,15 @@ node tools/selfplay/botRoundRobin.js --games 500 --workers 6
 node tools/selfplay/winRates.js 100 1    # fate-aware vs fate-aware
 node tools/selfplay/winRates.js 100 2    # old heuristic vs old heuristic
 node tools/selfplay/winRates.js 100 1 2  # fate-aware vs old heuristic Crane
+
+# adaptive challenger draw policy vs frozen legacy Crane draw policy
+node tools/selfplay/winRates.js 40 1 1 default adaptive legacy
+
+# deterministic economy-state matrix, no games
+node tools/selfplay/drawBidMatrix.js
+
+# direct same-deck adaptive-vs-legacy gameplay A/B
+node tools/selfplay/compareDrawBidPolicies.js
 
 # paired deterministic deep trace: same shuffle/seat, generic vs fate-aware
 node tools/selfplay/analyzePolicyGame.js --deck PhoenixShugenja --rng-seed 20260715
@@ -180,6 +192,10 @@ output path do not change gameplay and may be customized during a standard run.
 Each saved section carries the current standardized-suite id. Changing the
 Crane Baseline or registered round-robin roster hides older incomparable
 sections in the client until that standard script is run again.
+Only adaptive-vs-adaptive runs qualify as standard. `--draw-bid legacy` and
+mixed adaptive/legacy `winRates.js` runs are diagnostics and never overwrite
+the client JSON. Draw-policy design and inputs are documented in
+`docs/draw-bid-bot.md`.
 Self-play disables external LM Studio calls, so seed 3 measurements describe its
 heuristic fallback and are labeled that way in the generated config.
 

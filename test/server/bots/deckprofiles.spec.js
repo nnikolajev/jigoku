@@ -14,6 +14,25 @@ describe('DeckProfiles', function() {
         expect(profileFromStrategy(undefined)).toEqual(DEFAULT_PROFILE);
     });
 
+    it('injects draw-bid objectives by deck strategy without policy branches', function() {
+        const glory = profileFromStrategy({ ...GENERIC, glory: true });
+        const monk = profileFromStrategy({ ...GENERIC, monk: true });
+        const duelist = profileFromStrategy({ ...GENERIC, duelist: true });
+        const shugenja = profileFromStrategy({ ...GENERIC, shugenja: true });
+        const attachmentTower = profileFromStrategy({ ...GENERIC, attachmentTower: true });
+        const dishonor = profileFromStrategy({ ...GENERIC, dishonor: true });
+
+        expect(glory.drawBidding.minimumRoutineBid).toBe(4);
+        expect(monk.drawBidding.minimumRoutineBid).toBe(4);
+        expect(monk.legacyDrawBidding.mode).toBe('fixed-after-opening');
+        expect(duelist.drawBidding.objective).toBe('honor');
+        expect(shugenja.drawBidding.ringFateConversion).toBeGreaterThan(0.6);
+        expect(attachmentTower.drawBidding.minimumRoutineBid).toBe(4);
+        expect(attachmentTower.drawBidding.dominantBoardPenalty).toBe(1);
+        expect(dishonor.drawBidding.forceLowAfterOpening).toBe(true);
+        expect(dishonor.legacyDrawBidding.mode).toBe('low-after-opening');
+    });
+
     it('clones injectable conflict economy knobs per resolved profile', function() {
         const first = profileFromStrategy(GENERIC);
         const second = profileFromStrategy(GENERIC);
@@ -21,6 +40,8 @@ describe('DeckProfiles', function() {
         first.strongholdDefense.skillBuffer = 99;
         first.personalHonor.persistentCharacterFate = 99;
         first.duelBidding.duelWinUtility = 99;
+        first.drawBidding.baseBid = 99;
+        first.legacyDrawBidding.laterBid = 99;
         first.provinceTargeting.effectiveStrengthById['public-forum'] = 99;
         first.provinceTargeting.priorityTierById.tsuma = -99;
 
@@ -32,6 +53,10 @@ describe('DeckProfiles', function() {
         expect(DEFAULT_PROFILE.personalHonor.persistentCharacterFate).not.toBe(99);
         expect(second.duelBidding.duelWinUtility).toBe(DEFAULT_PROFILE.duelBidding.duelWinUtility);
         expect(DEFAULT_PROFILE.duelBidding.duelWinUtility).not.toBe(99);
+        expect(second.drawBidding.baseBid).toBe(DEFAULT_PROFILE.drawBidding.baseBid);
+        expect(DEFAULT_PROFILE.drawBidding.baseBid).not.toBe(99);
+        expect(second.legacyDrawBidding.laterBid).toBe(DEFAULT_PROFILE.legacyDrawBidding.laterBid);
+        expect(DEFAULT_PROFILE.legacyDrawBidding.laterBid).not.toBe(99);
         expect(second.provinceTargeting.effectiveStrengthById['public-forum']).toBe(6);
         expect(second.provinceTargeting.priorityTierById.tsuma).toBeUndefined();
         expect(DEFAULT_PROFILE.provinceTargeting.effectiveStrengthById['public-forum']).toBe(6);

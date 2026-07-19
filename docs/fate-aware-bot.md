@@ -135,7 +135,11 @@ win-rate script. Generic had 4 undecided games; fate-aware had 2.
 Seed 1 is the deployed default. `FateAwareJigokuBotPolicy` remains a separate
 class so seed 2 can preserve the old heuristic for controlled comparisons, but
 it is no longer treated as an experimental client option. Later deck profiles
-added swarm, tower, conflict-card economy, and stronghold-defense overrides;
-therefore the historical table above is evidence for the initial switch, not a
+added swarm, tower, conflict-card economy, and stronghold-defense overrides.
+Draw-phase bidding is now a separate shared `DrawBidTactics` module used by
+both policies, so seed 2 keeps its old dynasty policy while gaining the same
+adaptive draw economy. `LegacyDrawBidTactics` isolates the pre-refactor dial
+when a controlled comparison needs it. See `draw-bid-bot.md`.
+Therefore the historical table above is evidence for the initial switch, not a
 current win-rate baseline. Standardized current results come from
 `winRates.js` and `botRoundRobin.js` as described in `heuristic-bot.md`.

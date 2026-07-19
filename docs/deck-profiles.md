@@ -26,11 +26,12 @@ reads the knobs; the profile is chosen per deck.
 | `attachmentControl` | shared Let Go policy comparing own debuff removal with enemy attachment removal |
 | `personalHonor` | shared glory-aware honor/dishonor targeting; conflict swing and home-target preferences are overridable |
 | `duelBidding` | universal duel matrix: duel value, honor risk, round scaling, opponent model, mixed strategy, and participant-contest threshold |
+| `drawBidding` | universal adaptive draw-dial economy policy: honor rails, fate/card costs, ring fate, hand, board, provinces, and opponent prediction |
+| `legacyDrawBidding` | frozen pre-refactor draw policy used only for controlled A/B runs |
 | `mulliganForHoldings` | dig opening provinces toward holdings (Kaiu Wall) |
 | `digWithActions` | fire dynasty Action diggers (Kyuden Hida, engineers) |
 | `digMinBoardCharacters` | only dig once this many own characters are in play (0 = always) |
 | `aggressiveFate` | flood cheap bodies, deploy 0-1 fate |
-| `drawBidCap` | optional maximum draw bid for honor-sensitive grind decks |
 | `forceMilitaryConflict` | always declare military while any military skill exists |
 | `attackCommitment` | `all` / `all-but-one` / `breakable-or-hold` / `breakable-or-pressure` |
 | `attackKeepHome` | bodies kept home under the pressure / all-but modes |
@@ -113,6 +114,13 @@ objective/weights. Duelist and glory decks raise duel value and use the
 The controller supplies exact live duel skill, both honor pools, round, tie
 effects, opponent public profile, and unspent Iaijutsu state. See
 `duel-bot.md` and `tools/selfplay/analyzeDuelBids.js`.
+
+`drawBidding: DrawBidProfile` is universal too. Every deck and seed uses the
+same adaptive draw-phase economy class, while deck profiles deep-merge named
+weights and thresholds. The controller supplies exact conflict-card costs,
+deck average cost, both public economies, ring fate, province pressure, and a
+live board summary. `legacyDrawBidding` is retained only for A/B benchmarks.
+See `draw-bid-bot.md` and `tools/selfplay/drawBidMatrix.js`.
 
 `provinceTargeting: ProvinceTargetingProfile` is also universal. Its cloned
 maps let a deck change one province's effective priority without leaking the

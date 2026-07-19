@@ -33,6 +33,18 @@ import { DUEL_DEFAULTS } from './DuelTactics.js';
 import type { DuelProfile } from './DuelTactics';
 import { DEFAULT_DUEL_BID_PROFILE } from './DuelBidTactics.js';
 import type { DuelBidProfile } from './DuelBidTactics';
+import {
+    CARD_ENGINE_DRAW_BID_PROFILE,
+    DEFAULT_DRAW_BID_PROFILE,
+    DEFAULT_LEGACY_DRAW_BID_PROFILE,
+    DISHONOR_DRAW_BID_PROFILE,
+    DISHONOR_LEGACY_DRAW_BID_PROFILE,
+    DRAGON_LEGACY_DRAW_BID_PROFILE,
+    HONOR_DRAW_BID_PROFILE,
+    LION_LEGACY_DRAW_BID_PROFILE,
+    TOWER_DRAW_BID_PROFILE
+} from './DrawBidTactics.js';
+import type { DrawBidProfile, LegacyDrawBidProfile } from './DrawBidTactics';
 import { SHUGENJA_DEFAULTS } from './ShugenjaTactics.js';
 import type { ShugenjaProfile } from './ShugenjaTactics';
 import { DRAGON_ATTACHMENT_DEFAULTS } from './DragonAttachmentTactics.js';
@@ -76,19 +88,14 @@ export interface DeckProfile {
     attachmentControl: AttachmentControlProfile; // shared Let Go / attachment-removal value policy
     personalHonor: PersonalHonorProfile; // shared glory-aware honor/dishonor target policy
     duelBidding: DuelBidProfile; // shared skill/honor/round/Iaijutsu bid matrix for every deck and seed
+    drawBidding: DrawBidProfile; // shared adaptive draw-phase honor/card economy policy
+    legacyDrawBidding: LegacyDrawBidProfile; // frozen pre-refactor behavior for A/B only
     mulliganForHoldings: boolean; // dig opening provinces toward holdings
     digWithActions: boolean; // fire dynasty Action diggers (Kyuden Hida, engineers)
     digMinBoardCharacters: number; // only dig once this many own characters are already in play
                                     // (0 = always dig; higher keeps a holding deck from starving
                                     // itself of defenders while it churns the engine)
     aggressiveFate: boolean; // pickFateButton flood-cheap-bodies mode (0-1 fate)
-    drawBidCap?: number; // cap the draw-phase honor bid. The higher bidder PAYS
-                         // the difference in honor to the lower bidder, so a
-                         // grind deck facing an honor-climbing opponent (Crab vs
-                         // Crane) bleeds itself toward the dishonor loss AND fuels
-                         // the opponent's honor win by bidding high for cards.
-                         // Cap it low to protect honor over card volume. Unset =
-                         // the generic honor-scaled bid.
 
     // ---- offense ----
     forceMilitaryConflict: boolean; // always declare military while any military skill exists
@@ -188,6 +195,8 @@ export const DEFAULT_PROFILE: DeckProfile = {
     },
     personalHonor: { ...PERSONAL_HONOR_DEFAULTS },
     duelBidding: { ...DEFAULT_DUEL_BID_PROFILE },
+    drawBidding: { ...DEFAULT_DRAW_BID_PROFILE },
+    legacyDrawBidding: { ...DEFAULT_LEGACY_DRAW_BID_PROFILE },
     mulliganForHoldings: false,
     digWithActions: false,
     digMinBoardCharacters: 0,
@@ -226,7 +235,9 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             enemyAttachmentScores: { ...DEFAULT_PROFILE.attachmentControl.enemyAttachmentScores }
         },
         personalHonor: { ...DEFAULT_PROFILE.personalHonor },
-        duelBidding: { ...DEFAULT_PROFILE.duelBidding }
+        duelBidding: { ...DEFAULT_PROFILE.duelBidding },
+        drawBidding: { ...DEFAULT_PROFILE.drawBidding },
+        legacyDrawBidding: { ...DEFAULT_PROFILE.legacyDrawBidding }
     };
     if(!strategy) {
         return profile;
@@ -262,12 +273,16 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             duelLossUtility: 4,
             honorRaceUtility: 1.5
         };
+        // Phoenix still wins primarily through conflicts and card tempo.
+        profile.drawBidding = { ...CARD_ENGINE_DRAW_BID_PROFILE };
     }
     if(strategy.monk) {
         // Monk/card-engine deck: generic balanced attack/defense knobs stay;
         // the playstyle (play many cards, void recursion, Mitsu steering)
         // lives in the DragonTactics knobs.
         profile.dragon = { ...DRAGON_DEFAULTS };
+        profile.drawBidding = { ...CARD_ENGINE_DRAW_BID_PROFILE };
+        profile.legacyDrawBidding = { ...DRAGON_LEGACY_DRAW_BID_PROFILE };
         profile.fateAwareEconomy = {
             ...profile.fateAwareEconomy,
             preferDeckAdditionalFate: true,
@@ -302,6 +317,7 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             duelLossUtility: 4.5,
             honorRaceUtility: 1.5
         };
+        profile.drawBidding = { ...HONOR_DRAW_BID_PROFILE };
         profile.fateAwareEconomy = {
             ...profile.fateAwareEconomy,
             preferDeckCharacters: true,
@@ -323,6 +339,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
     }
     if(strategy.shugenja) {
         profile.shugenja = { ...SHUGENJA_DEFAULTS };
+        profile.drawBidding = {
+            ...CARD_ENGINE_DRAW_BID_PROFILE,
+            // Ring-control cards make ring fate unusually accessible.
+            ringFateConversion: 0.85
+        };
         profile.fateAwareEconomy = {
             ...profile.fateAwareEconomy,
             preferDeckCharacters: true,
@@ -334,6 +355,7 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             ...DRAGON_ATTACHMENT_DEFAULTS,
             stackableAttachments: [...DRAGON_ATTACHMENT_DEFAULTS.stackableAttachments]
         };
+        profile.drawBidding = { ...TOWER_DRAW_BID_PROFILE };
         profile.fateAwareEconomy = {
             ...profile.fateAwareEconomy,
             preferDeckCharacters: true,
@@ -358,6 +380,8 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             ...DISHONOR_DEFAULTS,
             importantCharacterIds: [...DISHONOR_DEFAULTS.importantCharacterIds]
         };
+        profile.drawBidding = { ...DISHONOR_DRAW_BID_PROFILE };
+        profile.legacyDrawBidding = { ...DISHONOR_LEGACY_DRAW_BID_PROFILE };
         profile.duelBidding = {
             ...profile.duelBidding,
             objective: 'dishonor',
@@ -378,7 +402,8 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
 // A named per-deck override: when `match` is true for the bot's deck, `apply` is
 // merged over the strategy-derived profile. Matched by card contents + derived
 // strategy so it works in both live play and self-play (no deck-id needed).
-type DeckProfileOverride = Omit<Partial<DeckProfile>, 'strongholdDefense' | 'provinceTargeting' | 'duelBidding'> & {
+type DeckProfileOverride = Omit<Partial<DeckProfile>,
+    'strongholdDefense' | 'provinceTargeting' | 'duelBidding' | 'drawBidding' | 'legacyDrawBidding'> & {
     strongholdDefense?: Partial<StrongholdDefenseProfile>;
     provinceTargeting?: Omit<Partial<ProvinceTargetingProfile>, 'abilityPriority' | 'effectiveStrengthById' | 'priorityTierById'> & {
         abilityPriority?: Partial<ProvinceTargetingProfile['abilityPriority']>;
@@ -386,6 +411,8 @@ type DeckProfileOverride = Omit<Partial<DeckProfile>, 'strongholdDefense' | 'pro
         priorityTierById?: Record<string, number>;
     };
     duelBidding?: Partial<DuelBidProfile>;
+    drawBidding?: Partial<DrawBidProfile>;
+    legacyDrawBidding?: Partial<LegacyDrawBidProfile>;
 };
 
 interface ProfileOverride {
@@ -454,11 +481,6 @@ const OVERRIDES: ProfileOverride[] = [
             // instead of playing bodies), leaving too thin a board to defend.
             // Tuned by self-play vs the Crane precon: 10% -> ~45% win rate.
             digMinBoardCharacters: 3
-            // NOTE: a low drawBidCap was tried to stop the honor bleed (dishonor
-            // losses 17→4 at N=100) but conquest EXPLODED 39→63 (net 44%→33%):
-            // Crab needs the cards the high bid buys to have defenders in hand.
-            // Card volume dominates honor for this grind deck — keep the generic
-            // bid. Left the drawBidCap knob in place for other decks.
         }
     },
     {
@@ -482,6 +504,7 @@ const OVERRIDES: ProfileOverride[] = [
             reserveDynastyFate: false,
             fateAwareEconomy: { ...SWARM_FATE_AWARE_ECONOMY },
             conflictCardEconomy: { ...SWARM_CONFLICT_CARD_ECONOMY },
+            drawBidding: { ...CARD_ENGINE_DRAW_BID_PROFILE },
             unicorn: {
                 ...UNICORN_DEFAULTS,
                 movementCardIds: [...UNICORN_DEFAULTS.movementCardIds],
@@ -603,6 +626,8 @@ const OVERRIDES: ProfileOverride[] = [
                 duelWinUtility: 5.5,
                 honorRaceUtility: 1.5
             },
+            drawBidding: { ...HONOR_DRAW_BID_PROFILE },
+            legacyDrawBidding: { ...LION_LEGACY_DRAW_BID_PROFILE },
             lion: { ...LION_DEFAULTS }
         }
     },
@@ -655,6 +680,8 @@ const OVERRIDES: ProfileOverride[] = [
                 duelWinUtility: 5.5,
                 honorRaceUtility: 1.5
             },
+            drawBidding: { ...HONOR_DRAW_BID_PROFILE },
+            legacyDrawBidding: { ...LION_LEGACY_DRAW_BID_PROFILE },
             lion: { ...LION_DEFAULTS }
         }
     },
@@ -679,7 +706,14 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
     const ids = cardIds instanceof Set ? cardIds : new Set(cardIds);
     for(const override of OVERRIDES) {
         if(override.match(ids, strategy)) {
-            const { strongholdDefense, provinceTargeting, duelBidding, ...flatApply } = override.apply;
+            const {
+                strongholdDefense,
+                provinceTargeting,
+                duelBidding,
+                drawBidding,
+                legacyDrawBidding,
+                ...flatApply
+            } = override.apply;
             const apply: Partial<DeckProfile> = { ...flatApply };
             // Overrides are module-level constants. Clone injectable nested
             // profiles so tuning one resolved bot can never mutate another.
@@ -742,6 +776,18 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                 apply.duelBidding = {
                     ...profile.duelBidding,
                     ...duelBidding
+                };
+            }
+            if(drawBidding) {
+                apply.drawBidding = {
+                    ...profile.drawBidding,
+                    ...drawBidding
+                };
+            }
+            if(legacyDrawBidding) {
+                apply.legacyDrawBidding = {
+                    ...profile.legacyDrawBidding,
+                    ...legacyDrawBidding
                 };
             }
             if(override.apply.attachmentControl) {

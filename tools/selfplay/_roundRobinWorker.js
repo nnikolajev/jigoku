@@ -15,6 +15,7 @@ async function main() {
     const games = Number.parseInt(process.argv[4], 10);
     const botSeed = Number.parseInt(process.argv[5], 10);
     const startIndex = Number.parseInt(process.argv[6], 10) || 0;
+    const drawBidPolicy = process.argv[7] === 'legacy' ? 'legacy' : 'adaptive';
     const loadLeftDeck = getDeckLoader(leftLabel);
     const loadRightDeck = getDeckLoader(rightLabel);
 
@@ -31,7 +32,13 @@ async function main() {
         const decks = leftFirst
             ? { deckA: loadLeftDeck(), deckB: loadRightDeck() }
             : { deckA: loadRightDeck(), deckB: loadLeftDeck() };
-        const result = await runGame({ names, seeds: [botSeed, botSeed], ...decks, trace: false });
+        const result = await runGame({
+            names,
+            seeds: [botSeed, botSeed],
+            drawBidPolicies: [drawBidPolicy, drawBidPolicy],
+            ...decks,
+            trace: false
+        });
 
         process.stdout.write(JSON.stringify({
             gameIndex,

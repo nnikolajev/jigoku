@@ -42,19 +42,6 @@ describe('DishonorTactics', function() {
         });
     });
 
-    describe('honor dial', function() {
-        it('bids high on the first round, low afterwards (draw phase and duels)', function() {
-            expect(tactics.desiredBid(1, 10)).toBe(5);
-            expect(tactics.desiredBid(2, 10)).toBe(1);
-            expect(tactics.desiredBid(7, 4)).toBe(1);
-            expect(tactics.desiredBid(undefined, 10)).toBe(1);
-        });
-
-        it('never bids high while at the honor floor', function() {
-            expect(tactics.desiredBid(1, 3)).toBe(1);
-        });
-    });
-
     describe('honor band', function() {
         it('takes honor with the air ring unless own honor needs the rescue', function() {
             expect(tactics.preferTakeHonor(6)).toBe(true);

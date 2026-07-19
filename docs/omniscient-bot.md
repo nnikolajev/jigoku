@@ -16,6 +16,12 @@ target the weakest province, press when the human cannot fight back, and avoid
 walking into what it cannot win — a genuinely hard opponent whom a good human can
 still beat on decision-making.
 
+Draw-phase bidding uses the same deck-injectable `DrawBidTactics` as seeds 1
+and 2. It intentionally uses only information legitimate for the draw dial
+(public opponent hand size/economy plus exact own costs); omniscience continues
+to affect conflict-hand and hidden-province planning, not the tabletop honor
+dial itself.
+
 The seeds:
 
 | Seed | Bot | Notes |

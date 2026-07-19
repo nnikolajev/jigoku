@@ -21,6 +21,11 @@ The offline fixture is the source used by self-play; it contains 5 provinces,
 
 ## Bot plan
 
+Draw-phase bidding uses the shared honor profile. It always bids 5 in round 1,
+normally keeps enough card volume for the swarm, and shifts low when its own
+honor victory or the opponent's dishonor is close. The old fixed later bid of 2
+exists only in `LegacyDrawBidTactics` for A/B comparisons.
+
 ### Dynasty and fate
 
 - Play cheap bodies first. Akodo Gunso refills its province; Ashigaru Levy's

@@ -23,8 +23,6 @@
 // Tuning knobs for the dishonor playstyle. Every value a future dishonor deck
 // might want to tune differently lives here, not in the policy code.
 export interface DishonorProfile {
-    firstRoundBid: number; // draw-phase bid while honor is full (cards > honor early)
-    lowBid: number; // every later draw dial: farm the difference
     honorFloor: number; // never pay honor costs at or below this own-honor value
     honorCeiling: number; // the "6 or fewer" band many deck cards want; the
                           // stronghold stops climbing once the next gain would
@@ -42,8 +40,6 @@ export interface DishonorProfile {
 }
 
 export const DISHONOR_DEFAULTS: DishonorProfile = {
-    firstRoundBid: 5,
-    lowBid: 1,
     honorFloor: 3,
     honorCeiling: 6,
     airRingBonus: 60,
@@ -64,16 +60,6 @@ export class DishonorTactics {
 
     constructor(profile: DishonorProfile) {
         this.profile = profile;
-    }
-
-    // Draw dial only: first round buys the full hand, afterwards bid low so
-    // the opponent's higher draw bid pays us the difference. Duel bidding is
-    // centralized in DuelBidTactics and receives the dishonor objective.
-    desiredBid(roundNumber: number | undefined, myHonor: number): number {
-        if(roundNumber !== undefined && roundNumber <= 1 && myHonor > this.profile.honorFloor) {
-            return this.profile.firstRoundBid;
-        }
-        return this.profile.lowBid;
     }
 
     // Air ring resolution: taking 1 honor drains the opponent toward the

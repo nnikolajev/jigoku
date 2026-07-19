@@ -8,8 +8,9 @@ behavior changes (the fine-tuned Unicorn default is untouched).
 
 ## How the deck wins
 
-- **Bid low on later draw dials.** A value-bidding opponent pays the bid
-  difference in honor every round; round 1 still bids 5 for cards. Duels use
+- **Bid low on later draw dials.** The shared `DrawBidTactics` dishonor profile
+  forces bid 1 after the round-1 bid of 5; a value-bidding opponent pays the bid
+  difference in honor every round. Duels use
   the shared `DuelBidTactics` matrix with a `dishonor` objective: it presses a
   low-honor opponent, protects its own last honor, and does not throw away a
   duel that is cheap to win.

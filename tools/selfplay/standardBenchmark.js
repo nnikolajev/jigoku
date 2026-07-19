@@ -120,6 +120,8 @@ function winRatesPayload(options, rows, generatedAt = new Date().toISOString()) 
         challengerSeed: options.botSeed,
         opponent: 'Crane',
         opponentSeed: options.craneSeed,
+        challengerDrawBidPolicy: options.challengerDrawBidPolicy || 'adaptive',
+        opponentDrawBidPolicy: options.craneDrawBidPolicy || 'adaptive',
         seatsAlternate: true,
         totals: {
             wins,
@@ -150,6 +152,7 @@ function roundRobinPayload(report) {
         generatedAt: report.generatedAt,
         gamesPerMatchup: report.config.games,
         botSeed: report.config.botSeed,
+        drawBidPolicy: report.config.drawBidPolicy || 'adaptive',
         seatsAlternate: true,
         decks
     };

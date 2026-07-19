@@ -635,8 +635,8 @@ describe('Jigoku heuristic bot', function() {
         return { players: players };
     }
 
-    it('draw-phase bid scales with honor to draw cards, ignoring hand size', function() {
-        const policy = new JigokuBotPolicy('bid');
+    it('legacy draw-phase bid remains available for controlled comparisons', function() {
+        const policy = new JigokuBotPolicy('bid', 'legacy');
         // Hand size no longer matters — cards win games, so bid to draw them.
         expect(policy.decide(makeBidState(0, 10), 'Jigoku Bot').target).toBe('5'); // honor 10: max draw
         expect(policy.decide(makeBidState(7, 8), 'Jigoku Bot').target).toBe('5'); // honor 8: still max
@@ -710,8 +710,8 @@ describe('Jigoku heuristic bot', function() {
         expect(decision.target).toBe('5');
     });
 
-    it('caps the draw bid as the opponent climbs toward an honor victory', function() {
-        const policy = new JigokuBotPolicy('bid-oppwin');
+    it('preserves the legacy opponent-honor caps for controlled comparisons', function() {
+        const policy = new JigokuBotPolicy('bid-oppwin', 'legacy');
         // Opponent at 18+: bid the minimum so WE are the low bidder and DRAIN
         // them, denying the 25-honor win rather than feeding it.
         expect(policy.decide(

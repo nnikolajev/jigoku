@@ -10,6 +10,7 @@ import type { DeckStrategy } from './CardPlaybook';
 import { resolveDeckProfile } from './DeckProfiles.js';
 import type { DeckProfile } from './DeckProfiles';
 import type { DuelBidContext } from './DuelBidTactics';
+import type { DrawBidContext } from './DrawBidTactics';
 import { buildHandThreatMatrix, getCardModel } from './DeckAnalysis.js';
 import type { KnownCard, OmniProvince, Omniscient } from './DeckAnalysis';
 import { stateFeatures, optionFeatures } from './ml/features.js';
@@ -93,8 +94,8 @@ class JigokuBotController {
         const isFateAware = config.policy === 'fate-aware' ||
             (config.policy === undefined && (seed === 1 || seed === '1' || seed === 5 || seed === '5'));
         this.policy = isFateAware
-            ? new FateAwareJigokuBotPolicy(seed)
-            : new JigokuBotPolicy(seed);
+            ? new FateAwareJigokuBotPolicy(seed, config.drawBidPolicy)
+            : new JigokuBotPolicy(seed, config.drawBidPolicy);
         this.onStateChange = services.onStateChange;
         this.recorder = services.recorder;
         this.evaluator = services.evaluator;
@@ -580,6 +581,10 @@ class JigokuBotController {
                     // Player-state hand summaries omit printed conflict-card
                     // costs. Deck profiles need these to sequence reducers.
                     conflictCosts: this.conflictCostsHint(player),
+                    drawBidContext: beforePrompt?.promptTitle === 'Honor Bid' &&
+                        !String(beforePrompt?.menuTitle || '').startsWith('Choose your bid for the duel')
+                        ? this.drawBidContext(player)
+                        : undefined,
                     strongholdProvinceStrength: this.strongholdProvinceStrength(player),
                     weakestOuterProvinceStrength: this.weakestOuterProvinceStrength(player),
                     // Public visible defender ability; every seed may protect
@@ -1846,6 +1851,76 @@ class JigokuBotController {
             }
         }
         return Object.keys(costs).length > 0 ? costs : undefined;
+    }
+
+    private drawBidContext(player: Player): DrawBidContext {
+        const opponent = (player as any).opponent as Player | undefined;
+        const allCards: any[] = (this.game as any).allCards || [];
+        const conflictCosts = allCards
+            .filter((card: any) => card?.owner === player &&
+                (card.isConflict || card.cardData?.side === 'conflict'))
+            .map((card: any) => this.parseStat(card.printedCost ?? card.cardData?.cost))
+            .filter((cost: number | null): cost is number => cost !== null && cost >= 0);
+        const averageConflictCardCost = conflictCosts.length > 0
+            ? conflictCosts.reduce((sum, cost) => sum + cost, 0) / conflictCosts.length
+            : 1.5;
+        const hand: any[] = typeof (player as any).hand?.toArray === 'function'
+            ? (player as any).hand.toArray()
+            : [];
+        const opponentHandCount = typeof (opponent as any)?.hand?.size === 'function'
+            ? (opponent as any).hand.size()
+            : 0;
+        const handCardCosts = hand
+            .map((card: any) => this.parseStat(card.printedCost ?? card.cardData?.cost))
+            .filter((cost: number | null): cost is number => cost !== null && cost >= 0);
+        const inPlay: any[] = typeof (player as any).cardsInPlay?.toArray === 'function'
+            ? (player as any).cardsInPlay.toArray()
+            : [];
+        const characters = inPlay.filter((card: any) =>
+            (card?.type || card?.getType?.()) === 'character');
+        const numberFrom = (card: any, method: string): number => {
+            const value = typeof card?.[method] === 'function' ? card[method]() : 0;
+            return typeof value === 'number' && Number.isFinite(value) ? Math.max(value, 0) : 0;
+        };
+        const provinces: any[] = typeof (player as any).getProvinces === 'function'
+            ? (player as any).getProvinces()
+            : [];
+        const opponentProvinces: any[] = typeof (opponent as any)?.getProvinces === 'function'
+            ? (opponent as any).getProvinces()
+            : [];
+        const brokenOuter = (cards: any[]): number => cards.filter((card) =>
+            card?.isBroken && /^province [1-4]$/.test(String(card.location || ''))).length;
+        const fateOnUnclaimedRings = Object.values((this.game as any).rings || {})
+            .filter((ring: any) => typeof ring?.isUnclaimed === 'function'
+                ? ring.isUnclaimed()
+                : !ring?.claimedBy)
+            .reduce((sum: number, ring: any) => sum + (Number(ring?.fate) || 0), 0);
+
+        return {
+            roundNumber: (this.game as any).roundNumber,
+            myHonor: Number((player as any).honor) || 0,
+            opponentHonor: Number((opponent as any)?.honor) || 0,
+            myHandCount: hand.length,
+            opponentHandCount,
+            myFate: Number((player as any).fate) || 0,
+            opponentFate: Number((opponent as any)?.fate) || 0,
+            fateOnUnclaimedRings,
+            myBrokenProvinces: brokenOuter(provinces),
+            opponentBrokenProvinces: brokenOuter(opponentProvinces),
+            averageConflictCardCost,
+            handCardCosts,
+            board: {
+                characterCount: characters.length,
+                readyCharacterCount: characters.filter((card) => !card.bowed).length,
+                persistentCharacterCount: characters.filter((card) => (Number(card.fate) || 0) > 0).length,
+                attachmentCount: characters.reduce((sum, card) => sum + (card.attachments?.size?.() ??
+                    card.attachments?.length ?? 0), 0),
+                totalCharacterFate: characters.reduce((sum, card) => sum + (Number(card.fate) || 0), 0),
+                militarySkill: characters.reduce((sum, card) => sum + numberFrom(card, 'getMilitarySkill'), 0),
+                politicalSkill: characters.reduce((sum, card) => sum + numberFrom(card, 'getPoliticalSkill'), 0)
+            },
+            legalBids: [1, 2, 3, 4, 5]
+        };
     }
 
     private isLegalDecision(player: Player, decision: BotDecision): boolean {

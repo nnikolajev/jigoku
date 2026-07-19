@@ -36,6 +36,8 @@ Bot seeds:
 | `analyzePolicyGame.js` | Paired deterministic policy trace comparison. |
 | `compareProfileVariants.js` | Paired deterministic A/B for injectable deck-profile knobs. |
 | `analyzeDuelBids.js` | Run the shared duel bid matrix over curated, custom, or 1,200-position grids. |
+| `drawBidMatrix.js` | Compare adaptive and frozen legacy draw bids over curated economy states. |
+| `compareDrawBidPolicies.js` | Direct same-deck adaptive-vs-legacy gameplay A/B with deterministic shuffles. |
 | `validateBotInteractions.js` | Detect bot click loops, stalls, and budget pressure. |
 
 ## Basic self-play and training pipeline
@@ -178,7 +180,8 @@ Plays every unique pair among selected decks. Alternates seats, splits matchups 
 
 ```text
 node tools/selfplay/botRoundRobin.js [-n|--games N] [-w|--workers N]
-    [--chunk-size N] [--seed 1..5] [--decks A,B,...]
+    [--chunk-size N] [--seed 1..5] [--draw-bid adaptive|legacy]
+    [--decks A,B,...]
     [--out PATH_PREFIX] [-h|--help]
 ```
 
@@ -188,6 +191,7 @@ node tools/selfplay/botRoundRobin.js [-n|--games N] [-w|--workers N]
 | `-w`, `--workers N` | `32` | Parallel child processes. |
 | `--chunk-size N` | `10` | Games per isolated job, capped at games per matchup. |
 | `--seed 1..5` | `1` | Bot mode for both seats. |
+| `--draw-bid` | `adaptive` | Draw-phase policy for both seats; `legacy` is for A/B only. |
 | `--decks A,B,...` | all | At least two unique case-sensitive deck labels. |
 | `--out PATH_PREFIX` | `tools/selfplay/out/round-robin-latest` | Writes `.md` and `.json`. |
 | `-h`, `--help` | — | Show built-in help and deck labels. |
@@ -196,6 +200,7 @@ A standard full 40-game same-seed run also updates `../jigoku-client/client/botB
 
 ```powershell
 node tools/selfplay/botRoundRobin.js
+node tools/selfplay/botRoundRobin.js --games 25 --draw-bid legacy --out tools/selfplay/out/draw-bid-legacy
 node tools/selfplay/botRoundRobin.js --decks Crane,Crab,Lion --games 20
 node tools/selfplay/botRoundRobin.js --games 500 --workers 6 --chunk-size 20 --seed 2 --out tools/selfplay/out/seed2
 ```
@@ -205,7 +210,8 @@ node tools/selfplay/botRoundRobin.js --games 500 --workers 6 --chunk-size 20 --s
 Runs every non-Crane registered deck against Crane in parallel child processes, alternates seats, and prints win-rate board.
 
 ```text
-node tools/selfplay/winRates.js [gamesPerDeck] [botSeed] [craneSeed] [challengerPolicy]
+node tools/selfplay/winRates.js [gamesPerDeck] [botSeed] [craneSeed]
+    [challengerPolicy] [challengerDrawBidPolicy] [craneDrawBidPolicy]
 ```
 
 | Parameter | Default | Description |
@@ -214,6 +220,8 @@ node tools/selfplay/winRates.js [gamesPerDeck] [botSeed] [craneSeed] [challenger
 | `botSeed` | `1` | Challenger seed `1..5`; invalid values fall back to `1`. |
 | `craneSeed` | same as `botSeed` | Crane seed `1..5`; invalid values fall back to `1`. |
 | `challengerPolicy` | none | Optional `generic` or `fate-aware` policy override for challenger only. Other values are ignored. |
+| `challengerDrawBidPolicy` | `adaptive` | Challenger draw policy: `adaptive` or `legacy`. Use `default` as the policy placeholder when only changing draw policy. |
+| `craneDrawBidPolicy` | `adaptive` | Crane opponent draw policy: `adaptive` or `legacy`. |
 
 Standard 100-game same-seed run without policy override updates client benchmark results.
 
@@ -221,6 +229,38 @@ Standard 100-game same-seed run without policy override updates client benchmark
 node tools/selfplay/winRates.js
 node tools/selfplay/winRates.js 100 1
 node tools/selfplay/winRates.js 100 1 2 fate-aware
+node tools/selfplay/winRates.js 40 1 1 default adaptive legacy
+```
+
+### `drawBidMatrix.js`
+
+Runs no game. It executes the same adaptive and legacy draw classes used by
+live bots over curated honor, fate, ring, hand-cost, board, and province states
+for the balanced, card-engine, honor, dishonor, and tower profiles.
+
+```powershell
+node tools/selfplay/drawBidMatrix.js
+node tools/selfplay/drawBidMatrix.js --json
+```
+
+Use it for deterministic coefficient tuning before gameplay benchmarks. See
+`docs/draw-bid-bot.md` for formulas and precedence.
+
+### `compareDrawBidPolicies.js`
+
+Plays adaptive directly against legacy with the same deck and bot seed on both
+seats. Seats alternate and every game uses a deterministic shuffle stream, so
+the result isolates draw-policy strength from unrelated deck strength. It
+never updates the client benchmark JSON.
+
+```text
+node tools/selfplay/compareDrawBidPolicies.js [--games N] [--seed 1..5]
+    [--decks A,B,...] [--rng-seed N] [--out PATH_PREFIX]
+```
+
+```powershell
+node tools/selfplay/compareDrawBidPolicies.js
+node tools/selfplay/compareDrawBidPolicies.js --games 80 --decks DragonAttachments,Scorpion --out tools/selfplay/out/draw-bid-focused
 ```
 
 ### `analyzeDuelBids.js`
@@ -475,8 +515,8 @@ These files live in `tools/selfplay/` but are not normal user-facing commands.
 
 | File | Role / parameters |
 |---|---|
-| `_deckWorker.js` | Internal `winRates.js` child. Positional inputs: `deckLabel games botSeed craneSeed challengerPolicy`; emits one JSON object per game. Use parent command. |
-| `_roundRobinWorker.js` | Internal `botRoundRobin.js` child. Positional inputs: `leftLabel rightLabel games botSeed startIndex`; emits one JSON object per game. Use parent command. |
+| `_deckWorker.js` | Internal `winRates.js` child. Also receives both draw-policy variants; emits one JSON object per game. Use parent command. |
+| `_roundRobinWorker.js` | Internal `botRoundRobin.js` child. Also receives the shared draw-policy variant; emits one JSON object per game. Use parent command. |
 | `deckLoader.js` | Library for loading cached deck/card fixtures; no CLI. |
 | `deckRegistry.js` | Case-sensitive deck-label registry; no CLI. |
 | `harness.js` | Exports headless `runGame`, game/controller builders, and evaluator loader; no CLI. |

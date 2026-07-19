@@ -8,6 +8,11 @@ forced rule or legal timing.
 
 ## Game plan
 
+The shared card-engine draw profile keeps a routine bid floor of 4. Phoenix
+Shugenja raises the value assigned to unclaimed-ring fate because Offerings,
+Display of Power, Togama, and normal conflict declarations can collect it more
+reliably. Universal honor and exposed-stronghold rails still take precedence.
+
 - **Manipulate rings.** Conflict declaration still takes the largest fate pile
   first, with live Water/Air/Void bonuses for Prodigy of the Waves, Asako
   Tsuki, Ethereal Dreamer, Feral Ningyo, Adept of the Waves, Kudaka, and Isawa

@@ -15,6 +15,8 @@ import { DragonTactics } from './DragonTactics.js';
 import { DuelTactics } from './DuelTactics.js';
 import { DuelBidTactics } from './DuelBidTactics.js';
 import type { DuelBidContext, DuelBidProfile } from './DuelBidTactics';
+import { DrawBidTactics, LegacyDrawBidTactics } from './DrawBidTactics.js';
+import type { DrawBidContext, DrawBidPolicyVariant } from './DrawBidTactics';
 import { ShugenjaTactics } from './ShugenjaTactics.js';
 import { DragonAttachmentTactics } from './DragonAttachmentTactics.js';
 import { StrongholdDefenseTactics } from './StrongholdDefenseTactics.js';
@@ -190,6 +192,9 @@ interface DecideContext {
     // Printed fate cost of conflict cards in our hand by uuid. Player-state
     // summaries omit it; profiles use this to sequence cost reducers.
     conflictCosts?: Record<string, number>;
+    // Exact live draw-economy snapshot. Summary-only callers use a visible
+    // state fallback; live controllers supply deck costs and board metrics.
+    drawBidContext?: DrawBidContext;
     // Exact live total for our stronghold province, including stronghold and
     // holding modifiers even while the province remains facedown.
     strongholdProvinceStrength?: number;
@@ -290,7 +295,7 @@ class JigokuBotPolicy {
     private fateAwarePendingDurable = false;
     private fateAwareDurableSpent = 0;
 
-    constructor(seed: string | number = 1) {
+    constructor(seed: string | number = 1, private readonly drawBidPolicy: DrawBidPolicyVariant = 'adaptive') {
         this.random = new SeededRandom(seed);
     }
 
@@ -589,6 +594,9 @@ class JigokuBotPolicy {
         // Duel-centric decks likewise; null for every other deck.
         const duelist = profile.duelist ? new DuelTactics(profile.duelist) : null;
         const duelBidding = new DuelBidTactics(profile.duelBidding);
+        const drawBidding = this.drawBidPolicy === 'legacy'
+            ? new LegacyDrawBidTactics(profile.legacyDrawBidding)
+            : new DrawBidTactics(profile.drawBidding);
         // Phoenix spell/ring-control deck; null for every other profile.
         const shugenja = profile.shugenja ? new ShugenjaTactics(profile.shugenja) : null;
         // Iron Mountain Castle attachment tower; separate from the High House
@@ -659,34 +667,12 @@ class JigokuBotPolicy {
             }
             // Duel bids were handled above. Dishonor draw bidding stays low so
             // the opponent's higher bid pays it the difference in honor.
-            if(dishonor) {
-                const desired = dishonor.desiredBid(context.roundNumber, myHonor);
-                return this.buttonDecision(this.closestBidButton(buttons, desired), 'dishonor-honor-bid');
-            }
-            if(lion) {
-                return this.buttonDecision(
-                    this.closestBidButton(buttons, lion.desiredBid(context.roundNumber, myHonor)),
-                    'lion-draw-bid'
-                );
-            }
-            if(dragon) {
-                return this.buttonDecision(
-                    this.closestBidButton(buttons, dragon.desiredBid(context.roundNumber, myHonor)),
-                    'dragon-draw-bid'
-                );
-            }
-            // DRAW dial (every non-Scorpion deck): bid to DRAW cards. Cards win
-            // games and these decks know how to spend them, so bid to the honor
-            // the pool can spare — the full draw when honor-rich, a safe middle
-            // bid otherwise, and the minimum only at the dishonor cliff.
-            let drawBid = this.drawBidForHonor(myHonor, opponent?.stats?.honor ?? 10);
-            // A grind deck (Crab) caps the bid: the higher bidder pays the honor
-            // difference, so bidding high both bleeds Crab toward its own
-            // dishonor loss and feeds the honor-climbing opponent. Protect honor.
-            if(profile.drawBidCap !== undefined) {
-                drawBid = Math.min(drawBid, profile.drawBidCap);
-            }
-            return this.buttonDecision(this.closestBidButton(buttons, drawBid), 'draw-bid-honor');
+            const analysis = drawBidding.analyze(context.drawBidContext ||
+                this.drawBidContextFromState(playerState, me, opponent, context, buttons));
+            return this.buttonDecision(
+                this.closestBidButton(buttons, analysis.selectedBid),
+                `draw-bid-${this.drawBidPolicy}-${analysis.reason}`
+            );
         }
 
         // Iaijutsu Master's post-reveal modifier menu. The reaction itself is
@@ -1521,30 +1507,57 @@ class JigokuBotPolicy {
         return liveReady !== false;
     }
 
-    // Draw-phase honor bid: bid to DRAW cards (you draw cards equal to your
-    // bid; the LOWER bidder takes the difference in honor). Cards win games, so
-    // spend the honor the pool can spare. honor >= 7: bid the max 5. honor 4-6:
-    // bid 3 — three cards without risking the 0-honor cliff if outbid. honor
-    // <= 3: bid 1, never gamble into a dishonor defeat. Scorpion is excluded by
-    // its dishonor branch (it wants to feed the opponent honor, not draw).
-    private drawBidForHonor(honor: number, opponentHonor: number): number {
-        let bid = honor <= 3 ? 1 : honor >= 7 ? 5 : 3;
-        // The LOWER bidder takes the honor difference, so a high bid feeds the
-        // opponent AND drains us. Against a climbing honor opponent (Crane), do
-        // not fuel a 25-honor win: near it, bid the MINIMUM so WE are the low
-        // bidder and drain THEM; while it is building, cap the feed.
-        if(opponentHonor >= 18) {
-            bid = 1;
-        } else if(opponentHonor >= 14) {
-            bid = Math.min(bid, 2);
-        }
-        // Self safety: if outbid to 1 we lose (bid - 1) honor — keep a small
-        // buffer so a single bad dial cannot drop us to the dishonor cliff. Kept
-        // light (2) so the honor 4-6 / 7+ tiers still draw aggressively.
-        while(bid > 1 && honor - (bid - 1) < 2) {
-            bid--;
-        }
-        return bid;
+    // Summary-only compatibility path. Live controllers provide the complete
+    // DrawBidContext; synthetic callers can still exercise policy decisions
+    // using visible state and exact hand-cost hints.
+    private drawBidContextFromState(
+        playerState: any,
+        me: any,
+        opponent: any,
+        context: DecideContext,
+        buttons: any[]
+    ): DrawBidContext {
+        const cards = this.findVisibleCards(me);
+        const characters = cards.filter((card) => card.type === 'character' &&
+            String(card.location || '') === 'play area');
+        const hand = me?.cardPiles?.hand || [];
+        const costByUuid = context.conflictCosts || {};
+        const handCosts = hand
+            .map((card: any) => Number(costByUuid[card.uuid] ?? card.cost ?? card.printedCost))
+            .filter((cost: number) => Number.isFinite(cost) && cost >= 0);
+        const skill = (card: any, type: 'military' | 'political'): number => {
+            const value = Number(card?.[`${type}SkillSummary`]?.stat);
+            return Number.isFinite(value) ? Math.max(value, 0) : 0;
+        };
+        return {
+            roundNumber: context.roundNumber,
+            myHonor: Number(me?.stats?.honor) || 0,
+            opponentHonor: Number(opponent?.stats?.honor) || 0,
+            myHandCount: hand.length,
+            opponentHandCount: (opponent?.cardPiles?.hand || []).length,
+            myFate: Number(me?.stats?.fate) || 0,
+            opponentFate: Number(opponent?.stats?.fate) || 0,
+            fateOnUnclaimedRings: Object.values(playerState?.rings || {})
+                .filter((ring: any) => !ring?.claimed)
+                .reduce((sum: number, ring: any) => sum + (Number(ring?.fate) || 0), 0),
+            myBrokenProvinces: brokenOuterProvinceCount(me),
+            opponentBrokenProvinces: brokenOuterProvinceCount(opponent),
+            averageConflictCardCost: handCosts.length > 0
+                ? handCosts.reduce((sum: number, cost: number) => sum + cost, 0) / handCosts.length
+                : 1.5,
+            handCardCosts: handCosts,
+            board: {
+                characterCount: characters.length,
+                readyCharacterCount: characters.filter((card) => !card.bowed).length,
+                persistentCharacterCount: characters.filter((card) => (Number(card.fate) || 0) > 0).length,
+                attachmentCount: characters.reduce((sum, card) => sum + (card.attachments || []).length, 0),
+                totalCharacterFate: characters.reduce((sum, card) => sum + (Number(card.fate) || 0), 0),
+                militarySkill: characters.reduce((sum, card) => sum + skill(card, 'military'), 0),
+                politicalSkill: characters.reduce((sum, card) => sum + skill(card, 'political'), 0)
+            },
+            legalBids: buttons.map((button) => Number.parseInt(String(button.text), 10))
+                .filter((bid) => Number.isFinite(bid))
+        };
     }
 
     // Fate placed on a character keeps it alive across fate phases, so scale

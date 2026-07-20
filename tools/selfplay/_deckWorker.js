@@ -22,7 +22,7 @@ async function main() {
     const games = parseInt(process.argv[3], 10) || 30;
     const botSeed = parseBotSeed(process.argv[4]);
     const craneSeed = parseBotSeed(process.argv[5]);
-    const challengerPolicy = process.argv[6] === 'generic' || process.argv[6] === 'fate-aware'
+    const challengerPolicy = ['generic', 'fate-aware', 'board-aware'].includes(process.argv[6])
         ? process.argv[6]
         : undefined;
     const challengerDrawBidPolicy = process.argv[7] === 'legacy' ? 'legacy' : 'adaptive';

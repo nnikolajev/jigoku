@@ -1,6 +1,7 @@
 const JigokuBotController = require('../../../build/server/game/bots/JigokuBotController.js');
 const JigokuBotPolicy = require('../../../build/server/game/bots/JigokuBotPolicy.js');
 const FateAwareJigokuBotPolicy = require('../../../build/server/game/bots/FateAwareJigokuBotPolicy.js');
+const BoardAwareJigokuBotPolicy = require('../../../build/server/game/bots/BoardAwareJigokuBotPolicy.js');
 const { estimateHandThreat } = require('../../../build/server/game/bots/DeckAnalysis.js');
 const { resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
 
@@ -77,11 +78,12 @@ describe('fate-aware Jigoku bot policy', function() {
         };
     }
 
-    it('uses fate-aware for seeds 1 and 3 and preserves old heuristic as seed 2', function() {
+    it('maps all four seeds and shares adaptive mulligans', function() {
         const defaultBot = new JigokuBotController({}, { playerName }, () => true);
         const seedOne = new JigokuBotController({}, { playerName, seed: '1' }, () => true);
         const seedTwo = new JigokuBotController({}, { playerName, seed: 2 }, () => true);
         const seedThree = new JigokuBotController({}, { playerName, seed: '3' }, () => true);
+        const seedFour = new JigokuBotController({}, { playerName, seed: 4 }, () => true);
         const analysisOverride = new JigokuBotController({}, { playerName, seed: 2, policy: 'fate-aware' }, () => true);
         const adaptiveSeedOne = new JigokuBotController(
             {}, { playerName, seed: 1, mulliganPolicy: 'adaptive' }, () => true
@@ -93,12 +95,67 @@ describe('fate-aware Jigoku bot policy', function() {
         expect(seedOne.policy.constructor.name).toBe('FateAwareJigokuBotPolicy');
         expect(seedTwo.policy.constructor.name).toBe('JigokuBotPolicy');
         expect(seedThree.policy.constructor.name).toBe('FateAwareJigokuBotPolicy');
+        expect(seedFour.policy.constructor.name).toBe('BoardAwareJigokuBotPolicy');
         expect(analysisOverride.policy.constructor.name).toBe('FateAwareJigokuBotPolicy');
-        expect(seedOne.policy.mulliganPolicy).toBe('legacy');
-        expect(seedTwo.policy.mulliganPolicy).toBe('legacy');
+        expect(seedOne.policy.mulliganPolicy).toBe('adaptive');
+        expect(seedTwo.policy.mulliganPolicy).toBe('adaptive');
         expect(seedThree.policy.mulliganPolicy).toBe('adaptive');
+        expect(seedFour.policy.mulliganPolicy).toBe('adaptive');
         expect(adaptiveSeedOne.policy.mulliganPolicy).toBe('adaptive');
         expect(legacySeedThree.policy.mulliganPolicy).toBe('legacy');
+    });
+
+    it('seed 4 can play a safe conflict character at home for its remaining conflict', function() {
+        const policy = new BoardAwareJigokuBotPolicy(4);
+        const ambusher = {
+            uuid: 'ambusher', id: 'ambusher', name: 'Ambusher', type: 'character',
+            isConflict: true, isPlayableByMe: true, selectable: true
+        };
+        const province = {
+            uuid: 'province', id: 'plain-province', type: 'province', isProvince: true,
+            isBroken: false, facedown: false, strengthSummary: { stat: '3' }
+        };
+        const state = {
+            players: {
+                [playerName]: {
+                    id: 'bot', name: playerName, phase: 'conflict',
+                    promptTitle: 'Conflict Action Window', menuTitle: 'Initiate an action',
+                    buttons: [passButton], stats: {
+                        fate: 2, conflictsRemaining: 1, militaryRemaining: true, politicalRemaining: false
+                    },
+                    provinces: { one: [], two: [], three: [], four: [] }, strongholdProvince: [],
+                    cardPiles: { hand: [ambusher], cardsInPlay: [] }
+                },
+                Human: {
+                    id: 'human', name: 'Human', stats: { fate: 0, conflictsRemaining: 1 },
+                    provinces: { one: [province], two: [], three: [], four: [] }, strongholdProvince: [],
+                    cardPiles: { hand: [], cardsInPlay: [] }
+                }
+            }
+        };
+        const decision = policy.decide(state, playerName, {
+            profile: resolveDeckProfile([]),
+            conflictCosts: { ambusher: 2 },
+            handStats: { ambusher: { military: 4, political: 1 } }
+        });
+
+        expect(decision.reason).toBe('board-aware-play-home-conflict-character');
+        expect(decision.target).toBe('Ambusher');
+
+        const mode = policy.decide({
+            players: {
+                [playerName]: {
+                    id: 'bot', name: playerName, phase: 'conflict', promptTitle: 'Ambusher',
+                    menuTitle: 'Play Ambusher:', buttons: [
+                        { text: 'Play Ambusher as an attachment', arg: 'attachment', uuid: 'attachment' },
+                        { text: 'Play Ambusher', arg: 'character', uuid: 'character' }
+                    ], stats: { fate: 2 }, cardPiles: { hand: [{ ...ambusher, selectable: false }], cardsInPlay: [] }
+                },
+                Human: { id: 'human', name: 'Human', stats: {}, cardPiles: { hand: [], cardsInPlay: [] } }
+            }
+        }, playerName, { profile: resolveDeckProfile([]), playCardId: 'ambusher' });
+        expect(mode.reason).toBe('board-aware-play-at-home-as-character');
+        expect(mode.target).toBe('Play Ambusher');
     });
 
     it('maps real hidden hand boosts and live face-down province strength for seed 3', function() {
@@ -346,6 +403,42 @@ describe('fate-aware Jigoku bot policy', function() {
         );
         expect(buy.reason).toBe('fate-aware-play-strong-character');
         expect(buy.args[0]).toBe('strong');
+    });
+
+    it('reads exact seed-4 stats and honored-on-entry state from every stacked character', function() {
+        const liveCharacter = (uuid, cost, military, political, glory, honored) => ({
+            uuid,
+            type: 'character',
+            printedCost: cost,
+            cardData: {
+                cost: String(cost), military: String(military),
+                political: String(political), glory: String(glory),
+                text: 'Reaction: After this character enters play, draw 1 card.'
+            },
+            abilities: { reactions: [{}] },
+            getType: () => 'character',
+            getEffects: () => honored ? ['honored'] : [],
+            isFaceup: () => true
+        });
+        const game = { getProvinceArray: () => ['one'] };
+        const player = {
+            getDynastyCardsInProvince: () => [
+                liveCharacter('tsuma-body', 2, 2, 3, 2, true),
+                liveCharacter('plain-body', 5, 6, 1, 1, false)
+            ]
+        };
+        const controller = new JigokuBotController(game, { playerName, seed: 4 }, () => true);
+
+        expect(controller.dynastyCharacterInfo(player)).toEqual({
+            'tsuma-body': jasmine.objectContaining({
+                cost: 2, military: 2, political: 3, glory: 2,
+                honoredOnEntry: true
+            }),
+            'plain-body': jasmine.objectContaining({
+                cost: 5, military: 6, political: 1, glory: 1,
+                honoredOnEntry: false
+            })
+        });
     });
 
     it('reads UUID-specific printed costs from hand and conflict discard', function() {

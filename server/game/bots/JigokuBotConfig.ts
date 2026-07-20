@@ -7,7 +7,7 @@ export interface JigokuBotLlmConfig {
     cacheDir?: string;
 }
 
-export type JigokuBotPolicyVariant = 'generic' | 'fate-aware';
+export type JigokuBotPolicyVariant = 'generic' | 'fate-aware' | 'board-aware';
 export type JigokuBotDrawBidPolicyVariant = 'adaptive' | 'legacy';
 export type JigokuBotMulliganPolicyVariant = 'adaptive' | 'legacy';
 
@@ -18,13 +18,15 @@ export interface JigokuBotConfig {
     difficulty?: string;
     trace?: boolean;
     maxDecisionsPerTick?: number;
-    // Seed 1 defaults to fate-aware; seed 2 selects the old generic heuristic.
+    // Seed 1 defaults to fate-aware; seed 2 selects the old generic heuristic;
+    // seed 3 adds omniscient context; seed 4 adds fair board-aware dynasty
+    // development to seed 1.
     // Explicit variants remain available for controlled policy comparisons.
     policy?: JigokuBotPolicyVariant;
     // Adaptive is live default. Legacy preserves pre-refactor draw bids for
     // controlled self-play comparisons without reverting other bot logic.
     drawBidPolicy?: JigokuBotDrawBidPolicyVariant;
-    // Seed 3 defaults to the adaptive mulligan/province-refresh planner.
+    // Every seed defaults to the adaptive mulligan/province-refresh planner.
     // Legacy preserves the previous per-deck selectors for paired A/B tests.
     mulliganPolicy?: JigokuBotMulliganPolicyVariant;
     llm?: JigokuBotLlmConfig;

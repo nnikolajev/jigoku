@@ -101,6 +101,6 @@ budget exhaustion, stalls, or unsupported prompts.
 ```powershell
 npm run jasmine -- --filter="Unicorn"
 node tools/selfplay/matchUnicorn.js 50 1 --trace
-node tools/selfplay/validateBotInteractions.js --decks Unicorn --opponents all --games 1 --seeds 1,2,3 --out tools/selfplay/out/unicorn-all-opponents-click-audit
+node tools/selfplay/validateBotInteractions.js --decks Unicorn --opponents all --games 1 --seeds 1,2,3,4 --out tools/selfplay/out/unicorn-all-opponents-click-audit
 node tools/selfplay/botRoundRobin.js --games 25 --workers 32 --seed 1 --out tools/selfplay/out/unicorn-round-robin
 ```

@@ -46,7 +46,10 @@ describe('GloryTactics', function() {
         });
 
         it('parks Rally to the Cause under the stronghold', function() {
-            expect(resolveDeckProfile(['rally-to-the-cause', 'isawa-mori-seido'], GLORY).strongholdProvinceId).toBe('rally-to-the-cause');
+            const profile = resolveDeckProfile(['rally-to-the-cause', 'isawa-mori-seido'], GLORY);
+            expect(profile.strongholdProvinceId).toBe('rally-to-the-cause');
+            expect(profile.boardAwareDynasty.fullPlannerAtUrgent).toBe(false);
+            expect(profile.boardAwareDynasty.secondPlayerDeficitPlanner).toBe(false);
             expect(resolveDeckProfile(['isawa-mori-seido'], GLORY).strongholdProvinceId).toBeUndefined();
         });
     });

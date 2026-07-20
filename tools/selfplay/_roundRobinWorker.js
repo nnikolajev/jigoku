@@ -20,8 +20,8 @@ async function main() {
     const loadRightDeck = getDeckLoader(rightLabel);
 
     if(!loadLeftDeck || !loadRightDeck || !Number.isInteger(games) || games < 1 ||
-        !Number.isInteger(botSeed) || botSeed < 1 || botSeed > 3) {
-        process.stderr.write('usage: node _roundRobinWorker.js <leftDeck> <rightDeck> <games> <botSeed> <startIndex>\n');
+        !isDeployableSeed(botSeed)) {
+        process.stderr.write('usage: node _roundRobinWorker.js <leftDeck> <rightDeck> <games> <botSeed 1..4> <startIndex> [adaptive|legacy]\n');
         process.exit(2);
     }
 
@@ -48,7 +48,15 @@ async function main() {
     }
 }
 
-main().catch((error) => {
-    process.stderr.write(String(error && error.stack || error) + '\n');
-    process.exit(1);
-});
+function isDeployableSeed(seed) {
+    return Number.isInteger(seed) && seed >= 1 && seed <= 4;
+}
+
+if(require.main === module) {
+    main().catch((error) => {
+        process.stderr.write(String(error && error.stack || error) + '\n');
+        process.exit(1);
+    });
+}
+
+module.exports = { isDeployableSeed };

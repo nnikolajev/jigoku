@@ -51,7 +51,7 @@ current zone.
 - A high-weight card absent from the submitted deck can never be named. If no
   real deck card clears the minimum score, Gossip is not played.
 - The typed card-name prompt is submitted through the same legal controller
-  path as ordinary menu buttons. Tests cover seeds 1, 2, and 3.
+  path as ordinary menu buttons. Tests cover seeds 1, 2, 3, and 4.
 
 ## Card sequencing
 
@@ -125,7 +125,7 @@ Re-run the checks with:
 
 ```powershell
 node tools/selfplay/auditCards.js Crane 20 1 PhoenixShugenja
-node tools/selfplay/validateBotInteractions.js --games 1 --seeds 1,2,3 --decks Crane --opponents all
+node tools/selfplay/validateBotInteractions.js --games 1 --seeds 1,2,3,4 --decks Crane --opponents all
 node tools/selfplay/analyzePolicyGame.js --deck Crane --opponent PhoenixShugenja --control fate-aware --candidate fate-aware --opponent-policy fate-aware
 ```
 

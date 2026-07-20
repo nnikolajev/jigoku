@@ -9,9 +9,10 @@ Run commands from `jigoku/`. The complete operational notes live in
 |---:|---|
 | `1` | Fate-aware mixed heuristic; normal default |
 | `2` | Original dynasty-focused heuristic |
-| `3` | Seed 1 plus omniscient hidden-state evaluation and adaptive mulligan |
+| `3` | Seed 1 plus omniscient hidden-state evaluation |
+| `4` | Seed 1 plus fair board-aware dynasty development |
 
-Seeds 4 and 5 were removed. The former omniscient seed 5 is now seed 3.
+Adaptive mulligan is the deployed default for all four seeds.
 
 ## Build and tests
 
@@ -46,12 +47,12 @@ Cross-seed, subset, custom-count, and legacy-policy runs remain diagnostics.
 ## Mulligan policy comparison
 
 ```powershell
-# Default: every deck, seeds 1/2/3, 20 games per deck and seed
+# Default: every deck, seeds 1/2/3/4, 20 games per deck and seed
 node tools/selfplay/compareMulliganPolicies.js
 
-# Deployed seed-3 gate and fresh deterministic stream
-node tools/selfplay/compareMulliganPolicies.js --games 40 --seeds 3
-node tools/selfplay/compareMulliganPolicies.js --games 20 --seeds 3 --decks Crab,Phoenix --rng-seed 20260721
+# Full gate and focused deterministic stream
+node tools/selfplay/compareMulliganPolicies.js --games 40 --seeds 1,2,3,4
+node tools/selfplay/compareMulliganPolicies.js --games 20 --seeds 4 --decks Crab,Phoenix --rng-seed 20260721
 ```
 
 The script alternates seats and puts adaptive and frozen legacy mulligan logic
@@ -60,7 +61,7 @@ updates client benchmarks. Options:
 
 ```text
 --games N       games per deck and seed (default 20)
---seeds CSV     subset of 1,2,3 (default all)
+--seeds CSV     subset of 1,2,3,4 (default all)
 --decks CSV     registered deck labels (default all)
 --rng-seed N    deterministic shuffle base
 --out PREFIX    report path without extension
@@ -73,7 +74,7 @@ and regroup discard choices. See `docs/mulligan-bot.md`.
 
 ```powershell
 node tools/selfplay/validateBotInteractions.js
-node tools/selfplay/validateBotInteractions.js --seeds 1,2,3 --opponents all --games 2
+node tools/selfplay/validateBotInteractions.js --seeds 1,2,3,4 --opponents all --games 2
 node tools/selfplay/validateBotInteractions.js --decks Crab,Phoenix --seeds 3 --games 2 --out tools/selfplay/out/mulligan-interactions
 ```
 
@@ -86,6 +87,10 @@ prompts, decision-budget exhaustion, stalls, timeouts, and engine errors.
 # Adaptive versus frozen legacy draw bidding
 node tools/selfplay/compareDrawBidPolicies.js
 node tools/selfplay/drawBidMatrix.js
+
+# Seed 4 versus seed 1 with paired shuffles and alternating seats
+node tools/selfplay/compareDynastySeeds.js
+node tools/selfplay/compareDynastySeeds.js --games 40 --decks Lion,Unicorn --rng-seed 20260720
 
 # Duel matrix and policy traces
 node tools/selfplay/analyzeDuelBids.js

@@ -1,6 +1,7 @@
 'use strict';
 
 const {
+    BENCHMARK_VERSION,
     STANDARD_ROUND_ROBIN_GAMES,
     STANDARD_WIN_RATE_GAMES,
     STANDARD_SUITE_ID,
@@ -12,6 +13,7 @@ const {
 
 describe('standard self-play benchmark config', function() {
     it('uses 100-game win rates and a 40-game round robin', function() {
+        expect(BENCHMARK_VERSION).toBe(4);
         expect(STANDARD_WIN_RATE_GAMES).toBe(100);
         expect(STANDARD_ROUND_ROBIN_GAMES).toBe(40);
         expect(emptyBenchmark().standard).toEqual(jasmine.objectContaining({
@@ -29,6 +31,8 @@ describe('standard self-play benchmark config', function() {
         expect(third.seeds['1'].roundRobin.generatedAt).toBe('second');
         expect(third.seeds['2'].winRates.generatedAt).toBe('third');
         expect(third.seeds['2'].label).toBe('old heuristic');
+        expect(mergeBenchmark(third, 4, 'winRates', { generatedAt: 'fourth' }).seeds['4'].label)
+            .toBe('board-aware dynasty');
     });
 
     it('stores compact per-deck records for both benchmark types', function() {

@@ -18,10 +18,10 @@ Lobby game creation may include:
 }
 ```
 
-When `policy` is omitted, the seed selects the policy. Seeds 1 and 3 use the
-fate-aware policy documented in [`fate-aware-bot.md`](fate-aware-bot.md); seed 3
-also receives omniscient context and adaptive mulligan. Seed 2 preserves the old
-generic heuristic. Explicit `generic` / `fate-aware` and
+When `policy` is omitted, the seed selects the policy. Seed 1 uses the
+fate-aware policy, seed 2 preserves the old generic heuristic, seed 3 adds
+omniscient context to seed 1, and seed 4 adds fair board-aware dynasty planning
+to seed 1. Adaptive mulligan is shared by every seed. Explicit policy and
 `adaptive` / `legacy` mulligan values remain available for paired analysis.
 
 The lobby creates a second player named `Jigoku Bot`, hydrates the configured deck, and starts the normal game-server handoff for the human player.
@@ -46,11 +46,10 @@ Current heuristics:
 - **Reaction/interrupt windows**: triggers its own province and stronghold abilities (they are free and near-always worth firing, e.g. Meditations on the Tao); character and event reactions are still passed until per-card knowledge exists.
 - **Ring effect resolution**: void strips fate from the opponent's highest-fate character and skips the ring rather than hit its own; fire honors its own highest-glory unhonored character, else dishonors the opponent's highest-glory character through the same personal-honor policy; water bows the opponent's strongest ready character, readies an own bowed one only while conflicts remain, else skips; air takes 1 honor when the opponent is near the dishonor loss or the honor win, else gains 2.
 - **Covert**: assigns covert to the opponent's strongest ready defender.
-- **Fate phase**: confirms the mandatory no-fate character discard. Seed 3 then
+- **Fate phase**: confirms the mandatory no-fate character discard. Every seed
   uses `MulliganTactics` to keep or replace each selectable dynasty card based on
-  projected next-turn fate, board strength, holdings, and deck profile. Seeds
-  1/2 retain their legacy discard behavior.
-- **Opening mulligan**: seed 3 seeks a playable dynasty curve, replaces paid
+  projected next-turn fate, board strength, holdings, and deck profile.
+- **Opening mulligan**: every seed seeks a playable dynasty curve, replaces paid
   conflict cards, honors Tsuma and per-deck search goals, and evaluates every
   physical card in a stacked province independently. See
   [`mulligan-bot.md`](mulligan-bot.md).
@@ -62,7 +61,7 @@ Current heuristics:
 
 ## Conflict-card economy
 
-Seeds 1, 2, and 3 share an injectable `conflictCardEconomy` profile. The
+Seeds 1, 2, 3, and 4 share an injectable `conflictCardEconomy` profile. The
 controller supplies printed fate costs by UUID for cards in the bot's
 hand and conflict discard. A 0/1 budget planner values legal candidates from
 playbook priority, relevant conflict skill, and ability value, chooses the
@@ -115,12 +114,12 @@ The bot `seed` selects the brain:
 - **Seed 1 (default)** — the fate-aware heuristic. It preserves fate, invests in longer-lived expensive characters, and prioritizes rings holding fate.
 - **Seed 2** — the old generic hand-written heuristic, retained for comparisons.
 - **Seed 3** — seed 1's fate-aware heuristic plus omniscient hidden-hand and
-  face-down-province logic, with adaptive opening mulligan and end-of-fate
-  province refresh. See [`omniscient-bot.md`](omniscient-bot.md) and
-  [`mulligan-bot.md`](mulligan-bot.md).
+  face-down-province logic. See [`omniscient-bot.md`](omniscient-bot.md).
+- **Seed 4** — seed 1 plus fair board/game-state-aware dynasty development.
+  See [`board-aware-dynasty-bot.md`](board-aware-dynasty-bot.md).
 
-Only seeds 1–3 exist. All three are available in the normal client dropdown;
-seed 3 is the cheating/hardest option.
+Seeds 1–4 are available in the normal client dropdown. Seed 3 is the only
+cheating/omniscient option. All four use adaptive mulligan by default.
 
 ## Standardized benchmark results
 
@@ -140,7 +139,7 @@ Complete standard runs update
 `jigoku-client/client/botBenchmarkResults.json`; custom game counts, policy
 overrides, cross-seed Crane tests, selected-deck round robins, or incomplete
 workers do not. Jigoku client reads that file dynamically and shows each
-selected deck's vs-Crane and round-robin result for seeds 1, 2, and 3.
+selected deck's vs-Crane and round-robin result for seeds 1, 2, 3, and 4.
 
 The 2026-07-18 province/stronghold validation used the saved pre-change N=100
 round robins as baseline, then full N=40 matrices for seeds 1, 2, and 3. No deck
@@ -164,7 +163,7 @@ Future strategy profiles can replace `JigokuBotPolicy` while keeping `JigokuBotC
 
 - Specialized behavior exists only for registered marker/profile combinations;
   an unknown deck falls back to the generic profile.
-- Seeds 1, 2, and 3 are hand-written policies.
+- Seeds 1, 2, 3, and 4 are hand-written policies.
 - Unsupported prompt shapes leave a trace entry and use the controller's
   bounded progress fallback.
 - Bot games are labeled in save state and skipped for the external analytics

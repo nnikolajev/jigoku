@@ -2,6 +2,7 @@
 
 const { DECK_LABELS } = require('../../../tools/selfplay/deckRegistry.js');
 const { isStandardBenchmarkRun, parseArgs } = require('../../../tools/selfplay/botRoundRobin.js');
+const { isDeployableSeed } = require('../../../tools/selfplay/_roundRobinWorker.js');
 
 describe('self-play bot round-robin options', function() {
     it('defaults to 32 workers and fate-aware seed 1, and accepts omniscient seed 3', function() {
@@ -14,9 +15,12 @@ describe('self-play bot round-robin options', function() {
 
         expect(options.botSeed).toBe(3);
         expect(options.decks).toEqual(['Crane', 'PhoenixShugenja']);
-        expect(() => parseArgs(['--seed', '4'])).toThrowError('--seed must be a bot mode from 1 to 3');
+        expect(parseArgs(['--seed', '4']).botSeed).toBe(4);
+        expect(() => parseArgs(['--seed', '5'])).toThrowError('--seed must be a bot mode from 1 to 4');
         expect(parseArgs(['--draw-bid', 'legacy']).drawBidPolicy).toBe('legacy');
         expect(() => parseArgs(['--draw-bid', 'random'])).toThrowError('--draw-bid must be adaptive or legacy');
+        expect([1, 2, 3, 4].every(isDeployableSeed)).toBe(true);
+        expect(isDeployableSeed(5)).toBe(false);
     });
 
     it('only publishes a complete 40-game full-deck round robin', function() {

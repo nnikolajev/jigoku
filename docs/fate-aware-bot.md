@@ -33,8 +33,9 @@ or the explicit policy selector used by controlled comparisons:
 }
 ```
 
-Use seed `2` for the old generic heuristic and seed `5` for fate-aware plus
-omniscient logic. Explicit `policy` is intended for paired analysis overrides.
+Use seed `2` for the old generic heuristic, seed `3` for fate-aware plus
+omniscient logic, and seed `4` for fate-aware plus fair board-aware dynasty
+development. Explicit `policy` is intended for paired analysis overrides.
 
 ## Economy Rules
 

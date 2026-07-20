@@ -29,7 +29,7 @@ Options:
   -w, --workers <count>     Parallel child processes (default: 32)
       --chunk-size <count>  Games per isolated job (default: ${DEFAULT_CHUNK_SIZE})
       --seed <number>       Both seats: 1 fate-aware, 2 old heuristic,
-                            3 omniscient + adaptive mulligan (default: 1)
+                            3 omniscient, 4 board-aware dynasty (default: 1)
       --draw-bid <variant>  Both seats: adaptive or legacy (default: adaptive)
       --decks <a,b,...>     Limit round robin to named decks
       --out <path-prefix>   Report prefix (default: tools/selfplay/out/round-robin-latest)
@@ -80,8 +80,8 @@ function parseArgs(argv) {
             options.chunkSize = positiveInteger(argv[++i], arg);
         } else if(arg === '--seed') {
             options.botSeed = positiveInteger(argv[++i], arg);
-            if(options.botSeed > 3) {
-                throw new Error('--seed must be a bot mode from 1 to 3');
+            if(options.botSeed > 4) {
+                throw new Error('--seed must be a bot mode from 1 to 4');
             }
         } else if(arg === '--draw-bid') {
             options.drawBidPolicy = String(argv[++i] || '');

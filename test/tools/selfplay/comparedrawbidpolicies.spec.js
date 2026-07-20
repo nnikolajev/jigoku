@@ -16,7 +16,7 @@ describe('compareDrawBidPolicies CLI', function() {
     });
 
     it('rejects invalid seeds and decks', function() {
-        expect(() => parseArgs(['--seed', '4'])).toThrowError('--seed must be 1..3');
+        expect(() => parseArgs(['--seed', '5'])).toThrowError('--seed must be 1..4');
         expect(() => parseArgs(['--decks', 'Nope'])).toThrowError(/Unknown deck/);
     });
 

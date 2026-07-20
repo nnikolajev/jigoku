@@ -1,5 +1,6 @@
 import JigokuBotPolicy from './JigokuBotPolicy.js';
 import FateAwareJigokuBotPolicy from './FateAwareJigokuBotPolicy.js';
+import BoardAwareJigokuBotPolicy from './BoardAwareJigokuBotPolicy.js';
 import LmStudioClient from './llm/LmStudioClient.js';
 import DeckHintService from './llm/DeckHintService.js';
 import LiveConsultant from './llm/LiveConsultant.js';
@@ -9,6 +10,7 @@ import { resolveDeckProfile } from './DeckProfiles.js';
 import type { DeckProfile } from './DeckProfiles';
 import type { DuelBidContext } from './DuelBidTactics';
 import type { DrawBidContext } from './DrawBidTactics';
+import type { DynastyCharacterInfo } from './BoardAwareDynastyTactics';
 import { buildHandThreatMatrix, getCardModel } from './DeckAnalysis.js';
 import type { KnownCard, OmniProvince, Omniscient } from './DeckAnalysis';
 import { logger } from '../../logger.js';
@@ -17,7 +19,7 @@ import type Player from '../player';
 import type Ring from '../ring';
 import type BaseCard from '../basecard';
 import type { JigokuBotConfig } from './JigokuBotConfig';
-import { EffectNames, EventNames } from '../Constants';
+import { CharacterStatus, EffectNames, EventNames } from '../Constants';
 
 interface BotDecision {
     command: 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
@@ -62,11 +64,18 @@ class JigokuBotController {
     constructor(private game: Game, readonly config: JigokuBotConfig, private runCommand: CommandRunner,
         services: { hintService?: DeckHintService; consultant?: LiveConsultant; onStateChange?: () => void } = {}) {
         const seed = config.seed || 1;
+        const isBoardAware = config.policy === 'board-aware' ||
+            (config.policy === undefined && (seed === 4 || seed === '4'));
         const isFateAware = config.policy === 'fate-aware' ||
+            isBoardAware ||
             (config.policy === undefined && (seed === 1 || seed === '1' || seed === 3 || seed === '3'));
-        const mulliganPolicy = config.mulliganPolicy ||
-            (seed === 3 || seed === '3' ? 'adaptive' : 'legacy');
-        this.policy = isFateAware
+        // Adaptive opening and province refresh is shared bot behavior. Keep
+        // legacy available only as an explicit A/B override; seed selects the
+        // decision policy, not whether the bot understands mulligans.
+        const mulliganPolicy = config.mulliganPolicy || 'adaptive';
+        this.policy = isBoardAware
+            ? new BoardAwareJigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy)
+            : isFateAware
             ? new FateAwareJigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy)
             : new JigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy);
         this.onStateChange = services.onStateChange;
@@ -501,6 +510,9 @@ class JigokuBotController {
                     legalRingElements: this.currentLegalRingElements(player),
                     // Printed fate cost of dynasty province cards (reserve 1 fate).
                     dynastyCosts: this.dynastyCostsHint(player),
+                    // Exact public printed skills, ability density, and live
+                    // honor-on-entry effects for seed 4's dynasty valuation.
+                    dynastyCharacterInfo: this.dynastyCharacterInfo(player),
                     // Player-state hand summaries omit printed conflict-card
                     // costs. Deck profiles need these to sequence reducers.
                     conflictCosts: this.conflictCostsHint(player),
@@ -1296,32 +1308,64 @@ class JigokuBotController {
         return isNaN(parsed) ? null : parsed;
     }
 
+    private faceupDynastyCards(player: Player): any[] {
+        const getDynastyCards = (player as any).getDynastyCardsInProvince;
+        const getProvinceArray = (this.game as any).getProvinceArray;
+        if(typeof getDynastyCards !== 'function' || typeof getProvinceArray !== 'function') {
+            return [];
+        }
+        const locations: string[] = getProvinceArray.call(this.game);
+        return locations.flatMap((location) => getDynastyCards.call(player, location) || [])
+            .filter((card: any) => card?.uuid && card.cardData &&
+                typeof card.isFaceup === 'function' && card.isFaceup());
+    }
+
     // Printed fate cost of each face-up dynasty card in a province, keyed by
     // uuid — the player-state summaries omit it, so the policy cannot otherwise
     // tell whether playing a character would spend the bot's last fate. Used to
     // keep a 1-fate reserve for conflict-phase hand plays.
     private dynastyCostsHint(player: Player): Record<string, number> | undefined {
-        const getDynastyCards = (player as any).getDynastyCardsInProvince;
-        const getProvinceArray = (this.game as any).getProvinceArray;
-        if(typeof getDynastyCards !== 'function' || typeof getProvinceArray !== 'function') {
-            return undefined;
-        }
         const costs: Record<string, number> = {};
         // Rally and other stacking effects can leave several dynasty cards in
         // one province. Flatten every real province slot so each playable card
         // gets its own UUID-keyed cost hint.
-        const locations: string[] = getProvinceArray.call(this.game);
-        const cards: any[] = locations.flatMap((location) =>
-            getDynastyCards.call(player, location) || []);
-        for(const card of cards) {
-            if(card?.uuid && card.cardData && typeof card.isFaceup === 'function' && card.isFaceup()) {
-                const cost = this.parseStat(card.cardData.cost);
-                if(cost !== null) {
-                    costs[card.uuid] = cost;
-                }
+        for(const card of this.faceupDynastyCards(player)) {
+            const cost = this.parseStat(card.printedCost ?? card.cardData.cost);
+            if(cost !== null) {
+                costs[card.uuid] = cost;
             }
         }
         return Object.keys(costs).length > 0 ? costs : undefined;
+    }
+
+    private dynastyCharacterInfo(player: Player): Record<string, DynastyCharacterInfo> | undefined {
+        const result: Record<string, DynastyCharacterInfo> = {};
+        for(const card of this.faceupDynastyCards(player)) {
+            const type = typeof card.getType === 'function' ? card.getType() : card.type;
+            if(type !== 'character') {
+                continue;
+            }
+            const collections = card.abilities || {};
+            const abilityCount = ['actions', 'reactions', 'interrupts', 'forcedReactions', 'forcedInterrupts']
+                .reduce((sum, key) => sum + (Array.isArray(collections[key]) ? collections[key].length : 0), 0);
+            const text = String(card.cardData?.text || '').toLowerCase();
+            const strategicTerms = [
+                'ready ', 'draw ', 'covert', 'cannot be', 'additional conflict',
+                'move ', 'dishonor', 'honor ', 'gain 1 fate', 'place 1 fate'
+            ].filter((term) => text.includes(term)).length;
+            const statusEffects = typeof card.getEffects === 'function'
+                ? card.getEffects(EffectNames.EntersPlayWithStatus)
+                : [];
+            result[card.uuid] = {
+                cost: Math.max(0, this.parseStat(card.printedCost ?? card.cardData?.cost) ?? 0),
+                military: Math.max(0, this.parseStat(card.cardData?.military) ?? 0),
+                political: Math.max(0, this.parseStat(card.cardData?.political) ?? 0),
+                glory: Math.max(0, this.parseStat(card.cardData?.glory) ?? 0),
+                abilityValue: Math.min(4, abilityCount * 0.7 + strategicTerms * 0.45),
+                honoredOnEntry: Array.isArray(statusEffects) && statusEffects.includes(CharacterStatus.Honored)
+            };
+        }
+        return Object.keys(result).length > 0 ? result : undefined;
     }
 
     private provinceIdsByLocation(player: Player): Record<string, string> | undefined {

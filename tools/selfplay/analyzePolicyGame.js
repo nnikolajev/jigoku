@@ -16,7 +16,7 @@ const path = require('path');
 const { runGame } = require('./harness.js');
 const { DECK_LABELS, getDeckLoader } = require('./deckRegistry.js');
 
-const POLICY_NAMES = new Set(['generic', 'fate-aware']);
+const POLICY_NAMES = new Set(['generic', 'fate-aware', 'board-aware']);
 
 function usage() {
     return [

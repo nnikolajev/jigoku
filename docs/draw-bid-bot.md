@@ -127,7 +127,7 @@ a deterministic shuffle seed. It reports each deck separately and never
 updates standardized client results.
 
 Focused tests cover the formulas, decision precedence, legal-bid clamping,
-profile isolation/overrides, policy routing for seeds 1, 2, and 3, exact live
+profile isolation/overrides, policy routing for seeds 1, 2, 3, and 4, exact live
 controller context, and self-play command parsing. Gameplay validation compares
 the adaptive policy with the stored pre-change client benchmark and can run
 adaptive challengers directly against a legacy Crane opponent.

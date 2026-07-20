@@ -29,6 +29,8 @@ import type { UnicornMoveContext } from './UnicornTactics';
 import type { PersonalHonorConflict } from './PersonalHonorTactics';
 import MulliganTactics from './MulliganTactics.js';
 import type { MulliganPolicyVariant } from './MulliganTactics';
+import BoardAwareDynastyTactics from './BoardAwareDynastyTactics.js';
+import type { DynastyCharacterInfo, DynastyHandCard } from './BoardAwareDynastyTactics';
 import {
     attackProvinceLists,
     brokenOuterProvinceCount,
@@ -196,6 +198,9 @@ interface DecideContext {
     // Printed fate cost of each face-up dynasty province card by uuid, so the
     // dynasty play can keep a 1-fate reserve for conflict-phase hand cards.
     dynastyCosts?: Record<string, number>;
+    // Exact public printed character data and live honor-on-entry effects.
+    // Seed 4 uses this to compare board power and value cheap persistence.
+    dynastyCharacterInfo?: Record<string, DynastyCharacterInfo>;
     // Printed fate cost of conflict cards in our hand by uuid. Player-state
     // summaries omit it; profiles use this to sequence cost reducers.
     conflictCosts?: Record<string, number>;
@@ -295,12 +300,15 @@ class JigokuBotPolicy {
     private currentRoundNumber = 1;
     private fateAwareDynastyStartFate: number | null = null;
     private fateAwareBoughtCharacter = false;
+    private fateAwareBoughtCount = 0;
     private fateAwareStrongCharacter = false;
     private fateAwarePendingAdditionalFate: number | null = null;
     private fateAwarePendingAdditionalFateCap: number | null = null;
     private fateAwarePendingCost: number | undefined;
     private fateAwarePendingDurable = false;
     private fateAwareDurableSpent = 0;
+    private boardAwareHomeConflictCharacterId: string | null = null;
+    private boardAwareHomeConflictCharacterUuid: string | null = null;
 
     constructor(
         seed: string | number = 1,
@@ -318,10 +326,15 @@ class JigokuBotPolicy {
         return false;
     }
 
+    protected usesBoardAwareDynastyEconomy(): boolean {
+        return false;
+    }
+
     private resetFateAwareEconomy(roundNumber: number): void {
         this.fateAwareRoundNumber = roundNumber;
         this.fateAwareDynastyStartFate = null;
         this.fateAwareBoughtCharacter = false;
+        this.fateAwareBoughtCount = 0;
         this.fateAwareStrongCharacter = false;
         this.fateAwarePendingAdditionalFate = null;
         this.fateAwarePendingAdditionalFateCap = null;
@@ -334,6 +347,16 @@ class JigokuBotPolicy {
         const me = this.myPlayer(playerState, botName);
         if(!me) {
             return null;
+        }
+
+        // A normal conflict character may resolve without opening a mode
+        // prompt. Clear the seed-4 intent as soon as that physical card leaves
+        // the hand so a later dual-mode copy cannot inherit character mode.
+        if(this.boardAwareHomeConflictCharacterUuid &&
+            !(me?.cardPiles?.hand || []).some((card: any) =>
+                card?.uuid === this.boardAwareHomeConflictCharacterUuid)) {
+            this.boardAwareHomeConflictCharacterId = null;
+            this.boardAwareHomeConflictCharacterUuid = null;
         }
 
         this.recordReturnedFailedPlay(playerState, me);
@@ -765,7 +788,8 @@ class JigokuBotPolicy {
         if(title.includes('mulligan')) {
             if(this.mulliganPolicy === 'adaptive') {
                 const input = {
-                    cards: this.findVisibleCards(me),
+                    cards: this.findVisibleCards(me).filter((card: any) =>
+                        !card?.uuid || !this.isAttempted('cardClicked', [card.uuid])),
                     board: this.myCharactersInPlay(me),
                     currentFate: me?.stats?.fate ?? 0,
                     income: context.income ?? 7,
@@ -801,7 +825,12 @@ class JigokuBotPolicy {
         if(title.includes('select dynasty cards to discard')) {
             if(this.mulliganPolicy === 'adaptive') {
                 const pick = mulligan.pickDynastyDiscard({
-                    cards: this.findVisibleCards(me),
+                    // A serialized card may still say selectable after the
+                    // live prompt selector rejects it. Exclude attempted
+                    // physical cards so adaptive mulligan reaches Done in the
+                    // same tick instead of retrying the stale UUID forever.
+                    cards: this.findVisibleCards(me).filter((card: any) =>
+                        !card?.uuid || !this.isAttempted('cardClicked', [card.uuid])),
                     board: this.myCharactersInPlay(me),
                     currentFate: me?.stats?.fate ?? 0,
                     income: context.income ?? 7,
@@ -855,7 +884,7 @@ class JigokuBotPolicy {
 
         // The dynasty window overrides the generic action-window prompt text.
         if(menuTitle === 'Initiate an action' || promptTitle === 'Play cards from provinces') {
-            return this.actionWindowDecision(playerState, me, buttons, profile, context.cardHint, dishonor, context.dynastyCosts, context.conflictCosts, lion, duelist, shugenja, attachmentTower, crane, context.opponentConflictDeck, context.omniscient, context.legalDirectCardUuids, mulligan, context.provinceIdsByLocation);
+            return this.actionWindowDecision(playerState, me, buttons, profile, context.cardHint, dishonor, context.dynastyCosts, context.conflictCosts, lion, duelist, shugenja, attachmentTower, crane, context.opponentConflictDeck, context.omniscient, context.legalDirectCardUuids, mulligan, context.provinceIdsByLocation, context);
         }
 
         if(promptTitle === 'Conflict Action Window') {
@@ -890,7 +919,24 @@ class JigokuBotPolicy {
                 (opponent?.stats?.fate ?? 0) > 0 ? 'mediator-take-fate' : 'mediator-take-honor');
         }
 
-        if(promptTitle.startsWith('Play ') || promptTitle === 'Choose an ability:') {
+        if(promptTitle.startsWith('Play ') || menuTitle.startsWith('Play ') || promptTitle === 'Choose an ability:') {
+            // Seed 4 deliberately selected a conflict character as a body at
+            // home. Dual-mode characters such as Tattooed Wanderer otherwise
+            // enter the shared attachment preference, cancel for lack of a
+            // legal bearer, and get selected again forever.
+            if(this.boardAwareHomeConflictCharacterId &&
+                (!context.playCardId || context.playCardId === this.boardAwareHomeConflictCharacterId)) {
+                const asCharacter = buttons.find((button) => {
+                    const text = String(button.text || '').toLowerCase();
+                    return text.includes('as a character') || text === 'play this character' ||
+                        (text.startsWith('play ') && !text.includes('attachment'));
+                });
+                this.boardAwareHomeConflictCharacterId = null;
+                this.boardAwareHomeConflictCharacterUuid = null;
+                if(asCharacter) {
+                    return this.buttonDecision(asCharacter, 'board-aware-play-at-home-as-character');
+                }
+            }
             // Dragon plays its dual-mode monks (Ancient Master, Tattooed
             // Wanderer, Togashi Acolyte) as ATTACHMENTS by preference. With
             // no own bearer, use character mode: attaching the Monk to an
@@ -1675,9 +1721,15 @@ class JigokuBotPolicy {
         }
 
         const cap = this.fateAwarePendingAdditionalFateCap ?? this.fateAwarePendingAdditionalFate;
-        const desired = Math.min(cap, Math.max(0, desiredOverride ?? this.fateAwarePendingAdditionalFate));
+        const requested = desiredOverride === undefined
+            ? this.fateAwarePendingAdditionalFate
+            : this.usesBoardAwareDynastyEconomy()
+                ? Math.max(this.fateAwarePendingAdditionalFate, desiredOverride)
+                : desiredOverride;
+        const desired = Math.min(cap, Math.max(0, requested));
         const cost = playCost ?? this.fateAwarePendingCost ?? 0;
         this.fateAwareBoughtCharacter = true;
+        this.fateAwareBoughtCount++;
         if(this.fateAwarePendingDurable) {
             this.fateAwareDurableSpent += cost + desired;
         }
@@ -3328,7 +3380,7 @@ class JigokuBotPolicy {
         ).map((option) => option.card);
     }
 
-    private actionWindowDecision(playerState: any, me: any, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, dynastyCosts?: Record<string, number>, conflictCosts?: Record<string, number>, lion: LionTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, opponentConflictDeck: KnownCard[] = [], omni?: Omniscient, legalDirectCardUuids?: Record<string, true>, mulligan: MulliganTactics = new MulliganTactics(profile.mulligan), provinceIdsByLocation?: Record<string, string>): BotDecision | null {
+    private actionWindowDecision(playerState: any, me: any, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, dynastyCosts?: Record<string, number>, conflictCosts?: Record<string, number>, lion: LionTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, opponentConflictDeck: KnownCard[] = [], omni?: Omniscient, legalDirectCardUuids?: Record<string, true>, mulligan: MulliganTactics = new MulliganTactics(profile.mulligan), provinceIdsByLocation?: Record<string, string>, decisionContext: DecideContext = {}): BotDecision | null {
         const pass = this.findButton(buttons, ['pass']);
 
         // Gossip is most valuable before either side commits to a conflict. It
@@ -3621,6 +3673,79 @@ class JigokuBotPolicy {
             }
         }
 
+        // Seed 4 may convert an affordable conflict character into one more
+        // attacker at home between conflicts. Do this only when every existing
+        // ready body is useless for remaining conflict types and the new body
+        // can beat all visible ready defenders by itself. This preserves hand
+        // ambush value unless the extra declaration is genuinely safe.
+        const activeConflict = !!playerState?.conflict?.attackingPlayerId;
+        if(this.usesBoardAwareDynastyEconomy() &&
+            profile.boardAwareDynasty.playConflictCharactersAtHome &&
+            me?.phase === 'conflict' && !activeConflict &&
+            (Number(me?.stats?.conflictsRemaining) || 0) > 0) {
+            const canDeclareMilitary = me?.stats?.militaryRemaining !== false;
+            const canDeclarePolitical = me?.stats?.politicalRemaining !== false;
+            const ready = this.readyCharacters(me);
+            const readyHasConflict = ready.some((card) =>
+                (canDeclareMilitary && (this.skillValue(card, 'military') || 0) > 0) ||
+                (canDeclarePolitical && (this.skillValue(card, 'political') || 0) > 0));
+            if(!readyHasConflict) {
+                const opponent = this.opponentPlayer(playerState, me);
+                const enemyReady = this.readyCharacters(opponent);
+                const strongholdOpen = mustAttackStronghold(opponent);
+                const targetProvinceLists = strongholdOpen
+                    ? [opponent?.strongholdProvince || []]
+                    : PROVINCE_KEYS.map((key) => opponent?.provinces?.[key] || []);
+                const visibleStrengths = targetProvinceLists
+                    .map((list) => (list || []).find((card: any) =>
+                        card.isProvince && !card.isBroken))
+                    .filter(Boolean)
+                    .map((card: any) => Number(card?.strengthSummary?.stat))
+                    .filter((strength) => Number.isFinite(strength) && strength > 0);
+                const targetStrength = visibleStrengths.length > 0
+                    ? Math.min(...visibleStrengths)
+                    : strongholdOpen ? 7 : 4;
+                const options = (me?.cardPiles?.hand || [])
+                    .filter((card: any) => card?.uuid && card.type === 'character' && card.isConflict &&
+                        card.isPlayableByMe && this.isDirectCardLegal(card, legalDirectCardUuids) &&
+                        !this.isAttempted('cardClicked', [card.uuid]) &&
+                        !this.failedPlayCards.has(card.uuid) &&
+                        (Number(conflictCosts?.[card.uuid]) || 0) <= (Number(me?.stats?.fate) || 0))
+                    .flatMap((card: any) => {
+                        const stats = decisionContext.handStats?.[card.uuid];
+                        const axes: Array<'military' | 'political'> = [];
+                        if(canDeclareMilitary) {
+                            axes.push('military');
+                        }
+                        if(canDeclarePolitical) {
+                            axes.push('political');
+                        }
+                        return axes.map((axis) => {
+                            const skill = Math.max(0, Number(stats?.[axis]) || 0);
+                            const defense = enemyReady.reduce((sum, defender) =>
+                                sum + Math.max(0, this.skillValue(defender, axis) || 0), 0);
+                            const safe = skill >= defense + profile.boardAwareDynasty.conflictCharacterSafetyMargin;
+                            const breaks = skill - defense >= targetStrength;
+                            const cost = Math.max(0, Number(conflictCosts?.[card.uuid]) || 0);
+                            return {
+                                card,
+                                safe: safe && (!profile.boardAwareDynasty.conflictCharacterMustBreak || breaks),
+                                score: skill - cost * 0.35 +
+                                    (breaks ? profile.boardAwareDynasty.conflictCharacterBreakBonus : 0)
+                            };
+                        });
+                    })
+                    .filter((option) => option.safe)
+                    .sort((left, right) => right.score - left.score ||
+                        String(left.card.uuid).localeCompare(String(right.card.uuid)));
+                if(options.length > 0) {
+                    this.boardAwareHomeConflictCharacterId = options[0].card.id || null;
+                    this.boardAwareHomeConflictCharacterUuid = options[0].card.uuid || null;
+                    return this.cardClickDecision(options[0].card, 'board-aware-play-home-conflict-character');
+                }
+            }
+        }
+
         if(me?.phase === 'dynasty') {
             const playable = PROVINCE_KEYS
                 .flatMap((key) => me?.provinces?.[key] || [])
@@ -3675,15 +3800,27 @@ class JigokuBotPolicy {
             if(deckPreference?.card && deckPreference.card.type !== 'character') {
                 return this.cardClickDecision(deckPreference.card, deckPreference.playReason || 'play-dynasty-card');
             }
-            const fateAwareDecision = this.fateAwareDynastyDecision(
-                playable,
-                dynastyCosts || {},
-                me,
-                buttons,
-                profile.fateAwareEconomy,
-                deckPreference,
-                dynamicFateReserve
-            );
+            const fateAwareDecision = this.usesBoardAwareDynastyEconomy()
+                ? this.boardAwareDynastyDecision(
+                    playerState,
+                    playable,
+                    dynastyCosts || {},
+                    me,
+                    buttons,
+                    profile,
+                    decisionContext,
+                    deckPreference,
+                    dynamicFateReserve
+                )
+                : this.fateAwareDynastyDecision(
+                    playable,
+                    dynastyCosts || {},
+                    me,
+                    buttons,
+                    profile.fateAwareEconomy,
+                    deckPreference,
+                    dynamicFateReserve
+                );
             if(fateAwareDecision) {
                 return fateAwareDecision;
             }
@@ -3961,6 +4098,140 @@ class JigokuBotPolicy {
     // durable 4+ cost purchase and passes, or buys bodies only up to a round
     // budget. Deck profiles can inject different durable/body ordering,
     // budgets, reserves, and post-durable passing (Lion uses that extension).
+    private boardAwareDynastyDecision(
+        playerState: any,
+        playable: any[],
+        dynastyCosts: Record<string, number>,
+        me: any,
+        buttons: any[],
+        profile: DeckProfile,
+        context: DecideContext,
+        preference: FateAwareDynastyPreference | null,
+        dynamicFateReserve: number
+    ): BotDecision | null {
+        const characters = playable.filter((card: any) => card.type === 'character');
+        if(characters.length === 0) {
+            const pass = this.findButton(buttons, ['pass']);
+            return this.fateAwareBoughtCharacter && pass
+                ? this.buttonDecision(pass, 'board-aware-pass-after-buying')
+                : null;
+        }
+        const fate = Math.max(0, Number(me?.stats?.fate) || 0);
+        if(this.fateAwareDynastyStartFate === null) {
+            this.fateAwareDynastyStartFate = fate;
+        }
+        const costs = context.dynastyCharacterInfo || {};
+        const infoByUuid: Record<string, DynastyCharacterInfo> = {};
+        for(const card of characters) {
+            const exact = costs[card.uuid];
+            const military = Math.max(0, this.skillValue(card, 'military') || 0);
+            const political = Math.max(0, this.skillValue(card, 'political') || 0);
+            const glory = Math.max(0, Number(card?.glorySummary?.stat) || 0);
+            const hint: any = card.id && context.cardHint ? context.cardHint(card.id) : undefined;
+            const honoredProvince = context.provinceIdsByLocation?.[String(card.location || '')] ===
+                profile.mulligan.tsumaProvinceId;
+            infoByUuid[card.uuid] = exact || {
+                cost: Math.max(0, Number(dynastyCosts[card.uuid]) || 0),
+                military,
+                political,
+                glory,
+                abilityValue: Math.max(0, ((hint?.priority ?? 5) - 5) * 0.5),
+                honoredOnEntry: !!card.isHonored || honoredProvince
+            };
+        }
+        const hand: DynastyHandCard[] = (me?.cardPiles?.hand || []).map((card: any) => {
+            const hint: any = card.id && context.cardHint ? context.cardHint(card.id) : undefined;
+            return {
+                cost: Math.max(0, Number(context.conflictCosts?.[card.uuid]) || 0),
+                priority: hint?.priority ?? 5,
+                playable: hint?.useWhen !== 'never',
+                type: card.type
+            };
+        });
+        const opponent = this.opponentPlayer(playerState, me);
+        const tactics = new BoardAwareDynastyTactics(profile.boardAwareDynasty);
+        const tacticsContext = {
+            cards: characters,
+            infoByUuid,
+            ownBoard: this.myCharactersInPlay(me),
+            opponentBoard: this.myCharactersInPlay(opponent),
+            fate,
+            startFate: this.fateAwareDynastyStartFate,
+            spent: Math.max(0, this.fateAwareDynastyStartFate - fate),
+            boughtCount: this.fateAwareBoughtCount,
+            boughtDurable: this.fateAwareStrongCharacter,
+            roundNumber: this.fateAwareRoundNumber || context.roundNumber || 1,
+            firstPlayer: !!me?.firstPlayer,
+            ownBrokenProvinces: brokenOuterProvinceCount(me),
+            opponentBrokenProvinces: brokenOuterProvinceCount(opponent),
+            ownHonor: Number(me?.stats?.honor) || 10,
+            opponentHonor: Number(opponent?.stats?.honor) || 10,
+            hand,
+            dynamicFateReserve,
+            preferredUuid: preference?.card?.uuid
+        };
+        const analysis = tactics.analyze(tacticsContext);
+        const severeSecondPlayerDeficit = profile.boardAwareDynasty.secondPlayerDeficitPlanner &&
+            !me?.firstPlayer &&
+            analysis.opponentPower >= profile.boardAwareDynasty.severeBoardDeficitMinimumPower &&
+            analysis.ownPower < analysis.opponentPower * profile.boardAwareDynasty.severeBoardDeficitRatio;
+        // Seed 4 is an optimization of seed 1, not a replacement buyer. Keep
+        // seed 1's mature deck-specific purchase ordering in ordinary board
+        // states. The full planner takes over only for exposed-stronghold
+        // all-ins or a severe second-player power deficit; otherwise it
+        // decorates seed 1's choice with its smarter persistence calculation.
+        const fullUrgentPlanner = analysis.stage === 'urgent' &&
+            profile.boardAwareDynasty.fullPlannerAtUrgent;
+        if(!fullUrgentPlanner && !severeSecondPlayerDeficit) {
+            const baseline = this.fateAwareDynastyDecision(
+                playable,
+                dynastyCosts,
+                me,
+                buttons,
+                profile.fateAwareEconomy,
+                preference,
+                dynamicFateReserve
+            );
+            if(profile.boardAwareDynasty.persistenceDecoratorEnabled &&
+                baseline?.command === 'cardClicked') {
+                const selectedInfo = infoByUuid[String(baseline.args[0])];
+                if(selectedInfo && this.fateAwarePendingAdditionalFate !== null) {
+                    const desired = tactics.desiredAdditionalFate(
+                        characters.find((card: any) => card.uuid === baseline.args[0]),
+                        selectedInfo,
+                        analysis
+                    );
+                    const cap = this.fateAwarePendingAdditionalFateCap ?? desired;
+                    this.fateAwarePendingAdditionalFate = Math.min(
+                        cap,
+                        Math.max(this.fateAwarePendingAdditionalFate, desired)
+                    );
+                }
+            }
+            return baseline;
+        }
+        const result = tactics.choose(tacticsContext);
+        if(result.pass || !result.card) {
+            const pass = this.findButton(buttons, ['pass']);
+            return pass ? this.buttonDecision(pass, result.reason) : null;
+        }
+        const selectedInfo = infoByUuid[result.card.uuid];
+        this.fateAwarePendingAdditionalFate = result.additionalFate;
+        const budgetCap = Math.max(0, Math.min(
+            fate - result.analysis.conflictReserve - selectedInfo.cost,
+            result.analysis.spendCap - Math.max(0, this.fateAwareDynastyStartFate - fate) - selectedInfo.cost
+        ));
+        this.fateAwarePendingAdditionalFateCap = result.analysis.stage === 'urgent'
+            ? result.additionalFate
+            : budgetCap;
+        this.fateAwarePendingCost = selectedInfo.cost;
+        this.fateAwarePendingDurable = result.durable;
+        const preferredReason = preference?.card?.uuid === result.card.uuid
+            ? preference.playReason
+            : undefined;
+        return this.cardClickDecision(result.card, preferredReason || result.reason);
+    }
+
     private fateAwareDynastyDecision(
         playable: any[],
         dynastyCosts: Record<string, number>,

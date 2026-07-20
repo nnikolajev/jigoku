@@ -24,12 +24,14 @@ describe('self-play win-rate deck selection', function() {
         expect(parseBotSeed('1')).toBe(1);
         expect(parseBotSeed('2')).toBe(2);
         expect(parseBotSeed('3')).toBe(3);
-        expect(parseBotSeed('4')).toBe(1);
+        expect(parseBotSeed('4')).toBe(4);
         expect(parseBotSeed('5')).toBe(1);
         expect(seedLabel(1)).toBe('fate-aware');
-        expect(seedLabel(3)).toBe('omniscient + adaptive mulligan');
+        expect(seedLabel(3)).toBe('omniscient');
+        expect(seedLabel(4)).toBe('board-aware dynasty');
         expect(parsePolicyOverride('generic')).toBe('generic');
         expect(parsePolicyOverride('fate-aware')).toBe('fate-aware');
+        expect(parsePolicyOverride('board-aware')).toBe('board-aware');
         expect(parsePolicyOverride(undefined)).toBeUndefined();
         expect(parseDrawBidPolicy('legacy')).toBe('legacy');
         expect(parseDrawBidPolicy('adaptive')).toBe('adaptive');

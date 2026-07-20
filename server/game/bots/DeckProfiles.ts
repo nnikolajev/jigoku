@@ -63,6 +63,11 @@ import { UNICORN_DEFAULTS } from './UnicornTactics.js';
 import type { UnicornProfile } from './UnicornTactics';
 import { DEFAULT_MULLIGAN_PROFILE, RUSH_MULLIGAN_PROFILE } from './MulliganTactics.js';
 import type { MulliganProfile } from './MulliganTactics';
+import {
+    DEFAULT_BOARD_AWARE_DYNASTY,
+    RUSH_BOARD_AWARE_DYNASTY
+} from './BoardAwareDynastyTactics.js';
+import type { BoardAwareDynastyProfile } from './BoardAwareDynastyTactics';
 
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
@@ -83,9 +88,10 @@ export type DefenseCommitment = 'win-only' | 'prevent-break';
 
 export interface DeckProfile {
     // ---- dynasty / economy ----
-    fateAwareEconomy: FateAwareEconomyProfile; // injectable dynasty spending policy used by seeds 1 and 3
-    conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1, 2, and 3
-    mulligan: MulliganProfile; // seed-3 opening hand/province mulligan and fate-phase refresh policy
+    fateAwareEconomy: FateAwareEconomyProfile; // conservative dynasty envelope used by seeds 1, 3, and 4
+    boardAwareDynasty: BoardAwareDynastyProfile; // seed-4 board/game-state dynasty planner
+    conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1-4
+    mulligan: MulliganProfile; // shared opening hand/province mulligan and fate-phase refresh policy
     strongholdDefense: StrongholdDefenseProfile; // shared injectable last-province reserve planner for every seed
     provinceTargeting: ProvinceTargetingProfile; // shared injectable Eminent/strength/ability target priority for every seed
     attachmentControl: AttachmentControlProfile; // shared Let Go / attachment-removal value policy
@@ -183,6 +189,11 @@ export interface DeckProfile {
 // are the values the policy used for a flag-less deck before the refactor.
 export const DEFAULT_PROFILE: DeckProfile = {
     fateAwareEconomy: { ...DEFAULT_FATE_AWARE_ECONOMY },
+    boardAwareDynasty: {
+        ...DEFAULT_BOARD_AWARE_DYNASTY,
+        minimumCharactersByRound: [...DEFAULT_BOARD_AWARE_DYNASTY.minimumCharactersByRound],
+        characterValueById: { ...DEFAULT_BOARD_AWARE_DYNASTY.characterValueById }
+    },
     conflictCardEconomy: { ...DEFAULT_CONFLICT_CARD_ECONOMY },
     mulligan: {
         ...DEFAULT_MULLIGAN_PROFILE,
@@ -234,6 +245,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
     const profile: DeckProfile = {
         ...DEFAULT_PROFILE,
         fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },
+        boardAwareDynasty: {
+            ...DEFAULT_PROFILE.boardAwareDynasty,
+            minimumCharactersByRound: [...DEFAULT_PROFILE.boardAwareDynasty.minimumCharactersByRound],
+            characterValueById: { ...DEFAULT_PROFILE.boardAwareDynasty.characterValueById }
+        },
         conflictCardEconomy: { ...DEFAULT_PROFILE.conflictCardEconomy },
         mulligan: {
             ...DEFAULT_PROFILE.mulligan,
@@ -288,6 +304,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             keepDynastyCardIds: [...RUSH_MULLIGAN_PROFILE.keepDynastyCardIds]
         };
         profile.aggressiveFate = true;
+        profile.boardAwareDynasty = {
+            ...RUSH_BOARD_AWARE_DYNASTY,
+            minimumCharactersByRound: [...RUSH_BOARD_AWARE_DYNASTY.minimumCharactersByRound],
+            characterValueById: { ...RUSH_BOARD_AWARE_DYNASTY.characterValueById }
+        };
         profile.forceMilitaryConflict = true;
         profile.attackCommitment = 'all';
         profile.defenseCommitment = 'win-only';
@@ -436,7 +457,7 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
 // merged over the strategy-derived profile. Matched by card contents + derived
 // strategy so it works in both live play and self-play (no deck-id needed).
 type DeckProfileOverride = Omit<Partial<DeckProfile>,
-    'strongholdDefense' | 'provinceTargeting' | 'duelBidding' | 'drawBidding' | 'legacyDrawBidding' | 'mulligan'> & {
+    'strongholdDefense' | 'provinceTargeting' | 'duelBidding' | 'drawBidding' | 'legacyDrawBidding' | 'mulligan' | 'boardAwareDynasty'> & {
     strongholdDefense?: Partial<StrongholdDefenseProfile>;
     provinceTargeting?: Omit<Partial<ProvinceTargetingProfile>, 'abilityPriority' | 'effectiveStrengthById' | 'priorityTierById'> & {
         abilityPriority?: Partial<ProvinceTargetingProfile['abilityPriority']>;
@@ -450,6 +471,11 @@ type DeckProfileOverride = Omit<Partial<DeckProfile>,
         'endHoldingLimit' | 'holdingCopyLimitById'> & {
         endHoldingLimit?: Partial<MulliganProfile['endHoldingLimit']>;
         holdingCopyLimitById?: Record<string, number>;
+    };
+    boardAwareDynasty?: Omit<Partial<BoardAwareDynastyProfile>,
+        'characterValueById' | 'minimumCharactersByRound'> & {
+        characterValueById?: Record<string, number>;
+        minimumCharactersByRound?: number[];
     };
 };
 
@@ -468,6 +494,11 @@ const OVERRIDES: ProfileOverride[] = [
         match: (ids, strategy) => strategy.attachmentTower && ids.has('ancestral-lands'),
         apply: {
             strongholdProvinceId: 'ancestral-lands',
+            boardAwareDynasty: {
+                urgentTowerAdditionalFate: 2,
+                fullPlannerAtUrgent: false,
+                secondPlayerDeficitPlanner: false
+            },
             reserveDynastyFate: true,
             attackCommitment: 'all-but-one',
             attackKeepHome: 1,
@@ -527,6 +558,10 @@ const OVERRIDES: ProfileOverride[] = [
         match: (_ids, strategy) => strategy.defensive && strategy.holdingEngine,
         apply: {
             attackCommitment: 'breakable-or-pressure',
+            boardAwareDynasty: {
+                fullPlannerAtUrgent: false,
+                secondPlayerDeficitPlanner: false
+            },
             attackKeepHome: 2,
             // A hopeless defense still throws one cheap body in the way:
             // each unopposed loss bleeds 1 honor, and Crane's honor engine
@@ -614,6 +649,10 @@ const OVERRIDES: ProfileOverride[] = [
         match: (ids, strategy) => strategy.duelist && ids.has('vassal-fields'),
         apply: {
             strongholdProvinceId: 'vassal-fields',
+            boardAwareDynasty: {
+                fullPlannerAtUrgent: false,
+                secondPlayerDeficitPlanner: false
+            },
             mulligan: {
                 honorProvinceCharacters: true,
                 openingDiscardCharacterIds: ['iron-crane-legion'],
@@ -670,6 +709,15 @@ const OVERRIDES: ProfileOverride[] = [
         match: (ids, strategy) => strategy.glory && ids.has('rally-to-the-cause'),
         apply: {
             strongholdProvinceId: 'rally-to-the-cause',
+            // Phoenix's durable glory bodies and holdings already have a
+            // specialized seed-1 buyer. The generic catch-up planner bought
+            // too many disposable bodies (15-25 in the fresh paired gate), so
+            // seed 4 decorates its chosen body with persistence but does not
+            // replace that buyer during deficit/stronghold states.
+            boardAwareDynasty: {
+                fullPlannerAtUrgent: false,
+                secondPlayerDeficitPlanner: false
+            },
             mulligan: {
                 openingHoldingLimit: 1,
                 openingKeepHoldingIds: [
@@ -787,6 +835,10 @@ const OVERRIDES: ProfileOverride[] = [
             CRANE_BASELINE_DEFAULTS.markerCards.every((id) => ids.has(id)),
         apply: {
             strongholdProvinceId: 'meditations-on-the-tao',
+            boardAwareDynasty: {
+                fullPlannerAtUrgent: false,
+                secondPlayerDeficitPlanner: false
+            },
             mulligan: {
                 honorProvinceCharacters: true,
                 openingDiscardCharacterIds: ['iron-crane-legion'],
@@ -826,6 +878,11 @@ const OVERRIDES: ProfileOverride[] = [
             digWithActions: true,
             digMinBoardCharacters: 0,
             strongholdProvinceId: 'weight-of-duty',
+            boardAwareDynasty: {
+                persistenceDecoratorEnabled: false,
+                fullPlannerAtUrgent: false,
+                secondPlayerDeficitPlanner: false
+            },
             fateAwareEconomy: {
                 ...SWARM_FATE_AWARE_ECONOMY,
                 preferDeckCharacters: true,
@@ -858,6 +915,11 @@ const OVERRIDES: ProfileOverride[] = [
         match: (ids, strategy) => strategy.dishonor && ids.has('night-raid'),
         apply: {
             strongholdProvinceId: 'night-raid',
+            boardAwareDynasty: {
+                persistenceDecoratorEnabled: false,
+                fullPlannerAtUrgent: false,
+                secondPlayerDeficitPlanner: false
+            },
             mulligan: {
                 openingHoldingLimit: 0,
                 preferredCharacterIds: [
@@ -887,6 +949,7 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                 drawBidding,
                 legacyDrawBidding,
                 mulligan,
+                boardAwareDynasty,
                 ...flatApply
             } = override.apply;
             const apply: Partial<DeckProfile> = { ...flatApply };
@@ -992,6 +1055,19 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     keepDynastyCardIds: mulligan.keepDynastyCardIds
                         ? [...mulligan.keepDynastyCardIds]
                         : [...profile.mulligan.keepDynastyCardIds]
+                };
+            }
+            if(boardAwareDynasty) {
+                apply.boardAwareDynasty = {
+                    ...profile.boardAwareDynasty,
+                    ...boardAwareDynasty,
+                    minimumCharactersByRound: boardAwareDynasty.minimumCharactersByRound
+                        ? [...boardAwareDynasty.minimumCharactersByRound]
+                        : [...profile.boardAwareDynasty.minimumCharactersByRound],
+                    characterValueById: {
+                        ...profile.boardAwareDynasty.characterValueById,
+                        ...boardAwareDynasty.characterValueById
+                    }
                 };
             }
             if(override.apply.attachmentControl) {

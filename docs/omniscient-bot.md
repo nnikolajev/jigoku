@@ -29,7 +29,7 @@ The seeds:
 |------|-----|-------|
 | blank / 1 | Fate-aware heuristic | default, fair, no hidden info |
 | 2 | Old heuristic | previous dynasty economy |
-| **3** | **Omniscient (cheat)** | **fate-aware heuristic + adaptive mulligan + sees hand/fate/face-down provinces** |
+| **3** | **Omniscient (cheat)** | **fate-aware heuristic + sees hand/fate/face-down provinces** |
 
 ## How it works
 

@@ -10,7 +10,7 @@ const STANDARD_WIN_RATE_GAMES = 100;
 const STANDARD_ROUND_ROBIN_GAMES = 40;
 // Backward-compatible win-rate name used by winRates.js.
 const STANDARD_GAMES = STANDARD_WIN_RATE_GAMES;
-const BENCHMARK_VERSION = 3;
+const BENCHMARK_VERSION = 4;
 // Changing the standard opponent or the round-robin deck roster invalidates
 // previously recorded numbers. The client only displays matching sections.
 const STANDARD_SUITE_ID = 'crane-baseline-4736f7c0';
@@ -27,7 +27,8 @@ const DEFAULT_RESULTS_PATH = path.resolve(
 const SEED_LABELS = Object.freeze({
     1: 'fate-aware',
     2: 'old heuristic',
-    3: 'omniscient + adaptive mulligan'
+    3: 'omniscient',
+    4: 'board-aware dynasty'
 });
 
 function emptyBenchmark() {
@@ -52,7 +53,7 @@ function readBenchmark(filePath = process.env.JIGOKU_BOT_BENCHMARK_PATH || DEFAU
     try {
         const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         const seeds = Object.fromEntries(Object.entries(parsed.seeds || {}).filter(([key]) =>
-            key === '1' || key === '2' || (key === '3' && parsed.version === BENCHMARK_VERSION)));
+            ['1', '2', '3', '4'].includes(key)));
         return {
             ...emptyBenchmark(),
             ...parsed,

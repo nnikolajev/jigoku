@@ -19,8 +19,9 @@ reads the knobs; the profile is chosen per deck.
 
 | Knob | Meaning |
 |------|---------|
-| `fateAwareEconomy` | injectable dynasty purchase/fate policy used by seeds 1 and 5 |
-| `conflictCardEconomy` | value-per-fate candidate planner shared by seeds 1, 2, and 3 |
+| `fateAwareEconomy` | injectable dynasty purchase/fate policy used by seeds 1, 3, and 4 |
+| `boardAwareDynasty` | seed-4 board-power, urgency, player-order, hand-reserve, persistence, and conflict-character planner |
+| `conflictCardEconomy` | value-per-fate candidate planner shared by seeds 1, 2, 3, and 4 |
 | `provinceTargeting` | shared injectable province ordering: Eminent, effective strength, ability timing, and per-card overrides |
 | `strongholdDefense` | three-broken survival planner plus injectable two-broken risk gate and fair/omniscient defender limits |
 | `attachmentControl` | shared Let Go policy comparing own debuff removal with enemy attachment removal |
@@ -378,7 +379,7 @@ node tools/selfplay/analyzePolicyGame.js --deck PhoenixShugenja --rng-seed 20260
 `validateBotInteractions.js` checks all registered decks for repeated clicks,
 unchanged-state runs, short prompt/action cycles, decision-budget exhaustion,
 unsupported prompts, stalls, timeouts, and engine errors. It defaults to the
-offline deployable seeds 1, 2, and 3 and Crane opponents; use `--opponents all`
+offline deployable seeds 1, 2, 3, and 4 and Crane opponents; use `--opponents all`
 for the full matrix:
 
 ```powershell

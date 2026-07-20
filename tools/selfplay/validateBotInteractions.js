@@ -16,7 +16,7 @@ function usage() {
         '',
         'Options:',
         '  --games <n>                    Games per deck/opponent/seed (default 1)',
-        '  --seeds <csv>                  Bot seeds (default 1,2,3)',
+        '  --seeds <csv>                  Bot seeds (default 1,2,3,4)',
         '  --decks <csv|all>              Decks under audit (default all)',
         '  --opponents <csv|all>          Opponent decks (default Crane)',
         '  --rng-seed <n>                 Deterministic base RNG seed (default 20260716)',
@@ -33,7 +33,7 @@ function usage() {
         '',
         `Deck labels: ${DECK_LABELS.join(', ')}`,
         '',
-        'Seeds 1, 2, and 3 are deployable deterministic policies.'
+        'Seeds 1, 2, 3, and 4 are deployable deterministic policies.'
     ].join('\n');
 }
 
@@ -49,7 +49,7 @@ function parseCsv(raw, allowed, label) {
 function parseArgs(argv) {
     const options = {
         games: 1,
-        seeds: [1, 2, 3],
+        seeds: [1, 2, 3, 4],
         decks: [...DECK_LABELS],
         opponents: ['Crane'],
         rngSeed: 20260716,
@@ -110,8 +110,8 @@ function parseArgs(argv) {
     if(!Number.isInteger(options.rejectedCap) || options.rejectedCap < 0) {
         throw new Error('rejectedCap must be a non-negative integer');
     }
-    if(options.seeds.length === 0 || options.seeds.some((seed) => !Number.isInteger(seed) || seed < 1 || seed > 3)) {
-        throw new Error('seeds must be a comma-separated subset of 1,2,3');
+    if(options.seeds.length === 0 || options.seeds.some((seed) => !Number.isInteger(seed) || seed < 1 || seed > 4)) {
+        throw new Error('seeds must be a comma-separated subset of 1,2,3,4');
     }
     return options;
 }

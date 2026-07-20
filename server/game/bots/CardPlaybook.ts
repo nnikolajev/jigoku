@@ -54,8 +54,8 @@ export interface PlaybookContext {
     allowStrengthOvercommit?: boolean; // Dragon card-count payoff exception
     clarityProtectedUuids?: string[]; // characters already protected by Clarity this conflict
     opponentParticipantCanBow?: boolean; // public board threat from a participating defender
-    omniscient?: boolean; // seed 5 has exact opposing-hand information
-    opponentHasAffordableBowEffect?: boolean; // exact seed-5 hand threat after fate check
+    omniscient?: boolean; // seed 3 has exact opposing-hand information
+    opponentHasAffordableBowEffect?: boolean; // exact seed-3 hand threat after fate check
     characterPrintedCosts?: Record<string, number>; // exact live printed cost by in-play character UUID
     characterBaseMilitary?: Record<string, number>; // exact live base military by in-play character UUID
     participatingCharacterCounts?: { self: number; opponent: number }; // exact live count, including virtual participants
@@ -1781,7 +1781,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
             }
             // Political resolution supplies value even without a known bow
             // card. During military, use Clarity only for an actual visible
-            // defender threat, an exact affordable seed-5 hand threat, or the
+            // defender threat, an exact affordable seed-3 hand threat, or the
             // ordinary fair-bot hedge against its hidden hand.
             return ctx.conflictType === 'political' ||
                 !!ctx.opponentParticipantCanBow ||

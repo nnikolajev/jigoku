@@ -406,7 +406,7 @@ export class ShugenjaTactics {
         const readyParticipant = mine.some((card: any) => card.inConflict && !card.bowed);
         // Keep an already-won window open when the shared hand/replay intent
         // says Clarity has value. That gate owns political resolution, visible
-        // bow sources, seed-5 hand knowledge, and per-target deduplication.
+        // bow sources, seed-3 hand knowledge, and per-target deduplication.
         const clarity = hand.find((card: any) =>
             card.id === 'clarity-of-purpose' && card.isPlayableByMe !== false);
         if(readyParticipant && clarity && (

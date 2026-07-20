@@ -9,6 +9,7 @@ export interface JigokuBotLlmConfig {
 
 export type JigokuBotPolicyVariant = 'generic' | 'fate-aware';
 export type JigokuBotDrawBidPolicyVariant = 'adaptive' | 'legacy';
+export type JigokuBotMulliganPolicyVariant = 'adaptive' | 'legacy';
 
 export interface JigokuBotConfig {
     playerName: string;
@@ -23,12 +24,10 @@ export interface JigokuBotConfig {
     // Adaptive is live default. Legacy preserves pre-refactor draw bids for
     // controlled self-play comparisons without reverting other bot logic.
     drawBidPolicy?: JigokuBotDrawBidPolicyVariant;
+    // Seed 3 defaults to the adaptive mulligan/province-refresh planner.
+    // Legacy preserves the previous per-deck selectors for paired A/B tests.
+    mulliganPolicy?: JigokuBotMulliganPolicyVariant;
     llm?: JigokuBotLlmConfig;
-    // Seed-3 exploration rate (0..1): probability of taking a random legal move
-    // instead of the evaluator's argmax. Used during self-play data generation
-    // so the model sees the consequences of moves it would not itself pick;
-    // 0 (default) for evaluation and live play.
-    explore?: number;
 }
 
 export function buildBotUser(config: JigokuBotConfig): any {

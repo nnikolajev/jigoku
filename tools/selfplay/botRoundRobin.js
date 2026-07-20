@@ -28,8 +28,8 @@ Options:
   -n, --games <count>       Games per matchup (default: ${STANDARD_ROUND_ROBIN_GAMES})
   -w, --workers <count>     Parallel child processes (default: 32)
       --chunk-size <count>  Games per isolated job (default: ${DEFAULT_CHUNK_SIZE})
-      --seed <number>       Both seats: 1 fate-aware, 2 old heuristic, 3 LLM,
-                            4 learned evaluator, 5 omniscient (default: 1)
+      --seed <number>       Both seats: 1 fate-aware, 2 old heuristic,
+                            3 omniscient + adaptive mulligan (default: 1)
       --draw-bid <variant>  Both seats: adaptive or legacy (default: adaptive)
       --decks <a,b,...>     Limit round robin to named decks
       --out <path-prefix>   Report prefix (default: tools/selfplay/out/round-robin-latest)
@@ -80,8 +80,8 @@ function parseArgs(argv) {
             options.chunkSize = positiveInteger(argv[++i], arg);
         } else if(arg === '--seed') {
             options.botSeed = positiveInteger(argv[++i], arg);
-            if(options.botSeed > 5) {
-                throw new Error('--seed must be a bot mode from 1 to 5');
+            if(options.botSeed > 3) {
+                throw new Error('--seed must be a bot mode from 1 to 3');
             }
         } else if(arg === '--draw-bid') {
             options.drawBidPolicy = String(argv[++i] || '');

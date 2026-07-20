@@ -145,7 +145,7 @@ All knobs are on `DuelBidProfile`:
 
 `DeckProfiles.ts` deep-merges partial `duelBidding` overrides, so a deck can
 change risk weights or objective without replacing prompt flow. Generic,
-fate-aware, and omniscient seeds all route through the same class. Seed 5 gets
+fate-aware, and omniscient seeds all route through the same class. Seed 3 gets
 no hidden-hand advantage here; duel participants, honor, deck identity, and
 spent public abilities are already public information.
 
@@ -236,8 +236,8 @@ evidence for removing the fixed bid, not the current policy's benchmark.
 
 | Config | Result |
 |--------|--------|
-| duelBid 3 | seed 1: 15-23 (+2 stalls), Crane honor wins 6; historical omniscient (then seed 4, now seed 5): 13-27, honor wins 6 |
-| duelBid 2 (old policy) | seed 1: 18-22 + 16-24 (pooled 42.5%), historical omniscient: 18-22 (45%); honor leak closed (6→2) |
+| duelBid 3 | seed 1: 15-23 (+2 stalls), Crane honor wins 6; legacy omniscient: 13-27, honor wins 6 |
+| duelBid 2 (old policy) | seed 1: 18-22 + 16-24 (pooled 42.5%), legacy omniscient: 18-22 (45%); honor leak closed (6→2) |
 | tower policy (final, four independent N=20 batches) | 11-9, 9-11, 10-10, 9-11; pooled **39-41 (48.75%)** |
 | forced Shukujo switching experiment (rejected) | pooled 29-51 (36.25%); switching without full conflict forecasting helped the opponent too often |
 

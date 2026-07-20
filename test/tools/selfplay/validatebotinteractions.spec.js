@@ -26,9 +26,9 @@ function event(index, state, action = 'cardClicked|["card"]|Card', result = 'suc
 
 describe('bot interaction-cycle validator', function() {
     it('parses all-deck defaults and configurable gates', function() {
-        const options = parseArgs(['--games', '2', '--seeds', '1,5', '--click-cap', '24']);
+        const options = parseArgs(['--games', '2', '--seeds', '1,3', '--click-cap', '24']);
         expect(options.games).toBe(2);
-        expect(options.seeds).toEqual([1, 5]);
+        expect(options.seeds).toEqual([1, 3]);
         expect(options.decks).toContain('PhoenixShugenja');
         expect(options.clickCap).toBe(24);
     });

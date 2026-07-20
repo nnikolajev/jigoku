@@ -17,7 +17,7 @@ function usage() {
 
 Options:
   --games <n>       Games per deck (default 40)
-  --seed <1..5>     Bot seed on both seats (default 1)
+  --seed <1..3>     Bot seed on both seats (default 1)
   --decks <csv>     Deck labels (default all)
   --rng-seed <n>    Deterministic base RNG seed (default 20260719)
   --out <prefix>    Report prefix (default tools/selfplay/out/draw-bid-ab)
@@ -62,8 +62,8 @@ function parseArgs(argv) {
             throw new Error(`Unknown or incomplete argument: ${arg}`);
         }
     }
-    if(options.seed > 5) {
-        throw new Error('--seed must be 1..5');
+    if(options.seed > 3) {
+        throw new Error('--seed must be 1..3');
     }
     const unknown = options.decks.filter((label) => !DECK_LABELS.includes(label));
     if(options.decks.length === 0 || unknown.length > 0) {

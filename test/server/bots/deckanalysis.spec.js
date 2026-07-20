@@ -6,11 +6,11 @@ const {
 const craneCards = require('../../../tools/selfplay/fixtures/crane-cards.json');
 const craneDeck = require('../../../tools/selfplay/fixtures/crane-decklist.json');
 
-// Regression tests for the seed-5 omniscient bot's deck analysis. The live win
-// (seed4 beats seed1 in mirrors) depends on estimateHandThreat returning a
+// Regression tests for the seed-3 omniscient bot's deck analysis. Its live edge
+// depends on estimateHandThreat returning a
 // REALISTIC single-conflict threat — an earlier version summed the whole hand
 // and crippled play (Crane mirror 0-12), so these lock the shape of the model.
-describe('DeckAnalysis (seed-5 omniscient)', function() {
+describe('DeckAnalysis (seed-3 omniscient)', function() {
     function known(id, overrides = {}) {
         const model = getCardModel(id) || {};
         return Object.assign(

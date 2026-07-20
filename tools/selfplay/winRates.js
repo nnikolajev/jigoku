@@ -8,7 +8,7 @@
 //   node tools/selfplay/winRates.js [gamesPerDeck] [botSeed] [craneSeed]
 //     [challengerPolicy] [challengerDrawBidPolicy] [craneDrawBidPolicy]
 // gamesPerDeck default 100. Seeds: 1 fate-aware (default), 2 old heuristic,
-// 3 LLM, 4 learned evaluator, 5 omniscient. challengerPolicy is an optional
+// 3 omniscient with adaptive mulligan. challengerPolicy is an optional
 // generic/fate-aware challenger override. Challenger and Crane seeds are
 // the same by default; craneSeed can override it for direct comparisons.
 // A single deck swings ~13pts at N=40, so use higher N for steadier numbers.
@@ -31,7 +31,7 @@ const PER_GAME_MS = 12000;
 
 function parseBotSeed(value) {
     const parsed = Number.parseInt(value, 10);
-    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 5 ? parsed : 1;
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 3 ? parsed : 1;
 }
 
 function parsePolicyOverride(value) {
@@ -78,9 +78,7 @@ function seedLabel(seed) {
     return ({
         1: 'fate-aware',
         2: 'old heuristic',
-        3: 'LLM seed (heuristic fallback in self-play)',
-        4: 'learned evaluator',
-        5: 'omniscient'
+        3: 'omniscient + adaptive mulligan'
     })[seed];
 }
 

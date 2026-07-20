@@ -7,7 +7,7 @@ export type ProvinceAbilityClass = 'none' | 'reveal' | 'reaction' | 'action' | '
 export interface ProvinceTargetingProfile {
     // Eminent provinces start faceup and are normally deliberately weaker.
     preferEminent: boolean;
-    // Fair bots use this only for still-hidden provinces. Seed 5 supplies the
+    // Fair bots use this only for still-hidden provinces. Seed 3 supplies the
     // exact value through KnownProvinceTarget.
     unknownStrength: number;
     // Lower value means earlier target within equal Eminent/strength groups.

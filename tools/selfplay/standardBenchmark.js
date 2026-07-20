@@ -10,7 +10,7 @@ const STANDARD_WIN_RATE_GAMES = 100;
 const STANDARD_ROUND_ROBIN_GAMES = 40;
 // Backward-compatible win-rate name used by winRates.js.
 const STANDARD_GAMES = STANDARD_WIN_RATE_GAMES;
-const BENCHMARK_VERSION = 2;
+const BENCHMARK_VERSION = 3;
 // Changing the standard opponent or the round-robin deck roster invalidates
 // previously recorded numbers. The client only displays matching sections.
 const STANDARD_SUITE_ID = 'crane-baseline-4736f7c0';
@@ -27,9 +27,7 @@ const DEFAULT_RESULTS_PATH = path.resolve(
 const SEED_LABELS = Object.freeze({
     1: 'fate-aware',
     2: 'old heuristic',
-    3: 'LLM seed (heuristic fallback in self-play)',
-    4: 'learned evaluator',
-    5: 'omniscient'
+    3: 'omniscient + adaptive mulligan'
 });
 
 function emptyBenchmark() {
@@ -53,6 +51,8 @@ function readBenchmark(filePath = process.env.JIGOKU_BOT_BENCHMARK_PATH || DEFAU
     }
     try {
         const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const seeds = Object.fromEntries(Object.entries(parsed.seeds || {}).filter(([key]) =>
+            key === '1' || key === '2' || (key === '3' && parsed.version === BENCHMARK_VERSION)));
         return {
             ...emptyBenchmark(),
             ...parsed,
@@ -60,7 +60,7 @@ function readBenchmark(filePath = process.env.JIGOKU_BOT_BENCHMARK_PATH || DEFAU
             // Code defines the current standard. Do not preserve obsolete game
             // counts from an older generated config.
             standard: { ...(parsed.standard || {}), ...emptyBenchmark().standard },
-            seeds: parsed.seeds || {}
+            seeds
         };
     } catch(error) {
         throw new Error(`Cannot read bot benchmark config ${filePath}: ${error.message}`);

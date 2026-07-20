@@ -12,11 +12,11 @@ const { ShugenjaTactics } = require('../../../build/server/game/bots/ShugenjaTac
 const { DragonAttachmentTactics } = require('../../../build/server/game/bots/DragonAttachmentTactics.js');
 
 // These are policy-execution tests, not tactic unit tests. Every scenario enters
-// through the real policy class for seeds 1, 2, and 5 with a predefined public
+// through the real policy class for seeds 1, 2, and 3 with a predefined public
 // game state. Prototype spies record coverage per seed, so a newly-added tactic
 // method fails this suite until every shipped heuristic seed reaches it through
-// a real policy path. Seed 5 also receives its omniscient context.
-describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
+// a real policy path. Seed 3 also receives its omniscient context.
+describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
     const BOT = 'Jigoku Bot';
     const PASS = { text: 'Pass', arg: 'pass', uuid: 'pass' };
     const DONE = { text: 'Done', arg: 'done', uuid: 'done' };
@@ -28,7 +28,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
     const POLICY_CASES = [
         { label: 'seed 1 fate-aware', seed: 1, Policy: FateAwareJigokuBotPolicy, omniscient: false },
         { label: 'seed 2 generic', seed: 2, Policy: JigokuBotPolicy, omniscient: false },
-        { label: 'seed 5 omniscient', seed: 5, Policy: FateAwareJigokuBotPolicy, omniscient: true }
+        { label: 'seed 3 omniscient', seed: 3, Policy: FateAwareJigokuBotPolicy, omniscient: true }
     ];
     let sequence = 0;
     let activePolicyLabel = null;
@@ -215,7 +215,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         }, { cardPiles: { cardsInPlay: theirs } });
     }
 
-    it('executes shared conflict-card economy through seeds 1, 2, and 5', function() {
+    it('executes shared conflict-card economy through seeds 1, 2, and 3', function() {
         const paid = event('paid', 'paid-pump');
         const free = event('free', 'free-pump');
         const state = makeState({
@@ -259,7 +259,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         });
     });
 
-    it('shares exact province-break budgeting through seeds 1, 2, and 5', function() {
+    it('shares exact province-break budgeting through seeds 1, 2, and 3', function() {
         const lionProfile = resolveDeckProfile(
             ['hayaken-no-shiro', 'manicured-garden'],
             flags({ aggressive: true })
@@ -340,7 +340,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         });
     });
 
-    it('targets Pacifism and Stolen Breath by conflict focus through seeds 1, 2, and 5', function() {
+    it('targets Pacifism and Stolen Breath by conflict focus through seeds 1, 2, and 3', function() {
         const profile = profileFromStrategy(flags());
         const scenarios = [
             {
@@ -828,7 +828,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         expectComplete(spies);
     });
 
-    it('keeps Dragon dual-mode Monk attachments off enemy characters through seeds 1, 2, and 5', function() {
+    it('keeps Dragon dual-mode Monk attachments off enemy characters through seeds 1, 2, and 3', function() {
         const profile = resolveDeckProfile(
             ['high-house-of-light', 'sacred-sanctuary'],
             flags({ monk: true })
@@ -849,7 +849,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         });
     });
 
-    it('spreads Way onto a different useful Action character through seeds 1, 2, and 5', function() {
+    it('spreads Way onto a different useful Action character through seeds 1, 2, and 3', function() {
         const profile = resolveDeckProfile(['high-house-of-light'], flags({ monk: true }));
         const mitsu = character('mitsu', 'togashi-mitsu-2', {
             attachments: [attachment('existing-way', 'way-of-the-dragon')]
@@ -871,7 +871,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         });
     });
 
-    it('uses a Way-enabled Togashi Mitsu exactly twice through seeds 1, 2, and 5', function() {
+    it('uses a Way-enabled Togashi Mitsu exactly twice through seeds 1, 2, and 3', function() {
         const profile = resolveDeckProfile(['high-house-of-light'], flags({ monk: true }));
         const mitsu = character('mitsu', 'togashi-mitsu-2', {
             inConflict: true, location: 'play area',
@@ -903,7 +903,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         }
     });
 
-    it('uses High House immediately on empty rings through seeds 1, 2, and 5', function() {
+    it('uses High House immediately on empty rings through seeds 1, 2, and 3', function() {
         const profile = resolveDeckProfile(
             ['high-house-of-light', 'sacred-sanctuary'],
             flags({ monk: true })
@@ -1332,7 +1332,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         expectComplete(spies);
     });
 
-    it('executes Lion reaction, target, and conflict hooks through seeds 1, 2, and 5', function() {
+    it('executes Lion reaction, target, and conflict hooks through seeds 1, 2, and 3', function() {
         const profile = resolveDeckProfile(
             ['hayaken-no-shiro', 'ashigaru-levy', 'for-greater-glory', 'feeding-an-army'],
             flags({ aggressive: true })
@@ -1468,7 +1468,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         });
     });
 
-    it('filters illegal direct-click cards and copy-limited attachments through seeds 1, 2, and 5', function() {
+    it('filters illegal direct-click cards and copy-limited attachments through seeds 1, 2, and 3', function() {
         const generic = profileFromStrategy(flags());
         const illegal = character('yojimbo', 'hiruma-yojimbo', { militarySkillSummary: { stat: '9' } });
         const legal = character('legal-attacker', 'legal-attacker', { militarySkillSummary: { stat: '3' } });
@@ -1568,7 +1568,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         });
     });
 
-    it('does not toggle into an exhausted conflict type through seeds 1, 2, and 5', function() {
+    it('does not toggle into an exhausted conflict type through seeds 1, 2, and 3', function() {
         const profile = resolveDeckProfile(['hayaken-no-shiro', 'for-greater-glory'], flags({ aggressive: true }));
         const enemyProvince = {
             uuid: 'enemy-province', id: 'enemy-province', type: 'province', isProvince: true,
@@ -1691,7 +1691,7 @@ describe('seed 1, 2, and 5 specialized policy execution coverage', function() {
         expectComplete(spies);
     });
 
-    it('holds Clarity of Purpose when no ready character participates through seeds 1, 2, and 5', function() {
+    it('holds Clarity of Purpose when no ready character participates through seeds 1, 2, and 3', function() {
         const profile = profileFromStrategy(flags({ shugenja: true }));
         const homeTower = character('home-tadaka', 'isawa-tadaka-2', {
             bowed: false, inConflict: false

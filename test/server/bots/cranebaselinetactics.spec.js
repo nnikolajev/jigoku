@@ -78,7 +78,7 @@ describe('CraneBaselineTactics', function() {
             expect(deck).toContain(pick);
         });
 
-        it('lets seed 5 prefer an affordable exact hand threat but never a card outside the deck', function() {
+        it('lets seed 3 prefer an affordable exact hand threat but never a card outside the deck', function() {
             const storm = known('supernatural-storm', { name: 'Supernatural Storm', fate: 0, swing: 5, tag: 'pump' });
             const fiveFires = known('consumed-by-five-fires', { name: 'Consumed by Five Fires', fate: 5, swing: 8, tag: 'control' });
             const deck = [storm, storm, storm, fiveFires, fiveFires];
@@ -93,7 +93,7 @@ describe('CraneBaselineTactics', function() {
             expect(deck.some((card) => card.id === pick.id)).toBe(true);
         });
 
-        for(const seed of [1, 2, 5]) {
+        for(const seed of [1, 2, 3]) {
             it(`submits a legal typed card-name control from the known deck on seed ${seed}`, function() {
                 const state = {
                     players: {
@@ -111,7 +111,7 @@ describe('CraneBaselineTactics', function() {
                     promptControls: state.players['Jigoku Bot'].controls,
                     opponentConflictDeck: deck
                 };
-                if(seed === 5) {
+                if(seed === 3) {
                     context.omniscient = { oppHand: deck, oppFate: 3, oppProvinces: [], oppName: 'Opponent' };
                 }
                 const decision = new JigokuBotPolicy(seed).decide(state, 'Jigoku Bot', context);

@@ -19,7 +19,7 @@ function usage() {
 Options:
   --deck <label>       Target deck (default Scorpion)
   --opponent <label>   Opponent deck, unchanged profile (default Lion)
-  --seed <n>           Bot seed on both seats (default 5)
+  --seed <n>           Bot seed on both seats (default 3)
   --games <n>          Paired games per variant (default 40)
   --variants <csv>     current,no-pre-defense,legacy-province,legacy-both,
                        no-eminent,no-ability-priority,ratio-<number>,
@@ -43,7 +43,7 @@ function parseArgs(argv) {
     const options = {
         deck: 'Scorpion',
         opponent: 'Lion',
-        seed: 5,
+        seed: 3,
         games: 40,
         variants: [...DEFAULT_VARIANTS],
         rngSeed: 20260718,
@@ -77,8 +77,8 @@ function parseArgs(argv) {
     if(!getDeckLoader(options.deck) || !getDeckLoader(options.opponent)) {
         throw new Error(`Unknown deck. Valid: ${DECK_LABELS.join(', ')}`);
     }
-    if(options.seed > 5) {
-        throw new Error('--seed must be 1..5');
+    if(options.seed > 3) {
+        throw new Error('--seed must be 1..3');
     }
     for(const variant of options.variants) {
         const parameterized = /^(?:ratio|public-forum)-\d+(?:\.\d+)?$/.test(variant);

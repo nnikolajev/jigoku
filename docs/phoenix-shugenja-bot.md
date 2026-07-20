@@ -46,7 +46,7 @@ reliably. Universal honor and exposed-stronghold rails still take precedence.
 - **Use Clarity on live participants.** Clarity of Purpose never falls back to
   a character at home or one already bowed. Political conflicts are preferred
   because Clarity also prevents resolution bowing. In military conflicts,
-  seed 5 requires an affordable opposing bow effect in the exact enemy hand;
+  seed 3 requires an affordable opposing bow effect in the exact enemy hand;
   every seed may act immediately when a visible participating enemy can bow.
   Later copies spread to other ready participants and never protect the same
   character twice in one conflict. Kyūden Isawa uses these same gates when it
@@ -106,7 +106,7 @@ on Cancel.
   Water payoff; equal-fate Water and Air ties follow Prodigy and Kudaka board
   payoffs respectively.
 - Full Jigoku suite: 10,235 specs, 0 failures, 8 pending.
-- Phoenix Shugenja interaction audit against Crane: seeds 1, 2, and 5 all pass
+- Phoenix Shugenja interaction audit against Crane: seeds 1, 2, and 3 all pass
   with 0 rejected clicks, loops, or decision-budget exhaustion.
 - Standard seed-1 win rates (100 games/deck) moved from 455–442 (+3), 50.6%, to
   466–434, 51.8%. Phoenix Shugenja moved from 74–26 to 75–25.
@@ -161,9 +161,9 @@ ring/spell deck: losing conflict opportunities also loses ring fate and its
 character/card ring triggers. Its injected `preStrongholdThreatRatio` is now
 `1.5`; final exposed-stronghold defense is unchanged.
 
-Paired seed-5 tests with identical games improved the Unicorn matchup by 6.7
+Paired seed-3 tests with identical games improved the Unicorn matchup by 6.7
 points, Crane and Lion by 2.5 each, and were neutral against Scorpion and Dragon
 Attachments. The final focused Unicorn validation was 56-44 at N=100. The full
-standard seed-5 round robin reached 58.0% (208-151, one other) at 40 games per
+standard seed-3 round robin reached 58.0% (208-151, one other) at 40 games per
 matchup, up from 55.5% before this fine-tune. Use
 `compareProfileVariants.js` to repeat this profile-level A/B.

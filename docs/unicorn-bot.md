@@ -95,12 +95,12 @@ games, up from the stored 47% Unicorn baseline. It was run through
 Focused specs cover scoring, declaration reservation, bowed supported targets,
 bowed Minami/Higashi reactions, attachment distribution, effective participant
 counts, Challenge skill injection, and all seed hooks. The all-opponent click
-audit covers seeds 1, 2, and 5 and completed with zero loops, forced progress,
+audit covers seeds 1, 2, and 3 and completed with zero loops, forced progress,
 budget exhaustion, stalls, or unsupported prompts.
 
 ```powershell
 npm run jasmine -- --filter="Unicorn"
 node tools/selfplay/matchUnicorn.js 50 1 --trace
-node tools/selfplay/validateBotInteractions.js --decks Unicorn --opponents all --games 1 --seeds 1,2,5 --out tools/selfplay/out/unicorn-all-opponents-click-audit
+node tools/selfplay/validateBotInteractions.js --decks Unicorn --opponents all --games 1 --seeds 1,2,3 --out tools/selfplay/out/unicorn-all-opponents-click-audit
 node tools/selfplay/botRoundRobin.js --games 25 --workers 32 --seed 1 --out tools/selfplay/out/unicorn-round-robin
 ```

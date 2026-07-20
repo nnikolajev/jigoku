@@ -310,7 +310,7 @@ describe('Phoenix Shugenja tactics', function() {
         expect(decision.args[0]).toBe('clarity');
     });
 
-    it('uses exact seed-5 bow threats before playing Clarity in a military conflict', function() {
+    it('uses exact seed-3 bow threats before playing Clarity in a military conflict', function() {
         const clarity = {
             id: 'clarity-of-purpose', uuid: 'clarity', type: 'event',
             location: 'hand', isPlayableByMe: true

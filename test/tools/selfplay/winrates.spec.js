@@ -24,10 +24,10 @@ describe('self-play win-rate deck selection', function() {
         expect(parseBotSeed('1')).toBe(1);
         expect(parseBotSeed('2')).toBe(2);
         expect(parseBotSeed('3')).toBe(3);
-        expect(parseBotSeed('4')).toBe(4);
-        expect(parseBotSeed('5')).toBe(5);
+        expect(parseBotSeed('4')).toBe(1);
+        expect(parseBotSeed('5')).toBe(1);
         expect(seedLabel(1)).toBe('fate-aware');
-        expect(seedLabel(5)).toBe('omniscient');
+        expect(seedLabel(3)).toBe('omniscient + adaptive mulligan');
         expect(parsePolicyOverride('generic')).toBe('generic');
         expect(parsePolicyOverride('fate-aware')).toBe('fate-aware');
         expect(parsePolicyOverride(undefined)).toBeUndefined();
@@ -51,9 +51,9 @@ describe('self-play win-rate deck selection', function() {
             botSeed: 2,
             craneSeed: 2
         }));
-        expect(parseArgs(['100', '5', '2'])).toEqual(jasmine.objectContaining({
+        expect(parseArgs(['100', '3', '2'])).toEqual(jasmine.objectContaining({
             games: 100,
-            botSeed: 5,
+            botSeed: 3,
             craneSeed: 2
         }));
         expect(parseArgs(['40', '1', '2', 'generic']).challengerPolicy).toBe('generic');
@@ -61,8 +61,8 @@ describe('self-play win-rate deck selection', function() {
     });
 
     it('keeps each bot seed attached to its deck when seats alternate', function() {
-        expect(seatSeeds(true, 5, 2)).toEqual([5, 2]);
-        expect(seatSeeds(false, 5, 2)).toEqual([2, 5]);
+        expect(seatSeeds(true, 3, 2)).toEqual([3, 2]);
+        expect(seatSeeds(false, 3, 2)).toEqual([2, 3]);
     });
 
     it('only treats complete 100-game same-seed results as a standard client benchmark', function() {

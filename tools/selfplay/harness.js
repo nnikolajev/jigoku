@@ -3,8 +3,7 @@
 // Headless self-play harness: runs a full bot-vs-bot Jigoku game with no
 // sockets, no GUI, no network. Both seats are JigokuBotControllers (seed 1,
 // LLM disabled => fully synchronous heuristic play) sharing the aggressive
-// Unicorn deck. Returns the outcome + reward breakdown + a compact per-decision
-// trajectory for later ML training (phase 2/3 fill in richer features).
+// Unicorn deck. Returns the outcome and reward breakdown.
 
 const Game = require('../../build/server/game/game.js');
 const Settings = require('../../build/server/settings.js');
@@ -60,8 +59,8 @@ function buildGame(names) {
     return { game, state };
 }
 
-function makeController(game, playerName, seed, trace = false, recorder = undefined, evaluator = undefined,
-    explore = 0, policy = undefined, drawBidPolicy = undefined) {
+function makeController(game, playerName, seed, trace = false,
+    policy = undefined, drawBidPolicy = undefined, mulliganPolicy = undefined) {
     const runCommand = (command, name, args) => {
         if(!BOT_COMMANDS.has(command)) {
             return false;
@@ -83,11 +82,10 @@ function makeController(game, playerName, seed, trace = false, recorder = undefi
             maxDecisionsPerTick: 40,
             policy: policy,
             drawBidPolicy: drawBidPolicy,
-            llm: { enabled: false },
-            explore: explore
+            mulliganPolicy: mulliganPolicy,
+            llm: { enabled: false }
         },
-        runCommand,
-        { recorder: recorder, evaluator: evaluator }
+        runCommand
     );
 }
 
@@ -111,36 +109,17 @@ async function runGame(options = {}) {
     game.initialise();
 
     const reward = new RewardTracker(game, names, rewardWeights);
-    // When capturing trajectories, each controller's recorder pushes its
-    // per-decision records here; returns are assigned from final reward below.
-    const records = options.recordTrajectories ? [] : null;
-    // Cap records per game: a degenerate game that loops for the whole wallclock
-    // budget could otherwise emit tens of thousands of records and exhaust the
-    // heap across a long generation run.
-    const maxRecords = options.maxRecordsPerGame || 3000;
-    const makeRecorder = () => records
-        ? (record) => {
-            if(records.length < maxRecords) {
-                records.push(record);
-            }
-        }
-        : undefined;
-    // Per-seat evaluator (seed 4) + exploration rate. options.evaluators[i] /
-    // options.explore[i] pair with seeds[i].
-    const evaluators = options.evaluators || [];
-    const explore = options.explore || [];
     const policies = options.policies || [];
     const drawBidPolicies = options.drawBidPolicies || [];
+    const mulliganPolicies = options.mulliganPolicies || [];
     const controllers = names.map((name, i) => makeController(
         game,
         name,
         seeds[i],
         options.trace,
-        makeRecorder(name),
-        evaluators[i],
-        explore[i] || 0,
         policies[i],
-        drawBidPolicies[i]
+        drawBidPolicies[i],
+        mulliganPolicies[i]
     ));
     if(options.onControllers) {
         options.onControllers(controllers);
@@ -238,27 +217,6 @@ async function runGame(options = {}) {
     const summary = reward.summary();
     reward.detach();
 
-    // Credit assignment (v1, Monte-Carlo): every decision a player made in this
-    // game gets that player's final total reward as its return, plus the
-    // win/loss label. Only decisions from decided games are worth training on.
-    let recordCount = 0;
-    if(records) {
-        const decided = !!game.winner;
-        for(const record of records) {
-            const seat = summary[record.player];
-            const enriched = Object.assign({
-                gameId: game.id,
-                won: seat ? seat.won : false,
-                return: seat ? seat.total : 0,
-                decided: decided
-            }, record);
-            recordCount++;
-            if(options.onRecord) {
-                options.onRecord(enriched);
-            }
-        }
-    }
-
     return {
         gameId: game.id,
         winner: state.winnerName,
@@ -268,17 +226,9 @@ async function runGame(options = {}) {
         error: state.error,
         rounds: game.roundNumber || 0,
         steps,
-        decisions: recordCount,
         elapsedMs: Date.now() - startedAt,
         reward: summary
     };
 }
 
-function loadEvaluator(weightsPath) {
-    const fs = require('fs');
-    const { MoveEvaluator } = require('../../build/server/game/bots/ml/evaluator.js');
-    const weights = JSON.parse(fs.readFileSync(weightsPath, 'utf8'));
-    return new MoveEvaluator(weights);
-}
-
-module.exports = { runGame, buildGame, makeController, loadEvaluator };
+module.exports = { runGame, buildGame, makeController };

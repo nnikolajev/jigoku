@@ -4,17 +4,17 @@ const { DECK_LABELS } = require('../../../tools/selfplay/deckRegistry.js');
 const { isStandardBenchmarkRun, parseArgs } = require('../../../tools/selfplay/botRoundRobin.js');
 
 describe('self-play bot round-robin options', function() {
-    it('defaults to 32 workers and fate-aware seed 1, and accepts renumbered seed 5', function() {
+    it('defaults to 32 workers and fate-aware seed 1, and accepts omniscient seed 3', function() {
         expect(parseArgs([])).toEqual(jasmine.objectContaining({
             games: 40, workers: 32, botSeed: 1, drawBidPolicy: 'adaptive'
         }));
         expect(parseArgs(['--decks', 'Crane,PhoenixShugenja']).botSeed).toBe(1);
 
-        const options = parseArgs(['--seed', '5', '--decks', 'Crane,PhoenixShugenja']);
+        const options = parseArgs(['--seed', '3', '--decks', 'Crane,PhoenixShugenja']);
 
-        expect(options.botSeed).toBe(5);
+        expect(options.botSeed).toBe(3);
         expect(options.decks).toEqual(['Crane', 'PhoenixShugenja']);
-        expect(() => parseArgs(['--seed', '6'])).toThrowError('--seed must be a bot mode from 1 to 5');
+        expect(() => parseArgs(['--seed', '4'])).toThrowError('--seed must be a bot mode from 1 to 3');
         expect(parseArgs(['--draw-bid', 'legacy']).drawBidPolicy).toBe('legacy');
         expect(() => parseArgs(['--draw-bid', 'random'])).toThrowError('--draw-bid must be adaptive or legacy');
     });

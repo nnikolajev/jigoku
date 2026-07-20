@@ -1,7 +1,7 @@
 # Fate-Aware Heuristic Bot (Default)
 
 `FateAwareJigokuBotPolicy` is the default seed-1 policy and remains a separate
-copy of the generic heuristic bot. Seed 5 uses this same policy plus its
+copy of the generic heuristic bot. Seed 3 uses this same policy plus its
 omniscient hidden-information context.
 It inherits all conflict, targeting, card-playbook, and deck-profile behavior,
 but opts into a different dynasty economy and ring-fate rule. The previous

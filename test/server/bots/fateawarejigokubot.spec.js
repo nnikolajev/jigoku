@@ -77,20 +77,31 @@ describe('fate-aware Jigoku bot policy', function() {
         };
     }
 
-    it('uses fate-aware for seeds 1 and 5 and preserves old heuristic as seed 2', function() {
+    it('uses fate-aware for seeds 1 and 3 and preserves old heuristic as seed 2', function() {
         const defaultBot = new JigokuBotController({}, { playerName }, () => true);
         const seedOne = new JigokuBotController({}, { playerName, seed: '1' }, () => true);
         const seedTwo = new JigokuBotController({}, { playerName, seed: 2 }, () => true);
-        const seedFive = new JigokuBotController({}, { playerName, seed: '5' }, () => true);
+        const seedThree = new JigokuBotController({}, { playerName, seed: '3' }, () => true);
         const analysisOverride = new JigokuBotController({}, { playerName, seed: 2, policy: 'fate-aware' }, () => true);
+        const adaptiveSeedOne = new JigokuBotController(
+            {}, { playerName, seed: 1, mulliganPolicy: 'adaptive' }, () => true
+        );
+        const legacySeedThree = new JigokuBotController(
+            {}, { playerName, seed: 3, mulliganPolicy: 'legacy' }, () => true
+        );
         expect(defaultBot.policy.constructor.name).toBe('FateAwareJigokuBotPolicy');
         expect(seedOne.policy.constructor.name).toBe('FateAwareJigokuBotPolicy');
         expect(seedTwo.policy.constructor.name).toBe('JigokuBotPolicy');
-        expect(seedFive.policy.constructor.name).toBe('FateAwareJigokuBotPolicy');
+        expect(seedThree.policy.constructor.name).toBe('FateAwareJigokuBotPolicy');
         expect(analysisOverride.policy.constructor.name).toBe('FateAwareJigokuBotPolicy');
+        expect(seedOne.policy.mulliganPolicy).toBe('legacy');
+        expect(seedTwo.policy.mulliganPolicy).toBe('legacy');
+        expect(seedThree.policy.mulliganPolicy).toBe('adaptive');
+        expect(adaptiveSeedOne.policy.mulliganPolicy).toBe('adaptive');
+        expect(legacySeedThree.policy.mulliganPolicy).toBe('legacy');
     });
 
-    it('maps real hidden hand boosts and live face-down province strength for seed 5', function() {
+    it('maps real hidden hand boosts and live face-down province strength for seed 3', function() {
         const hiddenAttachment = {
             id: 'unmodeled-war-banner',
             type: 'attachment',
@@ -142,7 +153,7 @@ describe('fate-aware Jigoku bot policy', function() {
             hand: { toArray: () => [hiddenAttachment, hiddenCharacter, militaryEvent] },
             getProvinces: () => [hiddenProvince, weakProvince]
         };
-        const controller = new JigokuBotController({}, { playerName, seed: 5 }, () => true);
+        const controller = new JigokuBotController({}, { playerName, seed: 3 }, () => true);
         const omniscient = controller.buildOmniscient({ opponent });
 
         expect(omniscient.oppHand[0]).toEqual(jasmine.objectContaining({
@@ -228,7 +239,7 @@ describe('fate-aware Jigoku bot policy', function() {
             getCost: () => 0,
             abilities: { actions: [], reactions: [], playActions: [] }
         };
-        const controller = new JigokuBotController({}, { playerName, seed: 5 }, () => true);
+        const controller = new JigokuBotController({}, { playerName, seed: 3 }, () => true);
         expect(controller.knownCard(bowEvent).canDisableDefender).toBe(true);
         expect(controller.knownCard(bowEvent).canBowOpponent).toBe(true);
         expect(controller.knownCard(ownOnlyBow).canDisableDefender).toBe(false);

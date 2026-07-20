@@ -6,7 +6,7 @@
 //
 // Usage:
 //   node tools/selfplay/auditConflictBehavior.js
-//   node tools/selfplay/auditConflictBehavior.js --games 10 --seed 5
+//   node tools/selfplay/auditConflictBehavior.js --games 10 --seed 3
 //   node tools/selfplay/auditConflictBehavior.js --decks Dragon,Lion --opponent Crane
 
 const { runGame } = require('./harness.js');
@@ -45,14 +45,14 @@ function parseArgs(argv) {
     if(!Number.isInteger(options.games) || options.games < 1) {
         throw new Error('--games must be a positive integer');
     }
-    if(!Number.isInteger(options.seed) || options.seed < 1 || options.seed > 5) {
-        throw new Error('--seed must be 1..5');
+    if(!Number.isInteger(options.seed) || options.seed < 1 || options.seed > 3) {
+        throw new Error('--seed must be 1..3');
     }
     if(options.opponentSeed === null) {
         options.opponentSeed = options.seed;
     }
-    if(!Number.isInteger(options.opponentSeed) || options.opponentSeed < 1 || options.opponentSeed > 5) {
-        throw new Error('--opponent-seed must be 1..5');
+    if(!Number.isInteger(options.opponentSeed) || options.opponentSeed < 1 || options.opponentSeed > 3) {
+        throw new Error('--opponent-seed must be 1..3');
     }
     for(const label of [...options.decks, options.opponent]) {
         if(!getDeckLoader(label)) {

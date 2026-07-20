@@ -3,7 +3,7 @@
 // Phoenix "For Honor and Glory" (glory deck) vs the Crane precon. Seats alternate
 // to cancel first-player advantage. Usage:
 //   node tools/selfplay/matchPhoenix.js [games] [phoenixSeed] [--trace]
-// Seeds: 1 fate-aware (default), 2 old heuristic, 5 omniscient. Crane uses seed 1.
+// Seeds: 1 fate-aware (default), 2 old heuristic, 3 omniscient. Crane uses seed 1.
 
 const { runGame } = require('./harness.js');
 const { loadPhoenixDeck, loadCraneDeck } = require('./deckLoader.js');
@@ -11,7 +11,7 @@ const { loadPhoenixDeck, loadCraneDeck } = require('./deckLoader.js');
 async function main() {
     const games = parseInt(process.argv[2], 10) || 20;
     const parsedSeed = Number.parseInt(process.argv[3], 10);
-    const phoenixSeed = Number.isInteger(parsedSeed) && parsedSeed >= 1 && parsedSeed <= 5 ? parsedSeed : 1;
+    const phoenixSeed = Number.isInteger(parsedSeed) && parsedSeed >= 1 && parsedSeed <= 3 ? parsedSeed : 1;
     const trace = process.argv.includes('--trace');
 
     let phoenixWins = 0;

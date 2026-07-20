@@ -55,8 +55,8 @@ behavior changes (the fine-tuned Unicorn default is untouched).
   knob, applied by the `scorpion-poison-mill` override): the stronghold
   province is only attackable after 3 others break, so the opponent's final
   all-in push reveals it and discards X cards from their hand (X = attackers).
-  Measured N=40 with it: seed 1 27-13, historical omniscient 28-12
-  (then seed 4; now seed 5; top of the band).
+  Measured N=40 with it: seed 1 27-13, legacy omniscient 28-12
+  (before renumbering; top of the band).
 - **Province reactions fire first** in every trigger window (generic policy
   behavior): Deserted Shrine's 10-card mill (aimed at the opponent's conflict
   deck by the dishonor select-prompt handler), Night Raid, Before the Throne,
@@ -101,17 +101,17 @@ Current comparison uses N=100 per seed, same-seed Crane, alternating seats:
 |---:|---:|---:|---:|
 | 1 fate-aware | 75% | 93% | 94% |
 | 2 old heuristic | 94% | 92% | 99% |
-| 5 omniscient | 78% | 91% | 95% |
+| legacy omniscient (before renumbering) | 78% | 91% | 95% |
 
 The deck swap is the large gain: 247/300 to 276/300 (+9.7 points). The final
 standardized client sweep was 288/300 (94%, 99%, 95%). Larger N=300 validation
 of the final persistence-gated policy produced 278/300 (92.7%) for seed 1 and
-272/300 (90.7%) for seed 5. Shoju therefore restores both fate-aware bots to
+272/300 (90.7%) for seed 3. Shoju therefore restores both fate-aware bots to
 the old 90% Scorpion band; seed 2 was already there.
 
 Shoju's reaction is a `forcedReaction` in the game engine. It resolves without
 bot input and has no `inPlayAction` playbook hint. The 60-game tuning audit plus
-a 30-game final-policy audit covered every opponent on seeds 1, 2, and 5 and
+a 30-game final-policy audit covered every opponent on seeds 1, 2, and 3 and
 recorded 26,303 clicks with zero rejected clicks, cycles, or decision-budget
 exhaustions; Shoju clicks were normal purchases and conflict commits.
 
@@ -120,7 +120,7 @@ exhaustions; Shoju clicks were normal purchases and conflict commits.
 | | win rate | sample |
 |---|---|---|
 | Scorpion seed 1 (heuristic) | **~62%** (99-61) | 4×N=40 pooled; individual runs ranged 20-20 to 32-8 |
-| Scorpion historical omniscient (then seed 4; now seed 5) | **~67%** (54-26) | 2×N=40 pooled |
+| Scorpion legacy omniscient (before renumbering) | **~67%** (54-26) | 2×N=40 pooled |
 | seed 1 after the `abilityValue` fix | **31-9 (77.5%)** | N=40; Softskin (82 plays) and Compromised Secrets (77) had NEVER fired before |
 
 The `abilityValue` fix (shipped with the Lion deck): Softskin and Compromised
@@ -152,7 +152,7 @@ Tuning attempts, measured:
 cd jigoku && npx tsc
 node tools/selfplay/matchScorpion.js <games> <1|2|5> [--trace]
 node tools/selfplay/winRates.js 100 <seed> <same-seed>
-node tools/selfplay/validateBotInteractions.js --decks Scorpion --opponents all --seeds 1,2,5
+node tools/selfplay/validateBotInteractions.js --decks Scorpion --opponents all --seeds 1,2,3
 ```
 
 `--trace` prints the Scorpion seat's decision-reason histogram. Unit tests:

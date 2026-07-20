@@ -74,7 +74,7 @@ Standardized win rates use 100 games per deck, alternating seats, with the
 challenger and Crane opponent on the same seed. Values are baseline -> shared
 replay refactor:
 
-| Deck | Seed 1 | Seed 2 | Seed 5 |
+| Deck | Seed 1 | Seed 2 | Seed 3 |
 |---|---:|---:|---:|
 | Crab | 42% -> 39% | 55% -> 61% | 30% -> 30% |
 | Crane Duels | 55% -> 53% | 80% -> 85% | 53% -> 50% |
@@ -88,5 +88,5 @@ replay refactor:
 
 Aggregate wins were 1,683/2,700 before and 1,697/2,700 after (+0.52
 percentage points). A 300-game all-deck/all-opponent interaction audit across
-seeds 1, 2, and 5 passed with zero rejected clicks, detected loops, or decision
+seeds 1, 2, and 3 passed with zero rejected clicks, detected loops, or decision
 budget exhaustions.

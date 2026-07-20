@@ -3,7 +3,6 @@ const JigokuBotPolicy = require('../../../build/server/game/bots/JigokuBotPolicy
 const FateAwareJigokuBotPolicy = require('../../../build/server/game/bots/FateAwareJigokuBotPolicy.js');
 const LmStudioClient = require('../../../build/server/game/bots/llm/LmStudioClient.js').default;
 const DeckHintService = require('../../../build/server/game/bots/llm/DeckHintService.js').default;
-const LlmActionPlanner = require('../../../build/server/game/bots/llm/LlmActionPlanner.js').default;
 const { validateCardHint } = require('../../../build/server/game/bots/llm/CardHints.js');
 const { getPlaybookEntry, deriveDeckStrategy } = require('../../../build/server/game/bots/CardPlaybook.js');
 const { profileFromStrategy, resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
@@ -679,7 +678,7 @@ describe('Jigoku heuristic bot', function() {
         const policies = [
             new JigokuBotPolicy('seed-2'),
             new FateAwareJigokuBotPolicy('seed-1'),
-            new FateAwareJigokuBotPolicy('seed-5')
+            new FateAwareJigokuBotPolicy('seed-3')
         ];
         for(const policy of policies) {
             for(const profile of profiles) {
@@ -1910,7 +1909,7 @@ describe('Jigoku heuristic bot', function() {
             expect(decision.args[0]).toBe('watch');
         });
 
-        it('makes seed 5 treat hidden Public Forum as strength 6 for target priority', function() {
+        it('makes seed 3 treat hidden Public Forum as strength 6 for target priority', function() {
             const hiddenState = state([
                 { facedown: true, location: 'province 1', isBroken: false },
                 { facedown: true, location: 'province 2', isBroken: false }
@@ -2457,7 +2456,7 @@ describe('Jigoku heuristic bot', function() {
             expect(second.args[0]).toBe('weak');
         });
 
-        it('seed 5 accounts for exact affordable boost and defender control', function() {
+        it('seed 3 accounts for exact affordable boost and defender control', function() {
             const state = makeState('Choose an elemental ring', [character('army', 5, 5)]);
             const decision = new JigokuBotPolicy('last-province-omni').decide(state, 'Jigoku Bot', {
                 strongholdProvinceStrength: 4,
@@ -4966,123 +4965,8 @@ describe('Jigoku heuristic bot', function() {
         expect(clicks).toBe(2);
     });
 
-    describe('seed 3 LLM-driven policy', function() {
-        it('rejects a hallucinated option id and accepts a real one', async function() {
-            const options = [{ id: 'opt0', label: 'a' }, { id: 'opt1', label: 'b' }];
-            const request = { question: 'q', state: {}, hand: [], board: {}, options: options };
-
-            const bogus = new LlmActionPlanner({ chatJson: () => Promise.resolve({ option: 'opt9' }) });
-            expect(await bogus.chooseAction(request, 100)).toBe(null);
-
-            const good = new LlmActionPlanner({ chatJson: () => Promise.resolve({ option: 'opt1', reason: 'why' }) });
-            const picked = await good.chooseAction(request, 100);
-            expect(picked.optionId).toBe('opt1');
-            expect(picked.reason).toBe('why');
-        });
-
-        const makeSeed2Setup = (planner) => {
-            const prompt = {
-                promptTitle: 'Choice',
-                menuTitle: 'Choose a card',
-                selectCard: true,
-                buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }]
-            };
-            const card = (uuid) => ({ uuid: uuid, name: uuid, type: 'character', location: 'play area', selectable: true });
-            const state = {
-                players: {
-                    'Jigoku Bot': Object.assign({ name: 'Jigoku Bot', cardPiles: { cardsInPlay: [card('pick-a'), card('pick-b')] } }, prompt)
-                }
-            };
-            const player = makePlayer(prompt, [{ uuid: 'pick-a' }, { uuid: 'pick-b' }]);
-            const game = makeGame(player, state);
-            const calls = [];
-            const runner = jasmine.createSpy('runner').and.callFake((command, name, args) => {
-                calls.push(args[0]);
-                const done = { buttons: [] };
-                player.currentPrompt = () => done;
-                game.getState = () => ({ players: { 'Jigoku Bot': done } });
-                return true;
-            });
-            const onStateChange = jasmine.createSpy('onStateChange');
-            const controller = new JigokuBotController(
-                game,
-                { playerName: 'Jigoku Bot', seed: 3, llm: { enabled: false, consultTimeoutMs: 200 } },
-                runner,
-                { planner: planner, onStateChange: onStateChange }
-            );
-            return { controller, calls, onStateChange };
-        };
-
-        it('executes the move the planner chooses and broadcasts the new state', async function() {
-            // Planner picks the option whose label mentions pick-b.
-            const planner = {
-                chooseAction: (request) => {
-                    const option = request.options.find((candidate) => candidate.label.includes('pick-b'));
-                    return Promise.resolve({ optionId: option.id, reason: 'test' });
-                }
-            };
-            const setup = makeSeed2Setup(planner);
-            setup.controller.tick();
-            await new Promise((resolve) => setTimeout(resolve, 20));
-            expect(setup.calls).toEqual(['pick-b']);
-            // The async consult path must push state itself or the human freezes.
-            expect(setup.onStateChange).toHaveBeenCalled();
-        });
-
-        it('falls back to the heuristic pick when the planner returns nothing', async function() {
-            const planner = { chooseAction: () => Promise.resolve(null) };
-            const setup = makeSeed2Setup(planner);
-            setup.controller.tick();
-            await new Promise((resolve) => setTimeout(resolve, 20));
-            // Heuristic choose-card picks the first selectable card.
-            expect(setup.calls).toEqual(['pick-a']);
-        });
-
-        it('clicks a legal option when the heuristic fallback is itself illegal', async function() {
-            // Province-setup-shaped prompt: selectRing steers the heuristic into
-            // an illegal ring click, but a legal card option exists. The bot
-            // must click the card instead of looping on the rejected ring.
-            const prompt = {
-                promptTitle: 'Place Provinces',
-                menuTitle: 'Select stronghold province',
-                selectCard: true,
-                selectRing: true,
-                buttons: []
-            };
-            const card = (uuid) => ({ uuid: uuid, name: uuid, type: 'province', location: 'province 1', selectable: true });
-            const state = {
-                rings: { air: { element: 'air', unselectable: null } },
-                players: {
-                    'Jigoku Bot': Object.assign({ name: 'Jigoku Bot', cardPiles: { cardsInPlay: [card('prov-a'), card('prov-b')] } }, prompt)
-                }
-            };
-            // No selectable rings: the heuristic's ring click is illegal here.
-            const player = makePlayer(prompt, [{ uuid: 'prov-a' }, { uuid: 'prov-b' }], []);
-            const game = makeGame(player, state);
-            const calls = [];
-            const runner = jasmine.createSpy('runner').and.callFake((command, name, args) => {
-                calls.push({ command: command, arg: args[0] });
-                const done = { buttons: [] };
-                player.currentPrompt = () => done;
-                game.getState = () => ({ players: { 'Jigoku Bot': done } });
-                return true;
-            });
-            const controller = new JigokuBotController(
-                game,
-                { playerName: 'Jigoku Bot', seed: 3, llm: { enabled: false, consultTimeoutMs: 200 } },
-                runner,
-                { planner: { chooseAction: () => Promise.resolve(null) } }
-            );
-            controller.tick();
-            await new Promise((resolve) => setTimeout(resolve, 20));
-            expect(calls.length).toBe(1);
-            expect(calls[0].command).toBe('cardClicked');
-            expect(calls[0].arg).toBe('prov-a');
-        });
-    });
-
-    it('forces every driven bot seed onto the stronghold after 3 outer breaks', function() {
-        const runDrivenSeed = (seed) => {
+    it('forces every supported bot seed onto the stronghold after 3 outer breaks', function() {
+        const runSeed = (seed) => {
             const attackPrompt = {
                 promptTitle: 'Military Air Conflict',
                 menuTitle: 'Choose province to attack',
@@ -5116,8 +5000,6 @@ describe('Jigoku heuristic bot', function() {
                 }
             };
             const game = makeGame(player, state);
-            const planner = { chooseAction: jasmine.createSpy('chooseAction') };
-            const evaluator = { pick: jasmine.createSpy('pick').and.returnValue(0) };
             const calls = [];
             const runner = (command, name, args) => {
                 calls.push({ command: command, name: name, args: args });
@@ -5128,8 +5010,7 @@ describe('Jigoku heuristic bot', function() {
             const controller = new JigokuBotController(
                 game,
                 { playerName: 'Jigoku Bot', seed: seed, llm: { enabled: false } },
-                runner,
-                { planner: planner, evaluator: evaluator }
+                runner
             );
 
             controller.tick();
@@ -5137,16 +5018,13 @@ describe('Jigoku heuristic bot', function() {
             expect(calls.length).toBe(1);
             expect(calls[0].command).toBe('facedownCardClicked');
             expect(calls[0].args).toEqual(['stronghold province', 'Human', true]);
-            expect(planner.chooseAction).not.toHaveBeenCalled();
-            expect(evaluator.pick).not.toHaveBeenCalled();
         };
 
-        runDrivenSeed(2);
-        runDrivenSeed(3);
+        [1, 2, 3].forEach(runSeed);
     });
 
-    it('keeps seed 3 and seed 4 drivers out of exposed-stronghold defense decisions', function() {
-        const runDrivenSeed = (seed) => {
+    it('keeps every supported seed defensive when its stronghold is exposed', function() {
+        const runSeed = (seed) => {
             const prompt = {
                 promptTitle: 'Initiate Conflict',
                 menuTitle: 'Choose an elemental ring',
@@ -5193,8 +5071,6 @@ describe('Jigoku heuristic bot', function() {
                 }
             };
             const game = makeGame(player, state);
-            const planner = { chooseAction: jasmine.createSpy('chooseAction') };
-            const evaluator = { pick: jasmine.createSpy('pick').and.returnValue(0) };
             const calls = [];
             const runner = (command, name, args) => {
                 calls.push({ command: command, name: name, args: args });
@@ -5205,8 +5081,7 @@ describe('Jigoku heuristic bot', function() {
             const controller = new JigokuBotController(
                 game,
                 { playerName: 'Jigoku Bot', seed: seed, llm: { enabled: false } },
-                runner,
-                { planner: planner, evaluator: evaluator }
+                runner
             );
 
             controller.tick();
@@ -5214,12 +5089,9 @@ describe('Jigoku heuristic bot', function() {
             expect(calls.length).toBe(1);
             expect(calls[0].command).toBe('menuButton');
             expect(calls[0].args[0]).toBe('pass');
-            expect(planner.chooseAction).not.toHaveBeenCalled();
-            expect(evaluator.pick).not.toHaveBeenCalled();
         };
 
-        runDrivenSeed(3);
-        runDrivenSeed(4);
+        [1, 2, 3].forEach(runSeed);
     });
 
     describe('Crab wall deck strategy', function() {

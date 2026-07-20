@@ -2,7 +2,7 @@ export type StrongholdDefenseAxis = 'military' | 'political';
 
 export interface StrongholdDefenseProfile {
     enabled: boolean;
-    // Fair bots follow the user's "keep the strongest defender" rule. Seed 5
+    // Fair bots follow the user's "keep the strongest defender" rule. Seed 3
     // may reserve a larger minimum set because it knows exact hand threats.
     maxFairDefenders: number;
     maxOmniscientDefenders: number;
@@ -61,7 +61,7 @@ export interface StrongholdDefenseInput {
     opponentPoliticalRemaining?: number;
     handThreat?: Partial<Record<StrongholdDefenseAxis, number>>;
     // Number of reserved characters the known opposing hand can remove, bow,
-    // or send home in the next conflict. Fair bots pass zero; seed 5 supplies
+    // or send home in the next conflict. Fair bots pass zero; seed 3 supplies
     // its affordable exact-hand result.
     defenderDisables?: number;
     omniscient?: boolean;

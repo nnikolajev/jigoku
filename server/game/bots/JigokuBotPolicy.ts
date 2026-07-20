@@ -27,6 +27,8 @@ import { PersonalHonorTactics, PERSONAL_HONOR_DEFAULTS } from './PersonalHonorTa
 import { UnicornTactics } from './UnicornTactics.js';
 import type { UnicornMoveContext } from './UnicornTactics';
 import type { PersonalHonorConflict } from './PersonalHonorTactics';
+import MulliganTactics from './MulliganTactics.js';
+import type { MulliganPolicyVariant } from './MulliganTactics';
 import {
     attackProvinceLists,
     brokenOuterProvinceCount,
@@ -126,6 +128,11 @@ interface FateAwareAdditionalFateOverride {
 
 interface DecideContext {
     roundNumber?: number;
+    // Exact live dynasty income and province identities. Adaptive mulligan
+    // projects current fate + next-round income and recognizes Tsuma even when
+    // the serialized dynasty card only exposes its province location.
+    income?: number;
+    provinceIdsByLocation?: Record<string, string>;
     // Identity of the live prompt step. Two consecutive prompts can have the
     // same title/menu and the same only legal target (for example both players
     // resolving Court Games). Keep their attempted-target sets separate.
@@ -158,7 +165,7 @@ interface DecideContext {
     participatingCharacterCounts?: { self: number; opponent: number };
     cavalryCharacterUuids?: Record<string, true>;
     readyAfterMoveCharacterUuids?: Record<string, true>;
-    // Seed-5 cheat view: the human's true hand/fate/province strengths. Present
+    // Seed-3 cheat view: the human's true hand/fate/province strengths. Present
     // only for the omniscient bot; every omniscient branch is gated on it, so
     // Non-omniscient seeds (undefined here) keep identical behavior.
     omniscient?: Omniscient;
@@ -295,7 +302,11 @@ class JigokuBotPolicy {
     private fateAwarePendingDurable = false;
     private fateAwareDurableSpent = 0;
 
-    constructor(seed: string | number = 1, private readonly drawBidPolicy: DrawBidPolicyVariant = 'adaptive') {
+    constructor(
+        seed: string | number = 1,
+        private readonly drawBidPolicy: DrawBidPolicyVariant = 'adaptive',
+        private readonly mulliganPolicy: MulliganPolicyVariant = 'legacy'
+    ) {
         this.random = new SeededRandom(seed);
     }
 
@@ -609,12 +620,13 @@ class JigokuBotPolicy {
             : null;
         const attachmentControl = new AttachmentControlTactics(profile.attachmentControl);
         const personalHonor = new PersonalHonorTactics(profile.personalHonor || PERSONAL_HONOR_DEFAULTS);
+        const mulligan = new MulliganTactics(profile.mulligan);
         this.currentUnicorn = profile.unicorn ? new UnicornTactics(profile.unicorn) : null;
         this.currentDuelBidProfile = profile.duelBidding;
 
         // Card-name controls have no prompt buttons and cannot use the normal
         // button fallback. Gossip must name a card from the opponent's actual,
-        // publicly known conflict deck. Seed 5 may additionally prioritize an
+        // publicly known conflict deck. Seed 3 may additionally prioritize an
         // affordable copy it can see in hand; fair seeds use only deck makeup.
         const cardNameControl = (context.promptControls || []).find((control: any) =>
             control.type === 'card-name' && (control.command || 'menuButton') === 'menuButton');
@@ -751,6 +763,25 @@ class JigokuBotPolicy {
         }
 
         if(title.includes('mulligan')) {
+            if(this.mulliganPolicy === 'adaptive') {
+                const input = {
+                    cards: this.findVisibleCards(me),
+                    board: this.myCharactersInPlay(me),
+                    currentFate: me?.stats?.fate ?? 0,
+                    income: context.income ?? 7,
+                    roundNumber: context.roundNumber ?? 1,
+                    costsByUuid: promptTitle === 'Conflict Mulligan'
+                        ? context.conflictCosts
+                        : context.dynastyCosts,
+                    provinceIdsByLocation: context.provinceIdsByLocation
+                };
+                const pick = promptTitle === 'Conflict Mulligan'
+                    ? mulligan.pickOpeningConflict(input)
+                    : mulligan.pickOpeningDynasty(input);
+                return pick.card
+                    ? this.cardClickDecision(pick.card, pick.reason)
+                    : this.buttonDecision(this.findButton(buttons, ['done']), pick.reason);
+            }
             // Holding-engine decks dig their opening provinces toward Kaiu Wall
             // holdings (mulligan every non-holding province card); other decks
             // keep their provinces.
@@ -768,6 +799,20 @@ class JigokuBotPolicy {
         }
 
         if(title.includes('select dynasty cards to discard')) {
+            if(this.mulliganPolicy === 'adaptive') {
+                const pick = mulligan.pickDynastyDiscard({
+                    cards: this.findVisibleCards(me),
+                    board: this.myCharactersInPlay(me),
+                    currentFate: me?.stats?.fate ?? 0,
+                    income: context.income ?? 7,
+                    roundNumber: context.roundNumber ?? 1,
+                    costsByUuid: context.dynastyCosts,
+                    provinceIdsByLocation: context.provinceIdsByLocation
+                });
+                return pick.card
+                    ? this.cardClickDecision(pick.card, pick.reason)
+                    : this.buttonDecision(this.findButton(buttons, ['done']), pick.reason);
+            }
             return this.dynastyDiscardDecision(playerState, me, buttons, duelist, attachmentTower);
         }
 
@@ -810,7 +855,7 @@ class JigokuBotPolicy {
 
         // The dynasty window overrides the generic action-window prompt text.
         if(menuTitle === 'Initiate an action' || promptTitle === 'Play cards from provinces') {
-            return this.actionWindowDecision(playerState, me, buttons, profile, context.cardHint, dishonor, context.dynastyCosts, context.conflictCosts, lion, duelist, shugenja, attachmentTower, crane, context.opponentConflictDeck, context.omniscient, context.legalDirectCardUuids);
+            return this.actionWindowDecision(playerState, me, buttons, profile, context.cardHint, dishonor, context.dynastyCosts, context.conflictCosts, lion, duelist, shugenja, attachmentTower, crane, context.opponentConflictDeck, context.omniscient, context.legalDirectCardUuids, mulligan, context.provinceIdsByLocation);
         }
 
         if(promptTitle === 'Conflict Action Window') {
@@ -1743,7 +1788,7 @@ class JigokuBotPolicy {
             // earth ring with a 6-military/3-political board). Clicking the
             // ring again toggles military/political before committing.
             if(conflictType && conflictMatch) {
-                // Seed 5 picks the axis by REAL advantage (my board minus
+                // Seed 3 picks the axis by REAL advantage (my board minus
                 // their board minus their affordable hand tricks). Measured:
                 // in a SAME-DECK mirror it loses a few points (symmetric
                 // boards - their weak axis is ours too), but in the real
@@ -1862,7 +1907,7 @@ class JigokuBotPolicy {
             const defenseEstimate = (opponent?.cardPiles?.cardsInPlay || [])
                 .filter((card: any) => card.type === 'character' && !card.bowed)
                 .reduce((total: number, card: any) => total + skillOf(card), 0);
-            // Seed 5 uses the TRUE strength of the (even face-down) province being
+            // Seed 3 uses the TRUE strength of the (even face-down) province being
             // attacked instead of the heuristic's guess-4 fallback, so it sizes
             // the break correctly. NOTE: folding the human's affordable HAND
             // defense into this estimate was tried and MEASURED NET-NEGATIVE — it
@@ -2068,7 +2113,7 @@ class JigokuBotPolicy {
         return military >= political ? 'military' : 'political';
     }
 
-    // Seed 5: attack on the axis where the REAL advantage is largest — my
+    // Seed 3: attack on the axis where the REAL advantage is largest — my
     // ready skill minus their ready board skill minus the best body+trick
     // they can afford from the hand we can see. A fair bot compares only its
     // own board; the cheat knows the human is (say) holding military pumps
@@ -2151,11 +2196,11 @@ class JigokuBotPolicy {
     }
 
     private defenderDecision(me: any, promptTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, shugenja: ShugenjaTactics | null = null, opponent?: any, legalDirectCardUuids?: Record<string, true>): BotDecision | null {
-        // NOTE: seed-5 defense-side omniscience (defending against the human's
+        // NOTE: seed-3 defense-side omniscience (defending against the human's
         // post-commit hand pump, conceding provably-lost conflicts to save
         // bodies) was implemented and MEASURED NET-NEGATIVE — it made the bot
         // over-concede and stall (Crane mirror 0-12). The plumbing (`_omni`) is
-        // kept for a more careful future attempt; seed 5's live edge comes from
+        // kept for a more careful future attempt; seed 3's live edge comes from
         // weakest-province targeting, true province strength and hand-aware
         // conflict-type choice. Only the resource-saving token-defense case
         // below remains; other defense sizing uses the base heuristic.
@@ -2237,7 +2282,7 @@ class JigokuBotPolicy {
             return this.buttonDecision(done, 'concede-art-of-war');
         }
 
-        // Seed 5: size the defense against the human's TRUE maximum — their
+        // Seed 3: size the defense against the human's TRUE maximum — their
         // committed skill plus the best body+trick they can actually afford
         // from the hand we can see (estimateHandThreat shares the fate
         // budget). Two payoffs a fair bot cannot have:
@@ -2386,7 +2431,7 @@ class JigokuBotPolicy {
     }
 
     private conflictWindowDecision(playerState: any, me: any, buttons: any[], handStats?: HandStats, cardHint?: CardHintLookup, profile: DeckProfile = DEFAULT_PROFILE, conflictCosts?: Record<string, number>, _omni?: Omniscient, dishonor: DishonorTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, glory: GloryTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, legalDirectCardUuids?: Record<string, true>): BotDecision | null {
-        // NOTE: seed-5 window-hold omniscience (as attacker, HOLD when the human
+        // NOTE: seed-3 window-hold omniscience (as attacker, HOLD when the human
         // can swing the conflict out of break range; as defender, concede a
         // provably lost conflict to keep bodies) was implemented and MEASURED
         // NET-NEGATIVE — over-holding cost the bot conflicts it could have won
@@ -2629,7 +2674,7 @@ class JigokuBotPolicy {
         playCtx.canPlayConflictCard = canPlayConflictCard;
         playCtx.conflictCosts = conflictCosts || {};
 
-        // A visible participating bow source, or an affordable exact seed-5
+        // A visible participating bow source, or an affordable exact seed-3
         // hand bow, can act after our next pass. Protect now, before optional
         // board actions and ordinary value plays give that threat priority.
         const urgentClarityThreat = !!sharedPlayCtx.opponentParticipantCanBow ||
@@ -3283,7 +3328,7 @@ class JigokuBotPolicy {
         ).map((option) => option.card);
     }
 
-    private actionWindowDecision(playerState: any, me: any, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, dynastyCosts?: Record<string, number>, conflictCosts?: Record<string, number>, lion: LionTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, opponentConflictDeck: KnownCard[] = [], omni?: Omniscient, legalDirectCardUuids?: Record<string, true>): BotDecision | null {
+    private actionWindowDecision(playerState: any, me: any, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, dynastyCosts?: Record<string, number>, conflictCosts?: Record<string, number>, lion: LionTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, opponentConflictDeck: KnownCard[] = [], omni?: Omniscient, legalDirectCardUuids?: Record<string, true>, mulligan: MulliganTactics = new MulliganTactics(profile.mulligan), provinceIdsByLocation?: Record<string, string>): BotDecision | null {
         const pass = this.findButton(buttons, ['pass']);
 
         // Gossip is most valuable before either side commits to a conflict. It
@@ -3597,8 +3642,22 @@ class JigokuBotPolicy {
                 : crane
                     ? crane.desiredDynastyFateReserve(this.fateAwareRoundNumber)
                     : 0;
-            const deckPreference = profile.fateAwareEconomy.preferDeckCharacters
-                ? this.fateAwareDeckDynastyPreference(
+            const honoredProvinceCharacter = this.mulliganPolicy === 'adaptive'
+                ? mulligan.pickHonoredProvinceCharacter(
+                    playable,
+                    me?.stats?.fate ?? 0,
+                    dynastyCosts || {},
+                    provinceIdsByLocation
+                )
+                : null;
+            const deckPreference: FateAwareDynastyPreference | null = honoredProvinceCharacter
+                ? {
+                    card: honoredProvinceCharacter,
+                    playReason: 'mulligan-play-honored-province-character',
+                    terminal: false
+                }
+                : profile.fateAwareEconomy.preferDeckCharacters
+                    ? this.fateAwareDeckDynastyPreference(
                     playable,
                     dynastyCosts || {},
                     me,
@@ -3609,8 +3668,8 @@ class JigokuBotPolicy {
                     attachmentTower,
                     crane,
                     dynamicFateReserve
-                )
-                : null;
+                    )
+                    : null;
             // Lion's A Season of War is a dynasty event, so it has no
             // additional-fate prompt and must bypass character bookkeeping.
             if(deckPreference?.card && deckPreference.card.type !== 'character') {
@@ -3632,6 +3691,12 @@ class JigokuBotPolicy {
             const fateAwareOwnsCharacterDecision = this.usesFateAwareEconomy() &&
                 playable.some((card: any) => card.type === 'character');
             if(playable.length > 0 && !fateAwareOwnsCharacterDecision) {
+                if(honoredProvinceCharacter) {
+                    return this.cardClickDecision(
+                        honoredProvinceCharacter,
+                        'mulligan-play-honored-province-character'
+                    );
+                }
                 if(dishonor) {
                     const important = dishonor.pickImportantDynastyCharacter(
                         playable,

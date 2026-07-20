@@ -340,7 +340,7 @@ export class ProvinceCard extends BaseCard {
             strengthSummary: this.strengthSummary,
             // Only reveal targeting metadata when normal card identity is
             // public. Opposing facedown province summaries omit `id`, keeping
-            // fair bots blind; seed 5 reads the live object separately.
+            // fair bots blind; seed 3 reads the live object separately.
             ...(baseSummary.id ? {
                 eminent: this.hasEminent(),
                 provinceAbilityClass: this.getProvinceAbilityClass()

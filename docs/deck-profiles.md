@@ -20,7 +20,7 @@ reads the knobs; the profile is chosen per deck.
 | Knob | Meaning |
 |------|---------|
 | `fateAwareEconomy` | injectable dynasty purchase/fate policy used by seeds 1 and 5 |
-| `conflictCardEconomy` | value-per-fate candidate planner shared by seeds 1, 2, and 5 |
+| `conflictCardEconomy` | value-per-fate candidate planner shared by seeds 1, 2, and 3 |
 | `provinceTargeting` | shared injectable province ordering: Eminent, effective strength, ability timing, and per-card overrides |
 | `strongholdDefense` | three-broken survival planner plus injectable two-broken risk gate and fair/omniscient defender limits |
 | `attachmentControl` | shared Let Go policy comparing own debuff removal with enemy attachment removal |
@@ -140,7 +140,7 @@ ratio or one province id without copying the other defaults.
 Phoenix Shugenja uses this injection to set
 `preStrongholdThreatRatio: 1.5`. It still defends an exposed stronghold exactly
 like other decks, but it preserves an attacker at two broken provinces only
-against a 50% larger projected two-conflict threat. Paired seed-5 A/B measured
+against a 50% larger projected two-conflict threat. Paired seed-3 A/B measured
 +6.7 points against Unicorn, +2.5 against Crane and Lion, and no change against
 Scorpion or Dragon Attachments.
 
@@ -169,7 +169,7 @@ Result vs the Crane precon (self-play, seeds alternate seats, N=40):
 | | before | after |
 |---|--------|-------|
 | Crab seed 1 win rate | ~10% (2-18) | **~45%** |
-| Crab historical omniscient (then seed 4; now seed 5) | ~5% (1-19) | **~45%** |
+| Crab legacy omniscient (before renumbering) | ~5% (1-19) | **~45%** |
 
 After the fix the Crab seat plays bodies (8 → 22), digs sparingly (49 → 8), and
 actually attacks (1 → 8 initiations) while keeping its defense. It no longer
@@ -223,8 +223,8 @@ Post-sweep utilization audit: every card, action, and reaction still fires
 
 ## Case study: Unicorn Cavalry Rush (EmeraldDB ef93bae2)
 
-The aggressive rush profile was tuned in the historical omniscient mirror
-(then seed 4; now seed 5), but the
+The aggressive rush profile was tuned in a legacy omniscient mirror before
+the seed renumbering, but the
 Crane precon rolled it (~23% win rate, pooled N=160): Crane defends
 `prevent-break`, so the all-in attacks bounced off committed defenders, while
 every Crane counterattack was conceded (`win-only` + no cards on defense) —
@@ -249,8 +249,8 @@ Two fixes shipped together:
 
 Swept vs the Crane precon (every knob combination measured, N=20-40 per run):
 defense alone ~50%, fate alone ~40%, defense+fate ~57%, all three
-**~68% seed 1 (41-19, pooled N=60) / ~63% historical omniscient
-(then seed 4; now seed 5; 25-15, N=40)** — locked.
+**~68% seed 1 (41-19, pooled N=60) / ~63% legacy omniscient
+(before renumbering; 25-15, N=40)** — locked.
 Regression checks on the final build: Crab vs Crane 19-21 (~47%), Scorpion vs
 Crane 12-8 (both in their bands).
 
@@ -326,7 +326,7 @@ Current deck-independent behaviors:
    broken, `StrongholdDefenseTactics` calculates military and political threats
    against the combined stronghold-province strength. It may skip attacking,
    reserve the minimum safe defender set, or attack freely. A fair seed keeps at
-   most one calculated defender; seed 5 also adds affordable hidden-hand skill
+   most one calculated defender; seed 3 also adds affordable hidden-hand skill
    and known bow/send-home/remove effects and may reserve more.
 5. **Safety exceptions**: attack freely when every opposing character is bowed;
    attack all-in when the opponent has no conflict remaining; race all-in when
@@ -378,7 +378,7 @@ node tools/selfplay/analyzePolicyGame.js --deck PhoenixShugenja --rng-seed 20260
 `validateBotInteractions.js` checks all registered decks for repeated clicks,
 unchanged-state runs, short prompt/action cycles, decision-budget exhaustion,
 unsupported prompts, stalls, timeouts, and engine errors. It defaults to the
-offline deployable seeds 1, 2, and 5 and Crane opponents; use `--opponents all`
+offline deployable seeds 1, 2, and 3 and Crane opponents; use `--opponents all`
 for the full matrix:
 
 ```powershell
@@ -386,8 +386,9 @@ node tools/selfplay/validateBotInteractions.js
 node tools/selfplay/validateBotInteractions.js --opponents all --games 2
 ```
 
-Seed 3 needs its live LLM and seed 4 needs evaluator weights; without them an
-offline audit exercises only their heuristic fallback.
+All supported seeds are offline and deterministic. Seed 3 adds omniscient
+hidden-state evaluation and adaptive mulligan behavior; it needs no external
+model service or weights.
 
 ## Re-baseline (2026-07-11, after the Crane Duels onboarding)
 

@@ -132,14 +132,11 @@ stripped before JSON extraction.
 - `server/game/bots/llm/CardHints.ts` — hint schema + lenient validation.
 - `server/game/bots/llm/DeckHintService.ts` — analysis queue + disk cache.
 - `server/game/bots/llm/LiveConsultant.ts` — optional ambiguous-target consult
-  for heuristic-driven seats; seed 3 instead uses the full move planner.
-- `server/game/bots/llm/LlmActionPlanner.ts` — seed-3 move planner: given the
-  full state + hand + the enumerated legal options, returns the id of the move
-  to play. The controller builds the option set (`enumerateOptions`), validates
-  every option, and appends the heuristic pick as the labelled fall-back.
+  for heuristic-driven seats. It is an optional hint source, not a bot seed.
 - Wiring: `JigokuBotController` starts deck analysis on its first tick (cards
   from `game.allCards` owned by the bot) and passes a hint lookup into every
-  policy decision; the lobby forwards `bot.llm` config unchanged.
+  policy decision; the lobby forwards `bot.llm` config unchanged. The former
+  full-move LLM seed and its planner were removed.
 
 The hint lookup consults the hand-written `CardPlaybook.ts` first: a playbook
 entry outranks the cached LLM hint for the same card id, and playbook cards

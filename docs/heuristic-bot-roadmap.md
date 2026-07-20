@@ -13,7 +13,7 @@ resolve through the existing generic prompt handlers.
   supplies `conflictCosts` from live cards and `currentLegalDirectCardUuids`
   from the active engine step. Unaffordable, wrong-timing, and targetless plays
   are removed before policy scoring.
-- Seeds 1, 2, and 5 share an injectable value-per-fate planner. Priority
+- Seeds 1, 2, and 3 share an injectable value-per-fate planner. Priority
   premiums protect expensive strategic cards; deck tactics may override order.
 - Paid plays from conflict discard share the same usefulness, target, cost,
   attachment, and contribution gates. Free `putIntoPlay` effects remain separate.
@@ -60,11 +60,10 @@ live games expose a legal interaction the generic action classifier cannot value
 ## Phase D — Scored-candidate policy (partially implemented)
 
 `JigokuBotPolicy` remains a deterministic rule policy behind
-`JigokuBotController`. Candidate enumeration and scoring exist for seed 3's LLM,
-seed 4's learned evaluator, conflict-card economy, exact conflict contribution,
-and seed 5's hidden-hand threat matrix. They have not replaced the deployed
-seed-1 policy wholesale: the learned evaluator measured worse and unrestricted
-model steering is slow.
+`JigokuBotController`. Candidate scoring now covers conflict-card economy,
+exact conflict contribution, injectable deck tactics, and seed 3's hidden-hand
+and hidden-province threat evaluation. The former full-move LLM and learned
+evaluator seeds were removed after they failed to improve the deployed policy.
 
 1. Enumerate legal moves for the current prompt.
 2. Score each (skill swing, fate efficiency, honor race position, province
@@ -87,6 +86,6 @@ the minimum safe defender or passes the unsafe conflict, then releases the
 reserve when the second attack is no longer possible. After three own provinces
 break, full survival mode reserves the minimum provably safe defenders or skips
 offense, with explicit exceptions for bowed opponents, last-conflict attacks,
-and exposed-stronghold races. Covert forces fair bots to hold all. Seed 5
+and exposed-stronghold races. Covert forces fair bots to hold all. Seed 3
 additionally budgets exact affordable hand skill and known defender-disabling
 effects. Both stages and their thresholds are injectable per deck.

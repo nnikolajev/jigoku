@@ -61,6 +61,8 @@ import { PROVINCE_TARGETING_DEFAULTS } from './ProvinceTargeting.js';
 import type { ProvinceTargetingProfile } from './ProvinceTargeting';
 import { UNICORN_DEFAULTS } from './UnicornTactics.js';
 import type { UnicornProfile } from './UnicornTactics';
+import { DEFAULT_MULLIGAN_PROFILE, RUSH_MULLIGAN_PROFILE } from './MulliganTactics.js';
+import type { MulliganProfile } from './MulliganTactics';
 
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
@@ -81,8 +83,9 @@ export type DefenseCommitment = 'win-only' | 'prevent-break';
 
 export interface DeckProfile {
     // ---- dynasty / economy ----
-    fateAwareEconomy: FateAwareEconomyProfile; // injectable dynasty spending policy used by seeds 1 and 5
-    conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1, 2, and 5
+    fateAwareEconomy: FateAwareEconomyProfile; // injectable dynasty spending policy used by seeds 1 and 3
+    conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1, 2, and 3
+    mulligan: MulliganProfile; // seed-3 opening hand/province mulligan and fate-phase refresh policy
     strongholdDefense: StrongholdDefenseProfile; // shared injectable last-province reserve planner for every seed
     provinceTargeting: ProvinceTargetingProfile; // shared injectable Eminent/strength/ability target priority for every seed
     attachmentControl: AttachmentControlProfile; // shared Let Go / attachment-removal value policy
@@ -181,6 +184,16 @@ export interface DeckProfile {
 export const DEFAULT_PROFILE: DeckProfile = {
     fateAwareEconomy: { ...DEFAULT_FATE_AWARE_ECONOMY },
     conflictCardEconomy: { ...DEFAULT_CONFLICT_CARD_ECONOMY },
+    mulligan: {
+        ...DEFAULT_MULLIGAN_PROFILE,
+        openingKeepHoldingIds: [...DEFAULT_MULLIGAN_PROFILE.openingKeepHoldingIds],
+        openingDiscardCharacterIds: [...DEFAULT_MULLIGAN_PROFILE.openingDiscardCharacterIds],
+        preferredCharacterIds: [...DEFAULT_MULLIGAN_PROFILE.preferredCharacterIds],
+        endHoldingLimit: { ...DEFAULT_MULLIGAN_PROFILE.endHoldingLimit },
+        holdingCopyLimitById: { ...DEFAULT_MULLIGAN_PROFILE.holdingCopyLimitById },
+        keepHoldingIds: [...DEFAULT_MULLIGAN_PROFILE.keepHoldingIds],
+        keepDynastyCardIds: [...DEFAULT_MULLIGAN_PROFILE.keepDynastyCardIds]
+    },
     strongholdDefense: { ...STRONGHOLD_DEFENSE_DEFAULTS },
     provinceTargeting: {
         ...PROVINCE_TARGETING_DEFAULTS,
@@ -222,6 +235,16 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         ...DEFAULT_PROFILE,
         fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },
         conflictCardEconomy: { ...DEFAULT_PROFILE.conflictCardEconomy },
+        mulligan: {
+            ...DEFAULT_PROFILE.mulligan,
+            openingKeepHoldingIds: [...DEFAULT_PROFILE.mulligan.openingKeepHoldingIds],
+            openingDiscardCharacterIds: [...DEFAULT_PROFILE.mulligan.openingDiscardCharacterIds],
+            preferredCharacterIds: [...DEFAULT_PROFILE.mulligan.preferredCharacterIds],
+            endHoldingLimit: { ...DEFAULT_PROFILE.mulligan.endHoldingLimit },
+            holdingCopyLimitById: { ...DEFAULT_PROFILE.mulligan.holdingCopyLimitById },
+            keepHoldingIds: [...DEFAULT_PROFILE.mulligan.keepHoldingIds],
+            keepDynastyCardIds: [...DEFAULT_PROFILE.mulligan.keepDynastyCardIds]
+        },
         strongholdDefense: { ...DEFAULT_PROFILE.strongholdDefense },
         provinceTargeting: {
             ...DEFAULT_PROFILE.provinceTargeting,
@@ -254,6 +277,16 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         profile.attackCommitment = 'breakable-or-hold';
     }
     if(strategy.aggressive) {
+        profile.mulligan = {
+            ...RUSH_MULLIGAN_PROFILE,
+            openingKeepHoldingIds: [...RUSH_MULLIGAN_PROFILE.openingKeepHoldingIds],
+            openingDiscardCharacterIds: [...RUSH_MULLIGAN_PROFILE.openingDiscardCharacterIds],
+            preferredCharacterIds: [...RUSH_MULLIGAN_PROFILE.preferredCharacterIds],
+            endHoldingLimit: { ...RUSH_MULLIGAN_PROFILE.endHoldingLimit },
+            holdingCopyLimitById: { ...RUSH_MULLIGAN_PROFILE.holdingCopyLimitById },
+            keepHoldingIds: [...RUSH_MULLIGAN_PROFILE.keepHoldingIds],
+            keepDynastyCardIds: [...RUSH_MULLIGAN_PROFILE.keepDynastyCardIds]
+        };
         profile.aggressiveFate = true;
         profile.forceMilitaryConflict = true;
         profile.attackCommitment = 'all';
@@ -403,7 +436,7 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
 // merged over the strategy-derived profile. Matched by card contents + derived
 // strategy so it works in both live play and self-play (no deck-id needed).
 type DeckProfileOverride = Omit<Partial<DeckProfile>,
-    'strongholdDefense' | 'provinceTargeting' | 'duelBidding' | 'drawBidding' | 'legacyDrawBidding'> & {
+    'strongholdDefense' | 'provinceTargeting' | 'duelBidding' | 'drawBidding' | 'legacyDrawBidding' | 'mulligan'> & {
     strongholdDefense?: Partial<StrongholdDefenseProfile>;
     provinceTargeting?: Omit<Partial<ProvinceTargetingProfile>, 'abilityPriority' | 'effectiveStrengthById' | 'priorityTierById'> & {
         abilityPriority?: Partial<ProvinceTargetingProfile['abilityPriority']>;
@@ -413,6 +446,11 @@ type DeckProfileOverride = Omit<Partial<DeckProfile>,
     duelBidding?: Partial<DuelBidProfile>;
     drawBidding?: Partial<DrawBidProfile>;
     legacyDrawBidding?: Partial<LegacyDrawBidProfile>;
+    mulligan?: Omit<Partial<MulliganProfile>,
+        'endHoldingLimit' | 'holdingCopyLimitById'> & {
+        endHoldingLimit?: Partial<MulliganProfile['endHoldingLimit']>;
+        holdingCopyLimitById?: Record<string, number>;
+    };
 };
 
 interface ProfileOverride {
@@ -434,7 +472,17 @@ const OVERRIDES: ProfileOverride[] = [
             attackCommitment: 'all-but-one',
             attackKeepHome: 1,
             chumpBlock: true,
-            defenseSkillBuffer: 2
+            defenseSkillBuffer: 2,
+            mulligan: {
+                openingHoldingLimit: 0,
+                preferredCharacterIds: [
+                    'niten-master',
+                    'togashi-yokuni',
+                    'agasha-sumiko-2',
+                    'mirumoto-raitsugu'
+                ],
+                endHoldingLimit: { weak: 0, developing: 1, strong: 2 }
+            }
         }
     },
     {
@@ -449,10 +497,21 @@ const OVERRIDES: ProfileOverride[] = [
             // This ring/spell deck needs conflict opportunities more than an
             // early one-body reserve. Require a 50% larger two-province threat
             // before preserving its attacker; final-stronghold defense is
-            // unchanged. Paired seed-5 A/B: +6.7 pp vs Unicorn, +2.5 pp vs
+            // unchanged. Historical omniscient A/B: +6.7 pp vs Unicorn, +2.5 pp vs
             // Crane/Lion, neutral vs Scorpion/Dragon Attachments.
             strongholdDefense: {
                 preStrongholdThreatRatio: 1.5
+            },
+            mulligan: {
+                openingHoldingLimit: 1,
+                preferredCharacterIds: [
+                    'asako-togama',
+                    'kudaka',
+                    'prodigy-of-the-waves',
+                    'isawa-ujina',
+                    'shiba-tsukune'
+                ],
+                endHoldingLimit: { weak: 1, developing: 2, strong: 2 }
             }
         }
     },
@@ -480,13 +539,43 @@ const OVERRIDES: ProfileOverride[] = [
             // engine otherwise churns the dynasty deck every window (digging
             // instead of playing bodies), leaving too thin a board to defend.
             // Tuned by self-play vs the Crane precon: 10% -> ~45% win rate.
-            digMinBoardCharacters: 3
+            digMinBoardCharacters: 3,
+            mulligan: {
+                openingHoldingLimit: 2,
+                openingKeepHoldingIds: [
+                    'seventh-tower',
+                    'kaiu-forges',
+                    'watchtower-of-valor',
+                    'northern-curtain-wall',
+                    'third-whisker-warrens',
+                    'river-of-the-last-stand',
+                    'watchtower-of-sun-s-shadow'
+                ],
+                preferredCharacterIds: [
+                    'hida-kisada',
+                    'frontline-engineer',
+                    'kaiu-shuichi',
+                    'kuni-ritsuko',
+                    'midnight-builder'
+                ],
+                keepHoldingIds: [
+                    'seventh-tower',
+                    'kaiu-forges',
+                    'watchtower-of-valor',
+                    'northern-curtain-wall',
+                    'third-whisker-warrens',
+                    'river-of-the-last-stand',
+                    'watchtower-of-sun-s-shadow'
+                ],
+                endHoldingLimit: { weak: 2, developing: 3, strong: 3 },
+                discardCheapOnDevelopingBoard: false
+            }
         }
     },
     {
         // Unicorn "Cavalry Rush" precon (EmeraldDB ef93bae2). The pure rush
         // (concede every defense, disposable 0-1-fate bodies, commit every
-        // body) was tuned in the former seed-4 (now seed-5) mirror and got rolled by the Crane
+        // body) was tuned in a historical omniscient mirror and got rolled by the Crane
         // precon (~23%): Crane defends to prevent breaks, so the all-in
         // attacks bounced, while every Crane counterattack was conceded.
         // Keep the military pressure (forced military conflicts, cheap-body
@@ -505,6 +594,10 @@ const OVERRIDES: ProfileOverride[] = [
             fateAwareEconomy: { ...SWARM_FATE_AWARE_ECONOMY },
             conflictCardEconomy: { ...SWARM_CONFLICT_CARD_ECONOMY },
             drawBidding: { ...CARD_ENGINE_DRAW_BID_PROFILE },
+            mulligan: {
+                openingHoldingLimit: 1,
+                endHoldingLimit: { weak: 0, developing: 1, strong: 1 }
+            },
             unicorn: {
                 ...UNICORN_DEFAULTS,
                 movementCardIds: [...UNICORN_DEFAULTS.movementCardIds],
@@ -520,7 +613,19 @@ const OVERRIDES: ProfileOverride[] = [
         name: 'crane-duel-vassal-fields',
         match: (ids, strategy) => strategy.duelist && ids.has('vassal-fields'),
         apply: {
-            strongholdProvinceId: 'vassal-fields'
+            strongholdProvinceId: 'vassal-fields',
+            mulligan: {
+                honorProvinceCharacters: true,
+                openingDiscardCharacterIds: ['iron-crane-legion'],
+                preferredCharacterIds: [
+                    'kakita-kaezin',
+                    'kakita-yuri',
+                    'doji-kuwanan',
+                    'kakita-toshimoko'
+                ],
+                endHoldingLimit: { weak: 0, developing: 2, strong: 2 },
+                holdingCopyLimitById: { 'kakita-dojo': 1, 'proving-ground': 1 }
+            }
         }
     },
     {
@@ -542,7 +647,18 @@ const OVERRIDES: ProfileOverride[] = [
             // override still spends every useful card on game-ending defense.
             defenseCommitment: 'prevent-break',
             spendCardsOnDefense: false,
-            preventBreakAfterBrokenProvinces: 2
+            preventBreakAfterBrokenProvinces: 2,
+            mulligan: {
+                openingHoldingLimit: 0,
+                preferredCharacterIds: [
+                    'togashi-mitsu-2',
+                    'togashi-tadakatsu',
+                    'togashi-ichi',
+                    'teacher-of-empty-thought',
+                    'tranquil-philosopher'
+                ],
+                endHoldingLimit: { weak: 0, developing: 1, strong: 2 }
+            }
         }
     },
     {
@@ -553,7 +669,32 @@ const OVERRIDES: ProfileOverride[] = [
         name: 'phoenix-rally-stronghold',
         match: (ids, strategy) => strategy.glory && ids.has('rally-to-the-cause'),
         apply: {
-            strongholdProvinceId: 'rally-to-the-cause'
+            strongholdProvinceId: 'rally-to-the-cause',
+            mulligan: {
+                openingHoldingLimit: 1,
+                openingKeepHoldingIds: [
+                    'forgotten-library',
+                    'the-imperial-palace',
+                    'favorable-ground'
+                ],
+                preferredCharacterIds: [
+                    'shiba-tsukune',
+                    'isawa-kaede',
+                    'isawa-ujina',
+                    'isawa-atsuko',
+                    'prodigy-of-the-waves',
+                    'chikai-order-protector',
+                    'solemn-scholar',
+                    'asako-tsuki'
+                ],
+                keepHoldingIds: [
+                    'forgotten-library',
+                    'the-imperial-palace',
+                    'favorable-ground'
+                ],
+                endHoldingLimit: { weak: 1, developing: 2, strong: 2 },
+                discardCheapOnDevelopingBoard: false
+            }
         }
     },
     {
@@ -628,6 +769,11 @@ const OVERRIDES: ProfileOverride[] = [
             },
             drawBidding: { ...HONOR_DRAW_BID_PROFILE },
             legacyDrawBidding: { ...LION_LEGACY_DRAW_BID_PROFILE },
+            mulligan: {
+                openingHoldingLimit: 0,
+                keepDynastyCardIds: ['honored-veterans', 'a-season-of-war'],
+                endHoldingLimit: { weak: 0, developing: 1, strong: 1 }
+            },
             lion: { ...LION_DEFAULTS }
         }
     },
@@ -641,6 +787,19 @@ const OVERRIDES: ProfileOverride[] = [
             CRANE_BASELINE_DEFAULTS.markerCards.every((id) => ids.has(id)),
         apply: {
             strongholdProvinceId: 'meditations-on-the-tao',
+            mulligan: {
+                honorProvinceCharacters: true,
+                openingDiscardCharacterIds: ['iron-crane-legion'],
+                preferredCharacterIds: [
+                    'kakita-kaezin',
+                    'kakita-yuri',
+                    'doji-kuwanan',
+                    'kakita-toshimoko',
+                    'kakita-yoshi-2'
+                ],
+                endHoldingLimit: { weak: 0, developing: 2, strong: 2 },
+                holdingCopyLimitById: { 'kakita-dojo': 1, 'proving-ground': 1 }
+            },
             craneBaseline: {
                 ...CRANE_BASELINE_DEFAULTS,
                 markerCards: [...CRANE_BASELINE_DEFAULTS.markerCards],
@@ -682,6 +841,11 @@ const OVERRIDES: ProfileOverride[] = [
             },
             drawBidding: { ...HONOR_DRAW_BID_PROFILE },
             legacyDrawBidding: { ...LION_LEGACY_DRAW_BID_PROFILE },
+            mulligan: {
+                openingHoldingLimit: 0,
+                keepDynastyCardIds: ['honored-veterans', 'a-season-of-war'],
+                endHoldingLimit: { weak: 0, developing: 1, strong: 1 }
+            },
             lion: { ...LION_DEFAULTS }
         }
     },
@@ -693,7 +857,17 @@ const OVERRIDES: ProfileOverride[] = [
         name: 'scorpion-poison-mill',
         match: (ids, strategy) => strategy.dishonor && ids.has('night-raid'),
         apply: {
-            strongholdProvinceId: 'night-raid'
+            strongholdProvinceId: 'night-raid',
+            mulligan: {
+                openingHoldingLimit: 0,
+                preferredCharacterIds: [
+                    'bayushi-shoju-2',
+                    'bayushi-manipulator',
+                    'shosuro-actress'
+                ],
+                keepHoldingIds: ['licensed-quarter'],
+                endHoldingLimit: { weak: 0, developing: 1, strong: 2 }
+            }
         }
     }
 ];
@@ -712,6 +886,7 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                 duelBidding,
                 drawBidding,
                 legacyDrawBidding,
+                mulligan,
                 ...flatApply
             } = override.apply;
             const apply: Partial<DeckProfile> = { ...flatApply };
@@ -788,6 +963,35 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                 apply.legacyDrawBidding = {
                     ...profile.legacyDrawBidding,
                     ...legacyDrawBidding
+                };
+            }
+            if(mulligan) {
+                apply.mulligan = {
+                    ...profile.mulligan,
+                    ...mulligan,
+                    openingKeepHoldingIds: mulligan.openingKeepHoldingIds
+                        ? [...mulligan.openingKeepHoldingIds]
+                        : [...profile.mulligan.openingKeepHoldingIds],
+                    openingDiscardCharacterIds: mulligan.openingDiscardCharacterIds
+                        ? [...mulligan.openingDiscardCharacterIds]
+                        : [...profile.mulligan.openingDiscardCharacterIds],
+                    preferredCharacterIds: mulligan.preferredCharacterIds
+                        ? [...mulligan.preferredCharacterIds]
+                        : [...profile.mulligan.preferredCharacterIds],
+                    endHoldingLimit: {
+                        ...profile.mulligan.endHoldingLimit,
+                        ...mulligan.endHoldingLimit
+                    },
+                    holdingCopyLimitById: {
+                        ...profile.mulligan.holdingCopyLimitById,
+                        ...mulligan.holdingCopyLimitById
+                    },
+                    keepHoldingIds: mulligan.keepHoldingIds
+                        ? [...mulligan.keepHoldingIds]
+                        : [...profile.mulligan.keepHoldingIds],
+                    keepDynastyCardIds: mulligan.keepDynastyCardIds
+                        ? [...mulligan.keepDynastyCardIds]
+                        : [...profile.mulligan.keepDynastyCardIds]
                 };
             }
             if(override.apply.attachmentControl) {

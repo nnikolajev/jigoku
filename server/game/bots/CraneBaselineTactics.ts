@@ -99,7 +99,7 @@ export class CraneBaselineTactics {
     }
 
     // Both players know the submitted deck list in L5R. Group printed copies
-    // from that public list and score only those actual conflict cards. Seed 5
+    // from that public list and score only those actual conflict cards. Seed 3
     // then adds its legal information advantage: exact hand, affordability,
     // and current conflict relevance. Fair seeds never inspect the hand.
     pickGossipCard(context: GossipChoiceContext): KnownCard | null {

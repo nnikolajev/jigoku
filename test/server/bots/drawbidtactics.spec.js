@@ -292,7 +292,7 @@ describe('draw-bid live context', function() {
         const factories = [
             (variant) => new JigokuBotPolicy('seed-2', variant),
             (variant) => new FateAwareJigokuBotPolicy('seed-1', variant),
-            (variant) => new FateAwareJigokuBotPolicy('seed-5', variant)
+            (variant) => new FateAwareJigokuBotPolicy('seed-3', variant)
         ];
         for(const factory of factories) {
             expect(factory('adaptive').decide(state, 'Jigoku Bot', {

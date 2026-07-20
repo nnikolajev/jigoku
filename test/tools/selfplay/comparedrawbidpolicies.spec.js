@@ -9,14 +9,14 @@ const {
 describe('compareDrawBidPolicies CLI', function() {
     it('parses defaults and deck subsets', function() {
         expect(parseArgs([]).games).toBe(40);
-        const parsed = parseArgs(['--games', '12', '--seed', '5', '--decks', 'Lion,Unicorn']);
+        const parsed = parseArgs(['--games', '12', '--seed', '3', '--decks', 'Lion,Unicorn']);
         expect(parsed.games).toBe(12);
-        expect(parsed.seed).toBe(5);
+        expect(parsed.seed).toBe(3);
         expect(parsed.decks).toEqual(['Lion', 'Unicorn']);
     });
 
     it('rejects invalid seeds and decks', function() {
-        expect(() => parseArgs(['--seed', '6'])).toThrowError('--seed must be 1..5');
+        expect(() => parseArgs(['--seed', '4'])).toThrowError('--seed must be 1..3');
         expect(() => parseArgs(['--decks', 'Nope'])).toThrowError(/Unknown deck/);
     });
 

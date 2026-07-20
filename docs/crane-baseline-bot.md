@@ -45,13 +45,13 @@ current zone.
 - Seeds 1 and 2 rank only cards that actually occur in that public conflict
   deck. Copies, modeled swing, tactical tags, and matchup build-around weights
   decide which name is most important to the opposing game plan.
-- Seed 5 starts from the same public deck list, then adds its omniscient
+- Seed 3 starts from the same public deck list, then adds its omniscient
   advantage: exact copies in hand, current opponent fate, affordability, and
   current conflict relevance.
 - A high-weight card absent from the submitted deck can never be named. If no
   real deck card clears the minimum score, Gossip is not played.
 - The typed card-name prompt is submitted through the same legal controller
-  path as ordinary menu buttons. Tests cover seeds 1, 2, and 5.
+  path as ordinary menu buttons. Tests cover seeds 1, 2, and 3.
 
 ## Card sequencing
 
@@ -77,7 +77,7 @@ current zone.
 ## Validation
 
 - `CraneBaselineTactics`: 13 focused specs, including exact 40/40 fixture,
-  public-deck-only Gossip choices, seed-5 fate awareness, typed card-name
+  public-deck-only Gossip choices, seed-3 fate awareness, typed card-name
   controls for seeds 1/2/5, board-floor replenishment, solo sequencing,
   Shukujo, and shared Let Go targeting.
 - The 25 dedicated engine-card spec files present for this exact list run 133
@@ -96,7 +96,7 @@ current zone.
 - Real-game utilization audit: 20 seed-1 games against Phoenix Shugenja clicked
   every active card in the deck. Tsuma was the sole zero-click entry because
   its enter-play-honored text is passive; its engine behavior has a dedicated
-  card spec. A second 20-game seed-5 audit against Scorpion exercised the
+  card spec. A second 20-game seed-3 audit against Scorpion exercised the
   omniscient Gossip path and the same control/duel package.
 
 The final standardized seed-1 win-rate board (100 games/deck, alternating
@@ -125,7 +125,7 @@ Re-run the checks with:
 
 ```powershell
 node tools/selfplay/auditCards.js Crane 20 1 PhoenixShugenja
-node tools/selfplay/validateBotInteractions.js --games 1 --seeds 1,2,5 --decks Crane --opponents all
+node tools/selfplay/validateBotInteractions.js --games 1 --seeds 1,2,3 --decks Crane --opponents all
 node tools/selfplay/analyzePolicyGame.js --deck Crane --opponent PhoenixShugenja --control fate-aware --candidate fate-aware --opponent-policy fate-aware
 ```
 
@@ -139,5 +139,5 @@ node tools/selfplay/winRates.js 100 2 2
 node tools/selfplay/winRates.js 100 5 5
 node tools/selfplay/botRoundRobin.js --seed 1
 node tools/selfplay/botRoundRobin.js --seed 2
-node tools/selfplay/botRoundRobin.js --seed 5
+node tools/selfplay/botRoundRobin.js --seed 3
 ```

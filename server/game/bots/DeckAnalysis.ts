@@ -1,4 +1,4 @@
-// Deck analysis for the seed-5 "omniscient" bot.
+// Deck analysis for the seed-3 "omniscient" bot.
 //
 // The omniscient bot sees the human's hand and face-down provinces (it cheats).
 // To turn that knowledge into good decisions it needs to know, for every card
@@ -133,7 +133,7 @@ export interface KnownCard {
     swing: number;
     tag: CardTag;
     // Live ability inspection: this hand card can bow, remove, or send home an
-    // opposing defender during a conflict. Used only by seed 5.
+    // opposing defender during a conflict. Used only by seed 3.
     canDisableDefender?: boolean;
     // Narrower Clarity of Purpose signal. Unlike canDisableDefender, this is
     // true only when the card can bow an opposing character.
@@ -169,7 +169,7 @@ export interface OmniProvince {
     abilityClass?: 'none' | 'reveal' | 'reaction' | 'action' | 'unknown';
 }
 
-// The complete cheat view handed to the policy for seed 5: the human's fate, the
+// The complete cheat view handed to the policy for seed 3: the human's fate, the
 // real contents of their hand, and the true strength of every province.
 export interface Omniscient {
     oppName: string;

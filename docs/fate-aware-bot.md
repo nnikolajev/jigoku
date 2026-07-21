@@ -8,6 +8,11 @@ It inherits all conflict, targeting, card-playbook, and deck-profile behavior,
 but opts into a different dynasty economy and ring-fate rule. The previous
 `JigokuBotPolicy` remains available as seed 2.
 
+All seeds share the conflict-phase declaration rollout. Seed 1 consumes its
+sequential target recommendation but deliberately keeps this mature dynasty
+buyer and card-specific conflict-type/attacker/ring rules unchanged. See
+[`conflict-phase-lookahead-bot.md`](conflict-phase-lookahead-bot.md).
+
 ## Selection
 
 Select **mixed** in the Jigoku client's bot type dropdown. It sends seed `1`.

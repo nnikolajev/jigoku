@@ -23,6 +23,14 @@ buy immediate power. The second player may develop wider; the first player
 retains seed 1's tower-and-pass value. When safe and useful, seed 3 may also
 play a conflict character at home to use another conflict opportunity.
 
+Seed 3 can ask the shared conflict-phase rollout to project the coming phase
+with each of up to three affordable dynasty bodies. The injectable experiment
+is disabled by default: it was neutral alone (20-20) and the combined retained
+configuration regressed. When enabled, its marginal score is only an advisory
+character-value bonus; fate reserves, deck priorities, affordability, and
+urgent-stage rules stay authoritative. A reduced four-ply branch cap keeps the
+prompt bounded. See [`conflict-phase-lookahead-bot.md`](conflict-phase-lookahead-bot.md).
+
 ## Injectable profile
 
 All coefficients live in `DeckProfile.boardAwareDynasty`: power weights,

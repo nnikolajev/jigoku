@@ -32,6 +32,14 @@ import type { MulliganPolicyVariant } from './MulliganTactics';
 import BoardAwareDynastyTactics from './BoardAwareDynastyTactics.js';
 import type { DynastyCharacterInfo, DynastyHandCard } from './BoardAwareDynastyTactics';
 import ConflictDeckSafetyTactics from './ConflictDeckSafetyTactics.js';
+import ConflictPhasePlanner from './ConflictPhasePlanner.js';
+import type {
+    ConflictAxis,
+    ConflictPhasePlan,
+    ConflictPlannerCharacter,
+    ConflictPlannerTarget,
+    ConflictPlanningPolicyVariant
+} from './ConflictPhasePlanner';
 import {
     attackProvinceLists,
     brokenOuterProvinceCount,
@@ -164,6 +172,9 @@ interface DecideContext {
     // is available to every seed and never reveals which cards are currently
     // held. Used by card-name effects such as Gossip.
     opponentConflictDeck?: KnownCard[];
+    // Own hand is known. Rollout uses a bounded best affordable body + trick,
+    // while fair opponent-hand information remains hidden.
+    ownConflictHand?: KnownCard[];
     opponentDuelBidding?: DuelBidProfile;
     // Public once-per-round state from the live engine, keyed by the attached
     // character UUID. False means every Iaijutsu Master there is spent.
@@ -223,6 +234,12 @@ interface DecideContext {
     // Public visible-board signal. Unlike omniscient hand data, every seed may
     // react to a participating defender whose ability can bow its character.
     opponentParticipantCanBow?: boolean;
+    // Exact public live character legality/state. Controller supplies this so
+    // Tengu-style attack locks, Covert, and no-bow effects survive serialization.
+    conflictPlanningCharacters?: {
+        self: ConflictPlannerCharacter[];
+        opponent: ConflictPlannerCharacter[];
+    };
 }
 
 class JigokuBotPolicy {
@@ -321,7 +338,8 @@ class JigokuBotPolicy {
     constructor(
         seed: string | number = 1,
         private readonly drawBidPolicy: DrawBidPolicyVariant = 'adaptive',
-        private readonly mulliganPolicy: MulliganPolicyVariant = 'legacy'
+        private readonly mulliganPolicy: MulliganPolicyVariant = 'legacy',
+        private readonly conflictPlanningPolicy: ConflictPlanningPolicyVariant = 'lookahead'
     ) {
         this.random = new SeededRandom(seed);
     }
@@ -859,7 +877,7 @@ class JigokuBotPolicy {
         }
 
         if(promptTitle === 'Initiate Conflict' || CONFLICT_TITLE_REGEX.test(promptTitle)) {
-            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, profile, context.omniscient, context.strongholdProvinceStrength, context.weakestOuterProvinceStrength, dishonor, context.cardHint, glory, dragon, duelist, shugenja, attachmentTower, lion, crane, context.legalDirectCardUuids, context.legalRingElements);
+            const declaration = this.conflictDeclarationDecision(playerState, me, opponent, promptTitle, menuTitle, buttons, profile, context.omniscient, context.strongholdProvinceStrength, context.weakestOuterProvinceStrength, dishonor, context.cardHint, glory, dragon, duelist, shugenja, attachmentTower, lion, crane, context.legalDirectCardUuids, context.legalRingElements, context);
             if(declaration) {
                 return declaration;
             }
@@ -897,7 +915,7 @@ class JigokuBotPolicy {
 
         // The dynasty window overrides the generic action-window prompt text.
         if(menuTitle === 'Initiate an action' || promptTitle === 'Play cards from provinces') {
-            return this.actionWindowDecision(playerState, me, buttons, profile, context.cardHint, dishonor, context.dynastyCosts, context.conflictCosts, lion, duelist, shugenja, attachmentTower, crane, context.opponentConflictDeck, context.omniscient, context.legalDirectCardUuids, mulligan, context.provinceIdsByLocation, context);
+            return this.actionWindowDecision(playerState, me, buttons, profile, context.cardHint, dishonor, context.dynastyCosts, context.conflictCosts, lion, duelist, shugenja, attachmentTower, crane, context.opponentConflictDeck, context.omniscient, context.legalDirectCardUuids, mulligan, context.provinceIdsByLocation, context, glory, dragon);
         }
 
         if(promptTitle === 'Conflict Action Window') {
@@ -1822,7 +1840,246 @@ class JigokuBotPolicy {
             : { desired: shugenjaFate, reason: 'tadaka-setup-fate' };
     }
 
-    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, omni?: Omniscient, strongholdProvinceStrength?: number, weakestOuterProvinceStrength?: number, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, lion: LionTactics | null = null, crane: CraneBaselineTactics | null = null, legalDirectCardUuids?: Record<string, true>, legalRingElements?: Record<string, true>): BotDecision | null {
+    private conflictPhaseLookahead(
+        playerState: any,
+        me: any,
+        opponent: any,
+        profile: DeckProfile,
+        context: DecideContext,
+        reservedUuids: Set<string>,
+        dishonor: DishonorTactics | null,
+        glory: GloryTactics | null,
+        dragon: DragonTactics | null,
+        duelist: DuelTactics | null,
+        shugenja: ShugenjaTactics | null,
+        attachmentTower: DragonAttachmentTactics | null,
+        lockedAxis?: ConflictAxis,
+        lockedRingElement?: string,
+        lockedTargetLocation?: string,
+        projectedSelfCharacter?: ConflictPlannerCharacter,
+        freshPhase = false
+    ): ConflictPhasePlan | null {
+        if(this.conflictPlanningPolicy === 'legacy' || !profile.conflictPlanning?.enabled) {
+            return null;
+        }
+        const visibleCharacters = (player: any): ConflictPlannerCharacter[] =>
+            this.myCharactersInPlay(player).map((card) => ({
+                uuid: String(card.uuid),
+                military: Math.max(0, this.skillValue(card, 'military') || 0),
+                political: Math.max(0, this.skillValue(card, 'political') || 0),
+                ready: !card.bowed,
+                inConflict: !!card.inConflict,
+                legalMilitary: (this.skillValue(card, 'military') ?? -1) >= 0,
+                legalPolitical: (this.skillValue(card, 'political') ?? -1) >= 0,
+                covert: !!card.covert,
+                bowsAfterConflict: true
+            }));
+        const exact = context.conflictPlanningCharacters;
+        const selfCharacters = (exact?.self || visibleCharacters(me)).map((card) => ({
+            ...card,
+            ready: card.ready && (!reservedUuids.has(card.uuid) || !!card.inConflict)
+        }));
+        if(projectedSelfCharacter) {
+            selfCharacters.push(projectedSelfCharacter);
+        }
+        const opponentCharacters = exact?.opponent || visibleCharacters(opponent);
+        const rings = Object.values(playerState?.rings || {})
+            .filter((ring: any) => ring && ring.unselectable !== true && !ring.claimed)
+            .map((ring: any) => ({
+                element: String(ring.element),
+                fate: Math.max(0, Number(ring.fate) || 0),
+                selfValue: this.normalizedRingEffectValue(
+                    ring, me, opponent, dishonor, glory, dragon, shugenja, duelist, attachmentTower),
+                opponentValue: this.normalizedRingEffectValue(ring, opponent, me)
+            }));
+        const selfTargets = this.conflictPlanningTargets(
+            me,
+            profile,
+            [],
+            context.strongholdProvinceStrength
+        );
+        const opponentTargets = this.conflictPlanningTargets(
+            opponent,
+            profile,
+            context.omniscient && profile.useOmniscientProvinceKnowledge !== false
+                ? context.omniscient.oppProvinces
+                : []
+        );
+        const opportunities = (player: any) => freshPhase
+            ? { total: 2, military: 1, political: 1 }
+            : {
+                total: Math.max(0, Number(player?.stats?.conflictsRemaining) || 0),
+                military: Math.max(0, Number(player?.stats?.militaryRemaining) || 0),
+                political: Math.max(0, Number(player?.stats?.politicalRemaining) || 0)
+            };
+        const threat = (hand: KnownCard[] | undefined, fate: number) => ({
+            military: hand ? estimateHandThreat(hand, fate, 'military').skill : 0,
+            political: hand ? estimateHandThreat(hand, fate, 'political').skill : 0
+        });
+        const forcedAttackerUuids = selfCharacters.filter((card) => card.inConflict).map((card) => card.uuid);
+        const planner = new ConflictPhasePlanner(freshPhase ? {
+            ...profile.conflictPlanning,
+            // Dynasty projection needs direction, not a full proof tree. Four
+            // alternating declarations still sees both normal bot conflicts
+            // when it is first player and the opponent response when second.
+            maxDepth: Math.min(4, profile.conflictPlanning.maxDepth),
+            maxAttackSets: Math.min(4, profile.conflictPlanning.maxAttackSets),
+            maxAttackChoices: Math.min(12, profile.conflictPlanning.maxAttackChoices)
+        } : profile.conflictPlanning);
+        return planner.plan({
+            selfCharacters,
+            opponentCharacters,
+            selfOpportunities: opportunities(me),
+            opponentOpportunities: opportunities(opponent),
+            rings,
+            selfTargets,
+            opponentTargets,
+            selfBrokenProvinces: brokenOuterProvinceCount(me),
+            opponentBrokenProvinces: brokenOuterProvinceCount(opponent),
+            actor: freshPhase && !me?.firstPlayer ? 'opponent' : 'self',
+            selfHandThreat: threat(context.ownConflictHand, Number(me?.stats?.fate) || 0),
+            opponentHandThreat: context.omniscient
+                ? threat(context.omniscient.oppHand, context.omniscient.oppFate)
+                : undefined,
+            lockedAxis,
+            lockedRingElement,
+            lockedTargetLocation,
+            forcedAttackerUuids
+        });
+    }
+
+    /**
+     * Forecast the coming conflict phase for each affordable dynasty body.
+     * The rollout stays advisory: mature deck buyers and fate-reserve gates
+     * remain authoritative, while otherwise-equivalent bodies prefer the one
+     * that produces the better two-conflict board.
+     */
+    private dynastyConflictProjectionScores(
+        playerState: any,
+        playable: any[],
+        dynastyCosts: Record<string, number>,
+        me: any,
+        opponent: any,
+        profile: DeckProfile,
+        context: DecideContext,
+        dishonor: DishonorTactics | null,
+        glory: GloryTactics | null,
+        dragon: DragonTactics | null,
+        duelist: DuelTactics | null,
+        shugenja: ShugenjaTactics | null,
+        attachmentTower: DragonAttachmentTactics | null
+    ): Record<string, number> {
+        if(this.conflictPlanningPolicy === 'legacy' || !profile.conflictPlanning?.enabled ||
+            !profile.conflictPlanning.applyDynastyProjection ||
+            !this.usesBoardAwareDynastyEconomy()) {
+            return {};
+        }
+        const fate = Math.max(0, Number(me?.stats?.fate) || 0);
+        const candidates = playable
+            .filter((card: any) => card.type === 'character' && card.uuid &&
+                Math.max(0, Number(dynastyCosts[card.uuid]) || 0) <= fate)
+            .sort((left: any, right: any) => {
+                const leftInfo = context.dynastyCharacterInfo?.[left.uuid];
+                const rightInfo = context.dynastyCharacterInfo?.[right.uuid];
+                const value = (card: any, info?: DynastyCharacterInfo) =>
+                    Math.max(0, Number(info?.military) || this.skillValue(card, 'military') || 0) +
+                    Math.max(0, Number(info?.political) || this.skillValue(card, 'political') || 0) +
+                    Math.max(0, Number(info?.abilityValue) || 0);
+                return value(right, rightInfo) - value(left, leftInfo) ||
+                    String(left.uuid).localeCompare(String(right.uuid));
+            })
+            .slice(0, 3);
+        const raw: Record<string, number> = {};
+        for(const card of candidates) {
+            const info = context.dynastyCharacterInfo?.[card.uuid];
+            const military = Math.max(0, Number(info?.military) || this.skillValue(card, 'military') || 0);
+            const political = Math.max(0, Number(info?.political) || this.skillValue(card, 'political') || 0);
+            const plan = this.conflictPhaseLookahead(
+                playerState,
+                me,
+                opponent,
+                profile,
+                context,
+                new Set(),
+                dishonor,
+                glory,
+                dragon,
+                duelist,
+                shugenja,
+                attachmentTower,
+                undefined,
+                undefined,
+                undefined,
+                {
+                    uuid: `projected:${card.uuid}`,
+                    military,
+                    political,
+                    ready: true,
+                    legalMilitary: military > 0,
+                    legalPolitical: political > 0,
+                    covert: !!card.covert,
+                    bowsAfterConflict: true
+                },
+                true
+            );
+            raw[card.uuid] = plan?.score ?? 0;
+        }
+        const floor = Object.keys(raw).length > 0 ? Math.min(...Object.values(raw)) : 0;
+        return Object.fromEntries(Object.entries(raw).map(([uuid, score]) => [
+            uuid,
+            Math.max(0, Math.min(12, (score - floor) * profile.conflictPlanning.dynastyProjectionWeight))
+        ]));
+    }
+
+    private normalizedRingEffectValue(ring: any, me: any, opponent: any,
+        dishonor: DishonorTactics | null = null, glory: GloryTactics | null = null,
+        dragon: DragonTactics | null = null, shugenja: ShugenjaTactics | null = null,
+        duelist: DuelTactics | null = null,
+        attachmentTower: DragonAttachmentTactics | null = null): number {
+        const fate = Math.max(0, Number(ring?.fate) || 0);
+        const threshold = this.usesFateAwareEconomy() ? 1 : 2;
+        const fateScore = fate >= threshold ? 1000 + fate * 100 : 0;
+        return Math.max(0, Math.min(50, this.ringScore(
+            ring, me, opponent, dishonor, glory, dragon, shugenja, duelist, attachmentTower) - fateScore));
+    }
+
+    private conflictPlanningTargets(player: any, profile: DeckProfile, known: any[] = [],
+        exactStrongholdStrength?: number): ConflictPlannerTarget[] {
+        const targeting = new ProvinceTargetingTactics(profile.provinceTargeting);
+        const ranked = targeting.rank(
+            PROVINCE_KEYS.map((key) => player?.provinces?.[key] || [])
+                .concat([player?.strongholdProvince || []]),
+            known
+        );
+        const targets: ConflictPlannerTarget[] = [];
+        for(const [priority, list] of ranked.entries()) {
+            const card = (list || []).find((candidate: any) =>
+                candidate && candidate.isProvince !== false &&
+                (candidate.isProvince || candidate.type === 'province' || candidate.facedown));
+            if(!card || card.isBroken || !card.location) {
+                continue;
+            }
+            const exact = known.find((candidate: any) => candidate.location === card.location);
+            const visible = Number(card?.strengthSummary?.stat);
+            const isStronghold = card.location === 'stronghold province';
+            const strength = isStronghold && Number.isFinite(exactStrongholdStrength)
+                ? Number(exactStrongholdStrength)
+                : Number.isFinite(Number(exact?.strength))
+                    ? Number(exact.strength)
+                    : Number.isFinite(visible)
+                        ? visible
+                        : profile.provinceTargeting.unknownStrength;
+            targets.push({
+                location: String(card.location),
+                strength: Math.max(0, strength),
+                stronghold: isStronghold,
+                priority
+            });
+        }
+        return targets;
+    }
+
+    private conflictDeclarationDecision(playerState: any, me: any, opponent: any, promptTitle: string, menuTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, omni?: Omniscient, strongholdProvinceStrength?: number, weakestOuterProvinceStrength?: number, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, lion: LionTactics | null = null, crane: CraneBaselineTactics | null = null, legalDirectCardUuids?: Record<string, true>, legalRingElements?: Record<string, true>, decisionContext: DecideContext = {}): BotDecision | null {
         const lowerMenu = menuTitle.toLowerCase();
         const ready = this.readyCharacters(me).filter((card) => this.isDirectCardLegal(card, legalDirectCardUuids));
         const conflictMatch = promptTitle.match(CONFLICT_TITLE_REGEX);
@@ -1830,6 +2087,30 @@ class JigokuBotPolicy {
         const strongholdPlan = this.strongholdDefensePlan(
             me, opponent, profile, omni, strongholdProvinceStrength, weakestOuterProvinceStrength);
         const reserved = new Set(strongholdPlan.reserveUuids);
+        const selectedElement = conflictMatch ? conflictMatch[2].toLowerCase() : undefined;
+        const selectedProvince = PROVINCE_KEYS.map((key) => opponent?.provinces?.[key] || [])
+            .concat([opponent?.strongholdProvince || []])
+            .flat()
+            .find((card: any) => card?.inConflict && !card?.isBroken);
+        const declarationLocked = lowerMenu.includes('choose attackers') ||
+            lowerMenu.includes('skill:') || lowerMenu.includes('covert');
+        const lookahead = this.conflictPhaseLookahead(
+            playerState,
+            me,
+            opponent,
+            profile,
+            decisionContext,
+            reserved,
+            dishonor,
+            glory,
+            dragon,
+            duelist,
+            shugenja,
+            attachmentTower,
+            declarationLocked && conflictType ? conflictType as ConflictAxis : undefined,
+            conflictMatch ? selectedElement : undefined,
+            declarationLocked ? selectedProvince?.location : undefined
+        );
 
         if(lowerMenu.includes('elemental ring')) {
             const passButton = this.findButton(buttons, ['pass conflict']);
@@ -1840,6 +2121,9 @@ class JigokuBotPolicy {
                 ((this.skillValue(card, 'military') || 0) > 0 || (this.skillValue(card, 'political') || 0) > 0));
             if(!canAttack && passButton) {
                 return this.buttonDecision(passButton, strongholdPlan.active ? 'stronghold-no-free-attacker' : 'pass-no-attackers');
+            }
+            if(profile.conflictPlanning?.applyPassPlan && lookahead?.action === 'pass' && passButton) {
+                return this.buttonDecision(passButton, lookahead.reason);
             }
 
             const rings = Object.values(playerState?.rings || {})
@@ -1852,13 +2136,18 @@ class JigokuBotPolicy {
                     return RING_ORDER.indexOf(a.element) - RING_ORDER.indexOf(b.element);
                 });
 
-            const ring: any = rings.find((candidate: any) => !this.isAttempted('ringClicked', [candidate.element]));
+            const plannedRing = profile.conflictPlanning?.applyRingPlan && lookahead?.ringElement
+                ? rings.find((candidate: any) => candidate.element === lookahead.ringElement &&
+                    !this.isAttempted('ringClicked', [candidate.element]))
+                : undefined;
+            const ring: any = plannedRing || rings.find((candidate: any) =>
+                !this.isAttempted('ringClicked', [candidate.element]));
             if(ring) {
                 return {
                     command: 'ringClicked',
                     args: [ring.element],
                     target: ring.element,
-                    reason: 'declare-conflict-ring'
+                    reason: plannedRing ? 'conflict-lookahead-ring' : 'declare-conflict-ring'
                 };
             }
 
@@ -1879,13 +2168,27 @@ class JigokuBotPolicy {
                 // neutral-to-positive at N=100: Phoenix 40%->44%,
                 // CraneDuels 52%->52%. Kept - it exploits hand knowledge
                 // exactly where a human opponent differs from the bot.
-                const preferredType = omni && profile.useOmniscientConflictAxis !== false
+                const preferredType = profile.conflictPlanning?.applyTypePlan &&
+                    lookahead?.action === 'attack' && lookahead.conflictType
+                    ? lookahead.conflictType
+                    : omni && profile.useOmniscientConflictAxis !== false
                     ? this.omniPreferredConflictType(me, opponent, omni, profile.forceMilitaryConflict)
                     : this.preferredConflictType(me, profile.forceMilitaryConflict);
                 const preferredRemaining = preferredType === 'military'
                     ? Number(me?.stats?.militaryRemaining)
                     : Number(me?.stats?.politicalRemaining);
                 const element = conflictMatch[2].toLowerCase();
+                if(profile.conflictPlanning?.applyRingPlan && lookahead?.ringElement &&
+                    lookahead.ringElement !== element &&
+                    (!legalRingElements || !!legalRingElements[lookahead.ringElement]) &&
+                    !this.isAttempted('ringClicked', [lookahead.ringElement])) {
+                    return {
+                        command: 'ringClicked',
+                        args: [lookahead.ringElement],
+                        target: lookahead.ringElement,
+                        reason: 'conflict-lookahead-switch-ring'
+                    };
+                }
                 if(conflictType !== preferredType && (!Number.isFinite(preferredRemaining) || preferredRemaining > 0) &&
                     (!legalRingElements || !!legalRingElements[element]) &&
                     !this.isAttempted('ringClicked', [element])) {
@@ -1893,11 +2196,15 @@ class JigokuBotPolicy {
                         command: 'ringClicked',
                         args: [element],
                         target: element,
-                        reason: 'switch-conflict-type'
+                        reason: profile.conflictPlanning?.applyTypePlan && lookahead?.conflictType
+                            ? 'conflict-lookahead-switch-type'
+                            : 'switch-conflict-type'
                     };
                 }
             }
-            return this.attackProvinceDecision(opponent, omni, legalDirectCardUuids, profile);
+            return this.attackProvinceDecision(
+                opponent, omni, legalDirectCardUuids, profile,
+                profile.conflictPlanning?.applyTargetPlan ? lookahead?.targetLocation : undefined);
         }
 
         if(lowerMenu.includes('covert')) {
@@ -2029,6 +2336,31 @@ class JigokuBotPolicy {
             const payoffCandidate = greaterGloryReady ? candidates.find((card) =>
                 (Number(card.fate) || 0) === 0 && (card.traits || []).includes('bushi') &&
                 !this.isAttempted('cardClicked', [card.uuid])) : null;
+            const usePlannedAttackers = !!lookahead && lookahead.action === 'attack' &&
+                profile.conflictPlanning?.applyAttackerPlan;
+            const plannedAttackerUuids = new Set(usePlannedAttackers ? lookahead.attackerUuids : []);
+            const plannedNext = usePlannedAttackers
+                ? candidates.find((card) => plannedAttackerUuids.has(String(card.uuid)) &&
+                    !card.inConflict && !this.isAttempted('cardClicked', [card.uuid]))
+                : null;
+            const plannedComplete = usePlannedAttackers && committed.length > 0 &&
+                [...plannedAttackerUuids].every((uuid) => committed.some((card) => String(card.uuid) === uuid));
+
+            if(profile.conflictPlanning?.applyPassPlan && lookahead?.action === 'pass' && committed.length === 0) {
+                const passButton = this.findButton(buttons, ['pass conflict']);
+                if(passButton) {
+                    return this.buttonDecision(passButton, lookahead.reason);
+                }
+            }
+            if(plannedNext) {
+                return this.cardClickDecision(plannedNext, 'conflict-lookahead-attacker');
+            }
+            if(plannedComplete && !payoffCandidate) {
+                const initiate = this.findButton(buttons, ['initiate conflict']);
+                if(initiate) {
+                    return this.buttonDecision(initiate, 'conflict-lookahead-initiate');
+                }
+            }
 
             // A pure turtle ('breakable-or-hold') only commits an attack it can
             // actually break; when the break is out of reach it keeps every body
@@ -2284,16 +2616,24 @@ class JigokuBotPolicy {
     }
 
     private attackProvinceDecision(opponent: any, omni?: Omniscient,
-        legalDirectCardUuids?: Record<string, true>, profile: DeckProfile = DEFAULT_PROFILE): BotDecision | null {
+        legalDirectCardUuids?: Record<string, true>, profile: DeckProfile = DEFAULT_PROFILE,
+        preferredLocation?: string): BotDecision | null {
         if(!opponent) {
             return null;
         }
 
         const targeting = new ProvinceTargetingTactics(profile.provinceTargeting);
-        const candidateLists = targeting.rank(
+        let candidateLists = targeting.rank(
             attackProvinceLists(opponent),
             omni && profile.useOmniscientProvinceKnowledge !== false ? omni.oppProvinces : []
         );
+        if(preferredLocation) {
+            candidateLists = candidateLists.slice().sort((left, right) => {
+                const location = (list: any[]) => (list || []).find((card: any) =>
+                    card.isProvince !== false && (card.isProvince || card.facedown))?.location;
+                return Number(location(right) === preferredLocation) - Number(location(left) === preferredLocation);
+            });
+        }
 
         for(const list of candidateLists) {
             const province = (list || []).find((card: any) => card.isProvince !== false && (card.isProvince || card.facedown));
@@ -2305,7 +2645,10 @@ class JigokuBotPolicy {
                 if(this.isDirectCardLegal(province, legalDirectCardUuids) &&
                     !this.isAttempted('cardClicked', [province.uuid])) {
                     const stronghold = province.location === 'stronghold province';
-                    return this.cardClickDecision(province, stronghold ? 'attack-stronghold' : 'attack-province');
+                    const planned = !!preferredLocation && province.location === preferredLocation;
+                    return this.cardClickDecision(province, planned
+                        ? 'conflict-lookahead-target'
+                        : stronghold ? 'attack-stronghold' : 'attack-province');
                 }
             } else if(province.location && opponent.name) {
                 const args = [province.location, opponent.name, true];
@@ -2314,7 +2657,9 @@ class JigokuBotPolicy {
                         command: 'facedownCardClicked',
                         args,
                         target: province.location,
-                        reason: province.location === 'stronghold province'
+                        reason: preferredLocation && province.location === preferredLocation
+                            ? 'conflict-lookahead-target'
+                            : province.location === 'stronghold province'
                             ? 'attack-facedown-stronghold'
                             : 'attack-facedown-province'
                     };
@@ -3512,7 +3857,7 @@ class JigokuBotPolicy {
         ).map((option) => option.card);
     }
 
-    private actionWindowDecision(playerState: any, me: any, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, dynastyCosts?: Record<string, number>, conflictCosts?: Record<string, number>, lion: LionTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, opponentConflictDeck: KnownCard[] = [], omni?: Omniscient, legalDirectCardUuids?: Record<string, true>, mulligan: MulliganTactics = new MulliganTactics(profile.mulligan), provinceIdsByLocation?: Record<string, string>, decisionContext: DecideContext = {}): BotDecision | null {
+    private actionWindowDecision(playerState: any, me: any, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, dynastyCosts?: Record<string, number>, conflictCosts?: Record<string, number>, lion: LionTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, opponentConflictDeck: KnownCard[] = [], omni?: Omniscient, legalDirectCardUuids?: Record<string, true>, mulligan: MulliganTactics = new MulliganTactics(profile.mulligan), provinceIdsByLocation?: Record<string, string>, decisionContext: DecideContext = {}, glory: GloryTactics | null = null, dragon: DragonTactics | null = null): BotDecision | null {
         const pass = this.findButton(buttons, ['pass']);
 
         // Gossip is most valuable before either side commits to a conflict. It
@@ -3899,6 +4244,22 @@ class JigokuBotPolicy {
                 : crane
                     ? crane.desiredDynastyFateReserve(this.fateAwareRoundNumber)
                     : 0;
+            const opponent = this.opponentPlayer(playerState, me);
+            const conflictProjectionScores = this.dynastyConflictProjectionScores(
+                playerState,
+                playable,
+                dynastyCosts || {},
+                me,
+                opponent,
+                profile,
+                decisionContext,
+                dishonor,
+                glory,
+                dragon,
+                duelist,
+                shugenja,
+                attachmentTower
+            );
             const honoredProvinceCharacter = this.mulliganPolicy === 'adaptive'
                 ? mulligan.pickHonoredProvinceCharacter(
                     playable,
@@ -3942,7 +4303,8 @@ class JigokuBotPolicy {
                     profile,
                     decisionContext,
                     deckPreference,
-                    dynamicFateReserve
+                    dynamicFateReserve,
+                    conflictProjectionScores
                 )
                 : this.fateAwareDynastyDecision(
                     playable,
@@ -3951,7 +4313,8 @@ class JigokuBotPolicy {
                     buttons,
                     profile.fateAwareEconomy,
                     deckPreference,
-                    dynamicFateReserve
+                    dynamicFateReserve,
+                    conflictProjectionScores
                 );
             if(fateAwareDecision) {
                 return fateAwareDecision;
@@ -4068,7 +4431,9 @@ class JigokuBotPolicy {
                     const costOf = (card: any) => dynastyCosts?.[card.uuid] ?? 0;
                     const affordable = playable
                         .filter((card: any) => fate - costOf(card) >= desiredReserve)
-                        .sort((a: any, b: any) => costOf(a) - costOf(b) || String(a.uuid).localeCompare(String(b.uuid)));
+                        .sort((a: any, b: any) => costOf(a) - costOf(b) ||
+                            (conflictProjectionScores[b.uuid] || 0) - (conflictProjectionScores[a.uuid] || 0) ||
+                            String(a.uuid).localeCompare(String(b.uuid)));
                     if(affordable.length > 0) {
                         return this.cardClickDecision(affordable[0], 'play-dynasty-character');
                     }
@@ -4080,9 +4445,15 @@ class JigokuBotPolicy {
                     }
                     // Sole remaining play (or no pass button): commit it and pass
                     // first for the first-passer fate bonus.
-                    return this.cardClickDecision(playable[0], playable.length === 1 ? 'play-dynasty-character-allin' : 'play-dynasty-character');
+                    const projected = playable.slice().sort((a: any, b: any) =>
+                        (conflictProjectionScores[b.uuid] || 0) - (conflictProjectionScores[a.uuid] || 0) ||
+                        String(a.uuid).localeCompare(String(b.uuid)))[0];
+                    return this.cardClickDecision(projected, playable.length === 1 ? 'play-dynasty-character-allin' : 'play-dynasty-character');
                 }
-                return this.cardClickDecision(playable[0], 'play-dynasty-character');
+                const projected = playable.slice().sort((a: any, b: any) =>
+                    (conflictProjectionScores[b.uuid] || 0) - (conflictProjectionScores[a.uuid] || 0) ||
+                    String(a.uuid).localeCompare(String(b.uuid)))[0];
+                return this.cardClickDecision(projected, 'play-dynasty-character');
             }
 
             // Holding-engine decks deploy most of their characters through
@@ -4239,7 +4610,8 @@ class JigokuBotPolicy {
         profile: DeckProfile,
         context: DecideContext,
         preference: FateAwareDynastyPreference | null,
-        dynamicFateReserve: number
+        dynamicFateReserve: number,
+        conflictProjectionScores: Record<string, number> = {}
     ): BotDecision | null {
         const characters = playable.filter((card: any) => card.type === 'character');
         if(characters.length === 0) {
@@ -4262,13 +4634,18 @@ class JigokuBotPolicy {
             const hint: any = card.id && context.cardHint ? context.cardHint(card.id) : undefined;
             const honoredProvince = context.provinceIdsByLocation?.[String(card.location || '')] ===
                 profile.mulligan.tsumaProvinceId;
-            infoByUuid[card.uuid] = exact || {
+            const baseInfo = exact || {
                 cost: Math.max(0, Number(dynastyCosts[card.uuid]) || 0),
                 military,
                 political,
                 glory,
                 abilityValue: Math.max(0, ((hint?.priority ?? 5) - 5) * 0.5),
                 honoredOnEntry: !!card.isHonored || honoredProvince
+            };
+            infoByUuid[card.uuid] = {
+                ...baseInfo,
+                abilityValue: Math.max(0, Number(baseInfo.abilityValue) || 0) +
+                    (conflictProjectionScores[card.uuid] || 0)
             };
         }
         const hand: DynastyHandCard[] = (me?.cardPiles?.hand || []).map((card: any) => {
@@ -4322,7 +4699,8 @@ class JigokuBotPolicy {
                 buttons,
                 profile.fateAwareEconomy,
                 preference,
-                dynamicFateReserve
+                dynamicFateReserve,
+                conflictProjectionScores
             );
             if(profile.boardAwareDynasty.persistenceDecoratorEnabled &&
                 baseline?.command === 'cardClicked') {
@@ -4371,7 +4749,8 @@ class JigokuBotPolicy {
         buttons: any[],
         economy: FateAwareEconomyProfile,
         preference: FateAwareDynastyPreference | null = null,
-        dynamicFateReserve = 0
+        dynamicFateReserve = 0,
+        conflictProjectionScores: Record<string, number> = {}
     ): BotDecision | null {
         if(!this.usesFateAwareEconomy()) {
             return null;
@@ -4422,7 +4801,9 @@ class JigokuBotPolicy {
                     (!durableIds || (!!card.id && durableIds.includes(card.id))) &&
                     cost <= fate - dynamicFateReserve && spent + cost <= durableSpendCap;
             })
-            .sort((a: any, b: any) => costOf(b) - costOf(a) || String(a.uuid).localeCompare(String(b.uuid)));
+            .sort((a: any, b: any) => costOf(b) - costOf(a) ||
+                (conflictProjectionScores[b.uuid] || 0) - (conflictProjectionScores[a.uuid] || 0) ||
+                String(a.uuid).localeCompare(String(b.uuid)));
         const durable = durableCandidates[0];
         const bodySpent = economy.bodyBudgetIncludesDurableSpend
             ? spent
@@ -4441,7 +4822,9 @@ class JigokuBotPolicy {
                 const costDifference = economy.bodyOrder === 'lowest-cost'
                     ? costOf(a) - costOf(b)
                     : costOf(b) - costOf(a);
-                return costDifference || String(a.uuid).localeCompare(String(b.uuid));
+                return costDifference ||
+                    (conflictProjectionScores[b.uuid] || 0) - (conflictProjectionScores[a.uuid] || 0) ||
+                    String(a.uuid).localeCompare(String(b.uuid));
             });
 
         const playDurable = (chosen = durable, reason = 'fate-aware-play-strong-character'): BotDecision | null => {

@@ -83,6 +83,23 @@ updates client benchmarks. Options:
 The report includes records plus frequent opening-dynasty, opening-conflict,
 and regroup discard choices. See `docs/mulligan-bot.md`.
 
+## Conflict planning comparison
+
+```powershell
+# Default: every deck, seeds 1/2/3, 20 games per deck and seed
+node tools/selfplay/compareConflictPlanning.js
+
+# Smoke and focused fresh-stream confirmation
+node tools/selfplay/compareConflictPlanning.js --games 4 --seeds 1,2,3
+node tools/selfplay/compareConflictPlanning.js --games 20 --seeds 1 --decks Dragon,Scorpion --rng-seed 20260731
+```
+
+This is a same-deck, same-seed, alternating-seat A/B of `lookahead` against
+frozen `legacy` conflict declarations. Each two-game seat pair shares its
+starting RNG seed. It writes diagnostics only. Options are
+`--games`, `--seeds`, `--decks`, `--rng-seed`, and `--out`. See
+`docs/conflict-phase-lookahead-bot.md`.
+
 ## Click-loop and stall gate
 
 ```powershell
@@ -140,7 +157,7 @@ node tools/selfplay/matchPhoenixShugenja.js 40 3 --trace
 ## Internal modules
 
 - `harness.js` exposes `runGame(options)`, including
-  `drawBidPolicies` and `mulliganPolicies` per seat.
+  `drawBidPolicies`, `mulliganPolicies`, and `conflictPlanningPolicies` per seat.
 - `deckRegistry.js` owns registered deck labels.
 - `standardBenchmark.js` validates and writes standard client results.
 - `interactionAudit.js` implements click-cycle detection.

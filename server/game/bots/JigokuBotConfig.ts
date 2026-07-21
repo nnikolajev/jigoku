@@ -10,6 +10,7 @@ export interface JigokuBotLlmConfig {
 export type JigokuBotPolicyVariant = 'generic' | 'fate-aware' | 'board-aware';
 export type JigokuBotDrawBidPolicyVariant = 'adaptive' | 'legacy';
 export type JigokuBotMulliganPolicyVariant = 'adaptive' | 'legacy';
+export type JigokuBotConflictPlanningPolicyVariant = 'lookahead' | 'legacy';
 
 export interface JigokuBotConfig {
     playerName: string;
@@ -31,6 +32,9 @@ export interface JigokuBotConfig {
     // Every seed defaults to the adaptive mulligan/province-refresh planner.
     // Legacy preserves the previous per-deck selectors for paired A/B tests.
     mulliganPolicy?: JigokuBotMulliganPolicyVariant;
+    // Lookahead is shared by every seed. Legacy preserves the former greedy
+    // conflict declaration path for paired A/B evaluation.
+    conflictPlanningPolicy?: JigokuBotConflictPlanningPolicyVariant;
     llm?: JigokuBotLlmConfig;
 }
 

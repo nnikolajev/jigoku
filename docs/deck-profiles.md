@@ -23,6 +23,7 @@ reads the knobs; the profile is chosen per deck.
 | `boardAwareDynasty` | seed-3 board-power, urgency, player-order, hand-reserve, persistence, and conflict-character planner |
 | `conflictDeckSafety` | seed-1/3 optional draw/reveal safety using own deck size, honor, mandatory draws, and visible forced effects |
 | `conflictCardEconomy` | value-per-fate candidate planner shared by seeds 1, 2, and 3 |
+| `conflictPlanning` | bounded same-conflict-phase rollout, weights, branch limits, and independent application switches |
 | `provinceTargeting` | shared injectable province ordering: Eminent, effective strength, ability timing, and per-card overrides |
 | `strongholdDefense` | three-broken survival planner plus injectable two-broken risk gate and fair/omniscient defender limits |
 | `attachmentControl` | shared Let Go policy comparing own debuff removal with enemy attachment removal |
@@ -138,6 +139,16 @@ character/conflict thresholds while continuing to use the shared planner.
 Nested stronghold-defense and province-targeting overrides are deep-merged into
 the strategy profile, including their maps. A deck can therefore override one
 ratio or one province id without copying the other defaults.
+
+`conflictPlanning: ConflictPhasePlannerProfile` is universal and deep-merged.
+It models alternating typed opportunities, ready bodies, Covert, rings, fate,
+province progression, and terminal stronghold breaks. Search values and branch
+caps are injectable separately from switches that apply type, target, ring,
+pass, attacker-set, and dynasty recommendations. Retained defaults apply target
+intent, preserve the established conflict axis, commitment, ring, and pass
+logic. The dynasty projection exists for seed 3 but is disabled by default
+after its combined A/B regressed. See
+`conflict-phase-lookahead-bot.md`.
 
 Phoenix Shugenja uses this injection to set
 `preStrongholdThreatRatio: 1.5`. It still defends an exposed stronghold exactly

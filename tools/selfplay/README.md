@@ -40,6 +40,10 @@ node tools/selfplay/botSeedRoundRobin.js --subject-seed 3 --opponent-seeds 1,2 -
 node tools/selfplay/compareMulliganPolicies.js
 node tools/selfplay/compareMulliganPolicies.js --games 40 --seeds 1,2,3 --decks Crab,Phoenix
 
+# Same-deck lookahead conflict declarations versus frozen legacy behavior
+node tools/selfplay/compareConflictPlanning.js
+node tools/selfplay/compareConflictPlanning.js --games 20 --seeds 1 --decks Dragon,Scorpion
+
 # Same-deck paired seed-3 dynasty planner versus seed 1
 node tools/selfplay/compareDynastySeeds.js
 node tools/selfplay/compareDynastySeeds.js --games 40 --decks Lion,Unicorn
@@ -105,6 +109,17 @@ seats, and compares seed 3 directly with seed 1. Reports include records and
 traced generic/board-aware purchase and additional-fate reasons. It never
 updates client benchmark configuration.
 
+## Conflict-planning A/B
+
+`compareConflictPlanning.js` holds deck and strategy seed constant, alternates
+seats, gives each two-game seat pair the same starting RNG seed, and changes only the per-seat
+`conflictPlanningPolicy` (`lookahead` versus `legacy`). The default covers every
+registered deck on seeds 1-3 with 20 games per row. Reports include per-row and
+aggregate records plus the number of applied lookahead decisions. They never
+update client benchmark configuration. See
+`docs/conflict-phase-lookahead-bot.md` for the model and intentionally disabled
+integration layers.
+
 ## Cross-seed deck pool
 
 `botSeedRoundRobin.js` makes every selected subject deck play every selected
@@ -161,7 +176,7 @@ are written as JSON and Markdown. Use `--opponents all` for the broadest gate.
 
 `harness.js` exports `runGame(options)`. Important options include `names`,
 `seeds`, `policies`, `drawBidPolicies`, `mulliganPolicies`, `deckA`, `deckB`,
-`omniscient`, `trace`, and `onControllers`. Every deployed seed defaults to adaptive
+`conflictPlanningPolicies`, `omniscient`, `trace`, and `onControllers`. Every deployed seed defaults to adaptive
 mulligan; an explicit `mulliganPolicies` pair lets the A/B script compare it
 with frozen legacy logic.
 

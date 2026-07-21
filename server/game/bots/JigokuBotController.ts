@@ -12,6 +12,7 @@ import type { DuelBidContext } from './DuelBidTactics';
 import type { DrawBidContext } from './DrawBidTactics';
 import type { DynastyCharacterInfo } from './BoardAwareDynastyTactics';
 import type { KnownCard } from './DeckAnalysis';
+import type { ConflictAxis, ConflictPlannerCharacter } from './ConflictPhasePlanner';
 import OmniscientBotCapability from './OmniscientBotCapability.js';
 import { logger } from '../../logger.js';
 import type Game from '../game';
@@ -91,11 +92,12 @@ class JigokuBotController {
         // legacy available only as an explicit A/B override; seed selects the
         // decision policy, not whether the bot understands mulligans.
         const mulliganPolicy = config.mulliganPolicy || 'adaptive';
+        const conflictPlanningPolicy = config.conflictPlanningPolicy || 'lookahead';
         this.policy = isBoardAware
-            ? new BoardAwareJigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy)
+            ? new BoardAwareJigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy, conflictPlanningPolicy)
             : isFateAware
-            ? new FateAwareJigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy)
-            : new JigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy);
+            ? new FateAwareJigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy, conflictPlanningPolicy)
+            : new JigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy, conflictPlanningPolicy);
         this.omniscientCapability = services.omniscientCapability ||
             new OmniscientBotCapability(game, config.playerName, config.omniscient === true);
         this.onStateChange = services.onStateChange;
@@ -170,6 +172,61 @@ class JigokuBotController {
             .filter((card: any) => card.owner === opp &&
                 (card.isConflict || card.cardData?.side === 'conflict'))
             .map((card: any) => this.knownCard(card));
+    }
+
+    private ownConflictHand(me: Player): KnownCard[] {
+        const hand: any[] = typeof (me as any).hand?.toArray === 'function'
+            ? (me as any).hand.toArray()
+            : [];
+        return hand.filter((card: any) => card?.isConflict || card?.cardData?.side === 'conflict')
+            .map((card: any) => this.knownCard(card));
+    }
+
+    private conflictPlanningCharacters(me: Player): { self: ConflictPlannerCharacter[]; opponent: ConflictPlannerCharacter[] } {
+        const describe = (player: any): ConflictPlannerCharacter[] => {
+            const cards: any[] = typeof player?.cardsInPlay?.toArray === 'function'
+                ? player.cardsInPlay.toArray()
+                : [];
+            const rings: any[] = Object.values((this.game as any).rings || {}).filter((ring: any) =>
+                typeof ring?.isUnclaimed === 'function' ? ring.isUnclaimed() : !ring?.claimedBy);
+            const provinces: any[] = typeof player?.opponent?.getProvinces === 'function'
+                ? player.opponent.getProvinces().filter((province: any) => !province.isBroken)
+                : [];
+            const legal = (card: any, axis: ConflictAxis) => {
+                if(card?.bowed) {
+                    return false;
+                }
+                // Current participants are already committed. Preserve them in
+                // the first rollout action even if declaration legality now
+                // reports false after the ring/province became contested.
+                if(card?.inConflict && card?.controller === player) {
+                    return true;
+                }
+                return rings.some((ring: any) => provinces.some((province: any) => {
+                    try {
+                        return card.canDeclareAsAttacker(axis, ring, province);
+                    } catch {
+                        return false;
+                    }
+                }));
+            };
+            return cards.filter((card: any) => (card?.type || card?.getType?.()) === 'character')
+                .map((card: any) => ({
+                    uuid: String(card.uuid),
+                    military: Math.max(0, Number(card.getMilitarySkill?.()) || 0),
+                    political: Math.max(0, Number(card.getPoliticalSkill?.()) || 0),
+                    ready: !card.bowed,
+                    inConflict: !!card.inConflict,
+                    legalMilitary: legal(card, 'military'),
+                    legalPolitical: legal(card, 'political'),
+                    covert: !!card.isCovert?.(),
+                    bowsAfterConflict: typeof card.bowsOnReturnHome === 'function'
+                        ? !!card.bowsOnReturnHome()
+                        : true
+                }));
+        };
+        const opponent = (me as any).opponent;
+        return { self: describe(me), opponent: describe(opponent) };
     }
 
     // Own province is known information. Read the live game object so a still
@@ -321,6 +378,7 @@ class JigokuBotController {
                     strategy: this.currentDeckStrategy(player),
                     profile: this.currentDeckProfile(player),
                     opponentConflictDeck: this.opponentConflictDeck(player),
+                    ownConflictHand: this.ownConflictHand(player),
                     opponentDuelBidding: this.opponentDuelBidProfile(player),
                     duelParticipantIaijutsuReady: this.iaijutsuMasterReadyByCharacter(player),
                     // Exact public character data omitted by serialized player
@@ -358,6 +416,7 @@ class JigokuBotController {
                     // Public visible defender ability; every seed may protect
                     // its participant immediately when that defender can bow.
                     opponentParticipantCanBow: this.opponentParticipantCanBow(player),
+                    conflictPlanningCharacters: this.conflictPlanningCharacters(player),
                     // Seed 3 only: the cheat view (human hand/fate/true province
                     // strengths). Undefined when the capability is disabled, so the
                     // policy's omniscient branches stay dormant for fair bots.

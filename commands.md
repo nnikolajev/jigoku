@@ -33,6 +33,9 @@ node tools/selfplay/winRates.js 40 3 1
 node tools/selfplay/botRoundRobin.js
 node tools/selfplay/botRoundRobin.js --seed 3 --games 25 --workers 32
 
+# Cross-seed audit: seed 3 planner decks versus all seed 1/2 decks
+node tools/selfplay/botSeedRoundRobin.js --subject-seed 3 --opponent-seeds 1,2 --games 20 --decks Dragon,Lion,PhoenixShugenja --trace
+
 # Omniscient capability versus the same normal seed
 node tools/selfplay/botOmniscientRoundRobin.js --seed 1
 node tools/selfplay/botOmniscientRoundRobin.js --seed 3 --games 40 --mirrors-only
@@ -49,6 +52,10 @@ Only complete standard runs update
   decks, same strategy seed, omniscience enabled only for the candidate seat.
 
 Cross-seed, subset, custom-count, and legacy-policy runs remain diagnostics.
+
+`botSeedRoundRobin.js` accepts independent subject/opponent deck subsets,
+alternates seats, reuses paired shuffle streams, and writes JSON plus Markdown.
+It never updates the client benchmark configuration.
 
 ## Mulligan policy comparison
 

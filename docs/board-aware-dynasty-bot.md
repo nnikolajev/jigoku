@@ -2,7 +2,8 @@
 
 Seed 3 is seed 1 plus `BoardAwareDynastyTactics`. It remains fair unless the
 independent `omniscient` capability is enabled. Adaptive mulligan is shared by
-all seeds and is not a seed-3 feature.
+all seeds and is not a seed-3 feature. Conflict-deck exhaustion safety is also
+shared by seeds 1 and 3; see [`conflict-deck-safety-bot.md`](conflict-deck-safety-bot.md).
 
 ## Design
 
@@ -55,3 +56,6 @@ their filenames, but current commands and configuration use seed 3.
 
 Standard `winRates.js` and `botRoundRobin.js` runs store current seed-3 results
 in `jigoku-client/client/botBenchmarkResults.json`.
+
+Cross-seed audit commands and the 2026-07-21 results are documented in
+[`seed3-cross-seed-audit-2026-07-21.md`](seed3-cross-seed-audit-2026-07-21.md).

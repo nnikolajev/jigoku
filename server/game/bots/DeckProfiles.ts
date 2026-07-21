@@ -68,6 +68,8 @@ import {
     RUSH_BOARD_AWARE_DYNASTY
 } from './BoardAwareDynastyTactics.js';
 import type { BoardAwareDynastyProfile } from './BoardAwareDynastyTactics';
+import { DEFAULT_CONFLICT_DECK_SAFETY } from './ConflictDeckSafetyTactics.js';
+import type { ConflictDeckSafetyProfile } from './ConflictDeckSafetyTactics';
 
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
@@ -90,6 +92,7 @@ export interface DeckProfile {
     // ---- dynasty / economy ----
     fateAwareEconomy: FateAwareEconomyProfile; // conservative dynasty envelope used by seeds 1 and 3
     boardAwareDynasty: BoardAwareDynastyProfile; // seed-3 board/game-state dynasty planner
+    conflictDeckSafety: ConflictDeckSafetyProfile; // seed-1/3 optional deck-consumption safety
     conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1-3
     mulligan: MulliganProfile; // shared opening hand/province mulligan and fate-phase refresh policy
     strongholdDefense: StrongholdDefenseProfile; // shared injectable last-province reserve planner for every seed
@@ -202,6 +205,11 @@ export const DEFAULT_PROFILE: DeckProfile = {
         minimumCharactersByRound: [...DEFAULT_BOARD_AWARE_DYNASTY.minimumCharactersByRound],
         characterValueById: { ...DEFAULT_BOARD_AWARE_DYNASTY.characterValueById }
     },
+    conflictDeckSafety: {
+        ...DEFAULT_CONFLICT_DECK_SAFETY,
+        forcedDrawsByOpponentCardId: { ...DEFAULT_CONFLICT_DECK_SAFETY.forcedDrawsByOpponentCardId },
+        forcedHonorLossByOpponentCardId: { ...DEFAULT_CONFLICT_DECK_SAFETY.forcedHonorLossByOpponentCardId }
+    },
     conflictCardEconomy: { ...DEFAULT_CONFLICT_CARD_ECONOMY },
     mulligan: {
         ...DEFAULT_MULLIGAN_PROFILE,
@@ -263,6 +271,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             ...DEFAULT_PROFILE.boardAwareDynasty,
             minimumCharactersByRound: [...DEFAULT_PROFILE.boardAwareDynasty.minimumCharactersByRound],
             characterValueById: { ...DEFAULT_PROFILE.boardAwareDynasty.characterValueById }
+        },
+        conflictDeckSafety: {
+            ...DEFAULT_PROFILE.conflictDeckSafety,
+            forcedDrawsByOpponentCardId: { ...DEFAULT_PROFILE.conflictDeckSafety.forcedDrawsByOpponentCardId },
+            forcedHonorLossByOpponentCardId: { ...DEFAULT_PROFILE.conflictDeckSafety.forcedHonorLossByOpponentCardId }
         },
         conflictCardEconomy: { ...DEFAULT_PROFILE.conflictCardEconomy },
         mulligan: {
@@ -480,7 +493,7 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
 // merged over the strategy-derived profile. Matched by card contents + derived
 // strategy so it works in both live play and self-play (no deck-id needed).
 type DeckProfileOverride = Omit<Partial<DeckProfile>,
-    'strongholdDefense' | 'provinceTargeting' | 'duelBidding' | 'drawBidding' | 'legacyDrawBidding' | 'mulligan' | 'boardAwareDynasty'> & {
+    'strongholdDefense' | 'provinceTargeting' | 'duelBidding' | 'drawBidding' | 'legacyDrawBidding' | 'mulligan' | 'boardAwareDynasty' | 'conflictDeckSafety'> & {
     strongholdDefense?: Partial<StrongholdDefenseProfile>;
     provinceTargeting?: Omit<Partial<ProvinceTargetingProfile>, 'abilityPriority' | 'effectiveStrengthById' | 'priorityTierById'> & {
         abilityPriority?: Partial<ProvinceTargetingProfile['abilityPriority']>;
@@ -499,6 +512,11 @@ type DeckProfileOverride = Omit<Partial<DeckProfile>,
         'characterValueById' | 'minimumCharactersByRound'> & {
         characterValueById?: Record<string, number>;
         minimumCharactersByRound?: number[];
+    };
+    conflictDeckSafety?: Omit<Partial<ConflictDeckSafetyProfile>,
+        'forcedDrawsByOpponentCardId' | 'forcedHonorLossByOpponentCardId'> & {
+        forcedDrawsByOpponentCardId?: Record<string, number>;
+        forcedHonorLossByOpponentCardId?: Record<string, number>;
     };
 };
 
@@ -1001,6 +1019,7 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                 legacyDrawBidding,
                 mulligan,
                 boardAwareDynasty,
+                conflictDeckSafety,
                 ...flatApply
             } = override.apply;
             const apply: Partial<DeckProfile> = { ...flatApply };
@@ -1121,6 +1140,20 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     characterValueById: {
                         ...profile.boardAwareDynasty.characterValueById,
                         ...boardAwareDynasty.characterValueById
+                    }
+                };
+            }
+            if(conflictDeckSafety) {
+                apply.conflictDeckSafety = {
+                    ...profile.conflictDeckSafety,
+                    ...conflictDeckSafety,
+                    forcedDrawsByOpponentCardId: {
+                        ...profile.conflictDeckSafety.forcedDrawsByOpponentCardId,
+                        ...conflictDeckSafety.forcedDrawsByOpponentCardId
+                    },
+                    forcedHonorLossByOpponentCardId: {
+                        ...profile.conflictDeckSafety.forcedHonorLossByOpponentCardId,
+                        ...conflictDeckSafety.forcedHonorLossByOpponentCardId
                     }
                 };
             }

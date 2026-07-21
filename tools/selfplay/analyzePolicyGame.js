@@ -166,6 +166,7 @@ function compactPlayer(player) {
         fate: Number(player?.stats?.fate) || 0,
         honor: Number(player?.stats?.honor) || 0,
         conflictsRemaining: Number(player?.stats?.conflictsRemaining) || 0,
+        conflictDeckSize: Number(player?.numConflictCards) || 0,
         handSize: (player?.cardPiles?.hand || []).length,
         hand: (player?.cardPiles?.hand || []).map(compactCard),
         board,

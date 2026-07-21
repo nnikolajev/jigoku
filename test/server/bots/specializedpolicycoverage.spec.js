@@ -1868,6 +1868,7 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
             location: 'conflict discard pile', isPlayableByMe: true
         });
         const state = makeState({
+            numConflictCards: 20,
             promptTitle: 'Conflict Action Window',
             menuTitle: 'Political conflict', buttons: [PASS], stats: { fate: 1 },
             cardPiles: { cardsInPlay: [participant], hand: [], conflictDiscardPile: [] }
@@ -1894,6 +1895,7 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
             bowed: false, inConflict: true
         });
         const paidReplay = makeState({
+            numConflictCards: 20,
             promptTitle: 'Warm Welcome', menuTitle: 'Choose a conflict card',
             buttons: [CANCEL], stats: { fate: 2 },
             cardPiles: {

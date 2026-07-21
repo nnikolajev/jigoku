@@ -33,6 +33,9 @@ node tools/selfplay/winRates.js 40 3 1
 node tools/selfplay/botRoundRobin.js
 node tools/selfplay/botRoundRobin.js --seed 3 --games 25 --workers 32
 
+# Seed 3 planner-enabled decks against every seed-1/seed-2 deck
+node tools/selfplay/botSeedRoundRobin.js --subject-seed 3 --opponent-seeds 1,2 --games 20 --decks Dragon,Lion,PhoenixShugenja --trace
+
 # Same-deck adaptive mulligan versus explicit frozen legacy behavior
 node tools/selfplay/compareMulliganPolicies.js
 node tools/selfplay/compareMulliganPolicies.js --games 40 --seeds 1,2,3 --decks Crab,Phoenix
@@ -101,6 +104,19 @@ Use a small all-seed run for smoke coverage, then a larger focused run. Use
 seats, and compares seed 3 directly with seed 1. Reports include records and
 traced generic/board-aware purchase and additional-fate reasons. It never
 updates client benchmark configuration.
+
+## Cross-seed deck pool
+
+`botSeedRoundRobin.js` makes every selected subject deck play every selected
+opponent deck on each requested opponent seed. Seats alternate and each pair
+reuses a deterministic shuffle stream. It reports per-deck, per-opponent-seed,
+and aggregate records, with an optional successful-decision trace. These runs
+are diagnostics and never update client benchmark results.
+
+```powershell
+node tools/selfplay/botSeedRoundRobin.js --subject-seed 3 --opponent-seeds 1,2 --games 20 --decks Dragon,Lion,PhoenixShugenja --trace
+node tools/selfplay/botSeedRoundRobin.js --subject-seed 3 --opponents Phoenix,Scorpion --decks PhoenixShugenja --games 40
+```
 
 ## Standard client benchmarks
 

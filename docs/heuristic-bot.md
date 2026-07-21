@@ -55,6 +55,12 @@ Current heuristics:
   conflict cards, honors Tsuma and per-deck search goals, and evaluates every
   physical card in a stacked province independently. See
   [`mulligan-bot.md`](mulligan-bot.md).
+- **Conflict-deck safety**: seeds 1 and 3 use the shared injectable
+  `ConflictDeckSafetyTactics`. Optional Oracle of Stone and Forgotten Library
+  draws, plus Shrine Maiden's optional three-card reveal, are declined when
+  they would consume the margin required for the next mandatory draw or a
+  visible forced effect such as Bayushi Shoju. Seed 2 keeps legacy behavior for
+  A/B comparisons. See [`conflict-deck-safety-bot.md`](conflict-deck-safety-bot.md).
 - **Everything else**: passes optional reaction/interrupt windows, prefers higher-skill cards on generic target prompts, and falls back to Done/Pass buttons.
 
 - **Card playbook** (`CardPlaybook.ts`): hand-written per-card knowledge keyed by printed card id, sharing the LLM `CardHint` shape and consumed through the same lookup — a playbook entry always outranks the cached LLM analysis for the same card, and playbook cards are skipped by deck analysis entirely. Beyond the hint fields, entries can carry a `shouldPlay(ctx)` gate for hand plays (Assassination only with 6+ honor, Cavalry Reserves only with 2+ characters in the dynasty discard, Ujik Tactics only with 2+ physical ready participants, I Am Ready only for a bowed participant with fate; on the Crab side Siege Warfare only while attacking, Give No Ground / Raise the Alarm / The Strength of the Mountain only while defending), an `inPlayAction` flag with a `shouldUseAction(ctx)` gate for Action abilities on board cards fired during conflicts (Shiotome Encampment readies a Cavalry character, Shinjo Saddle moves off a bowed bearer, Shinjo Shono pumps when outnumbering, Shinjo Altansarnai fetches; Yasuki Hikaru moves a stronger attacker home, Frontline Engineer fetches a holding into the attacked province, Hida Sukune loots, Kaiu Shuichi gains fate, River of the Last Stand strips the opponent's hand), and a `dynastyAction` flag for Action abilities fired during the dynasty window (Kyuden Hida digs the top 3 for a character, Kaiu Forges tutors a holding, Unyielding Sensei digs a character into a holding province). Win-as-defender reactions and Unicorn win/attack payoffs carry priority ≥6 so their windows fire. Unicorn's injected `UnicornTactics` module reserves and scores movement targets for Golden Plains Outpost, Ride On, and Adorned Barcha; it can move a bowed character with exact ready support or a useful Minami/Higashi after-win reaction. It also supplies exact Shiksha/Soulweaver participant counts to Flank, Wayfinders, and Challenge while keeping Ujik physical-only. See `unicorn-bot.md`.
@@ -63,7 +69,7 @@ Current heuristics:
 
 ## Conflict-card economy
 
-Seeds 1, 2, 3, and 4 share an injectable `conflictCardEconomy` profile. The
+Seeds 1, 2, and 3 share an injectable `conflictCardEconomy` profile. The
 controller supplies printed fate costs by UUID for cards in the bot's
 hand and conflict discard. A 0/1 budget planner values legal candidates from
 playbook priority, relevant conflict skill, and ability value, chooses the
@@ -121,8 +127,9 @@ The bot `seed` selects the brain:
 Any seed may enable the optional hidden-hand and face-down-province capability.
 See [`omniscient-bot.md`](omniscient-bot.md).
 
-Seeds 1–4 are available in the normal client dropdown. Seed 3 is the only
-cheating/omniscient option. All four use adaptive mulligan by default.
+Seeds 1–3 are available in the normal client dropdown. Omniscience is a
+separate capability available to every seed. All three use adaptive mulligan
+by default.
 
 ## Standardized benchmark results
 
@@ -167,7 +174,7 @@ Future strategy profiles can replace `JigokuBotPolicy` while keeping `JigokuBotC
 
 - Specialized behavior exists only for registered marker/profile combinations;
   an unknown deck falls back to the generic profile.
-- Seeds 1, 2, 3, and 4 are hand-written policies.
+- Seeds 1, 2, and 3 are hand-written policies.
 - Unsupported prompt shapes leave a trace entry and use the controller's
   bounded progress fallback.
 - Bot games are labeled in save state and skipped for the external analytics

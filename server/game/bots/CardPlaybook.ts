@@ -63,6 +63,7 @@ export interface PlaybookContext {
     participatingCharacterCounts?: { self: number; opponent: number }; // exact live count, including virtual participants
     cavalryCharacterUuids?: Record<string, true>; // live traits, including Utaku Battle Steed
     readyAfterMoveCharacterUuids?: Record<string, true>; // exact move-then-ready support
+    conflictDeckConsumptionAllowed?: (amount: number) => boolean; // seed-1/3 own-deck/public-effect safety rail
 }
 
 export interface PlaybookEntry extends CardHint {
@@ -92,6 +93,14 @@ export interface PlaybookEntry extends CardHint {
     // Events do not, so pure/dynamic pumps inject their contribution here for
     // shared province-break budgeting.
     conflictContribution?: number | ((ctx: PlaybookContext) => number | null);
+    // Number of cards this optional play/ability draws for its controller.
+    // Modern conflict-deck safety uses this data to avoid a known five-honor
+    // deck-exhaustion loss. Seed 2 preserves legacy behavior as an A/B control.
+    optionalDrawCards?: number;
+    // Cards removed from our conflict deck only when this card's optional
+    // triggered ability is accepted. This gates the ability, not playing the
+    // body itself (Shrine Maiden should still enter play on a thin deck).
+    optionalAbilityConflictDeckCardsConsumed?: number;
     // For attachments whose ABILITY targets the enemy (targetSide 'enemy')
     // but which must be attached to an OWN character (True Strike Kenjutsu:
     // attach to our duelist, duel the enemy).
@@ -1013,6 +1022,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // opponent's conflict deck — cheap mill.
     'oracle-of-stone': entry('oracle-of-stone', {
         priority: 4,
+        optionalDrawCards: 2,
         summary: 'both players draw 2 discard 2 (mills their conflict deck)'
     }),
 
@@ -1532,6 +1542,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // Draw-phase reaction holding: draw 1 every round. Free.
     'forgotten-library': entry('forgotten-library', {
         priority: 8,
+        optionalDrawCards: 1,
         summary: 'draw phase reaction: draw 1 card'
     }),
 
@@ -1627,6 +1638,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // Enters-play tutor: keep the best Spell/Kiho from the top three.
     'shrine-maiden': entry('shrine-maiden', {
         priority: 9,
+        optionalAbilityConflictDeckCardsConsumed: 3,
         summary: 'enter play: take a Spell or Kiho from the top three'
     }),
 

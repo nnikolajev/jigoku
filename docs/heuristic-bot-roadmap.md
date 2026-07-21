@@ -13,7 +13,7 @@ resolve through the existing generic prompt handlers.
   supplies `conflictCosts` from live cards and `currentLegalDirectCardUuids`
   from the active engine step. Unaffordable, wrong-timing, and targetless plays
   are removed before policy scoring.
-- Seeds 1, 2, 3, and 4 share an injectable value-per-fate planner. Priority
+- Seeds 1, 2, and 3 share an injectable value-per-fate planner. Priority
   premiums protect expensive strategic cards; deck tactics may override order.
 - Paid plays from conflict discard share the same usefulness, target, cost,
   attachment, and contribution gates. Free `putIntoPlay` effects remain separate.

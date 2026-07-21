@@ -31,6 +31,7 @@ import MulliganTactics from './MulliganTactics.js';
 import type { MulliganPolicyVariant } from './MulliganTactics';
 import BoardAwareDynastyTactics from './BoardAwareDynastyTactics.js';
 import type { DynastyCharacterInfo, DynastyHandCard } from './BoardAwareDynastyTactics';
+import ConflictDeckSafetyTactics from './ConflictDeckSafetyTactics.js';
 import {
     attackProvinceLists,
     brokenOuterProvinceCount,
@@ -334,6 +335,10 @@ class JigokuBotPolicy {
     }
 
     protected usesBoardAwareDynastyEconomy(): boolean {
+        return false;
+    }
+
+    protected usesConflictDeckSafetyTactics(): boolean {
         return false;
     }
 
@@ -2813,7 +2818,8 @@ class JigokuBotPolicy {
             clarityProtectedUuids: sharedPlayCtx.clarityProtectedUuids,
             opponentParticipantCanBow: sharedPlayCtx.opponentParticipantCanBow,
             omniscient: sharedPlayCtx.omniscient,
-            opponentHasAffordableBowEffect: sharedPlayCtx.opponentHasAffordableBowEffect
+            opponentHasAffordableBowEffect: sharedPlayCtx.opponentHasAffordableBowEffect,
+            conflictDeckConsumptionAllowed: sharedPlayCtx.conflictDeckConsumptionAllowed
         };
         playCtx.canPlayConflictCard = canPlayConflictCard;
         playCtx.conflictCosts = conflictCosts || {};
@@ -3216,8 +3222,34 @@ class JigokuBotPolicy {
             characterBaseMilitary: this.currentCharacterBaseMilitary,
             participatingCharacterCounts: this.currentParticipatingCharacterCounts,
             cavalryCharacterUuids: this.currentCavalryCharacterUuids,
-            readyAfterMoveCharacterUuids: this.currentReadyAfterMoveCharacterUuids
+            readyAfterMoveCharacterUuids: this.currentReadyAfterMoveCharacterUuids,
+            conflictDeckConsumptionAllowed: this.usesConflictDeckSafetyTactics()
+                ? (amount: number) => this.conflictDeckConsumptionAllowed(playerState, me, amount)
+                : undefined
         };
+    }
+
+    private conflictDeckConsumptionAllowed(playerState: any, me: any, amount: number): boolean {
+        if(!this.usesConflictDeckSafetyTactics()) {
+            return true;
+        }
+        const opponent = this.opponentPlayer(playerState, me);
+        const visibleOpponentCards = (opponent?.cardPiles?.cardsInPlay || [])
+            .concat(opponent?.stronghold ? [opponent.stronghold] : [])
+            .concat(opponent?.strongholdProvince || [])
+            .concat(...Object.values(opponent?.provinces || {}) as any[])
+            .filter((card: any) =>
+            !!card?.id && !card?.facedown && !String(card?.location || '').toLowerCase().includes('hand'));
+        const tactics = new ConflictDeckSafetyTactics(
+            this.currentDeckProfile.conflictDeckSafety || DEFAULT_PROFILE.conflictDeckSafety
+        );
+        return tactics.shouldConsumeOptionalCards({
+            remainingConflictCards: Number(me?.numConflictCards) || 0,
+            optionalCardsConsumed: amount,
+            ownHonor: Number(me?.stats?.honor) || 0,
+            phase: me?.phase || playerState?.phase,
+            visibleOpponentCards
+        });
     }
 
     // Exact skill still needed for the next useful conflict threshold. Attack:
@@ -3386,6 +3418,10 @@ class JigokuBotPolicy {
                 return false;
             }
             if(typeof hint.shouldPlay === 'function' && !hint.shouldPlay(playCtx)) {
+                return false;
+            }
+            if(hint.optionalDrawCards && typeof playCtx?.conflictDeckConsumptionAllowed === 'function' &&
+                !playCtx.conflictDeckConsumptionAllowed(hint.optionalDrawCards)) {
                 return false;
             }
             const maxCopiesPerTarget = hint.maxCopiesPerTarget;
@@ -4629,7 +4665,7 @@ class JigokuBotPolicy {
             // Without it a trigger→cancel→retrigger cycle loops the window,
             // because the intervening target sub-prompt wipes the attempted-set.
             !this.isCancelVetoed(card.id) &&
-            this.provinceReactionWorthIt(card, playerState, me));
+            this.provinceReactionWorthIt(card, playerState, me, cardHint));
         if(source) {
             return this.cardClickDecision(source, 'trigger-province-ability');
         }
@@ -4647,6 +4683,16 @@ class JigokuBotPolicy {
                     }
                     const hint = cardHint(card.id);
                     if(!hint || hint.useWhen === 'never' || hint.priority < 6) {
+                        return false;
+                    }
+                    const optionalDeckConsumption = (hint as any).optionalAbilityConflictDeckCardsConsumed ??
+                        (hint as any).optionalDrawCards;
+                    if(optionalDeckConsumption &&
+                        !this.conflictDeckConsumptionAllowed(
+                            playerState,
+                            me,
+                            optionalDeckConsumption
+                        )) {
                         return false;
                     }
                     if(card.id === 'iaijutsu-master' &&
@@ -4703,7 +4749,12 @@ class JigokuBotPolicy {
     // province when the attack carries a real threat — an attacker with 2+
     // fate or 5+ military — or when the defense could not stop the break
     // anyway (the province was lost either way; take a body with it).
-    private provinceReactionWorthIt(card: any, playerState: any, me: any): boolean {
+    private provinceReactionWorthIt(card: any, playerState: any, me: any, cardHint?: CardHintLookup): boolean {
+        const hint: any = card?.id && cardHint ? cardHint(card.id) : undefined;
+        if(hint?.optionalDrawCards &&
+            !this.conflictDeckConsumptionAllowed(playerState, me, hint.optionalDrawCards)) {
+            return false;
+        }
         // Sacred Sanctuary readies a BOWED friendly character. With none on the
         // board its targeting step has only wrong-side options and immediately
         // cancels — and because the intervening "Choose a character" sub-prompt

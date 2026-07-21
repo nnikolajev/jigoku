@@ -58,6 +58,11 @@ reliably. Universal honor and exposed-stronghold rails still take precedence.
   useful fate stack, and removes the maximum legal fate. Characters already
   neutralized by Pacifism or Stolen Breath are skipped and their fate does not
   count toward the five-fate threshold.
+- **Protect the conflict deck.** Seeds 1 and 3 share the generic
+  `ConflictDeckSafetyTactics`: Oracle of Stone, Forgotten Library, and Shrine
+  Maiden stop consuming cards when the next mandatory/public draw would force
+  a five-honor reshuffle. A visible Bayushi Shoju contributes both his forced
+  draw and honor loss. Seed 2 remains the legacy comparison.
 - **Disguise Tadaka.** With Tadaka in hand, the dynasty plan prefers a cheap
   non-unique Shugenja and puts two fate on it when seven fate can fund the whole
   setup. At the next legal conflict-phase action window, Tadaka replaces that

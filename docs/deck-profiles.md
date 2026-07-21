@@ -21,6 +21,7 @@ reads the knobs; the profile is chosen per deck.
 |------|---------|
 | `fateAwareEconomy` | injectable dynasty purchase/fate policy used by seeds 1 and 3 |
 | `boardAwareDynasty` | seed-3 board-power, urgency, player-order, hand-reserve, persistence, and conflict-character planner |
+| `conflictDeckSafety` | seed-1/3 optional draw/reveal safety using own deck size, honor, mandatory draws, and visible forced effects |
 | `conflictCardEconomy` | value-per-fate candidate planner shared by seeds 1, 2, and 3 |
 | `provinceTargeting` | shared injectable province ordering: Eminent, effective strength, ability timing, and per-card overrides |
 | `strongholdDefense` | three-broken survival planner plus injectable two-broken risk gate and fair/omniscient defender limits |

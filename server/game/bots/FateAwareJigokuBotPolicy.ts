@@ -7,6 +7,10 @@ class FateAwareJigokuBotPolicy extends JigokuBotPolicy {
     protected usesFateAwareEconomy(): boolean {
         return true;
     }
+
+    protected usesConflictDeckSafetyTactics(): boolean {
+        return true;
+    }
 }
 
 export = FateAwareJigokuBotPolicy;

@@ -48,9 +48,31 @@ function parseDrawBidPolicy(value) {
     throw new Error('draw bid policy must be adaptive or legacy');
 }
 
+function optionValue(argv, name) {
+    const index = argv.indexOf(name);
+    return index >= 0 ? argv[index + 1] : undefined;
+}
+
+function parseEngineVersion(value) {
+    if(value === undefined) return 'v1';
+    if(!['v1', 'v2'].includes(value)) throw new Error('engine version must be v1 or v2');
+    return value;
+}
+
+function parseV2Mode(value) {
+    if(value === undefined) return 'enabled';
+    if(!['pass-through', 'shadow', 'enabled'].includes(value)) {
+        throw new Error('V2 mode must be pass-through, shadow, or enabled');
+    }
+    return value;
+}
+
 function parseArgs(argv = []) {
-    const positional = argv.filter((value) => !String(value).startsWith('--'));
+    const firstFlag = argv.findIndex((value) => String(value).startsWith('--'));
+    const positional = argv.slice(0, firstFlag < 0 ? argv.length : firstFlag);
     const botSeed = parseBotSeed(positional[1]);
+    const sharedEngine = optionValue(argv, '--engine-version');
+    const sharedV2Mode = optionValue(argv, '--v2-mode');
     return {
         games: parseInt(positional[0], 10) || STANDARD_GAMES,
         botSeed,
@@ -59,7 +81,11 @@ function parseArgs(argv = []) {
         challengerDrawBidPolicy: parseDrawBidPolicy(positional[4]),
         craneDrawBidPolicy: parseDrawBidPolicy(positional[5]),
         challengerOmniscient: argv.includes('--challenger-omniscient'),
-        craneOmniscient: argv.includes('--crane-omniscient')
+        craneOmniscient: argv.includes('--crane-omniscient'),
+        challengerEngine: parseEngineVersion(optionValue(argv, '--challenger-engine') || sharedEngine),
+        craneEngine: parseEngineVersion(optionValue(argv, '--crane-engine') || sharedEngine),
+        challengerV2Mode: parseV2Mode(optionValue(argv, '--challenger-v2-mode') || sharedV2Mode),
+        craneV2Mode: parseV2Mode(optionValue(argv, '--crane-v2-mode') || sharedV2Mode)
     };
 }
 
@@ -69,6 +95,8 @@ function isStandardBenchmarkRun(options, rows) {
         !options.challengerPolicy &&
         !options.challengerOmniscient &&
         !options.craneOmniscient &&
+        options.challengerEngine === 'v1' &&
+        options.craneEngine === 'v1' &&
         options.challengerDrawBidPolicy === 'adaptive' &&
         options.craneDrawBidPolicy === 'adaptive' &&
         rows.length === DECKS.length &&
@@ -88,13 +116,15 @@ function seedLabel(seed) {
 }
 
 function runDeckChild(label, games, botSeed, craneSeed, challengerPolicy,
-    challengerDrawBidPolicy, craneDrawBidPolicy, challengerOmniscient, craneOmniscient) {
+    challengerDrawBidPolicy, craneDrawBidPolicy, challengerOmniscient, craneOmniscient,
+    challengerEngine, craneEngine, challengerV2Mode, craneV2Mode) {
     return new Promise((resolve) => {
         const child = spawn(process.execPath, [
             '--max-old-space-size=1024', WORKER, label, String(games), String(botSeed),
             String(craneSeed), challengerPolicy || '',
             challengerDrawBidPolicy, craneDrawBidPolicy,
-            String(challengerOmniscient), String(craneOmniscient)
+            String(challengerOmniscient), String(craneOmniscient),
+            challengerEngine, craneEngine, challengerV2Mode, craneV2Mode
         ], {
             cwd: path.join(__dirname, '..', '..'),
             env: { ...process.env, LOG_LEVEL: 'error' }
@@ -143,14 +173,16 @@ async function main() {
     const {
         games, botSeed, craneSeed, challengerPolicy,
         challengerDrawBidPolicy, craneDrawBidPolicy,
-        challengerOmniscient, craneOmniscient
+        challengerOmniscient, craneOmniscient,
+        challengerEngine, craneEngine, challengerV2Mode, craneV2Mode
     } = options;
     const challengerLabel = challengerPolicy || seedLabel(botSeed);
 
-    process.stderr.write(`running ${DECKS.length} deck simulations in parallel (${games} games each, challenger seed ${botSeed} ${seedLabel(botSeed)}${challengerOmniscient ? ' +omniscient' : ''} draw ${challengerDrawBidPolicy}, Crane seed ${craneSeed} ${seedLabel(craneSeed)}${craneOmniscient ? ' +omniscient' : ''} draw ${craneDrawBidPolicy}${challengerPolicy ? `, challenger override ${challengerPolicy}` : ''})\n`);
+    process.stderr.write(`running ${DECKS.length} deck simulations in parallel (${games} games each, challenger ${challengerEngine}${challengerEngine === 'v2' ? `/${challengerV2Mode}` : ''} seed ${botSeed} ${seedLabel(botSeed)}${challengerOmniscient ? ' +omniscient' : ''} draw ${challengerDrawBidPolicy}, Crane ${craneEngine}${craneEngine === 'v2' ? `/${craneV2Mode}` : ''} seed ${craneSeed} ${seedLabel(craneSeed)}${craneOmniscient ? ' +omniscient' : ''} draw ${craneDrawBidPolicy}${challengerPolicy ? `, challenger override ${challengerPolicy}` : ''})\n`);
     const deckRuns = await Promise.all(DECKS.map((label) =>
         runDeckChild(label, games, botSeed, craneSeed, challengerPolicy,
-            challengerDrawBidPolicy, craneDrawBidPolicy, challengerOmniscient, craneOmniscient)));
+            challengerDrawBidPolicy, craneDrawBidPolicy, challengerOmniscient, craneOmniscient,
+            challengerEngine, craneEngine, challengerV2Mode, craneV2Mode)));
     const rows = [];
     for(const { label, results, died } of deckRuns) {
         let wins = 0;
@@ -173,7 +205,7 @@ async function main() {
 
     rows.sort((a, b) => (b.played ? b.wins / b.played : 0) - (a.played ? a.wins / a.played : 0));
 
-    console.log(`\n=== Bot win rates vs Crane Baseline (challenger seed ${botSeed}, ${challengerLabel}${challengerOmniscient ? ' + omniscient' : ''}, draw ${challengerDrawBidPolicy}; Crane seed ${craneSeed}, ${seedLabel(craneSeed)}${craneOmniscient ? ' + omniscient' : ''}, draw ${craneDrawBidPolicy}; N=${games}/deck, seats alternate) ===\n`);
+    console.log(`\n=== Bot win rates vs Crane Baseline (challenger ${challengerEngine}${challengerEngine === 'v2' ? `/${challengerV2Mode}` : ''} seed ${botSeed}, ${challengerLabel}${challengerOmniscient ? ' + omniscient' : ''}, draw ${challengerDrawBidPolicy}; Crane ${craneEngine}${craneEngine === 'v2' ? `/${craneV2Mode}` : ''} seed ${craneSeed}, ${seedLabel(craneSeed)}${craneOmniscient ? ' + omniscient' : ''}, draw ${craneDrawBidPolicy}; N=${games}/deck, seats alternate) ===\n`);
     const deckWidth = Math.max('deck'.length, ...rows.map((row) => row.label.length));
     console.log(`${'deck'.padEnd(deckWidth)}  record     win%   played  top loss / note`);
     console.log(`${'-'.repeat(deckWidth)}  ---------  -----  ------  ------------------------`);
@@ -195,7 +227,7 @@ async function main() {
         const configPath = writeBenchmarkSection(botSeed, 'winRates', winRatesPayload(options, rows));
         console.log(`Standard client benchmark updated: ${configPath}`);
     } else if(games === STANDARD_GAMES && botSeed === craneSeed && !challengerPolicy &&
-        !challengerOmniscient && !craneOmniscient &&
+        !challengerOmniscient && !craneOmniscient && challengerEngine === 'v1' && craneEngine === 'v1' &&
         challengerDrawBidPolicy === 'adaptive' && craneDrawBidPolicy === 'adaptive') {
         console.log('Standard client benchmark not updated: run was incomplete.');
     }
@@ -214,7 +246,9 @@ module.exports = {
     parseArgs,
     parseBotSeed,
     parseDrawBidPolicy,
+    parseEngineVersion,
     parsePolicyOverride,
+    parseV2Mode,
     seatSeeds,
     seedLabel
 };

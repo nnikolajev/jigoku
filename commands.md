@@ -14,6 +14,9 @@ Run commands from `jigoku/`. The complete operational notes live in
 Adaptive mulligan is the deployed default for all three seeds. Omniscience is
 an independent checkbox/configuration flag available to every seed.
 
+Bot V1 is the stable default. Bot V2 is an independent experimental engine;
+selecting V2 does not change the strategy seed or information mode.
+
 ## Build and tests
 
 ```powershell
@@ -40,6 +43,30 @@ node tools/selfplay/botSeedRoundRobin.js --subject-seed 3 --opponent-seeds 1,2 -
 node tools/selfplay/botOmniscientRoundRobin.js --seed 1
 node tools/selfplay/botOmniscientRoundRobin.js --seed 3 --games 40 --mirrors-only
 ```
+
+## Bot V2 comparison, tracing, and tuning
+
+```powershell
+# Paired RNG, alternating seats, same seed/deck/information configuration
+node tools/selfplay/compareBotVersions.js --candidate-engine v2 --control-engine v1 --v2-mode shadow --seed 1 --mode fair --games 2
+node tools/selfplay/compareBotVersions.js --candidate-engine v2 --control-engine v1 --v2-mode enabled --seed 1 --mode omniscient --games 20 --rng-seed 27101 --include-traces
+
+# Mine research traces and preserve deterministic replay fixtures
+node tools/selfplay/auditBotRegret.js --input tools/selfplay/out/v2-vs-v1-seed1-fair-enabled.json --out tools/selfplay/out/v2-regret
+
+# V2-aware interaction and semantic/payoff audits
+node tools/selfplay/validateBotInteractions.js --engine-version v2 --v2-mode enabled --seeds 1,2,3 --opponents all --games 2
+node tools/selfplay/auditCards.js --engine-version v2 --v2-mode enabled --decks all --seeds 1,2,3 --opponents all --modes fair,omniscient --games 2
+
+# Rank bounded, pre-measured coefficient profiles; never edits runtime defaults
+node tools/selfplay/tuneBotV2.js --manifest tools/selfplay/v2-tuning-manifest.json --out tools/selfplay/out/v2-tuning
+```
+
+`botRoundRobin.js` accepts `--engine-version v1|v2` and `--v2-mode`.
+`winRates.js` accepts shared `--engine-version`/`--v2-mode` flags or independent
+`--challenger-engine`, `--crane-engine`, `--challenger-v2-mode`, and
+`--crane-v2-mode` flags. V1 remains the default, and V2 diagnostic runs cannot
+overwrite standardized V1 results.
 
 Only complete standard runs update
 `../jigoku-client/client/botBenchmarkResults.json`:

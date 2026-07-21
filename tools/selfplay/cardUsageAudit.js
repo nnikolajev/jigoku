@@ -63,7 +63,17 @@ function activationKind(trace) {
 }
 
 function emptyAvailability() {
-    return { hand: new Set(), province: new Set(), play: new Set(), selectable: new Set() };
+    return { hand: new Set(), province: new Set(), play: new Set(), selectable: new Set(), sourceSelectable: new Set() };
+}
+
+function sourceActionPrompt(game, playerName, statePlayer) {
+    const livePrompt = game?.getPlayerByName?.(playerName)?.currentPrompt?.() || {};
+    const title = (`${livePrompt.promptTitle || statePlayer?.promptTitle || ''} ` +
+        `${livePrompt.menuTitle || statePlayer?.menuTitle || ''}`).toLowerCase();
+    if(/mulligan|discard|choose|select|target|attacker|defender|additional fate|pay costs?/.test(title)) {
+        return false;
+    }
+    return /action window|initiate an action|play cards from provinces|reactions?|interrupts?/.test(title);
 }
 
 function visitCards(value, callback, seen = new Set()) {
@@ -87,6 +97,7 @@ function scanAvailability(game, playerName, deckIds, available) {
     if(!me) {
         return;
     }
+    const canChooseSource = sourceActionPrompt(game, playerName, me);
     const scan = (value, zone) => visitCards(value, (card) => {
         if(!deckIds.has(card.id)) {
             return;
@@ -94,6 +105,7 @@ function scanAvailability(game, playerName, deckIds, available) {
         available[zone].add(card.id);
         if(card.selectable) {
             available.selectable.add(card.id);
+            if(canChooseSource) available.sourceSelectable.add(card.id);
         }
     });
     scan(me?.cardPiles?.hand, 'hand');
@@ -109,6 +121,7 @@ function scanAvailability(game, playerName, deckIds, available) {
         visitCards(pile, (card) => {
             if(deckIds.has(card.id) && card.selectable) {
                 available.selectable.add(card.id);
+                if(canChooseSource) available.sourceSelectable.add(card.id);
             }
         });
     }
@@ -140,13 +153,44 @@ function summarizeTrace(trace, deckIds) {
     return { clicks, plays, abilities, reasons };
 }
 
+function emptySemanticStages() {
+    return {
+        visible: {}, selectable: {}, eligible: {}, candidate: {}, chosen: {}, resolved: {}, payoffRealized: {}
+    };
+}
+
+function summarizeSemanticTrace(trace, deckIds) {
+    const stages = emptySemanticStages();
+    for(const entry of trace || []) {
+        for(const candidate of entry?.planner?.candidates || []) {
+            if(candidate.cardId && deckIds.has(candidate.cardId)) {
+                addCount(stages.candidate, candidate.cardId);
+            }
+        }
+        const chosenCardId = entry?.selectedBy === 'v2' ? entry?.planner?.v2Preference?.cardId : undefined;
+        if(chosenCardId && deckIds.has(chosenCardId)) {
+            addCount(stages.chosen, chosenCardId);
+        }
+        const kind = activationKind(entry);
+        if(kind && deckIds.has(entry.cardId)) {
+            addCount(stages.resolved, entry.cardId);
+            if(entry?.planner?.outcome?.status === 'realized') {
+                addCount(stages.payoffRealized, entry.cardId);
+            }
+        }
+    }
+    return stages;
+}
+
 module.exports = {
     activationKind,
     deckEntries,
+    emptySemanticStages,
     emptyAvailability,
     expectedAbility,
     expectedPlay,
     scanAvailability,
+    summarizeSemanticTrace,
     summarizeTrace,
     visitCards
 };

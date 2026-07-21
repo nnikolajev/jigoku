@@ -20,7 +20,7 @@ const {
 
 describe('standard self-play benchmark config', function() {
     it('uses 100-game win rates and a 40-game round robin', function() {
-        expect(BENCHMARK_VERSION).toBe(5);
+        expect(BENCHMARK_VERSION).toBe(6);
         expect(STANDARD_WIN_RATE_GAMES).toBe(100);
         expect(STANDARD_ROUND_ROBIN_GAMES).toBe(40);
         expect(STANDARD_OMNISCIENT_GAMES).toBe(20);
@@ -28,6 +28,10 @@ describe('standard self-play benchmark config', function() {
             gamesPerDeck: 100,
             gamesPerMatchup: 40,
             gamesPerOmniscientMatchup: 20
+        }));
+        expect(emptyBenchmark().engines).toEqual(jasmine.objectContaining({
+            v1: jasmine.objectContaining({ engineVersion: 'v1', status: 'default' }),
+            v2: jasmine.objectContaining({ engineVersion: 'v2', status: 'experimental' })
         }));
     });
 
@@ -42,6 +46,12 @@ describe('standard self-play benchmark config', function() {
         expect(third.seeds['2'].label).toBe('old heuristic');
         expect(mergeBenchmark(third, 3, 'winRates', { generatedAt: 'fourth' }).seeds['3'].label)
             .toBe('board-aware dynasty');
+
+        const v2 = mergeBenchmark(third, 1, 'winRates', {
+            generatedAt: 'v2', engineVersion: 'v2', configurationHash: 'v2-hash'
+        });
+        expect(v2.engines.v2.seeds['1'].winRates.configurationHash).toBe('v2-hash');
+        expect(v2.seeds['1'].winRates.generatedAt).toBe('first');
     });
 
     it('migrates board-aware seed 4 metadata and nested section seeds to 3', function() {
@@ -84,12 +94,20 @@ describe('standard self-play benchmark config', function() {
 
         expect(winRates.decks.Lion.winRate).toBe(0.55);
         expect(winRates.suiteId).toBe(STANDARD_SUITE_ID);
+        expect(winRates).toEqual(jasmine.objectContaining({
+            engineVersion: 'v1', strategySeed: 1, informationMode: 'fair',
+            configurationHash: jasmine.any(String)
+        }));
         expect(winRates.totals).toEqual(jasmine.objectContaining({ wins: 55, played: 100 }));
         expect(roundRobin.decks.Lion).toEqual(jasmine.objectContaining({
             wins: 500,
             averageOpponentWinRate: 0.56
         }));
         expect(roundRobin.suiteId).toBe(STANDARD_SUITE_ID);
+        expect(roundRobin).toEqual(jasmine.objectContaining({
+            engineVersion: 'v1', strategySeed: 1, informationMode: 'fair',
+            configurationHash: jasmine.any(String)
+        }));
 
         const omniscient = omniscientPayload({
             generatedAt: 'omni',
@@ -99,5 +117,9 @@ describe('standard self-play benchmark config', function() {
         });
         expect(omniscient.decks.Lion.winRate).toBe(0.6);
         expect(omniscient.botSeed).toBe(2);
+        expect(omniscient).toEqual(jasmine.objectContaining({
+            engineVersion: 'v1', strategySeed: 2, informationMode: 'omniscient',
+            configurationHash: jasmine.any(String)
+        }));
     });
 });

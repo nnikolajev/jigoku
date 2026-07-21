@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "description": "Fixed broad-league partitions for Bot V2 coefficient work. Matchups expand to every unordered deck pair; only RNG streams differ.",
+  "archetypes": {
+    "Crane": ["duel", "control"],
+    "CraneDuels": ["duel", "tower"],
+    "Crab": ["holding", "sacrifice"],
+    "Dragon": ["monk", "combo"],
+    "DragonAttachments": ["attachment", "tower"],
+    "Lion": ["swarm", "ready"],
+    "Phoenix": ["glory", "control"],
+    "PhoenixShugenja": ["shugenja", "spell"],
+    "Scorpion": ["dishonor", "control"],
+    "Unicorn": ["movement", "tempo"]
+  },
+  "training": {
+    "id": "v2-training-full-league-v1",
+    "decks": ["Crane", "CraneDuels", "Crab", "Dragon", "DragonAttachments", "Lion", "Phoenix", "PhoenixShugenja", "Scorpion", "Unicorn"],
+    "matchups": "all-pairs",
+    "rngSeeds": [17101, 17102, 17103],
+    "strategySeeds": [1, 2, 3],
+    "informationModes": ["fair", "omniscient"]
+  },
+  "holdout": {
+    "id": "v2-holdout-full-league-v1",
+    "decks": ["Crane", "CraneDuels", "Crab", "Dragon", "DragonAttachments", "Lion", "Phoenix", "PhoenixShugenja", "Scorpion", "Unicorn"],
+    "matchups": "all-pairs",
+    "rngSeeds": [27101, 27102, 27103],
+    "strategySeeds": [1, 2, 3],
+    "informationModes": ["fair", "omniscient"]
+  },
+  "promotion": {
+    "minimumDistinctHoldoutRngSeeds": 2,
+    "minimumHoldoutRuns": 2,
+    "minimumDeckGamesPerRun": 20,
+    "minimumAggregateWinRate": 0.5,
+    "maximumStallRate": 0,
+    "maximumPlannerErrors": 0,
+    "maximumSevereDeckOutliers": 0
+  }
+}

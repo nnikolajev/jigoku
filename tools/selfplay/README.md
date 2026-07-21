@@ -15,6 +15,10 @@ click-cycle detection. No external model service is needed.
 Adaptive mulligan is the default for all three seeds. Omniscience is an
 independent capability that can be enabled for any seed.
 
+Bot V1 is the stable default engine. Bot V2 is separately selected with
+`engineVersion: v2` or `--engine-version v2`; `pass-through`, `shadow`, and
+`enabled` are V2 experiment modes and do not alter seed or information mode.
+
 ## Main commands
 
 Run commands from `jigoku/`.
@@ -68,6 +72,35 @@ node tools/selfplay/auditConflictBehavior.js --seed 3
 node tools/selfplay/analyzeDuelBids.js
 node tools/selfplay/drawBidMatrix.js
 ```
+
+## Bot V2 evaluation
+
+```powershell
+# Pass-through proves routing equivalence; shadow evaluates without overriding V1
+node tools/selfplay/compareBotVersions.js --v2-mode pass-through --seed 1 --mode fair --games 2 --require-equivalence
+node tools/selfplay/compareBotVersions.js --v2-mode shadow --seed 1 --mode fair --games 20 --rng-seed 17101
+
+# Enabled paired holdout and full research trace
+node tools/selfplay/compareBotVersions.js --v2-mode enabled --seed 1 --mode omniscient --games 20 --rng-seed 27101 --include-traces
+node tools/selfplay/auditBotRegret.js --input tools/selfplay/out/v2-vs-v1-seed1-omniscient-enabled.json --out tools/selfplay/out/v2-regret
+
+# Engine-aware click and semantic/payoff gates
+node tools/selfplay/validateBotInteractions.js --engine-version v2 --v2-mode enabled --seeds 1,2,3 --opponents all --games 2
+node tools/selfplay/auditCards.js --engine-version v2 --v2-mode enabled --decks all --seeds 1,2,3 --opponents all --modes fair,omniscient --games 2
+```
+
+`compareBotVersions.js` writes versioned JSON/Markdown with per-deck confidence
+intervals, seats, paired RNG, victory types, runtime, searched nodes, fallback,
+plan churn, tactical corrections, budget exhaustion, and planner errors. Add
+`--include-traces` only for regret/replay work because research traces are large.
+
+The fixed broad-league partitions are in `v2BenchmarkPartitions.json`.
+`tuneBotV2.js` ranks bounded profiles from an input manifest, hashes the exact
+configuration, penalizes stalls/runtime/fallback/variance/outliers, and writes
+retained profiles only on request. A default recommendation is rejected until
+repeated distinct-RNG holdout confirmation passes. It never edits runtime
+defaults. See `docs/bot-v2.md`, `docs/bot-v2-architecture.md`, and
+`docs/bot-v2-rejected-experiments.md`.
 
 Use `--help` on a script for its complete option list.
 
@@ -157,6 +190,10 @@ Only standardized runs update
 
 Custom counts, deck subsets, cross-seed opponents, legacy draw policy, and
 profile overrides remain diagnostic and never replace client results.
+
+The win-rate and round-robin tools default to Bot V1. V2 runs are version-tagged
+diagnostics and cannot overwrite V1 standard data unless the separate V2
+publication gate is explicitly implemented and passed.
 
 ## Interaction audit
 

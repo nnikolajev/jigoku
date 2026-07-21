@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "id": "v2-default-experimental",
+  "status": "experimental",
+  "generatedAt": "2026-07-21T00:00:00.000Z",
+  "configurationHash": "69d1dbacab614f7fcd99",
+  "coefficients": {
+    "terminal": 1,
+    "strongholdSafety": 1,
+    "provinceTempo": 1,
+    "conflictOutcome": 1,
+    "ringValue": 1,
+    "boardNow": 1,
+    "boardFuture": 1,
+    "fate": 1,
+    "cards": 1,
+    "honor": 1,
+    "conflictDeckSafety": 1,
+    "information": 1,
+    "initiative": 1,
+    "comboProgress": 1,
+    "flexibility": 1,
+    "waste": 1,
+    "uncertainty": 1,
+    "risk": 1
+  },
+  "parentProfile": {
+    "id": "v1-deterministic-fallback",
+    "configurationHash": "golden-v1-baseline"
+  },
+  "sourceConfiguration": {
+    "engineVersion": "v2",
+    "v2Mode": "enabled",
+    "strategySeed": 1,
+    "trainingPartition": "pilot-only-not-standard-training",
+    "holdoutPartition": "pilot-only-not-repeated-holdout",
+    "standardPartitions": "../v2BenchmarkPartitions.json"
+  },
+  "trainingResults": {
+    "status": "architecture-and-tactical-fixtures-passed",
+    "focusedSpecs": 82,
+    "failures": 0
+  },
+  "holdoutResults": {
+    "status": "single-rng-pilot-only",
+    "rngSeeds": [14150],
+    "fair": {
+      "report": "../out/v2-synergy-holdout-retained-seed1-fair.json",
+      "record": "9-11",
+      "outcomeEquivalence": "20/20",
+      "traceEquivalence": "16/20",
+      "candidateRuntimeMsPerGame": 6096.5,
+      "controlRuntimeMsPerGame": 2684.45
+    },
+    "omniscient": {
+      "report": "../out/v2-synergy-holdout-retained-seed1-omniscient.json",
+      "record": "10-10",
+      "outcomeEquivalence": "20/20",
+      "traceEquivalence": "17/20",
+      "candidateRuntimeMsPerGame": 3494.55,
+      "controlRuntimeMsPerGame": 1742.4
+    }
+  },
+  "rationale": "Retain the all-ones coefficient profile as the reproducible initial V2 experimental reference. The pilot is too small, uses one RNG stream, and shows no aggregate uplift, so no coefficient was tuned and no default promotion is permitted.",
+  "eligibleForDefault": false,
+  "promotionBlockers": [
+    "pilot-not-standard-partition",
+    "insufficient-distinct-holdout-rng",
+    "no-demonstrated-aggregate-uplift",
+    "interactive-runtime-regression"
+  ]
+}

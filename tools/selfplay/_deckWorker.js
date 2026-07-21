@@ -30,6 +30,10 @@ async function main() {
     const craneDrawBidPolicy = process.argv[8] === 'legacy' ? 'legacy' : 'adaptive';
     const challengerOmniscient = process.argv[9] === 'true';
     const craneOmniscient = process.argv[10] === 'true';
+    const challengerEngine = process.argv[11] === 'v2' ? 'v2' : 'v1';
+    const craneEngine = process.argv[12] === 'v2' ? 'v2' : 'v1';
+    const challengerV2Mode = ['pass-through', 'shadow', 'enabled'].includes(process.argv[13]) ? process.argv[13] : 'enabled';
+    const craneV2Mode = ['pass-through', 'shadow', 'enabled'].includes(process.argv[14]) ? process.argv[14] : 'enabled';
     const loadDeck = getDeckLoader(label);
     if(!loadDeck || label === BASELINE_DECK) {
         process.stderr.write(`unknown deck ${label}\n`);
@@ -51,11 +55,20 @@ async function main() {
         const omniscient = botFirst
             ? [challengerOmniscient, craneOmniscient]
             : [craneOmniscient, challengerOmniscient];
+        const engineVersions = botFirst
+            ? [challengerEngine, craneEngine]
+            : [craneEngine, challengerEngine];
+        const v2Modes = botFirst
+            ? [challengerV2Mode, craneV2Mode]
+            : [craneV2Mode, challengerV2Mode];
         const decks = botFirst
             ? { deckA: loadDeck(), deckB: loadCraneDeck() }
             : { deckA: loadCraneDeck(), deckB: loadDeck() };
 
-        const result = await runGame({ names, seeds, policies, drawBidPolicies, omniscient, ...decks, trace: false });
+        const result = await runGame({
+            names, seeds, policies, drawBidPolicies, omniscient, engineVersions, v2Modes,
+            ...decks, trace: false
+        });
         // One line per game so the parent salvages partial results on a hang.
         process.stdout.write(JSON.stringify({ winner: result.winner || null, reason: result.winReason || null }) + '\n');
     }

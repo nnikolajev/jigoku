@@ -1,6 +1,8 @@
 import JigokuBotPolicy from './JigokuBotPolicy.js';
-import FateAwareJigokuBotPolicy from './FateAwareJigokuBotPolicy.js';
-import BoardAwareJigokuBotPolicy from './BoardAwareJigokuBotPolicy.js';
+import BotEngineRouter from './BotEngineRouter.js';
+import { resolveBotIdentity } from './BotConfiguration.js';
+import type { ResolvedBotIdentity } from './BotConfiguration';
+import type { BotDecision, BotEngine } from './BotEngine';
 import LmStudioClient from './llm/LmStudioClient.js';
 import DeckHintService from './llm/DeckHintService.js';
 import LiveConsultant from './llm/LiveConsultant.js';
@@ -22,19 +24,6 @@ import type BaseCard from '../basecard';
 import type { JigokuBotConfig } from './JigokuBotConfig';
 import { CharacterStatus, EffectNames, EventNames } from '../Constants';
 
-interface BotDecision {
-    command: 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
-    args: any[];
-    target?: string;
-    cardId?: string;
-    cardType?: string;
-    cardSide?: string;
-    cardLocation?: string;
-    cardController?: string;
-    cardOwner?: string;
-    reason: string;
-}
-
 interface BotTraceEntry {
     player: string;
     promptTitle?: string;
@@ -48,6 +37,16 @@ interface BotTraceEntry {
     cardLocation?: string;
     cardController?: string;
     cardOwner?: string;
+    engineVersion: 'v1' | 'v2';
+    strategySeed: string | number;
+    informationMode: 'fair' | 'omniscient';
+    deckProfile: string;
+    configurationHash: string;
+    selectedBy?: 'v1' | 'v2' | 'fallback';
+    fallbackReason?: string;
+    v2Mode?: string;
+    durationMs?: number;
+    planner?: unknown;
     seedState: number;
     result: 'success' | 'rejected' | 'unsupported';
     reason: string;
@@ -57,7 +56,12 @@ type CommandRunner = (command: string, playerName: string, args: any[]) => boole
 
 class JigokuBotController {
     readonly trace: BotTraceEntry[] = [];
-    private policy: JigokuBotPolicy;
+    // Kept visible for existing diagnostic/test introspection. Router owns
+    // command selection; this is always frozen V1 instance used directly or
+    // as deterministic V2 fallback.
+    readonly policy: JigokuBotPolicy;
+    private engine: BotEngine;
+    private readonly identity: ResolvedBotIdentity;
     private ticking = false;
     private hintService?: DeckHintService;
     private consultant?: LiveConsultant;
@@ -82,22 +86,10 @@ class JigokuBotController {
             onStateChange?: () => void;
             omniscientCapability?: OmniscientBotCapability;
         } = {}) {
-        const seed = config.seed || 1;
-        const isBoardAware = config.policy === 'board-aware' ||
-            (config.policy === undefined && (seed === 3 || seed === '3'));
-        const isFateAware = config.policy === 'fate-aware' ||
-            isBoardAware ||
-            (config.policy === undefined && (seed === 1 || seed === '1'));
-        // Adaptive opening and province refresh is shared bot behavior. Keep
-        // legacy available only as an explicit A/B override; seed selects the
-        // decision policy, not whether the bot understands mulligans.
-        const mulliganPolicy = config.mulliganPolicy || 'adaptive';
-        const conflictPlanningPolicy = config.conflictPlanningPolicy || 'lookahead';
-        this.policy = isBoardAware
-            ? new BoardAwareJigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy, conflictPlanningPolicy)
-            : isFateAware
-            ? new FateAwareJigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy, conflictPlanningPolicy)
-            : new JigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy, conflictPlanningPolicy);
+        const router = new BotEngineRouter(config);
+        this.engine = router;
+        this.policy = router.v1.policy;
+        this.identity = resolveBotIdentity(config);
         this.omniscientCapability = services.omniscientCapability ||
             new OmniscientBotCapability(game, config.playerName, config.omniscient === true);
         this.onStateChange = services.onStateChange;
@@ -357,7 +349,7 @@ class JigokuBotController {
                 const promptStep = this.currentPromptStep(player);
                 this.ensureDeckAnalyzed(player);
                 const playerState = this.game.getState(player.name);
-                let decision = this.policy.decide(playerState, player.name, {
+                let decision = this.engine.decide({ playerState, botName: player.name, context: {
                     roundNumber: (this.game as any).roundNumber,
                     income: typeof (player as any).getTotalIncome === 'function'
                         ? (player as any).getTotalIncome()
@@ -421,7 +413,7 @@ class JigokuBotController {
                     // strengths). Undefined when the capability is disabled, so the
                     // policy's omniscient branches stay dormant for fair bots.
                     omniscient: this.buildOmniscient(player)
-                });
+                } });
 
 
                 if(!decision) {
@@ -1569,6 +1561,9 @@ class JigokuBotController {
     }
 
     private record(prompt: any, decision: BotDecision | null, result: BotTraceEntry['result'], reason: string): void {
+        if(this.engine.lastDecisionTrace?.decision === decision) {
+            this.engine.observeDecision?.(result, reason);
+        }
         if(this.config.trace === false) {
             return;
         }
@@ -1586,7 +1581,17 @@ class JigokuBotController {
             cardLocation: decision?.cardLocation,
             cardController: decision?.cardController,
             cardOwner: decision?.cardOwner,
-            seedState: this.policy.seedState,
+            engineVersion: this.identity.engineVersion,
+            strategySeed: this.identity.strategySeed,
+            informationMode: this.identity.informationMode,
+            deckProfile: this.identity.deckProfile,
+            configurationHash: this.identity.configurationHash,
+            selectedBy: this.engine.lastDecisionTrace?.selectedBy,
+            fallbackReason: this.engine.lastDecisionTrace?.fallbackReason,
+            v2Mode: this.engine.lastDecisionTrace?.v2Mode,
+            durationMs: this.engine.lastDecisionTrace?.durationMs,
+            planner: this.engine.lastDecisionTrace?.planner,
+            seedState: this.engine.seedState,
             result,
             reason
         });

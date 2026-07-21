@@ -7,7 +7,9 @@ const { getDeckLoader } = require('./deckRegistry.js');
 const {
     deckEntries,
     emptyAvailability,
+    emptySemanticStages,
     scanAvailability,
+    summarizeSemanticTrace,
     summarizeTrace
 } = require('./cardUsageAudit.js');
 
@@ -43,10 +45,13 @@ async function main() {
     const omniscient = process.argv[6] === 'omniscient';
     const startIndex = Number.parseInt(process.argv[7], 10) || 0;
     const rngSeed = Number.parseInt(process.argv[8], 10);
+    const engineVersion = process.argv[9] || 'v1';
+    const v2Mode = process.argv[10] || (engineVersion === 'v2' ? 'shadow' : undefined);
     const loadSubject = getDeckLoader(subject);
     const loadOpponent = getDeckLoader(opponent);
     if(!loadSubject || !loadOpponent || !Number.isInteger(games) || games < 1 ||
-        !Number.isInteger(seed) || seed < 1 || seed > 3 || !Number.isInteger(rngSeed)) {
+        !Number.isInteger(seed) || seed < 1 || seed > 3 || !Number.isInteger(rngSeed) ||
+        !['v1', 'v2'].includes(engineVersion) || (v2Mode && !['pass-through', 'shadow', 'enabled'].includes(v2Mode))) {
         throw new Error('invalid card-usage worker arguments');
     }
 
@@ -54,7 +59,8 @@ async function main() {
     const result = {
         subject, opponent, seed, omniscient, games: 0, wins: 0, losses: 0, other: 0,
         failed: [], clicks: {}, plays: {}, abilities: {}, reasons: {},
-        availableGames: { hand: {}, province: {}, play: {}, selectable: {} }
+        availableGames: { hand: {}, province: {}, play: {}, selectable: {}, sourceSelectable: {} },
+        semanticStages: emptySemanticStages()
     };
     const originalRandom = Math.random;
     try {
@@ -75,6 +81,9 @@ async function main() {
                 names,
                 seeds: [seed, seed],
                 omniscient: subjectFirst ? [omniscient, false] : [false, omniscient],
+                engineVersions: subjectFirst ? [engineVersion, 'v1'] : ['v1', engineVersion],
+                v2Modes: subjectFirst ? [v2Mode, undefined] : [undefined, v2Mode],
+                traceLevels: subjectFirst ? ['benchmark', 'production'] : ['production', 'benchmark'],
                 ...decks,
                 trace: true,
                 onControllers: (createdControllers) => {
@@ -160,11 +169,25 @@ async function main() {
                     result.availableGames[zone][id] = (result.availableGames[zone][id] || 0) + 1;
                 }
             }
+            const visible = new Set([...available.hand, ...available.province, ...available.play]);
+            for(const id of visible) {
+                result.semanticStages.visible[id] = (result.semanticStages.visible[id] || 0) + 1;
+            }
+            for(const id of available.selectable) {
+                result.semanticStages.selectable[id] = (result.semanticStages.selectable[id] || 0) + 1;
+            }
+            for(const id of available.sourceSelectable) {
+                result.semanticStages.eligible[id] = (result.semanticStages.eligible[id] || 0) + 1;
+            }
             const usage = summarizeTrace(controller?.trace, deckIds);
             mergeCounts(result.clicks, usage.clicks);
             mergeCounts(result.plays, usage.plays);
             mergeCounts(result.abilities, usage.abilities);
             mergeReasons(result.reasons, usage.reasons);
+            const semantic = summarizeSemanticTrace(controller?.trace, deckIds);
+            for(const stage of ['candidate', 'chosen', 'resolved', 'payoffRealized']) {
+                mergeCounts(result.semanticStages[stage], semantic[stage]);
+            }
         }
     } finally {
         Math.random = originalRandom;

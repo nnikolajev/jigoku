@@ -61,7 +61,7 @@ function buildGame(names) {
 
 function makeController(game, playerName, seed, trace = false,
     policy = undefined, drawBidPolicy = undefined, mulliganPolicy = undefined,
-    omniscient = false, conflictPlanningPolicy = undefined) {
+    omniscient = false, conflictPlanningPolicy = undefined, engineOptions = {}) {
     const runCommand = (command, name, args) => {
         if(!BOT_COMMANDS.has(command)) {
             return false;
@@ -86,6 +86,11 @@ function makeController(game, playerName, seed, trace = false,
             mulliganPolicy: mulliganPolicy,
             conflictPlanningPolicy: conflictPlanningPolicy,
             omniscient: omniscient === true,
+            engineVersion: engineOptions.engineVersion || 'v1',
+            v2Mode: engineOptions.v2Mode,
+            deckProfileId: engineOptions.deckProfileId,
+            traceLevel: engineOptions.traceLevel,
+            experiments: engineOptions.experiments,
             llm: { enabled: false }
         },
         runCommand
@@ -117,6 +122,11 @@ async function runGame(options = {}) {
     const mulliganPolicies = options.mulliganPolicies || [];
     const omniscient = options.omniscient || [];
     const conflictPlanningPolicies = options.conflictPlanningPolicies || [];
+    const engineVersions = options.engineVersions || [];
+    const v2Modes = options.v2Modes || [];
+    const deckProfileIds = options.deckProfileIds || [];
+    const traceLevels = options.traceLevels || [];
+    const experiments = options.experiments || [];
     const controllers = names.map((name, i) => makeController(
         game,
         name,
@@ -126,7 +136,14 @@ async function runGame(options = {}) {
         drawBidPolicies[i],
         mulliganPolicies[i],
         omniscient[i],
-        conflictPlanningPolicies[i]
+        conflictPlanningPolicies[i],
+        {
+            engineVersion: engineVersions[i] || 'v1',
+            v2Mode: v2Modes[i],
+            deckProfileId: deckProfileIds[i],
+            traceLevel: traceLevels[i],
+            experiments: experiments[i]
+        }
     ));
     if(options.onControllers) {
         options.onControllers(controllers);

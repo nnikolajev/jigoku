@@ -11,13 +11,22 @@ export type JigokuBotPolicyVariant = 'generic' | 'fate-aware' | 'board-aware';
 export type JigokuBotDrawBidPolicyVariant = 'adaptive' | 'legacy';
 export type JigokuBotMulliganPolicyVariant = 'adaptive' | 'legacy';
 export type JigokuBotConflictPlanningPolicyVariant = 'lookahead' | 'legacy';
+export type JigokuBotEngineVersion = 'v1' | 'v2';
+export type JigokuBotV2Mode = 'pass-through' | 'shadow' | 'enabled';
+export type JigokuBotTraceLevel = 'production' | 'benchmark' | 'research';
 
 export interface JigokuBotConfig {
     playerName: string;
     deckId?: string;
+    // Omitted means frozen Bot V1. Version is independent from seed/profile/info.
+    engineVersion?: JigokuBotEngineVersion;
     seed?: string | number;
+    deckProfileId?: string;
     difficulty?: string;
     trace?: boolean;
+    traceLevel?: JigokuBotTraceLevel;
+    v2Mode?: JigokuBotV2Mode;
+    experiments?: Record<string, boolean>;
     maxDecisionsPerTick?: number;
     // Seed 1 defaults to fate-aware; seed 2 selects the old generic heuristic;
     // seed 3 adds fair board-aware dynasty development to seed 1.

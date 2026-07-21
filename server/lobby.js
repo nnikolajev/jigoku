@@ -301,6 +301,8 @@ class Lobby {
             playerName: botDetails.playerName || 'Jigoku Bot',
             deckId: botDetails.deckId,
             seed: botDetails.seed || 1,
+            engineVersion: botDetails.engineVersion === 'v2' ? 'v2' : 'v1',
+            v2Mode: botDetails.engineVersion === 'v2' ? 'enabled' : undefined,
             difficulty: botDetails.difficulty || 'mvp',
             policy: botDetails.policy,
             omniscient: botDetails.omniscient === true,

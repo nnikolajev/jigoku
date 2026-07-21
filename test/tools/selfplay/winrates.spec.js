@@ -45,7 +45,11 @@ describe('self-play win-rate deck selection', function() {
             craneSeed: 1,
             challengerPolicy: undefined,
             challengerDrawBidPolicy: 'adaptive',
-            craneDrawBidPolicy: 'adaptive'
+            craneDrawBidPolicy: 'adaptive',
+            challengerEngine: 'v1',
+            craneEngine: 'v1',
+            challengerV2Mode: 'enabled',
+            craneV2Mode: 'enabled'
         }));
         expect(parseArgs(['100', '2'])).toEqual(jasmine.objectContaining({
             games: 100,
@@ -63,6 +67,15 @@ describe('self-play win-rate deck selection', function() {
             challengerOmniscient: true,
             craneOmniscient: false
         }));
+        expect(parseArgs(['40', '1', '2', '--engine-version', 'v2', '--v2-mode', 'shadow'])).toEqual(jasmine.objectContaining({
+            challengerEngine: 'v2', craneEngine: 'v2',
+            challengerV2Mode: 'shadow', craneV2Mode: 'shadow'
+        }));
+        expect(parseArgs(['40', '1', '2', '--challenger-engine', 'v2', '--challenger-v2-mode', 'pass-through']))
+            .toEqual(jasmine.objectContaining({
+                challengerEngine: 'v2', craneEngine: 'v1',
+                challengerV2Mode: 'pass-through', craneV2Mode: 'enabled'
+            }));
     });
 
     it('keeps each bot seed attached to its deck when seats alternate', function() {
@@ -78,6 +91,7 @@ describe('self-play win-rate deck selection', function() {
         expect(isStandardBenchmarkRun(parseArgs(['100', '2', '2', 'generic']), rows)).toBe(false);
         expect(isStandardBenchmarkRun(parseArgs(['100', '2', '2', '', 'legacy']), rows)).toBe(false);
         expect(isStandardBenchmarkRun(parseArgs(['100', '2', '2', '--challenger-omniscient']), rows)).toBe(false);
+        expect(isStandardBenchmarkRun(parseArgs(['100', '2', '2', '--engine-version', 'v2']), rows)).toBe(false);
         expect(isStandardBenchmarkRun(parseArgs(['100', '2']), [
             ...rows.slice(0, -1),
             { ...rows[rows.length - 1], played: 99, died: 'incomplete' }

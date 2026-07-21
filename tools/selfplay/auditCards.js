@@ -16,6 +16,7 @@ const { deckEntries, expectedAbility, expectedPlay } = require('./cardUsageAudit
 const WORKER = path.join(__dirname, '_cardUsageWorker.js');
 const DEFAULT_RNG_SEED = 20260721;
 const PER_GAME_MS = 15000;
+const SEMANTIC_STAGES = ['visible', 'selectable', 'eligible', 'candidate', 'chosen', 'resolved', 'payoffRealized'];
 const ALIASES = Object.freeze({
     crane: 'Crane', 'crane-baseline': 'Crane', craneduel: 'CraneDuels', 'crane-duels': 'CraneDuels',
     crab: 'Crab', dragon: 'Dragon', 'dragon-attachments': 'DragonAttachments', dragonattachments: 'DragonAttachments',
@@ -37,6 +38,8 @@ Options:
   --workers <n>           Parallel workers (default 24)
   --rng-seed <n>          Deterministic base shuffle seed (default ${DEFAULT_RNG_SEED})
   --minimum-seen <n>      Availability games before flagging a candidate (default 1)
+  --engine-version <v1|v2> Subject engine (default v1)
+  --v2-mode <mode>        pass-through, shadow, or enabled (default shadow)
   --out <prefix>          JSON/Markdown report prefix
   --fail-on-candidates    Exit nonzero for a reachable zero-use card
   --help                  Show help
@@ -81,6 +84,7 @@ function parseArgs(argv) {
         return {
             decks: [subject], opponents: [opponent], seeds: [seed], modes: ['fair'], games,
             workers: 1, rngSeed: DEFAULT_RNG_SEED, minimumSeen: 1, out: null,
+            engineVersion: 'v1', v2Mode: undefined,
             failOnCandidates: false, help: false, legacy: true
         };
     }
@@ -88,6 +92,7 @@ function parseArgs(argv) {
         decks: [...DECK_LABELS], opponents: [...DECK_LABELS], seeds: [1, 2, 3],
         modes: ['fair', 'omniscient'], games: 2, workers: 24,
         rngSeed: DEFAULT_RNG_SEED, minimumSeen: 1,
+        engineVersion: 'v1', v2Mode: undefined,
         out: path.join(__dirname, 'out', 'card-usage-all-seeds'),
         failOnCandidates: false, help: false, legacy: false
     };
@@ -113,6 +118,10 @@ function parseArgs(argv) {
             options.rngSeed = positiveInteger(argv[++index], arg);
         } else if(arg === '--minimum-seen') {
             options.minimumSeen = positiveInteger(argv[++index], arg);
+        } else if(arg === '--engine-version') {
+            options.engineVersion = String(argv[++index] || '').toLowerCase();
+        } else if(arg === '--v2-mode') {
+            options.v2Mode = String(argv[++index] || '').toLowerCase();
         } else if(arg === '--out') {
             options.out = path.resolve(argv[++index]);
         } else {
@@ -125,6 +134,13 @@ function parseArgs(argv) {
     if(options.modes.length === 0 || options.modes.some((mode) => !['fair', 'omniscient'].includes(mode))) {
         throw new Error('--modes must contain fair and/or omniscient');
     }
+    if(!['v1', 'v2'].includes(options.engineVersion)) {
+        throw new Error('--engine-version must be v1 or v2');
+    }
+    if(options.v2Mode && !['pass-through', 'shadow', 'enabled'].includes(options.v2Mode)) {
+        throw new Error('--v2-mode must be pass-through, shadow, or enabled');
+    }
+    if(options.engineVersion === 'v2' && !options.v2Mode) options.v2Mode = 'shadow';
     return options;
 }
 
@@ -136,6 +152,7 @@ function buildJobs(options) {
                 for(const [opponentIndex, opponent] of options.opponents.entries()) {
                     jobs.push({
                         deck, opponent, seed, mode, games: options.games,
+                        engineVersion: options.engineVersion, v2Mode: options.v2Mode,
                         rngSeed: options.rngSeed + deckIndex * 1000000 + seedIndex * 100000 + opponentIndex * 1000
                     });
                 }
@@ -149,7 +166,8 @@ function runJob(job) {
     return new Promise((resolve) => {
         const child = spawn(process.execPath, [
             '--max-old-space-size=1024', WORKER, job.deck, job.opponent, String(job.games),
-            String(job.seed), job.mode, '0', String(job.rngSeed)
+            String(job.seed), job.mode, '0', String(job.rngSeed),
+            job.engineVersion, job.v2Mode || ''
         ], {
             cwd: path.join(__dirname, '..', '..'),
             env: { ...process.env, LOG_LEVEL: 'error' }
@@ -215,7 +233,8 @@ function analyzeRow(row, minimumSeen) {
             hand: row.availableGames.hand[card.id] || 0,
             province: row.availableGames.province[card.id] || 0,
             play: row.availableGames.play[card.id] || 0,
-            selectable: row.availableGames.selectable[card.id] || 0
+            selectable: row.availableGames.selectable[card.id] || 0,
+            sourceSelectable: row.availableGames.sourceSelectable[card.id] || 0
         };
         const playExpected = expectedPlay(card);
         // Conflict events express their ability by being played, and gained
@@ -231,6 +250,7 @@ function analyzeRow(row, minimumSeen) {
             id: card.id, name: card.name, type: card.type, side: card.side,
             playExpected, abilityExpected, available, playUses, abilityUses,
             clicks: row.clicks[card.id] || 0, reasons: row.reasons[card.id] || {},
+            semanticStages: Object.fromEntries(SEMANTIC_STAGES.map((stage) => [stage, row.semanticStages[stage][card.id] || 0])),
             playStatus: !playExpected ? 'not-required' : playUses > 0 ? 'covered' :
                 playAvailability >= minimumSeen ? 'candidate' : 'unseen',
             abilityStatus: !abilityExpected ? 'not-required' : abilityUses > 0 ? 'covered' :
@@ -244,6 +264,12 @@ function analyzeRow(row, minimumSeen) {
     row.abilityExpected = row.cards.filter((card) => card.abilityExpected).length;
     row.abilityCovered = row.cards.filter((card) => card.abilityStatus === 'covered').length;
     row.abilityUnreached = row.cards.filter((card) => card.abilityStatus === 'unreached').map((card) => card.id);
+    row.semanticCandidateGaps = row.engineVersion === 'v2'
+        ? row.cards.filter((card) => card.semanticStages.eligible > 0 && card.semanticStages.candidate === 0).map((card) => card.id)
+        : [];
+    row.semanticPayoffGaps = row.engineVersion === 'v2'
+        ? row.cards.filter((card) => card.semanticStages.chosen > 0 && card.semanticStages.resolved > 0 && card.semanticStages.payoffRealized === 0).map((card) => card.id)
+        : [];
     delete row.cardList;
     return row;
 }
@@ -255,9 +281,11 @@ function summarize(options, jobResults) {
         for(const seed of options.seeds) {
             for(const mode of options.modes) {
                 rows.set(`${seed}|${mode}|${deck}`, {
-                    seed, mode, deck, games: 0, wins: 0, losses: 0, other: 0,
+                    seed, mode, deck, engineVersion: options.engineVersion, v2Mode: options.v2Mode,
+                    games: 0, wins: 0, losses: 0, other: 0,
                     failedJobs: [], clicks: {}, plays: {}, abilities: {}, reasons: {},
-                    availableGames: { hand: {}, province: {}, play: {}, selectable: {} },
+                    semanticStages: Object.fromEntries(SEMANTIC_STAGES.map((stage) => [stage, {}])),
+                    availableGames: { hand: {}, province: {}, play: {}, selectable: {}, sourceSelectable: {} },
                     cardList
                 });
             }
@@ -277,6 +305,9 @@ function summarize(options, jobResults) {
             addCounts(row[key], job.result[key]);
         }
         addReasons(row.reasons, job.result.reasons);
+        for(const stage of SEMANTIC_STAGES) {
+            addCounts(row.semanticStages[stage], job.result.semanticStages?.[stage]);
+        }
         for(const zone of Object.keys(row.availableGames)) {
             addCounts(row.availableGames[zone], job.result.availableGames?.[zone]);
         }
@@ -303,8 +334,9 @@ function summarizeDeckCoverage(rows, minimumSeen) {
                 total = {
                     id: card.id, name: card.name, type: card.type, side: card.side,
                     playExpected: card.playExpected, abilityExpected: card.abilityExpected,
-                    available: { hand: 0, province: 0, play: 0, selectable: 0 },
-                    playUses: 0, abilityUses: 0, clicks: 0
+                    available: { hand: 0, province: 0, play: 0, selectable: 0, sourceSelectable: 0 },
+                    playUses: 0, abilityUses: 0, clicks: 0,
+                    semanticStages: Object.fromEntries(SEMANTIC_STAGES.map((stage) => [stage, 0]))
                 };
                 deck.cards.set(card.id, total);
             }
@@ -314,6 +346,7 @@ function summarizeDeckCoverage(rows, minimumSeen) {
             total.playUses += card.playUses;
             total.abilityUses += card.abilityUses;
             total.clicks += card.clicks;
+            for(const stage of SEMANTIC_STAGES) total.semanticStages[stage] += card.semanticStages?.[stage] || 0;
         }
     }
     return [...decks.values()].map((deck) => {
@@ -336,7 +369,13 @@ function summarizeDeckCoverage(rows, minimumSeen) {
             playUnseen: cards.filter((card) => card.playStatus === 'unseen').map((card) => card.id),
             abilityExpected: cards.filter((card) => card.abilityExpected).length,
             abilityCovered: cards.filter((card) => card.abilityStatus === 'covered').length,
-            abilityUnreached: cards.filter((card) => card.abilityStatus === 'unreached').map((card) => card.id)
+            abilityUnreached: cards.filter((card) => card.abilityStatus === 'unreached').map((card) => card.id),
+            semanticCandidateGaps: rows[0]?.engineVersion === 'v2'
+                ? cards.filter((card) => card.semanticStages.eligible > 0 && card.semanticStages.candidate === 0).map((card) => card.id)
+                : [],
+            semanticPayoffGaps: rows[0]?.engineVersion === 'v2'
+                ? cards.filter((card) => card.semanticStages.chosen > 0 && card.semanticStages.resolved > 0 && card.semanticStages.payoffRealized === 0).map((card) => card.id)
+                : []
         };
     });
 }
@@ -344,19 +383,20 @@ function summarizeDeckCoverage(rows, minimumSeen) {
 function renderMarkdown(report) {
     const lines = [
         '# Bot live card-usage audit', '',
-        `Games per subject/opponent/seed/mode: ${report.config.games}; opponents: ${report.config.opponents.join(', ')}; minimum seen: ${report.config.minimumSeen}.`,
+        `Engine: ${report.config.engineVersion}${report.config.v2Mode ? ` (${report.config.v2Mode})` : ''}. Games per subject/opponent/seed/mode: ${report.config.games}; opponents: ${report.config.opponents.join(', ')}; minimum seen: ${report.config.minimumSeen}.`,
         'A play is a successful source-card activation. Mulligan selections, effect targets, attackers, and defenders do not count.', '',
         '## Deck-wide reachability across all selected seeds/modes', '',
-        '| Deck | Plays covered | Global zero-use | Never seen | Abilities exercised | In-play without activation | Games | Failures |',
-        '|---|---:|---:|---:|---:|---:|---:|---:|'
+        '| Deck | Plays covered | Zero-use | Never seen | Abilities | Unreached | Semantic candidate gaps | Payoff gaps | Games | Failures |',
+        '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|'
     ];
     for(const deck of report.deckCoverage || []) {
         lines.push(`| ${deck.deck} | ${deck.playCovered}/${deck.playExpected} | ${deck.playCandidates.length} | ` +
             `${deck.playUnseen.length} | ${deck.abilityCovered}/${deck.abilityExpected} | ` +
-            `${deck.abilityUnreached.length} | ${deck.games} | ${deck.failedJobs} |`);
+            `${deck.abilityUnreached.length} | ${deck.semanticCandidateGaps.length} | ${deck.semanticPayoffGaps.length} | ${deck.games} | ${deck.failedJobs} |`);
     }
     for(const deck of report.deckCoverage || []) {
-        if(deck.playCandidates.length > 0 || deck.playUnseen.length > 0 || deck.abilityUnreached.length > 0) {
+        if(deck.playCandidates.length > 0 || deck.playUnseen.length > 0 || deck.abilityUnreached.length > 0 ||
+            deck.semanticCandidateGaps.length > 0 || deck.semanticPayoffGaps.length > 0) {
             lines.push('', `### ${deck.deck}`, '');
             if(deck.playCandidates.length > 0) {
                 lines.push(`- Globally reachable zero-use play candidates: ${deck.playCandidates.join(', ')}`);
@@ -367,6 +407,8 @@ function renderMarkdown(report) {
             if(deck.abilityUnreached.length > 0) {
                 lines.push(`- Entered play but no live trigger/action activation observed: ${deck.abilityUnreached.join(', ')}`);
             }
+            if(deck.semanticCandidateGaps.length > 0) lines.push(`- Source-eligible without semantic candidate: ${deck.semanticCandidateGaps.join(', ')}`);
+            if(deck.semanticPayoffGaps.length > 0) lines.push(`- Resolved without observed semantic payoff: ${deck.semanticPayoffGaps.join(', ')}`);
         }
     }
     lines.push('', '## Per-seed and information-mode detail', '',
@@ -379,7 +421,8 @@ function renderMarkdown(report) {
             `${row.abilityUnreached.length} | ${row.games} |`);
     }
     for(const row of report.rows) {
-        if(row.playCandidates.length > 0 || row.playUnseen.length > 0 || row.abilityUnreached.length > 0 || row.failedJobs.length > 0) {
+        if(row.playCandidates.length > 0 || row.playUnseen.length > 0 || row.abilityUnreached.length > 0 ||
+            row.semanticCandidateGaps.length > 0 || row.semanticPayoffGaps.length > 0 || row.failedJobs.length > 0) {
             lines.push('', `## Seed ${row.seed} ${row.mode} ${row.deck}`, '');
             if(row.playCandidates.length > 0) {
                 lines.push(`- Reachable zero-use play candidates: ${row.playCandidates.join(', ')}`);
@@ -393,6 +436,8 @@ function renderMarkdown(report) {
             if(row.failedJobs.length > 0) {
                 lines.push(`- Failed/stalled games: ${row.failedJobs.length}`);
             }
+            if(row.semanticCandidateGaps.length > 0) lines.push(`- Source-eligible without semantic candidate: ${row.semanticCandidateGaps.join(', ')}`);
+            if(row.semanticPayoffGaps.length > 0) lines.push(`- Resolved without observed semantic payoff: ${row.semanticPayoffGaps.join(', ')}`);
         }
     }
     const candidates = report.rows.reduce((sum, row) => sum + row.playCandidates.length, 0);
@@ -426,7 +471,8 @@ async function main() {
         config: {
             decks: options.decks, opponents: options.opponents, seeds: options.seeds,
             modes: options.modes, games: options.games, workers: options.workers,
-            rngSeed: options.rngSeed, minimumSeen: options.minimumSeen
+            rngSeed: options.rngSeed, minimumSeen: options.minimumSeen,
+            engineVersion: options.engineVersion, v2Mode: options.v2Mode
         },
         rows,
         deckCoverage: summarizeDeckCoverage(rows, options.minimumSeen)

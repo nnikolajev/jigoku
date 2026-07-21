@@ -1,0 +1,6249 @@
+{
+  "generatedAt": "2026-07-21T13:20:40.809Z",
+  "options": {
+    "games": 1,
+    "seeds": [
+      1,
+      2,
+      3
+    ],
+    "omniscient": false,
+    "decks": [
+      "Crane",
+      "CraneDuels",
+      "Crab",
+      "Dragon",
+      "DragonAttachments",
+      "Lion",
+      "Phoenix",
+      "PhoenixShugenja",
+      "Scorpion",
+      "Unicorn"
+    ],
+    "opponents": [
+      "Crane"
+    ],
+    "rngSeed": 20260721,
+    "maxRounds": 25,
+    "maxGameMs": 30000,
+    "clickCap": 35,
+    "rejectedCap": 3,
+    "noProgressClicks": 4,
+    "repeatedActionClicks": 5,
+    "minCycleRepeats": 3,
+    "maxCyclePeriod": 8,
+    "out": "G:\\git\\legend-of-five-rings\\jigoku\\tools\\selfplay\\baselines\\v1\\interaction-fair"
+  },
+  "summary": [
+    {
+      "deck": "Crane",
+      "seed": 1,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 372,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 11,
+      "uniqueCardsClicked": 55,
+      "uniqueRingsClicked": 8,
+      "status": "PASS"
+    },
+    {
+      "deck": "CraneDuels",
+      "seed": 1,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 344,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 9,
+      "uniqueCardsClicked": 57,
+      "uniqueRingsClicked": 8,
+      "status": "PASS"
+    },
+    {
+      "deck": "Crab",
+      "seed": 1,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 610,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 10,
+      "uniqueCardsClicked": 93,
+      "uniqueRingsClicked": 10,
+      "status": "PASS"
+    },
+    {
+      "deck": "Dragon",
+      "seed": 1,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 416,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 8,
+      "uniqueCardsClicked": 65,
+      "uniqueRingsClicked": 9,
+      "status": "PASS"
+    },
+    {
+      "deck": "DragonAttachments",
+      "seed": 1,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 306,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 10,
+      "uniqueCardsClicked": 51,
+      "uniqueRingsClicked": 6,
+      "status": "PASS"
+    },
+    {
+      "deck": "Lion",
+      "seed": 1,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 482,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 10,
+      "uniqueCardsClicked": 70,
+      "uniqueRingsClicked": 8,
+      "status": "PASS"
+    },
+    {
+      "deck": "Phoenix",
+      "seed": 1,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 281,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 8,
+      "uniqueCardsClicked": 50,
+      "uniqueRingsClicked": 8,
+      "status": "PASS"
+    },
+    {
+      "deck": "PhoenixShugenja",
+      "seed": 1,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 327,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 10,
+      "uniqueCardsClicked": 57,
+      "uniqueRingsClicked": 6,
+      "status": "PASS"
+    },
+    {
+      "deck": "Scorpion",
+      "seed": 1,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 460,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 9,
+      "uniqueCardsClicked": 69,
+      "uniqueRingsClicked": 9,
+      "status": "PASS"
+    },
+    {
+      "deck": "Unicorn",
+      "seed": 1,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 398,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 9,
+      "uniqueCardsClicked": 70,
+      "uniqueRingsClicked": 9,
+      "status": "PASS"
+    },
+    {
+      "deck": "Crane",
+      "seed": 2,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 272,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 9,
+      "uniqueCardsClicked": 50,
+      "uniqueRingsClicked": 6,
+      "status": "PASS"
+    },
+    {
+      "deck": "CraneDuels",
+      "seed": 2,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 573,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 11,
+      "uniqueCardsClicked": 66,
+      "uniqueRingsClicked": 10,
+      "status": "PASS"
+    },
+    {
+      "deck": "Crab",
+      "seed": 2,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 436,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 8,
+      "uniqueCardsClicked": 72,
+      "uniqueRingsClicked": 7,
+      "status": "PASS"
+    },
+    {
+      "deck": "Dragon",
+      "seed": 2,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 703,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 13,
+      "uniqueCardsClicked": 91,
+      "uniqueRingsClicked": 10,
+      "status": "PASS"
+    },
+    {
+      "deck": "DragonAttachments",
+      "seed": 2,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 485,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 14,
+      "uniqueCardsClicked": 75,
+      "uniqueRingsClicked": 8,
+      "status": "PASS"
+    },
+    {
+      "deck": "Lion",
+      "seed": 2,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 560,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 11,
+      "uniqueCardsClicked": 68,
+      "uniqueRingsClicked": 9,
+      "status": "PASS"
+    },
+    {
+      "deck": "Phoenix",
+      "seed": 2,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 321,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 19,
+      "uniqueCardsClicked": 52,
+      "uniqueRingsClicked": 7,
+      "status": "PASS"
+    },
+    {
+      "deck": "PhoenixShugenja",
+      "seed": 2,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 409,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 7,
+      "uniqueCardsClicked": 65,
+      "uniqueRingsClicked": 6,
+      "status": "PASS"
+    },
+    {
+      "deck": "Scorpion",
+      "seed": 2,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 384,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 10,
+      "uniqueCardsClicked": 60,
+      "uniqueRingsClicked": 6,
+      "status": "PASS"
+    },
+    {
+      "deck": "Unicorn",
+      "seed": 2,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 346,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 9,
+      "uniqueCardsClicked": 66,
+      "uniqueRingsClicked": 7,
+      "status": "PASS"
+    },
+    {
+      "deck": "Crane",
+      "seed": 3,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 403,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 9,
+      "uniqueCardsClicked": 59,
+      "uniqueRingsClicked": 9,
+      "status": "PASS"
+    },
+    {
+      "deck": "CraneDuels",
+      "seed": 3,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 477,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 10,
+      "uniqueCardsClicked": 60,
+      "uniqueRingsClicked": 8,
+      "status": "PASS"
+    },
+    {
+      "deck": "Crab",
+      "seed": 3,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 357,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 9,
+      "uniqueCardsClicked": 62,
+      "uniqueRingsClicked": 7,
+      "status": "PASS"
+    },
+    {
+      "deck": "Dragon",
+      "seed": 3,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 363,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 9,
+      "uniqueCardsClicked": 58,
+      "uniqueRingsClicked": 9,
+      "status": "PASS"
+    },
+    {
+      "deck": "DragonAttachments",
+      "seed": 3,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 263,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 10,
+      "uniqueCardsClicked": 52,
+      "uniqueRingsClicked": 5,
+      "status": "PASS"
+    },
+    {
+      "deck": "Lion",
+      "seed": 3,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 527,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 10,
+      "uniqueCardsClicked": 82,
+      "uniqueRingsClicked": 9,
+      "status": "PASS"
+    },
+    {
+      "deck": "Phoenix",
+      "seed": 3,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 406,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 8,
+      "uniqueCardsClicked": 62,
+      "uniqueRingsClicked": 6,
+      "status": "PASS"
+    },
+    {
+      "deck": "PhoenixShugenja",
+      "seed": 3,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 455,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 9,
+      "uniqueCardsClicked": 68,
+      "uniqueRingsClicked": 7,
+      "status": "PASS"
+    },
+    {
+      "deck": "Scorpion",
+      "seed": 3,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 314,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 7,
+      "uniqueCardsClicked": 56,
+      "uniqueRingsClicked": 6,
+      "status": "PASS"
+    },
+    {
+      "deck": "Unicorn",
+      "seed": 3,
+      "games": 1,
+      "passes": 1,
+      "warnings": 0,
+      "failures": 0,
+      "decisions": 210,
+      "rejected": 0,
+      "unsupported": 0,
+      "forcedProgress": 0,
+      "cycles": 0,
+      "noProgressRuns": 0,
+      "repeatedActionRuns": 0,
+      "budgetExhaustions": 0,
+      "stalls": 0,
+      "maxTickClicks": 8,
+      "uniqueCardsClicked": 40,
+      "uniqueRingsClicked": 5,
+      "status": "PASS"
+    }
+  ],
+  "runs": [
+    {
+      "deck": "Crane",
+      "opponent": "Crane",
+      "seed": 1,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260721,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639926898-111766",
+        "winner": "Audit-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 5,
+        "steps": 78,
+        "elapsedMs": 4132,
+        "reward": {
+          "Audit-Crane": {
+            "counts": {
+              "conflictsWon": 4,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 10,
+            "oppHonor": 10,
+            "parts": {
+              "conflictsWon": 4,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 51,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 6,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 10,
+            "oppHonor": 10,
+            "parts": {
+              "conflictsWon": 6,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -13,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 197,
+        "successful": 197,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 11,
+        "clickCap": 35,
+        "uniquePrompts": 60,
+        "uniqueCardsClicked": 27,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 104,
+          "cardClicked": 81,
+          "ringClicked": 9,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 23
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 14
+          },
+          {
+            "key": "CONFLICT|Choose attackers :: cardClicked :: Kakita Yoshi",
+            "count": 5
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Triggered Abilities|any reactions :: cardClicked :: Kakita Yoshi",
+            "count": 4
+          },
+          {
+            "key": "Make Your Case|Choose a character :: cardClicked :: Brash Samurai",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 175,
+        "successful": 175,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 6,
+        "clickCap": 35,
+        "uniquePrompts": 59,
+        "uniqueCardsClicked": 28,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 62,
+          "menuButton": 102,
+          "ringClicked": 8,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 23
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 12
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Imperial Favor|Which side of the Imperial Favor would you like to claim? :: menuButton :: Military",
+            "count": 4
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Make Your Case",
+            "count": 3
+          },
+          {
+            "key": "Make Your Case|Choose a character :: cardClicked :: Doji Challenger",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "CraneDuels",
+      "opponent": "Crane",
+      "seed": 1,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260722,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639931054-238021",
+        "winner": "Opponent-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 5,
+        "steps": 77,
+        "elapsedMs": 2874,
+        "reward": {
+          "Audit-CraneDuels": {
+            "counts": {
+              "conflictsWon": 4,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 9,
+            "oppHonor": 15,
+            "parts": {
+              "conflictsWon": 4,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -15,
+            "won": false
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 5,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 15,
+            "oppHonor": 9,
+            "parts": {
+              "conflictsWon": 5,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 2.5,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 54.5,
+            "won": true
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 165,
+        "successful": 165,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 6,
+        "clickCap": 35,
+        "uniquePrompts": 62,
+        "uniqueCardsClicked": 28,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 64,
+          "menuButton": 94,
+          "ringClicked": 5,
+          "facedownCardClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 26
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 9
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 5",
+            "count": 3
+          },
+          {
+            "key": "Triggered Abilities|any interrupts :: cardClicked :: Voice of Honor",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 179,
+        "successful": 179,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 62,
+        "uniqueCardsClicked": 29,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 100,
+          "cardClicked": 67,
+          "ringClicked": 9,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 22
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 15
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 5",
+            "count": 4
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Above Question",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Crab",
+      "opponent": "Crane",
+      "seed": 1,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260723,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639933943-304405",
+        "winner": "Audit-Crab",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 8,
+        "steps": 132,
+        "elapsedMs": 6866,
+        "reward": {
+          "Audit-Crab": {
+            "counts": {
+              "conflictsWon": 12,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 4,
+            "oppHonor": 12,
+            "parts": {
+              "conflictsWon": 12,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 59,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 4,
+              "provincesBroken": 0,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 12,
+            "oppHonor": 4,
+            "parts": {
+              "conflictsWon": 4,
+              "provincesBroken": 0,
+              "strongholdBroken": 0,
+              "ownHonor": 1,
+              "oppHonor": 1.5,
+              "terminal": -25
+            },
+            "total": -18.5,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 315,
+        "successful": 315,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 89,
+        "uniqueCardsClicked": 51,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "cardClicked": 120,
+          "menuButton": 181,
+          "ringClicked": 10,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 42
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 22
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 8
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 7
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 7
+          },
+          {
+            "key": "Imperial Favor|Which side of the Imperial Favor would you like to claim? :: menuButton :: Military",
+            "count": 5
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Triggered Abilities|any reactions :: cardClicked :: Yasuki Oguri",
+            "count": 4
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 295,
+        "successful": 295,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 10,
+        "clickCap": 35,
+        "uniquePrompts": 79,
+        "uniqueCardsClicked": 42,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "menuButton": 171,
+          "cardClicked": 109,
+          "ringClicked": 12,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 38
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 26
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 8
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 7
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 7
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Shameful Display",
+            "count": 4
+          },
+          {
+            "key": "CONFLICT|Choose province to attack :: cardClicked :: Shameful Display",
+            "count": 4
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Dragon",
+      "opponent": "Crane",
+      "seed": 1,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260724,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639940827-595429",
+        "winner": "Audit-Dragon",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 4,
+        "steps": 99,
+        "elapsedMs": 2573,
+        "reward": {
+          "Audit-Dragon": {
+            "counts": {
+              "conflictsWon": 6,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 9,
+            "oppHonor": 10,
+            "parts": {
+              "conflictsWon": 6,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 53,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 4,
+              "provincesBroken": 3,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 10,
+            "oppHonor": 9,
+            "parts": {
+              "conflictsWon": 4,
+              "provincesBroken": 9,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -12,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 227,
+        "successful": 227,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 8,
+        "clickCap": 35,
+        "uniquePrompts": 73,
+        "uniqueCardsClicked": 33,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "menuButton": 119,
+          "cardClicked": 94,
+          "ringClicked": 10,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 26
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 15
+          },
+          {
+            "key": "Triggered Abilities|any reactions :: cardClicked :: Togashi Acolyte",
+            "count": 12
+          },
+          {
+            "key": "Declare Conflict|Do you wish to declare a conflict? :: menuButton :: Declare a conflict",
+            "count": 5
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: High House of Light",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Swell of Seafoam",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 189,
+        "successful": 189,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 8,
+        "clickCap": 35,
+        "uniquePrompts": 64,
+        "uniqueCardsClicked": 32,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 69,
+          "menuButton": 110,
+          "ringClicked": 7,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 30
+          },
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 19
+          },
+          {
+            "key": "Declare Conflict|Do you wish to declare a conflict? :: menuButton :: Declare a conflict",
+            "count": 5
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "CONFLICT|Choose attackers :: cardClicked :: Kakita Kaezin",
+            "count": 3
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 5",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "DragonAttachments",
+      "opponent": "Crane",
+      "seed": 1,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260725,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639943415-210980",
+        "winner": "Opponent-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 4,
+        "steps": 72,
+        "elapsedMs": 2346,
+        "reward": {
+          "Audit-DragonAttachments": {
+            "counts": {
+              "conflictsWon": 3,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 9,
+            "oppHonor": 11,
+            "parts": {
+              "conflictsWon": 3,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -16,
+            "won": false
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 3,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 11,
+            "oppHonor": 9,
+            "parts": {
+              "conflictsWon": 3,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0.5,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 50.5,
+            "won": true
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 164,
+        "successful": 164,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 8,
+        "clickCap": 35,
+        "uniquePrompts": 61,
+        "uniqueCardsClicked": 28,
+        "uniqueRingsClicked": 2,
+        "byCommand": {
+          "menuButton": 67,
+          "cardClicked": 94,
+          "ringClicked": 2,
+          "facedownCardClicked": 1
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 16
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 7
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Daimyō's Favor",
+            "count": 4
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Ornate Fan",
+            "count": 4
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "Triggered Abilities|any interrupts :: cardClicked :: Iron Mountain Castle",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Finger of Jade",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 142,
+        "successful": 142,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 10,
+        "clickCap": 35,
+        "uniquePrompts": 48,
+        "uniqueCardsClicked": 23,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 48,
+          "menuButton": 83,
+          "ringClicked": 6,
+          "facedownCardClicked": 5
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 30
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 9
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Iaijutsu Master",
+            "count": 3
+          },
+          {
+            "key": "CONFLICT|Choose attackers :: cardClicked :: Kakita Yoshi",
+            "count": 3
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Fine Katana",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Lion",
+      "opponent": "Crane",
+      "seed": 1,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260726,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639945775-830682",
+        "winner": "Audit-Lion",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 6,
+        "steps": 104,
+        "elapsedMs": 4817,
+        "reward": {
+          "Audit-Lion": {
+            "counts": {
+              "conflictsWon": 10,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 18,
+            "oppHonor": 7,
+            "parts": {
+              "conflictsWon": 10,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 4,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 61,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 4,
+              "provincesBroken": 3,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 7,
+            "oppHonor": 18,
+            "parts": {
+              "conflictsWon": 4,
+              "provincesBroken": 9,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -12,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 258,
+        "successful": 258,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 10,
+        "clickCap": 35,
+        "uniquePrompts": 81,
+        "uniqueCardsClicked": 35,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 102,
+          "menuButton": 141,
+          "ringClicked": 11,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 30
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 19
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 1",
+            "count": 4
+          },
+          {
+            "key": "Imperial Favor|Which side of the Imperial Favor would you like to claim? :: menuButton :: Military",
+            "count": 4
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 224,
+        "successful": 224,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 72,
+        "uniqueCardsClicked": 35,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 129,
+          "cardClicked": 83,
+          "ringClicked": 9,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 28
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 21
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 7
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Brash Samurai|Choose additional fate :: menuButton :: 0",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Shameful Display",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Phoenix",
+      "opponent": "Crane",
+      "seed": 1,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260727,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639950605-600172",
+        "winner": "Opponent-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 3,
+        "steps": 59,
+        "elapsedMs": 1447,
+        "reward": {
+          "Audit-Phoenix": {
+            "counts": {
+              "conflictsWon": 3,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 15,
+            "oppHonor": 1,
+            "parts": {
+              "conflictsWon": 3,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 2.5,
+              "oppHonor": 6,
+              "terminal": -25
+            },
+            "total": -7.5,
+            "won": false
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 5,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 1,
+            "oppHonor": 15,
+            "parts": {
+              "conflictsWon": 5,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 52,
+            "won": true
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 141,
+        "successful": 141,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 58,
+        "uniqueCardsClicked": 20,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "menuButton": 77,
+          "cardClicked": 54,
+          "ringClicked": 8,
+          "facedownCardClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 20
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 8
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Fine Katana",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Isawa Mori Seidō",
+            "count": 3
+          },
+          {
+            "key": "CONFLICT|Choose attackers :: cardClicked :: Shiba Tsukune",
+            "count": 3
+          },
+          {
+            "key": "Isawa Mori Seidō|Choose a character :: cardClicked :: Shiba Tsukune",
+            "count": 3
+          },
+          {
+            "key": "Isawa Mori Seidō|Choose a character :: menuButton :: Pay costs first",
+            "count": 3
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 140,
+        "successful": 140,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 8,
+        "clickCap": 35,
+        "uniquePrompts": 56,
+        "uniqueCardsClicked": 30,
+        "uniqueRingsClicked": 3,
+        "byCommand": {
+          "cardClicked": 51,
+          "menuButton": 80,
+          "ringClicked": 5,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 15
+          },
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 14
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 3
+          },
+          {
+            "key": "Triggered Abilities|any reactions :: menuButton :: Pass",
+            "count": 3
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 2
+          },
+          {
+            "key": "|Name a card :: menuButton :: Against the Waves",
+            "count": 2
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Fine Katana",
+            "count": 2
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Gossip",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "PhoenixShugenja",
+      "opponent": "Crane",
+      "seed": 1,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260728,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639952063-974750",
+        "winner": "Audit-PhoenixShugenja",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 4,
+        "steps": 70,
+        "elapsedMs": 2569,
+        "reward": {
+          "Audit-PhoenixShugenja": {
+            "counts": {
+              "conflictsWon": 5,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 10,
+            "oppHonor": 9,
+            "parts": {
+              "conflictsWon": 5,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 52,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 2,
+              "provincesBroken": 0,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 9,
+            "oppHonor": 10,
+            "parts": {
+              "conflictsWon": 2,
+              "provincesBroken": 0,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -23,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 184,
+        "successful": 184,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 8,
+        "clickCap": 35,
+        "uniquePrompts": 54,
+        "uniqueCardsClicked": 30,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 75,
+          "menuButton": 97,
+          "ringClicked": 9,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 24
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 8
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "Supernatural Storm|Choose a character :: menuButton :: Pay costs first",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "Clarity of Purpose|Choose a character :: menuButton :: Pay costs first",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Isawa Tadaka",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Supernatural Storm",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 143,
+        "successful": 143,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 10,
+        "clickCap": 35,
+        "uniquePrompts": 54,
+        "uniqueCardsClicked": 27,
+        "uniqueRingsClicked": 2,
+        "byCommand": {
+          "menuButton": 84,
+          "cardClicked": 53,
+          "ringClicked": 4,
+          "facedownCardClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 19
+          },
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 18
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "|Name a card :: menuButton :: Against the Waves",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Gossip",
+            "count": 3
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Iaijutsu Master",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Scorpion",
+      "opponent": "Crane",
+      "seed": 1,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260729,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639954645-431956",
+        "winner": "Opponent-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 7,
+        "steps": 110,
+        "elapsedMs": 4025,
+        "reward": {
+          "Audit-Scorpion": {
+            "counts": {
+              "conflictsWon": 4,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 3,
+            "oppHonor": 2,
+            "parts": {
+              "conflictsWon": 4,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 4.5,
+              "terminal": -25
+            },
+            "total": -10.5,
+            "won": false
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 8,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 2,
+            "oppHonor": 3,
+            "parts": {
+              "conflictsWon": 8,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 3,
+              "terminal": 25
+            },
+            "total": 58,
+            "won": true
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 221,
+        "successful": 221,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 62,
+        "uniqueCardsClicked": 32,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 88,
+          "menuButton": 127,
+          "ringClicked": 5,
+          "facedownCardClicked": 1
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 40
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 15
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 7
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 6
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 6
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 1",
+            "count": 6
+          },
+          {
+            "key": "Tainted Koku|Choose a character :: menuButton :: Pay costs first",
+            "count": 4
+          },
+          {
+            "key": "Triggered Abilities|any interrupts :: cardClicked :: Tainted Koku",
+            "count": 4
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 239,
+        "successful": 239,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 70,
+        "uniqueCardsClicked": 37,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "menuButton": 137,
+          "cardClicked": 85,
+          "ringClicked": 13,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 33
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 24
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 7
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 6
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 6
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 1",
+            "count": 4
+          },
+          {
+            "key": "Imperial Favor|Which side of the Imperial Favor would you like to claim? :: menuButton :: Military",
+            "count": 4
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Unicorn",
+      "opponent": "Crane",
+      "seed": 1,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260730,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639958686-395243",
+        "winner": "Opponent-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 5,
+        "steps": 91,
+        "elapsedMs": 3362,
+        "reward": {
+          "Audit-Unicorn": {
+            "counts": {
+              "conflictsWon": 6,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 3,
+            "oppHonor": 15,
+            "parts": {
+              "conflictsWon": 6,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -13,
+            "won": false
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 6,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 15,
+            "oppHonor": 3,
+            "parts": {
+              "conflictsWon": 6,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 2.5,
+              "oppHonor": 3,
+              "terminal": 25
+            },
+            "total": 58.5,
+            "won": true
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 196,
+        "successful": 196,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 8,
+        "clickCap": 35,
+        "uniquePrompts": 62,
+        "uniqueCardsClicked": 33,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 72,
+          "menuButton": 115,
+          "ringClicked": 7,
+          "facedownCardClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 27
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 14
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Golden Plains Outpost",
+            "count": 5
+          },
+          {
+            "key": "Golden Plains Outpost|Choose a character :: menuButton :: Pay costs first",
+            "count": 5
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 202,
+        "successful": 202,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 69,
+        "uniqueCardsClicked": 37,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "menuButton": 113,
+          "cardClicked": 76,
+          "ringClicked": 8,
+          "facedownCardClicked": 5
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 24
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 18
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "CONFLICT|Choose attackers :: cardClicked :: Doji Kuwanan",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Shameful Display",
+            "count": 3
+          },
+          {
+            "key": "Shameful Display|Select two characters :: menuButton :: Done",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Crane",
+      "opponent": "Crane",
+      "seed": 2,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260731,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639962061-11200",
+        "winner": "Audit-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 4,
+        "steps": 60,
+        "elapsedMs": 1520,
+        "reward": {
+          "Audit-Crane": {
+            "counts": {
+              "conflictsWon": 7,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 12,
+            "oppHonor": 1,
+            "parts": {
+              "conflictsWon": 7,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 1,
+              "oppHonor": 6,
+              "terminal": 25
+            },
+            "total": 61,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 0,
+              "provincesBroken": 0,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 1,
+            "oppHonor": 12,
+            "parts": {
+              "conflictsWon": 0,
+              "provincesBroken": 0,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -25,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 161,
+        "successful": 161,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 55,
+        "uniqueCardsClicked": 29,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 89,
+          "cardClicked": 58,
+          "ringClicked": 10,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 19
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 9
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Iaijutsu Master",
+            "count": 5
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "CONFLICT|Choose attackers :: cardClicked :: Kakita Yoshi",
+            "count": 3
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Iaijutsu Master|Choose a card :: menuButton :: Cancel",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 111,
+        "successful": 111,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 45,
+        "uniqueCardsClicked": 21,
+        "uniqueRingsClicked": 2,
+        "byCommand": {
+          "cardClicked": 38,
+          "menuButton": 70,
+          "ringClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 21
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 11
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Manicured Garden",
+            "count": 2
+          },
+          {
+            "key": "CONFLICT|Choose province to attack :: cardClicked :: Tsuma",
+            "count": 2
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 1",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "CraneDuels",
+      "opponent": "Crane",
+      "seed": 2,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260732,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639963590-740020",
+        "winner": "Audit-CraneDuels",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 7,
+        "steps": 124,
+        "elapsedMs": 6049,
+        "reward": {
+          "Audit-CraneDuels": {
+            "counts": {
+              "conflictsWon": 10,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 15,
+            "oppHonor": 2,
+            "parts": {
+              "conflictsWon": 10,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 2.5,
+              "oppHonor": 4.5,
+              "terminal": 25
+            },
+            "total": 64,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 7,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 2,
+            "oppHonor": 15,
+            "parts": {
+              "conflictsWon": 7,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -12,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 301,
+        "successful": 301,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 10,
+        "clickCap": 35,
+        "uniquePrompts": 95,
+        "uniqueCardsClicked": 36,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "cardClicked": 115,
+          "menuButton": 171,
+          "ringClicked": 11,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 35
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 21
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 7
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 6
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 1",
+            "count": 6
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Shameful Display",
+            "count": 5
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Shameful Display|Select two characters :: menuButton :: Done",
+            "count": 5
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 272,
+        "successful": 272,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 11,
+        "clickCap": 35,
+        "uniquePrompts": 93,
+        "uniqueCardsClicked": 30,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "menuButton": 158,
+          "cardClicked": 100,
+          "ringClicked": 12,
+          "facedownCardClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 34
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 24
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 7
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 6
+          },
+          {
+            "key": "CONFLICT|Choose province to attack :: cardClicked :: Shameful Display",
+            "count": 6
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 1",
+            "count": 6
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Shameful Display",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Crab",
+      "opponent": "Crane",
+      "seed": 2,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260733,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639969651-18784",
+        "winner": "Opponent-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 6,
+        "steps": 105,
+        "elapsedMs": 3233,
+        "reward": {
+          "Audit-Crab": {
+            "counts": {
+              "conflictsWon": 5,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 10,
+            "oppHonor": 15,
+            "parts": {
+              "conflictsWon": 5,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -14,
+            "won": false
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 7,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 15,
+            "oppHonor": 10,
+            "parts": {
+              "conflictsWon": 7,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 2.5,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 56.5,
+            "won": true
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 218,
+        "successful": 218,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 8,
+        "clickCap": 35,
+        "uniquePrompts": 73,
+        "uniqueCardsClicked": 39,
+        "uniqueRingsClicked": 3,
+        "byCommand": {
+          "cardClicked": 80,
+          "menuButton": 132,
+          "ringClicked": 4,
+          "facedownCardClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 37
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 15
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 3",
+            "count": 3
+          },
+          {
+            "key": "Initiate Conflict|Choose an elemental ring\n(click the ring again to change conflict type) :: menuButton :: Pass Conflict",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 218,
+        "successful": 218,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 64,
+        "uniqueCardsClicked": 33,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 128,
+          "cardClicked": 74,
+          "ringClicked": 12,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 29
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 25
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Initiate Conflict|Choose an elemental ring\n(click the ring again to change conflict type) :: ringClicked :: fire",
+            "count": 4
+          },
+          {
+            "key": "|Name a card :: menuButton :: The Mountain Does Not Fall",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Gossip",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Dragon",
+      "opponent": "Crane",
+      "seed": 2,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260734,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639972899-307664",
+        "winner": "Audit-Dragon",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 6,
+        "steps": 156,
+        "elapsedMs": 5790,
+        "reward": {
+          "Audit-Dragon": {
+            "counts": {
+              "conflictsWon": 6,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 12,
+            "oppHonor": 9,
+            "parts": {
+              "conflictsWon": 6,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 1,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 54,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 5,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 9,
+            "oppHonor": 12,
+            "parts": {
+              "conflictsWon": 5,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -14,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 415,
+        "successful": 415,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 13,
+        "clickCap": 35,
+        "uniquePrompts": 101,
+        "uniqueCardsClicked": 50,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "cardClicked": 198,
+          "menuButton": 185,
+          "ringClicked": 29,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 33
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 17
+          },
+          {
+            "key": "Triggered Abilities|any reactions :: cardClicked :: Togashi Acolyte",
+            "count": 14
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: In Service to My Lord",
+            "count": 7
+          },
+          {
+            "key": "Declare Conflict|Do you wish to declare a conflict? :: menuButton :: Declare a conflict",
+            "count": 7
+          },
+          {
+            "key": "In Service to My Lord|Choose a unique character :: menuButton :: Cancel",
+            "count": 7
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "Triggered Abilities|any reactions :: cardClicked :: Ancient Master",
+            "count": 6
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 288,
+        "successful": 288,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 84,
+        "uniqueCardsClicked": 41,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "menuButton": 170,
+          "cardClicked": 106,
+          "ringClicked": 10,
+          "facedownCardClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 51
+          },
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 26
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 5",
+            "count": 4
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Make Your Case",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "DragonAttachments",
+      "opponent": "Crane",
+      "seed": 2,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260735,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639978705-286925",
+        "winner": "Audit-DragonAttachments",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 6,
+        "steps": 110,
+        "elapsedMs": 4993,
+        "reward": {
+          "Audit-DragonAttachments": {
+            "counts": {
+              "conflictsWon": 7,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 5,
+            "oppHonor": 16,
+            "parts": {
+              "conflictsWon": 7,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 54,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 5,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 16,
+            "oppHonor": 5,
+            "parts": {
+              "conflictsWon": 5,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 3,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -11,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 260,
+        "successful": 260,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 10,
+        "clickCap": 35,
+        "uniquePrompts": 80,
+        "uniqueCardsClicked": 44,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 132,
+          "menuButton": 116,
+          "ringClicked": 8,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 26
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 15
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Daimyō's Favor",
+            "count": 7
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "Triggered Abilities|any interrupts :: cardClicked :: Iron Mountain Castle",
+            "count": 6
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Ancestral Daishō",
+            "count": 4
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 225,
+        "successful": 225,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 14,
+        "clickCap": 35,
+        "uniquePrompts": 66,
+        "uniqueCardsClicked": 31,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 139,
+          "cardClicked": 76,
+          "ringClicked": 8,
+          "facedownCardClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 47
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 13
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "CONFLICT|Choose province to attack :: cardClicked :: Illustrious Forge",
+            "count": 4
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 1",
+            "count": 4
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Shameful Display",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Lion",
+      "opponent": "Crane",
+      "seed": 2,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260736,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639983710-185613",
+        "winner": "Audit-Lion",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 7,
+        "steps": 121,
+        "elapsedMs": 7762,
+        "reward": {
+          "Audit-Lion": {
+            "counts": {
+              "conflictsWon": 7,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 15,
+            "oppHonor": 3,
+            "parts": {
+              "conflictsWon": 7,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 2.5,
+              "oppHonor": 3,
+              "terminal": 25
+            },
+            "total": 59.5,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 4,
+              "provincesBroken": 3,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 3,
+            "oppHonor": 15,
+            "parts": {
+              "conflictsWon": 4,
+              "provincesBroken": 9,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -12,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 324,
+        "successful": 324,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 11,
+        "clickCap": 35,
+        "uniquePrompts": 89,
+        "uniqueCardsClicked": 36,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "menuButton": 164,
+          "cardClicked": 146,
+          "ringClicked": 11,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 35
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 16
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: cardClicked :: Ikoma Tsanuri",
+            "count": 8
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 7
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 6
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 6
+          },
+          {
+            "key": "CONFLICT|Choose province to attack :: cardClicked :: Meditations on the Tao",
+            "count": 5
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 236,
+        "successful": 236,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 79,
+        "uniqueCardsClicked": 32,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 85,
+          "menuButton": 143,
+          "ringClicked": 5,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 34
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 21
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 8
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 6
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 1",
+            "count": 5
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Kakita Kaezin",
+            "count": 4
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Meditations on the Tao",
+            "count": 4
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Phoenix",
+      "opponent": "Crane",
+      "seed": 2,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260737,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639991484-865741",
+        "winner": "Audit-Phoenix",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 4,
+        "steps": 68,
+        "elapsedMs": 2214,
+        "reward": {
+          "Audit-Phoenix": {
+            "counts": {
+              "conflictsWon": 5,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 14,
+            "oppHonor": 13,
+            "parts": {
+              "conflictsWon": 5,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 2,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 54,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 2,
+              "provincesBroken": 1,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 13,
+            "oppHonor": 14,
+            "parts": {
+              "conflictsWon": 2,
+              "provincesBroken": 3,
+              "strongholdBroken": 0,
+              "ownHonor": 1.5,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -18.5,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 173,
+        "successful": 173,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 12,
+        "clickCap": 35,
+        "uniquePrompts": 65,
+        "uniqueCardsClicked": 28,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 67,
+          "menuButton": 93,
+          "ringClicked": 10,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 23
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 9
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Isawa Mori Seidō",
+            "count": 3
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Isawa Mori Seidō|Choose a character :: menuButton :: Pay costs first",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 148,
+        "successful": 148,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 19,
+        "clickCap": 35,
+        "uniquePrompts": 59,
+        "uniqueCardsClicked": 24,
+        "uniqueRingsClicked": 3,
+        "byCommand": {
+          "menuButton": 83,
+          "cardClicked": 58,
+          "ringClicked": 5,
+          "facedownCardClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 16
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 14
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "Triggered Abilities|any reactions :: cardClicked :: Savvy Politician",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Above Question",
+            "count": 2
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Gossip",
+            "count": 2
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Ornate Fan",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "PhoenixShugenja",
+      "opponent": "Crane",
+      "seed": 2,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260738,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639993711-745475",
+        "winner": "Audit-PhoenixShugenja",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 5,
+        "steps": 88,
+        "elapsedMs": 2837,
+        "reward": {
+          "Audit-PhoenixShugenja": {
+            "counts": {
+              "conflictsWon": 7,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 5,
+            "oppHonor": 13,
+            "parts": {
+              "conflictsWon": 7,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 54,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 2,
+              "provincesBroken": 0,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 13,
+            "oppHonor": 5,
+            "parts": {
+              "conflictsWon": 2,
+              "provincesBroken": 0,
+              "strongholdBroken": 0,
+              "ownHonor": 1.5,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -21.5,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 222,
+        "successful": 222,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 60,
+        "uniqueCardsClicked": 35,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 102,
+          "cardClicked": 104,
+          "ringClicked": 13,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 23
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 10
+          },
+          {
+            "key": "Oracle of Stone|Choose 2 cards to discard :: menuButton :: Done",
+            "count": 6
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Kyūden Isawa",
+            "count": 5
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "Triggered Abilities|any reactions :: cardClicked :: Forgotten Library",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "Clarity of Purpose|Choose a character :: menuButton :: Pay costs first",
+            "count": 4
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 187,
+        "successful": 187,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 55,
+        "uniqueCardsClicked": 30,
+        "uniqueRingsClicked": 2,
+        "byCommand": {
+          "cardClicked": 74,
+          "menuButton": 108,
+          "ringClicked": 4,
+          "facedownCardClicked": 1
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 23
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 19
+          },
+          {
+            "key": "Oracle of Stone|Choose 2 cards to discard :: menuButton :: Done",
+            "count": 6
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Above Question",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Scorpion",
+      "opponent": "Crane",
+      "seed": 2,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260739,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639996561-779144",
+        "winner": "Audit-Scorpion",
+        "winReason": "dishonor",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 5,
+        "steps": 82,
+        "elapsedMs": 3225,
+        "reward": {
+          "Audit-Scorpion": {
+            "counts": {
+              "conflictsWon": 5,
+              "provincesBroken": 1,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 8,
+            "oppHonor": 0,
+            "parts": {
+              "conflictsWon": 5,
+              "provincesBroken": 3,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 7.5,
+              "terminal": 25
+            },
+            "total": 40.5,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 6,
+              "provincesBroken": 3,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 0,
+            "oppHonor": 8,
+            "parts": {
+              "conflictsWon": 6,
+              "provincesBroken": 9,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -10,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 182,
+        "successful": 182,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 58,
+        "uniqueCardsClicked": 28,
+        "uniqueRingsClicked": 3,
+        "byCommand": {
+          "menuButton": 110,
+          "cardClicked": 65,
+          "ringClicked": 5,
+          "facedownCardClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 33
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 15
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "CONFLICT|Choose attackers :: cardClicked :: Bayushi Shoju",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 1",
+            "count": 4
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Ornate Fan",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 202,
+        "successful": 202,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 10,
+        "clickCap": 35,
+        "uniquePrompts": 70,
+        "uniqueCardsClicked": 32,
+        "uniqueRingsClicked": 3,
+        "byCommand": {
+          "cardClicked": 80,
+          "menuButton": 108,
+          "ringClicked": 11,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 24
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 15
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 1",
+            "count": 3
+          },
+          {
+            "key": "Initiate Conflict|Choose an elemental ring\n(click the ring again to change conflict type) :: ringClicked :: fire",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Above Question",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Unicorn",
+      "opponent": "Crane",
+      "seed": 2,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260740,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784639999798-487813",
+        "winner": "Audit-Unicorn",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 4,
+        "steps": 78,
+        "elapsedMs": 2916,
+        "reward": {
+          "Audit-Unicorn": {
+            "counts": {
+              "conflictsWon": 6,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 8,
+            "oppHonor": 13,
+            "parts": {
+              "conflictsWon": 6,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 53,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 3,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 13,
+            "oppHonor": 8,
+            "parts": {
+              "conflictsWon": 3,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 1.5,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -14.5,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 185,
+        "successful": 185,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 8,
+        "clickCap": 35,
+        "uniquePrompts": 63,
+        "uniqueCardsClicked": 35,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 75,
+          "menuButton": 97,
+          "ringClicked": 9,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 22
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 10
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "CONFLICT|Political skill: 2 :: menuButton :: Initiate Conflict",
+            "count": 3
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Spyglass",
+            "count": 2
+          },
+          {
+            "key": "Challenge on the Fields|Choose a character :: menuButton :: Pay costs first",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 161,
+        "successful": 161,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 63,
+        "uniqueCardsClicked": 31,
+        "uniqueRingsClicked": 3,
+        "byCommand": {
+          "menuButton": 89,
+          "cardClicked": 66,
+          "ringClicked": 4,
+          "facedownCardClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 18
+          },
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 16
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "CONFLICT: 2 vs 0|Choose defenders :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Iaijutsu Master",
+            "count": 2
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Ornate Fan",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Crane",
+      "opponent": "Crane",
+      "seed": 3,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260741,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784640002727-276950",
+        "winner": "Opponent-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 6,
+        "steps": 87,
+        "elapsedMs": 3744,
+        "reward": {
+          "Audit-Crane": {
+            "counts": {
+              "conflictsWon": 5,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 6,
+            "oppHonor": 16,
+            "parts": {
+              "conflictsWon": 5,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -14,
+            "won": false
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 6,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 16,
+            "oppHonor": 6,
+            "parts": {
+              "conflictsWon": 6,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 3,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 56,
+            "won": true
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 211,
+        "successful": 211,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 70,
+        "uniqueCardsClicked": 30,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "cardClicked": 76,
+          "menuButton": 125,
+          "ringClicked": 9,
+          "facedownCardClicked": 1
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 27
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 13
+          },
+          {
+            "key": "Iaijutsu Master|Choose a card :: menuButton :: Cancel",
+            "count": 6
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Iaijutsu Master",
+            "count": 4
+          },
+          {
+            "key": "CONFLICT|Choose province to attack :: cardClicked :: Manicured Garden",
+            "count": 4
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 192,
+        "successful": 192,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 64,
+        "uniqueCardsClicked": 29,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 108,
+          "cardClicked": 72,
+          "ringClicked": 8,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 27
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 16
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Manicured Garden",
+            "count": 3
+          },
+          {
+            "key": "CONFLICT|Choose attackers :: cardClicked :: Iron Crane Legion",
+            "count": 3
+          },
+          {
+            "key": "CONFLICT|Choose defenders to Covert :: cardClicked :: Kakita Yoshi",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "CraneDuels",
+      "opponent": "Crane",
+      "seed": 3,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260742,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784640006481-316822",
+        "winner": "Opponent-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 7,
+        "steps": 107,
+        "elapsedMs": 7204,
+        "reward": {
+          "Audit-CraneDuels": {
+            "counts": {
+              "conflictsWon": 6,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 3,
+            "oppHonor": 16,
+            "parts": {
+              "conflictsWon": 6,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -13,
+            "won": false
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 7,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 16,
+            "oppHonor": 3,
+            "parts": {
+              "conflictsWon": 7,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 3,
+              "oppHonor": 3,
+              "terminal": 25
+            },
+            "total": 60,
+            "won": true
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 226,
+        "successful": 226,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 74,
+        "uniqueCardsClicked": 30,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 138,
+          "cardClicked": 81,
+          "ringClicked": 6,
+          "facedownCardClicked": 1
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 36
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 15
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 7
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 6
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 6
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Vassal Fields",
+            "count": 4
+          },
+          {
+            "key": "CONFLICT|Choose province to attack :: cardClicked :: Tsuma",
+            "count": 4
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 4
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 251,
+        "successful": 251,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 10,
+        "clickCap": 35,
+        "uniquePrompts": 77,
+        "uniqueCardsClicked": 30,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 97,
+          "menuButton": 139,
+          "ringClicked": 12,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 34
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 18
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 7
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 6
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 6
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Doji Kuwanan",
+            "count": 4
+          },
+          {
+            "key": "|Name a card :: menuButton :: Storied Defeat",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Gossip",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Crab",
+      "opponent": "Crane",
+      "seed": 3,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260743,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784640013698-189100",
+        "winner": "Opponent-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 5,
+        "steps": 80,
+        "elapsedMs": 2760,
+        "reward": {
+          "Audit-Crab": {
+            "counts": {
+              "conflictsWon": 3,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 14,
+            "oppHonor": 10,
+            "parts": {
+              "conflictsWon": 3,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 2,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -14,
+            "won": false
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 6,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 10,
+            "oppHonor": 14,
+            "parts": {
+              "conflictsWon": 6,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 53,
+            "won": true
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 168,
+        "successful": 168,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 62,
+        "uniqueCardsClicked": 27,
+        "uniqueRingsClicked": 3,
+        "byCommand": {
+          "cardClicked": 59,
+          "menuButton": 102,
+          "ringClicked": 6,
+          "facedownCardClicked": 1
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 31
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 11
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "CONFLICT|Choose province to attack :: cardClicked :: Tsuma",
+            "count": 3
+          },
+          {
+            "key": "Apprentice Engineer|Choose additional fate :: menuButton :: 0",
+            "count": 2
+          },
+          {
+            "key": "Apprentice Engineer|Where do you wish to play this character? :: menuButton :: Conflict",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 189,
+        "successful": 189,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 67,
+        "uniqueCardsClicked": 35,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 100,
+          "cardClicked": 76,
+          "ringClicked": 8,
+          "facedownCardClicked": 5
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 21
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 18
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "|Name a card :: menuButton :: The Mountain Does Not Fall",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Gossip",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Iaijutsu Master",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Dragon",
+      "opponent": "Crane",
+      "seed": 3,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260744,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784640016471-451300",
+        "winner": "Audit-Dragon",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 4,
+        "steps": 84,
+        "elapsedMs": 1926,
+        "reward": {
+          "Audit-Dragon": {
+            "counts": {
+              "conflictsWon": 6,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 11,
+            "oppHonor": 14,
+            "parts": {
+              "conflictsWon": 6,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0.5,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 53.5,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 1,
+              "provincesBroken": 1,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 14,
+            "oppHonor": 11,
+            "parts": {
+              "conflictsWon": 1,
+              "provincesBroken": 3,
+              "strongholdBroken": 0,
+              "ownHonor": 2,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -19,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 210,
+        "successful": 210,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 74,
+        "uniqueCardsClicked": 31,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "cardClicked": 90,
+          "menuButton": 102,
+          "ringClicked": 15,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 18
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 8
+          },
+          {
+            "key": "Declare Conflict|Do you wish to declare a conflict? :: menuButton :: Declare a conflict",
+            "count": 5
+          },
+          {
+            "key": "CONFLICT|Choose attackers :: cardClicked :: Togashi Ichi",
+            "count": 4
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: High House of Light",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Iron Foundations Stance",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 153,
+        "successful": 153,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 6,
+        "clickCap": 35,
+        "uniquePrompts": 57,
+        "uniqueCardsClicked": 27,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 92,
+          "cardClicked": 53,
+          "ringClicked": 7,
+          "facedownCardClicked": 1
+        },
+        "topInteractions": [
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 24
+          },
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 16
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Let Go",
+            "count": 3
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Let Go|Choose an attachment :: menuButton :: Pay costs first",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Kakita Kaezin",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "DragonAttachments",
+      "opponent": "Crane",
+      "seed": 3,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260745,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784640018409-248355",
+        "winner": "Audit-DragonAttachments",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 3,
+        "steps": 60,
+        "elapsedMs": 1877,
+        "reward": {
+          "Audit-DragonAttachments": {
+            "counts": {
+              "conflictsWon": 3,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 8,
+            "oppHonor": 11,
+            "parts": {
+              "conflictsWon": 3,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 50,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 3,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 11,
+            "oppHonor": 8,
+            "parts": {
+              "conflictsWon": 3,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 0.5,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -15.5,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 145,
+        "successful": 145,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 10,
+        "clickCap": 35,
+        "uniquePrompts": 56,
+        "uniqueCardsClicked": 28,
+        "uniqueRingsClicked": 3,
+        "byCommand": {
+          "cardClicked": 79,
+          "menuButton": 58,
+          "ringClicked": 5,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 12
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 8
+          },
+          {
+            "key": "CONFLICT|Choose attackers :: cardClicked :: Niten Master",
+            "count": 4
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Daimyō's Favor",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Daimyō's Favor",
+            "count": 3
+          },
+          {
+            "key": "CONFLICT|Choose defenders to Covert :: cardClicked :: Doji Challenger",
+            "count": 3
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 5",
+            "count": 3
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 118,
+        "successful": 118,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 47,
+        "uniqueCardsClicked": 24,
+        "uniqueRingsClicked": 2,
+        "byCommand": {
+          "menuButton": 72,
+          "cardClicked": 39,
+          "ringClicked": 4,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 18
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 12
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 3
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 2
+          },
+          {
+            "key": "|Name a card :: menuButton :: Tetsubō of Blood",
+            "count": 2
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Gossip",
+            "count": 2
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Iaijutsu Master",
+            "count": 2
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Let Go",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Lion",
+      "opponent": "Crane",
+      "seed": 3,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260746,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784640020298-935276",
+        "winner": "Audit-Lion",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 6,
+        "steps": 109,
+        "elapsedMs": 8845,
+        "reward": {
+          "Audit-Lion": {
+            "counts": {
+              "conflictsWon": 8,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 16,
+            "oppHonor": 6,
+            "parts": {
+              "conflictsWon": 8,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 3,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 58,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 3,
+              "provincesBroken": 3,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 6,
+            "oppHonor": 16,
+            "parts": {
+              "conflictsWon": 3,
+              "provincesBroken": 9,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -13,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 270,
+        "successful": 270,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 10,
+        "clickCap": 35,
+        "uniquePrompts": 86,
+        "uniqueCardsClicked": 41,
+        "uniqueRingsClicked": 5,
+        "byCommand": {
+          "cardClicked": 109,
+          "menuButton": 147,
+          "ringClicked": 10,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 32
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 19
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "Triggered Abilities|any reactions :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Hayaken no Shiro",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 257,
+        "successful": 257,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 10,
+        "clickCap": 35,
+        "uniquePrompts": 84,
+        "uniqueCardsClicked": 41,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 139,
+          "cardClicked": 105,
+          "ringClicked": 9,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 27
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 18
+          },
+          {
+            "key": "Iaijutsu Master|Choose a card :: menuButton :: Cancel",
+            "count": 7
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 7
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Iaijutsu Master",
+            "count": 6
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "CONFLICT|Choose attackers :: cardClicked :: Kakita Yoshi",
+            "count": 4
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Phoenix",
+      "opponent": "Crane",
+      "seed": 3,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260747,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784640029157-598781",
+        "winner": "Audit-Phoenix",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 5,
+        "steps": 90,
+        "elapsedMs": 4781,
+        "reward": {
+          "Audit-Phoenix": {
+            "counts": {
+              "conflictsWon": 7,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 11,
+            "oppHonor": 8,
+            "parts": {
+              "conflictsWon": 7,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0.5,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 54.5,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 3,
+              "provincesBroken": 1,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 8,
+            "oppHonor": 11,
+            "parts": {
+              "conflictsWon": 3,
+              "provincesBroken": 3,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -19,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 217,
+        "successful": 217,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 8,
+        "clickCap": 35,
+        "uniquePrompts": 64,
+        "uniqueCardsClicked": 29,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 119,
+          "cardClicked": 85,
+          "ringClicked": 10,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 30
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 11
+          },
+          {
+            "key": "CONFLICT|Choose province to attack :: cardClicked :: Tsuma",
+            "count": 5
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Isawa Mori Seidō",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Imperial Favor|Which side of the Imperial Favor would you like to claim? :: menuButton :: Military",
+            "count": 4
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 189,
+        "successful": 189,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 67,
+        "uniqueCardsClicked": 33,
+        "uniqueRingsClicked": 2,
+        "byCommand": {
+          "cardClicked": 78,
+          "menuButton": 105,
+          "ringClicked": 4,
+          "facedownCardClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 22
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 17
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 5
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 4
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 4
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 5",
+            "count": 3
+          },
+          {
+            "key": "|Name a card :: menuButton :: Against the Waves",
+            "count": 2
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Above Question",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "PhoenixShugenja",
+      "opponent": "Crane",
+      "seed": 3,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260748,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784640033951-341345",
+        "winner": "Audit-PhoenixShugenja",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 6,
+        "steps": 104,
+        "elapsedMs": 3070,
+        "reward": {
+          "Audit-PhoenixShugenja": {
+            "counts": {
+              "conflictsWon": 6,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 1,
+            "oppHonor": 15,
+            "parts": {
+              "conflictsWon": 6,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 53,
+            "won": true
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 4,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 15,
+            "oppHonor": 1,
+            "parts": {
+              "conflictsWon": 4,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 2.5,
+              "oppHonor": 6,
+              "terminal": -25
+            },
+            "total": -6.5,
+            "won": false
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 254,
+        "successful": 254,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 66,
+        "uniqueCardsClicked": 36,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "cardClicked": 108,
+          "menuButton": 129,
+          "ringClicked": 13,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 32
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 12
+          },
+          {
+            "key": "Triggered Abilities|any reactions :: cardClicked :: Forgotten Library",
+            "count": 7
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Kyūden Isawa",
+            "count": 5
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 5
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 201,
+        "successful": 201,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 9,
+        "clickCap": 35,
+        "uniquePrompts": 64,
+        "uniqueCardsClicked": 32,
+        "uniqueRingsClicked": 3,
+        "byCommand": {
+          "menuButton": 120,
+          "cardClicked": 73,
+          "ringClicked": 5,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 26
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 26
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 5
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Oracle of Stone|Choose 2 cards to discard :: menuButton :: Done",
+            "count": 5
+          },
+          {
+            "key": "Fate Phase|Choose character to discard\n(or click Done to discard all characters with no fate) :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Oracle of Stone|Choose 2 cards to discard :: cardClicked :: Let Go",
+            "count": 3
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Scorpion",
+      "opponent": "Crane",
+      "seed": 3,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260749,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784640037034-851163",
+        "winner": "Opponent-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 4,
+        "steps": 72,
+        "elapsedMs": 2361,
+        "reward": {
+          "Audit-Scorpion": {
+            "counts": {
+              "conflictsWon": 2,
+              "provincesBroken": 2,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 5,
+            "oppHonor": 3,
+            "parts": {
+              "conflictsWon": 2,
+              "provincesBroken": 6,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 3,
+              "terminal": -25
+            },
+            "total": -14,
+            "won": false
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 5,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 3,
+            "oppHonor": 5,
+            "parts": {
+              "conflictsWon": 5,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 52,
+            "won": true
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 147,
+        "successful": 147,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 54,
+        "uniqueCardsClicked": 24,
+        "uniqueRingsClicked": 2,
+        "byCommand": {
+          "cardClicked": 55,
+          "menuButton": 86,
+          "ringClicked": 5,
+          "facedownCardClicked": 1
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 23
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 11
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Shosuro Hametsu",
+            "count": 3
+          },
+          {
+            "key": "Honor Bid|Choose how much honor to bid in the draw phase :: menuButton :: 1",
+            "count": 3
+          },
+          {
+            "key": "Air Ring|Choose an effect to resolve :: menuButton :: Take 1 Honor from opponent",
+            "count": 2
+          },
+          {
+            "key": "Banzai!|Choose a character :: cardClicked :: Shosuro Hametsu",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 167,
+        "successful": 167,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 7,
+        "clickCap": 35,
+        "uniquePrompts": 60,
+        "uniqueCardsClicked": 32,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 91,
+          "cardClicked": 66,
+          "ringClicked": 7,
+          "facedownCardClicked": 3
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 20
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 15
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 4
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 3
+          },
+          {
+            "key": "CONFLICT|Choose attackers :: cardClicked :: Doji Kuwanan",
+            "count": 3
+          },
+          {
+            "key": "Discard Dynasty Cards|Select dynasty cards to discard :: menuButton :: Done",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Fine Katana",
+            "count": 2
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Iaijutsu Master",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    },
+    {
+      "deck": "Unicorn",
+      "opponent": "Crane",
+      "seed": 3,
+      "game": 0,
+      "targetSecond": false,
+      "rngSeed": 20260750,
+      "status": "PASS",
+      "issues": [],
+      "warnings": [],
+      "result": {
+        "gameId": "selfplay-1784640039406-327067",
+        "winner": "Opponent-Crane",
+        "winReason": "conquest",
+        "stopReason": "decided",
+        "stallSignature": null,
+        "error": null,
+        "rounds": 3,
+        "steps": 53,
+        "elapsedMs": 1393,
+        "reward": {
+          "Audit-Unicorn": {
+            "counts": {
+              "conflictsWon": 2,
+              "provincesBroken": 0,
+              "strongholdBroken": 0
+            },
+            "ownHonor": 9,
+            "oppHonor": 13,
+            "parts": {
+              "conflictsWon": 2,
+              "provincesBroken": 0,
+              "strongholdBroken": 0,
+              "ownHonor": 0,
+              "oppHonor": 0,
+              "terminal": -25
+            },
+            "total": -23,
+            "won": false
+          },
+          "Opponent-Crane": {
+            "counts": {
+              "conflictsWon": 3,
+              "provincesBroken": 4,
+              "strongholdBroken": 1
+            },
+            "ownHonor": 13,
+            "oppHonor": 9,
+            "parts": {
+              "conflictsWon": 3,
+              "provincesBroken": 12,
+              "strongholdBroken": 10,
+              "ownHonor": 1.5,
+              "oppHonor": 0,
+              "terminal": 25
+            },
+            "total": 51.5,
+            "won": true
+          }
+        }
+      },
+      "target": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 92,
+        "successful": 92,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 6,
+        "clickCap": 35,
+        "uniquePrompts": 34,
+        "uniqueCardsClicked": 18,
+        "uniqueRingsClicked": 1,
+        "byCommand": {
+          "cardClicked": 31,
+          "menuButton": 59,
+          "ringClicked": 2
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 19
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 6
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Golden Plains Outpost",
+            "count": 3
+          },
+          {
+            "key": "Golden Plains Outpost|Choose a character :: menuButton :: Pay costs first",
+            "count": 3
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 3
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 2
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: cardClicked :: Shiksha Scout",
+            "count": 2
+          },
+          {
+            "key": "CONFLICT: 5 vs 0|Choose defenders :: menuButton :: Done",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      },
+      "opponentAudit": {
+        "status": "PASS",
+        "issues": [],
+        "warnings": [],
+        "decisions": 118,
+        "successful": 118,
+        "rejected": 0,
+        "unsupported": 0,
+        "forcedProgress": 0,
+        "cycles": [],
+        "noProgressRuns": [],
+        "repeatedActionRuns": [],
+        "budgetExhaustions": [],
+        "maxTickClicks": 8,
+        "clickCap": 35,
+        "uniquePrompts": 45,
+        "uniqueCardsClicked": 22,
+        "uniqueRingsClicked": 4,
+        "byCommand": {
+          "menuButton": 66,
+          "cardClicked": 42,
+          "ringClicked": 6,
+          "facedownCardClicked": 4
+        },
+        "topInteractions": [
+          {
+            "key": "Action Window|Initiate an action :: menuButton :: Pass",
+            "count": 13
+          },
+          {
+            "key": "Conflict Action Window|CONFLICT\nAttacker: N Defender: N :: menuButton :: Pass",
+            "count": 10
+          },
+          {
+            "key": "|Name a card :: menuButton :: Cavalry Reserves",
+            "count": 3
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Gossip",
+            "count": 3
+          },
+          {
+            "key": "Play cards from provinces|Click pass when done :: menuButton :: Pass",
+            "count": 3
+          },
+          {
+            "key": "Triggered Abilities|any reactions :: menuButton :: Pass",
+            "count": 3
+          },
+          {
+            "key": "| :: menuButton :: End Round",
+            "count": 2
+          },
+          {
+            "key": "Action Window|Initiate an action :: cardClicked :: Duelist Training",
+            "count": 2
+          }
+        ],
+        "rejectedSamples": [],
+        "unsupportedSamples": [],
+        "forcedProgressSamples": []
+      }
+    }
+  ]
+}

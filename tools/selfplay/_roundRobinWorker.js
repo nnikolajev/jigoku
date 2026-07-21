@@ -17,6 +17,8 @@ async function main() {
     const startIndex = Number.parseInt(process.argv[6], 10) || 0;
     const drawBidPolicy = process.argv[7] === 'legacy' ? 'legacy' : 'adaptive';
     const omniscient = process.argv[8] === 'true';
+    const engineVersion = process.argv[9] === 'v2' ? 'v2' : 'v1';
+    const v2Mode = ['pass-through', 'shadow', 'enabled'].includes(process.argv[10]) ? process.argv[10] : 'enabled';
     const loadLeftDeck = getDeckLoader(leftLabel);
     const loadRightDeck = getDeckLoader(rightLabel);
 
@@ -38,6 +40,8 @@ async function main() {
             seeds: [botSeed, botSeed],
             omniscient: [omniscient, omniscient],
             drawBidPolicies: [drawBidPolicy, drawBidPolicy],
+            engineVersions: [engineVersion, engineVersion],
+            v2Modes: [v2Mode, v2Mode],
             ...decks,
             trace: false
         });

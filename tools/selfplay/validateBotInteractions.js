@@ -1,5 +1,7 @@
 'use strict';
 
+process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'error';
+
 // All-deck bot interaction validator. It detects click/rejection cycles and
 // decision-budget pressure independently from win rate.
 
@@ -18,6 +20,8 @@ function usage() {
         '  --games <n>                    Games per deck/opponent/seed (default 1)',
         '  --seeds <csv>                  Bot seeds (default 1,2,3)',
         '  --omniscient                   Enable hidden information on both seats',
+        '  --engine-version <v1|v2>       Engine on both seats (default v1)',
+        '  --v2-mode <mode>               pass-through, shadow, or enabled (default shadow)',
         '  --decks <csv|all>              Decks under audit (default all)',
         '  --opponents <csv|all>          Opponent decks (default Crane)',
         '  --rng-seed <n>                 Deterministic base RNG seed (default 20260716)',
@@ -52,6 +56,8 @@ function parseArgs(argv) {
         games: 1,
         seeds: [1, 2, 3],
         omniscient: false,
+        engineVersion: 'v1',
+        v2Mode: undefined,
         decks: [...DECK_LABELS],
         opponents: ['Crane'],
         rngSeed: 20260716,
@@ -100,6 +106,10 @@ function parseArgs(argv) {
             options.opponents = parseCsv(raw, DECK_LABELS, 'opponent label(s)');
         } else if(arg === '--out') {
             options.out = raw;
+        } else if(arg === '--engine-version') {
+            options.engineVersion = String(raw).toLowerCase();
+        } else if(arg === '--v2-mode') {
+            options.v2Mode = String(raw).toLowerCase();
         } else if(numericFlags.has(arg)) {
             options[numericFlags.get(arg)] = Number(raw);
         } else {
@@ -119,6 +129,13 @@ function parseArgs(argv) {
     if(options.seeds.length === 0 || options.seeds.some((seed) => !Number.isInteger(seed) || seed < 1 || seed > 3)) {
         throw new Error('seeds must be a comma-separated subset of 1,2,3');
     }
+    if(!['v1', 'v2'].includes(options.engineVersion)) {
+        throw new Error('--engine-version must be v1 or v2');
+    }
+    if(options.v2Mode && !['pass-through', 'shadow', 'enabled'].includes(options.v2Mode)) {
+        throw new Error('--v2-mode must be pass-through, shadow, or enabled');
+    }
+    if(options.engineVersion === 'v2' && !options.v2Mode) options.v2Mode = 'shadow';
     return options;
 }
 
@@ -180,6 +197,8 @@ async function runAuditGame(options, scenario) {
             names,
             seeds: [scenario.seed, scenario.seed],
             omniscient: options.omniscient ? [true, true] : [false, false],
+            engineVersions: [options.engineVersion, options.engineVersion],
+            v2Modes: [options.v2Mode, options.v2Mode],
             ...decks,
             trace: true,
             maxRounds: options.maxRounds,
@@ -301,7 +320,7 @@ function markdownReport(payload) {
         '',
         `Generated: ${payload.generatedAt}`,
         '',
-        `Games: ${payload.options.games} per deck/opponent/seed; seeds ${payload.options.seeds.join(', ')}; opponents ${payload.options.opponents.join(', ')}; omniscient ${payload.options.omniscient ? 'on' : 'off'}.`,
+        `Games: ${payload.options.games} per deck/opponent/seed; seeds ${payload.options.seeds.join(', ')}; opponents ${payload.options.opponents.join(', ')}; engine ${payload.options.engineVersion}${payload.options.v2Mode ? ` (${payload.options.v2Mode})` : ''}; omniscient ${payload.options.omniscient ? 'on' : 'off'}.`,
         '',
         '| deck | seed | status | games | clicks | rejected | unsupported | forced | cycles | no-progress | same-action | budgets | stalls | max/tick |',
         '|---|---:|:---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|'

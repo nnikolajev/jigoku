@@ -1,0 +1,132 @@
+{
+    "schemaVersion": 1,
+    "botName": "Jigoku Bot",
+    "configurations": [
+        { "id": "seed-1-fair", "config": { "seed": 1, "omniscient": false } },
+        { "id": "seed-1-omniscient", "config": { "seed": 1, "omniscient": true }, "context": { "omniscient": { "oppHand": [{ "id": "assassination", "cost": 0 }], "oppFate": 2 } } },
+        { "id": "seed-2-fair", "config": { "seed": 2, "omniscient": false } },
+        { "id": "seed-2-omniscient", "config": { "seed": 2, "omniscient": true }, "context": { "omniscient": { "oppHand": [{ "id": "assassination", "cost": 0 }], "oppFate": 2 } } },
+        { "id": "seed-3-fair", "config": { "seed": 3, "omniscient": false } },
+        { "id": "seed-3-omniscient", "config": { "seed": 3, "omniscient": true }, "context": { "omniscient": { "oppHand": [{ "id": "assassination", "cost": 0 }], "oppFate": 2 } } }
+    ],
+    "prompts": [
+        {
+            "id": "setup-stronghold-province",
+            "class": "setup",
+            "playerState": {
+                "players": {
+                    "Jigoku Bot": {
+                        "name": "Jigoku Bot",
+                        "promptTitle": "Setup",
+                        "menuTitle": "Select stronghold province",
+                        "buttons": [],
+                        "provinces": {
+                            "one": [{ "uuid": "province-earth", "id": "ancestral-lands", "name": "Ancestral Lands", "type": "province", "location": "province 1", "selectable": true }],
+                            "two": [{ "uuid": "province-air", "id": "fertile-fields", "name": "Fertile Fields", "type": "province", "location": "province 2", "selectable": true }],
+                            "three": [],
+                            "four": []
+                        }
+                    },
+                    "Human": { "name": "Human", "stats": { "honor": 10, "fate": 0 } }
+                }
+            }
+        },
+        {
+            "id": "dynasty-purchase",
+            "class": "dynasty",
+            "playerState": {
+                "players": {
+                    "Jigoku Bot": {
+                        "name": "Jigoku Bot",
+                        "phase": "dynasty",
+                        "promptTitle": "Play cards from provinces",
+                        "menuTitle": "Click pass when done",
+                        "buttons": [{ "text": "Pass", "arg": "pass", "uuid": "dynasty-pass" }],
+                        "stats": { "honor": 10, "fate": 7 },
+                        "provinces": {
+                            "one": [{ "uuid": "dynasty-recruit", "id": "solemn-scholar", "name": "Solemn Scholar", "type": "character", "isDynasty": true, "facedown": false, "location": "province 1", "militarySkillSummary": { "stat": "1" }, "politicalSkillSummary": { "stat": "2" } }],
+                            "two": [],
+                            "three": [],
+                            "four": []
+                        }
+                    },
+                    "Human": { "name": "Human", "stats": { "honor": 10, "fate": 7 }, "provinces": { "one": [], "two": [], "three": [], "four": [] } }
+                }
+            },
+            "context": { "dynastyCosts": { "dynasty-recruit": 1 }, "roundNumber": 1 }
+        },
+        {
+            "id": "conflict-ring",
+            "class": "conflict",
+            "playerState": {
+                "players": {
+                    "Jigoku Bot": { "name": "Jigoku Bot", "phase": "conflict", "promptTitle": "Choose Ring", "menuTitle": "Choose a ring", "selectRing": true, "buttons": [], "stats": { "honor": 10, "fate": 2 } },
+                    "Human": { "name": "Human", "stats": { "honor": 10, "fate": 2 } }
+                },
+                "rings": {
+                    "air": { "element": "air", "fate": 0, "unselectable": false },
+                    "earth": { "element": "earth", "fate": 0, "unselectable": false },
+                    "fire": { "element": "fire", "fate": 0, "unselectable": false }
+                }
+            }
+        },
+        {
+            "id": "target-character",
+            "class": "target",
+            "playerState": {
+                "players": {
+                    "Jigoku Bot": { "name": "Jigoku Bot", "promptTitle": "Choose a character", "menuTitle": "Choose a target", "selectCard": true, "buttons": [], "stats": { "honor": 10, "fate": 2 } },
+                    "Human": { "name": "Human", "stats": { "honor": 10, "fate": 2 } }
+                },
+                "cards": [{ "uuid": "target-character-1", "id": "target-character", "name": "Target Character", "type": "character", "location": "play area", "selectable": true, "militarySkillSummary": { "stat": "2" }, "politicalSkillSummary": { "stat": "2" } }]
+            }
+        },
+        {
+            "id": "draw-bid",
+            "class": "bid",
+            "playerState": {
+                "players": {
+                    "Jigoku Bot": { "name": "Jigoku Bot", "promptTitle": "Honor Bid", "menuTitle": "Choose a bid", "buttons": [{ "text": "1", "arg": "1", "uuid": "bid-1" }, { "text": "2", "arg": "2", "uuid": "bid-2" }, { "text": "3", "arg": "3", "uuid": "bid-3" }, { "text": "4", "arg": "4", "uuid": "bid-4" }, { "text": "5", "arg": "5", "uuid": "bid-5" }], "stats": { "honor": 10, "fate": 0 }, "cardPiles": { "hand": [{}, {}, {}] } },
+                    "Human": { "name": "Human", "stats": { "honor": 9, "fate": 0 }, "cardPiles": { "hand": [{}, {}, {}, {}] } }
+                }
+            },
+            "context": { "roundNumber": 2 }
+        },
+        {
+            "id": "action-pass",
+            "class": "pass",
+            "playerState": {
+                "players": {
+                    "Jigoku Bot": { "name": "Jigoku Bot", "phase": "conflict", "promptTitle": "Conflict Action Window", "menuTitle": "Initiate an action", "selectCard": false, "buttons": [{ "text": "Pass", "arg": "pass", "uuid": "conflict-pass" }], "stats": { "honor": 10, "fate": 0 }, "cardPiles": { "hand": [], "cardsInPlay": [] } },
+                    "Human": { "name": "Human", "stats": { "honor": 10, "fate": 0 }, "cardPiles": { "hand": [], "cardsInPlay": [] } }
+                }
+            }
+        }
+    ],
+    "expectedBySeed": {
+        "1": [
+            { "promptId": "setup-stronghold-province", "decision": { "command": "cardClicked", "args": ["province-earth"], "target": "Ancestral Lands", "cardId": "ancestral-lands", "cardType": "province", "cardLocation": "province 1", "reason": "stronghold-province-pick" }, "seedState": 873244444 },
+            { "promptId": "dynasty-purchase", "decision": { "command": "cardClicked", "args": ["dynasty-recruit"], "target": "Solemn Scholar", "cardId": "solemn-scholar", "cardType": "character", "cardLocation": "province 1", "reason": "fate-aware-play-cheap-character" }, "seedState": 873244444 },
+            { "promptId": "conflict-ring", "decision": { "command": "ringClicked", "args": ["earth"], "target": "earth", "reason": "choose-ring" }, "seedState": 873244444 },
+            { "promptId": "target-character", "decision": { "command": "cardClicked", "args": ["target-character-1"], "target": "Target Character", "cardId": "target-character", "cardType": "character", "cardLocation": "play area", "reason": "choose-card" }, "seedState": 873244444 },
+            { "promptId": "draw-bid", "decision": { "command": "menuButton", "args": ["1", "bid-1", null], "target": "1", "reason": "draw-bid-adaptive-fate-cost-pressure" }, "seedState": 873244444 },
+            { "promptId": "action-pass", "decision": { "command": "menuButton", "args": ["pass", "conflict-pass", null], "target": "Pass", "reason": "pass-window" }, "seedState": 873244444 }
+        ],
+        "2": [
+            { "promptId": "setup-stronghold-province", "decision": { "command": "cardClicked", "args": ["province-earth"], "target": "Ancestral Lands", "cardId": "ancestral-lands", "cardType": "province", "cardLocation": "province 1", "reason": "stronghold-province-pick" }, "seedState": 923577301 },
+            { "promptId": "dynasty-purchase", "decision": { "command": "cardClicked", "args": ["dynasty-recruit"], "target": "Solemn Scholar", "cardId": "solemn-scholar", "cardType": "character", "cardLocation": "province 1", "reason": "play-dynasty-character" }, "seedState": 923577301 },
+            { "promptId": "conflict-ring", "decision": { "command": "ringClicked", "args": ["earth"], "target": "earth", "reason": "choose-ring" }, "seedState": 923577301 },
+            { "promptId": "target-character", "decision": { "command": "cardClicked", "args": ["target-character-1"], "target": "Target Character", "cardId": "target-character", "cardType": "character", "cardLocation": "play area", "reason": "choose-card" }, "seedState": 923577301 },
+            { "promptId": "draw-bid", "decision": { "command": "menuButton", "args": ["1", "bid-1", null], "target": "1", "reason": "draw-bid-adaptive-fate-cost-pressure" }, "seedState": 923577301 },
+            { "promptId": "action-pass", "decision": { "command": "menuButton", "args": ["pass", "conflict-pass", null], "target": "Pass", "reason": "pass-window" }, "seedState": 923577301 }
+        ],
+        "3": [
+            { "promptId": "setup-stronghold-province", "decision": { "command": "cardClicked", "args": ["province-earth"], "target": "Ancestral Lands", "cardId": "ancestral-lands", "cardType": "province", "cardLocation": "province 1", "reason": "stronghold-province-pick" }, "seedState": 906799682 },
+            { "promptId": "dynasty-purchase", "decision": { "command": "cardClicked", "args": ["dynasty-recruit"], "target": "Solemn Scholar", "cardId": "solemn-scholar", "cardType": "character", "cardLocation": "province 1", "reason": "fate-aware-play-cheap-character" }, "seedState": 906799682 },
+            { "promptId": "conflict-ring", "decision": { "command": "ringClicked", "args": ["earth"], "target": "earth", "reason": "choose-ring" }, "seedState": 906799682 },
+            { "promptId": "target-character", "decision": { "command": "cardClicked", "args": ["target-character-1"], "target": "Target Character", "cardId": "target-character", "cardType": "character", "cardLocation": "play area", "reason": "choose-card" }, "seedState": 906799682 },
+            { "promptId": "draw-bid", "decision": { "command": "menuButton", "args": ["1", "bid-1", null], "target": "1", "reason": "draw-bid-adaptive-fate-cost-pressure" }, "seedState": 906799682 },
+            { "promptId": "action-pass", "decision": { "command": "menuButton", "args": ["pass", "conflict-pass", null], "target": "Pass", "reason": "pass-window" }, "seedState": 906799682 }
+        ]
+    }
+}

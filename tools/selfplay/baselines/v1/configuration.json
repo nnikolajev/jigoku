@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-21T13:21:00.000Z",
+  "jigokuCommit": "0ad932b9bbe65029014563aff14ddbca163b6d8c",
+  "defaults": {
+    "engineVersion": "v1",
+    "strategySeed": 1,
+    "informationMode": "fair",
+    "policy": "fate-aware",
+    "drawBidPolicy": "adaptive",
+    "mulliganPolicy": "adaptive",
+    "conflictPlanningPolicy": "lookahead",
+    "trace": true,
+    "maxDecisionsPerTick": 20,
+    "llmEnabled": false
+  },
+  "strategySeeds": {
+    "1": "fate-aware",
+    "2": "old heuristic",
+    "3": "board-aware dynasty"
+  },
+  "informationModes": ["fair", "omniscient"],
+  "standardBenchmark": {
+    "version": 5,
+    "suiteId": "crane-baseline-4736f7c0",
+    "updatedAt": "2026-07-21T00:32:31.323Z"
+  }
+}

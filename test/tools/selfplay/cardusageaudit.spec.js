@@ -6,6 +6,7 @@ const {
     expectedAbility,
     expectedPlay,
     scanAvailability,
+    summarizeSemanticTrace,
     summarizeTrace
 } = require('../../../tools/selfplay/cardUsageAudit.js');
 const { summarizeDeckCoverage } = require('../../../tools/selfplay/auditCards.js');
@@ -81,6 +82,23 @@ describe('card usage audit', function() {
         expect([...availability.play].sort()).toEqual(['attachment', 'body']);
         expect([...availability.province]).toEqual(['dynasty']);
         expect([...availability.selectable].sort()).toEqual(['attachment', 'live-discard']);
+        expect([...availability.sourceSelectable]).toEqual([]);
+    });
+
+    it('distinguishes selectable effect targets from source-action eligibility', function() {
+        const state = (promptTitle) => ({ players: { Bot: {
+            promptTitle,
+            cardPiles: { hand: [{ id: 'event', uuid: 'e', type: 'event', selectable: true }], cardsInPlay: [] },
+            provinces: {}, strongholdProvince: []
+        } } });
+        const targetAvailability = emptyAvailability();
+        scanAvailability({ getState: () => state('Choose a target') }, 'Bot', new Set(['event']), targetAvailability);
+        expect([...targetAvailability.selectable]).toEqual(['event']);
+        expect([...targetAvailability.sourceSelectable]).toEqual([]);
+
+        const sourceAvailability = emptyAvailability();
+        scanAvailability({ getState: () => state('Conflict Action Window') }, 'Bot', new Set(['event']), sourceAvailability);
+        expect([...sourceAvailability.sourceSelectable]).toEqual(['event']);
     });
 
     it('aggregates only semantic source evidence by card id', function() {
@@ -94,11 +112,31 @@ describe('card usage audit', function() {
         expect(result.abilities).toEqual({});
     });
 
+    it('separates semantic candidate, chosen, resolved, and payoff stages', function() {
+        const stages = summarizeSemanticTrace([{
+            result: 'success', command: 'cardClicked', cardId: 'banzai', cardLocation: 'hand',
+            reason: 'play-conflict-card', selectedBy: 'v2', planner: {
+                candidates: [{ cardId: 'banzai' }, { cardId: 'unknown' }],
+                v2Preference: { cardId: 'banzai' },
+                outcome: { status: 'realized' }
+            }
+        }, {
+            result: 'rejected', command: 'cardClicked', cardId: 'banzai', cardLocation: 'hand',
+            reason: 'command-rejected', selectedBy: 'v2', planner: {
+                candidates: [{ cardId: 'banzai' }], v2Preference: { cardId: 'banzai' }
+            }
+        }], new Set(['banzai']));
+        expect(stages.candidate).toEqual({ banzai: 2 });
+        expect(stages.chosen).toEqual({ banzai: 2 });
+        expect(stages.resolved).toEqual({ banzai: 1 });
+        expect(stages.payoffRealized).toEqual({ banzai: 1 });
+    });
+
     it('reports deck-wide reachability across seed rows instead of treating a sampled row as globally dead', function() {
         const card = (playUses, abilityUses) => ({
             id: 'test-card', name: 'Test Card', type: 'character', side: 'dynasty',
             playExpected: true, abilityExpected: true,
-            available: { hand: 0, province: 1, play: 1, selectable: 0 },
+            available: { hand: 0, province: 1, play: 1, selectable: 0, sourceSelectable: 0 },
             playUses, abilityUses, clicks: playUses + abilityUses
         });
         const coverage = summarizeDeckCoverage([

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "description": "Reproducible initial V2 pilot. This intentionally fails the repeated holdout gate and exists as a tuning-tool smoke/reference, not a default proposal.",
+  "parentProfile": {
+    "id": "v1-deterministic-fallback",
+    "coefficients": {}
+  },
+  "bounds": {
+    "minimum": 0.75,
+    "maximum": 1.25,
+    "maximumDeltaFromParent": 0.25,
+    "maximumCandidates": 32
+  },
+  "thresholds": {
+    "severeDeckWinRate": 0.35
+  },
+  "candidates": [
+    {
+      "id": "v2-default-experimental",
+      "coefficients": {
+        "terminal": 1,
+        "strongholdSafety": 1,
+        "provinceTempo": 1,
+        "conflictOutcome": 1,
+        "ringValue": 1,
+        "boardNow": 1,
+        "boardFuture": 1,
+        "fate": 1,
+        "cards": 1,
+        "honor": 1,
+        "conflictDeckSafety": 1,
+        "information": 1,
+        "initiative": 1,
+        "comboProgress": 1,
+        "flexibility": 1,
+        "waste": 1,
+        "uncertainty": 1,
+        "risk": 1
+      },
+      "trainingReports": [
+        "out/v2-synergy-holdout-retained-seed1-fair.json"
+      ],
+      "holdoutReports": [
+        "out/v2-synergy-holdout-retained-seed1-omniscient.json"
+      ],
+      "rationale": "Retain an untuned all-ones reference. One RNG pilot and mirror-deck rows are insufficient for promotion."
+    }
+  ]
+}

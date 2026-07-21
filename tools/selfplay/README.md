@@ -56,12 +56,26 @@ node tools/selfplay/validateBotInteractions.js --seeds 1,2,3 --opponents all --g
 node tools/selfplay/analyzePolicyGame.js --deck PhoenixShugenja --rng-seed 20260715
 node tools/selfplay/compareProfileVariants.js --deck PhoenixShugenja --opponent Unicorn --seed 3 --games 40 --variants current,ratio-1.5,no-pre-defense
 node tools/selfplay/auditCards.js Crane 20 3 PhoenixShugenja
+node tools/selfplay/auditCards.js --decks all --seeds 1,2,3 --opponents all --modes fair,omniscient --games 2
 node tools/selfplay/auditConflictBehavior.js --seed 3
 node tools/selfplay/analyzeDuelBids.js
 node tools/selfplay/drawBidMatrix.js
 ```
 
 Use `--help` on a script for its complete option list.
+
+`auditCards.js` has two interfaces. The positional command is the quick legacy
+single-deck check. The option form is the all-card quality gate. It records
+deck-card availability separately from semantic source activations, so a
+mulligan, attacker/defender selection, or effect-target click cannot falsely
+prove that a card was played. The generated JSON and Markdown contain plays,
+non-forced abilities, raw clicks, availability, zero-use candidates, failures,
+and stalls. Reports first aggregate every selected seed/information mode by
+deck (the durable "dead everywhere" result), then retain per-row sampling
+detail. An in-play card with no activation is an investigation candidate, not
+proof that a conditional Reaction's trigger occurred. Use
+`--fail-on-candidates` in CI after choosing a suitable `--minimum-seen` sample
+threshold.
 
 ## Mulligan A/B
 

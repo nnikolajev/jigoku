@@ -88,7 +88,8 @@ class ConflictFlow extends BaseStepWithPipeline {
         let attackerMatrix = new AttackersMatrix(
             this.conflict.attackingPlayer,
             this.conflict.attackingPlayer.cardsInPlay,
-            this.game
+            this.game,
+            this.conflict.forcedDeclaredType
         );
         if(!attackerMatrix.canPass) {
             this.canPass = false;
@@ -158,10 +159,15 @@ class ConflictFlow extends BaseStepWithPipeline {
             waitingPromptTitle: 'Waiting for defender to choose conflict ring',
             ringCondition: (ring: any) =>
                 this.conflict.attackingPlayer.hasLegalConflictDeclaration({ ring }) &&
-                (attackerMatrix.isCombinationValid(ring, 'political') ||
-                    attackerMatrix.isCombinationValid(ring, 'military')),
+                (attackerMatrix.isCombinationValid(ring, 'political', this.conflict.conflictProvince) ||
+                    attackerMatrix.isCombinationValid(ring, 'military', this.conflict.conflictProvince)),
             onSelect: (_player: Player, ring: any) => {
-                if(!this.conflict.attackingPlayer.hasLegalConflictDeclaration({ type: ring.conflictType, ring })) {
+                if(!this.conflict.attackingPlayer.hasLegalConflictDeclaration({ type: ring.conflictType, ring }) ||
+                    !attackerMatrix.isCombinationValid(
+                        ring,
+                        ring.conflictType,
+                        this.conflict.conflictProvince
+                    )) {
                     ring.flipConflictType();
                 }
                 this.conflict.ring = ring;

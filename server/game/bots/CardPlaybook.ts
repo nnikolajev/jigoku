@@ -18,6 +18,8 @@ import { isNegativeAttachmentId } from './AttachmentControlTactics.js';
  * - `shouldUseAction(ctx)` — gate for that in-play click; illegal clicks are
  *   rejected by the engine without mutation, so gates only exist to avoid
  *   wasted clicks, not for legality.
+ * - `actionBeforePass` — this utility Action must be considered before the
+ *   conflict planner's "already breaking/safe, pass" shortcut.
  * - `dynastyAction`     — the card has an Action worth clicking during the
  *   dynasty action window (stronghold/holding/engineer digging). Only fired
  *   for decks whose derived strategy has `holdingEngine`.
@@ -65,6 +67,7 @@ export interface PlaybookContext {
 
 export interface PlaybookEntry extends CardHint {
     inPlayAction?: boolean;
+    actionBeforePass?: boolean;
     // Fire this board Action in a conflict-PHASE action window even when no
     // conflict is active (Adept grants Water-conflict Covert for the phase;
     // Meddling Mediator collects after the opponent declares two conflicts).
@@ -205,10 +208,10 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // Lose 3 honor, discard an enemy character of printed cost 2 or lower.
     // The engine offers only legal targets; if just our own cheap characters
     // qualify, the targeting stage cancels (targetSide enemy).
-    // Only legal against a cost-2-or-less participant. Playing it blind put
+    // Legal against any in-play cost-2-or-less enemy. Playing it blind put
     // the bot in a cancel loop (click -> only own characters legal -> cancel
     // -> click again, 200+ times per match, eating every conflict window), so
-    // gate on a KNOWN cheap enemy participant via the DeckAnalysis card
+    // gate on a KNOWN cheap enemy character via the DeckAnalysis card
     // models. An unmodeled opponent card keeps Assassination in hand — better
     // than the loop.
     'assassination': entry('assassination', {
@@ -217,7 +220,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 9,
         summary: 'discard an enemy cost-2-or-less character for 3 honor',
         shouldPlay: (ctx) => ctx.honor >= 6 && ctx.opponentCharacters.some((card) => {
-            const model = card.inConflict && card.id ? getCardModel(card.id) : undefined;
+            const model = card.id ? getCardModel(card.id) : undefined;
             return !!model && model.fate <= 2;
         })
     }),
@@ -2559,23 +2562,35 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: 'political attack win: dishonor enemy characters'
     }),
 
-    // While attacking: drag an enemy character INTO the conflict — feeds the
-    // duelists a target.
-    // Doji Challenger's action moves an ENEMY character INTO the conflict
-    // while we attack — standalone that only adds defender skill against our
-    // own attack (a strictly negative tempo play). Real use needs a follow-up
-    // that punishes a fresh participant (a duel or a participants-only ring
-    // effect), which the heuristic cannot guarantee to line up, so the action
-    // stays off. The 3/2 body still enters play and attacks normally.
+    // While attacking: drag a ready home defender into an attack which is
+    // already breaking. It cannot then defend the Crane player's next
+    // conflict, so this utility action must happen before the normal
+    // "already breaking, pass" shortcut.
     'doji-challenger': entry('doji-challenger', {
         targetSide: 'enemy',
         targetPreference: 'weakest',
         priority: 6,
         summary: 'attacking: move an enemy character into the conflict',
         inPlayAction: true,
+        actionBeforePass: true,
         shouldUseAction: (ctx) => ctx.amAttacker && !ctx.losing &&
             (ctx.conflictsRemaining || 0) >= 1 && (ctx.strengthNeeded ?? 0) <= 0 &&
             ctx.opponentCharacters.some((card) => !card.bowed && !card.inConflict)
+    }),
+
+    // Participating Action: tax the opponent's immediate card play after our
+    // attack/defense is already safe. The bot then passes instead of paying
+    // its own tax. The printed Action is unlimited, but one use per round is
+    // enough and prevents two Guardians from creating an action loop.
+    'graceful-guardian': entry('graceful-guardian', {
+        priority: 7,
+        summary: 'while participating and secure, tax the opponent next card play',
+        inPlayAction: true,
+        actionBeforePass: true,
+        oncePerRound: true,
+        shouldUseAction: (ctx) => !ctx.losing && (ctx.strengthNeeded ?? 0) <= 0 &&
+            (ctx.opponentHandSize ?? 0) > 0 && ctx.myCharacters.some((card) =>
+                card.id === 'graceful-guardian' && card.inConflict)
     }),
 
     // Bow an enemy with lower military — aim at their strongest legal.

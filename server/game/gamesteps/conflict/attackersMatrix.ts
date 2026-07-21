@@ -39,8 +39,9 @@ class AttackersMatrix {
     game: any;
     defaultRing: any;
     defaultType: string;
+    forcedDeclaredType?: string;
 
-    constructor(player: Player, characters: any[], game: any) {
+    constructor(player: Player, characters: any[], game: any, forcedDeclaredType?: string) {
         this.player = player;
         this.characters = characters;
         this.attackers = {};
@@ -52,6 +53,7 @@ class AttackersMatrix {
         this.game = game;
         this.defaultRing = null;
         this.defaultType = 'military';
+        this.forcedDeclaredType = forcedDeclaredType;
         this.buildMatrix(game);
     }
 
@@ -61,6 +63,14 @@ class AttackersMatrix {
         }
 
         let max = province ? this.attackers[ring.name][conflictType][province].getMaximumAvailableAttackers() : Math.max(...Object.values(this.attackers[ring.name][conflictType]).map(a => a.getMaximumAvailableAttackers()));
+        // Every declared conflict needs at least one legal attacker. Passing is
+        // handled before a ring is committed; treating an empty combination as
+        // valid lets defender-chosen-ring effects (Togashi Tadakatsu) create an
+        // impossible Choose attackers prompt with no cards and no buttons.
+        if(max <= 0) {
+            return false;
+        }
+
         let enoughAttackers = this.requiredNumberOfAttackers <= max;
         if(this.requiredNumberOfAttackers > 0) {
             return enoughAttackers;
@@ -108,7 +118,11 @@ class AttackersMatrix {
     }
 
     getAvailableAttackers(ring: any, conflictType: string, province: any): any[] {
-        if(!(this.player as any).hasLegalConflictDeclaration({ type: conflictType, ring: ring })) {
+        if(!(this.player as any).hasLegalConflictDeclaration({
+            type: conflictType,
+            ring: ring,
+            forcedDeclaredType: this.forcedDeclaredType
+        })) {
             return [];
         }
 
@@ -136,7 +150,12 @@ class AttackersMatrix {
 
     //Internal use only
     getForcedAttackersByDeclarationAmountRequirement(ring: any, conflictType: string, province: any): any[] {
-        if(!(this.player as any).hasLegalConflictDeclaration({ type: conflictType, ring: ring, province: province })) {
+        if(!(this.player as any).hasLegalConflictDeclaration({
+            type: conflictType,
+            ring: ring,
+            province: province,
+            forcedDeclaredType: this.forcedDeclaredType
+        })) {
             return [];
         }
 
@@ -161,7 +180,12 @@ class AttackersMatrix {
 
     //Internal use only
     getOptionallyForcedAttackersByDeclarationRequirement(ring: any, conflictType: string, province: any): any[] {
-        if(!(this.player as any).hasLegalConflictDeclaration({ type: conflictType, ring: ring, province: province })) {
+        if(!(this.player as any).hasLegalConflictDeclaration({
+            type: conflictType,
+            ring: ring,
+            province: province,
+            forcedDeclaredType: this.forcedDeclaredType
+        })) {
             return [];
         }
         return this.characters.filter(card =>
@@ -170,7 +194,12 @@ class AttackersMatrix {
     }
 
     getForcedAttackersByDeclarationRequirement(ring: any, conflictType: string, province: any): any[] {
-        if(!(this.player as any).hasLegalConflictDeclaration({ type: conflictType, ring: ring, province: province })) {
+        if(!(this.player as any).hasLegalConflictDeclaration({
+            type: conflictType,
+            ring: ring,
+            province: province,
+            forcedDeclaredType: this.forcedDeclaredType
+        })) {
             return [];
         }
         return this.characters.filter(card =>

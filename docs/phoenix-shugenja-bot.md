@@ -98,7 +98,8 @@ on Cancel.
 - `phoenix-shugenja-decklist.json` and `phoenix-shugenja-cards.json` are the
   exact 1 stronghold / 1 role / 5 province / 40 dynasty / 40 conflict fixture.
 - `matchPhoenixShugenja.js` alternates seats against the Crane baseline;
-  `auditCards.js phoenix-shugenja` reports every successful card click.
+  `auditCards.js PhoenixShugenja` reports source-card plays/abilities and
+  availability separately from mulligan, participant, and target clicks.
 
 ## Verification (2026-07-19)
 

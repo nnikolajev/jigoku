@@ -25,6 +25,12 @@ interface BotDecision {
     command: 'menuButton' | 'cardClicked' | 'ringClicked' | 'menuItemClick' | 'ringMenuItemClick' | 'facedownCardClicked';
     args: any[];
     target?: string;
+    cardId?: string;
+    cardType?: string;
+    cardSide?: string;
+    cardLocation?: string;
+    cardController?: string;
+    cardOwner?: string;
     reason: string;
 }
 
@@ -35,6 +41,12 @@ interface BotTraceEntry {
     command?: string;
     args?: any[];
     target?: string;
+    cardId?: string;
+    cardType?: string;
+    cardSide?: string;
+    cardLocation?: string;
+    cardController?: string;
+    cardOwner?: string;
     seedState: number;
     result: 'success' | 'rejected' | 'unsupported';
     reason: string;
@@ -1509,6 +1521,12 @@ class JigokuBotController {
             command: decision?.command,
             args: decision?.args,
             target: decision?.target,
+            cardId: decision?.cardId,
+            cardType: decision?.cardType,
+            cardSide: decision?.cardSide,
+            cardLocation: decision?.cardLocation,
+            cardController: decision?.cardController,
+            cardOwner: decision?.cardOwner,
             seedState: this.policy.seedState,
             result,
             reason

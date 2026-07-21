@@ -350,6 +350,42 @@ unopposed conflicts (each unopposed loss bleeds 1 honor).
 ## Card-utilization audits (`tools/selfplay/auditCards.js`)
 
 `node tools/selfplay/auditCards.js <deck> [games=20] [seed=1] [opponent=Crane]`
+
+The positional form is a quick single-deck check. The comprehensive gate is:
+
+`node tools/selfplay/auditCards.js --decks all --seeds 1,2,3 --opponents all --modes fair,omniscient --games 2`
+
+The comprehensive audit does not equate every successful click with usage. It
+distinguishes semantic source plays/abilities from mulligans, discard choices,
+attackers, defenders, and effect targets. It also records whether each card was
+available in hand, provinces, play, or selectable discard. A zero-use card that
+was repeatedly available is a useful dead-path candidate; an unseen or passive
+card is not.
+
+The 2026-07-21 audit first found two globally dead play paths: Arbiter of
+Authority was blocked by its future in-play duel guard while still in hand,
+and Phoenix never used Assassination because policy wrongly required its legal
+target to be participating. Both were fixed. The final 1,200-game matrix then
+completed with zero stalls and zero globally unused playable cards.
+
+The ability pass found two more utility-action reachability issues. Doji
+Challenger's correct "use after securing the break" predicate was hidden
+behind the earlier "already breaking, pass" shortcut in the old Crane Duels
+profile. Graceful Guardian had no in-play Action metadata. Playbook entries can
+now opt into `actionBeforePass`; both actions are covered through seeds 1, 2,
+and 3 in fair and omniscient predefined game states. A subsequent 180-game
+Crane Duels live matrix finished without stalls and reached all 34 playable
+cards plus all 18 expected persistent abilities globally; Doji Challenger used
+its Action 13 times and Graceful Guardian used its Action 19 times. Keen
+Warrior's zero live
+activation was not a dead path: its Reaction requires an opponent hand reveal
+or look trigger, which did not occur while it was in play in the sampled
+games; the selectable-reaction and follow-up bottom-deck paths have explicit
+policy regression coverage. Full evidence, counts, and validation limits are
+in `tools/selfplay/out/card-usage-all-seeds-findings.md`.
+
+The legacy report below predates semantic source/availability classification:
+
 runs any registered deck (including `Crane`) against the chosen opponent and
 prints, for EVERY card in the decklist, how many times
 the bot successfully clicked it and through which decision reasons — plus a

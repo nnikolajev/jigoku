@@ -35,7 +35,12 @@ class InitiateConflictPrompt extends UiPrompt {
         this.covertRemaining = false;
 
         if(attackerMatrix === null) {
-            this.attackerMatrix = new AttackersMatrix(this.choosingPlayer, (this.choosingPlayer as any).cardsInPlay, this.game);
+            this.attackerMatrix = new AttackersMatrix(
+                this.choosingPlayer,
+                (this.choosingPlayer as any).cardsInPlay,
+                this.game,
+                this.conflict.forcedDeclaredType
+            );
             if(!this.attackerMatrix.canPass) {
                 this.canPass = false;
             }

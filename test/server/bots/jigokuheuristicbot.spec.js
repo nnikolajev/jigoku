@@ -2426,6 +2426,17 @@ describe('Jigoku heuristic bot', function() {
             expect(decision.args[0]).toBe('weak');
         });
 
+        it('commits the weakest reserved body when a defender-chosen-ring prompt cannot pass', function() {
+            const state = makeState('Choose attackers', [character('army', 12, 0)]);
+            state.players['Jigoku Bot'].buttons = [];
+            const decision = new JigokuBotPolicy('tadakatsu-required-attacker').decide(
+                state, 'Jigoku Bot', { strongholdProvinceStrength: 4 });
+
+            expect(decision.command).toBe('cardClicked');
+            expect(decision.args[0]).toBe('weak');
+            expect(decision.reason).toBe('declare-required-attacker');
+        });
+
         it('holds against covert even when visible skill would otherwise be safe', function() {
             const state = makeState('Choose an elemental ring', [character('scout', 2, 0, { covert: true })]);
             const decision = new JigokuBotPolicy('last-province-covert').decide(
@@ -3507,12 +3518,12 @@ describe('Jigoku heuristic bot', function() {
         describe('card playbook', function() {
             const playbookHint = (cardId) => getPlaybookEntry(cardId);
 
-            it('gates Assassination behind spare honor AND a known cheap enemy participant', function() {
+            it('gates Assassination behind spare honor AND a known cheap enemy anywhere in play', function() {
                 const assassination = { uuid: 'assassin-1', id: 'assassination', name: 'Assassination', type: 'event', location: 'hand', isPlayableByMe: true };
                 // A Crane card modeled in DeckAnalysis with cost 2 — the gate
-                // needs a KNOWN cost-2-or-less participating enemy, otherwise
+                // needs a KNOWN cost-2-or-less enemy, otherwise
                 // playing it blind loops on the cancel (no valid target).
-                const cheapEnemy = { uuid: 'challenger-1', id: 'aspiring-challenger', name: 'Aspiring Challenger', type: 'character', location: 'play area', inConflict: true, bowed: false };
+                const cheapEnemy = { uuid: 'challenger-1', id: 'aspiring-challenger', name: 'Aspiring Challenger', type: 'character', location: 'play area', inConflict: false, bowed: false };
 
                 const rich = new JigokuBotPolicy('playbook-assassin');
                 const play = rich.decide(makeConflictWindowState({
@@ -3528,11 +3539,35 @@ describe('Jigoku heuristic bot', function() {
                     opponentCardsInPlay: [cheapEnemy]
                 }), 'Jigoku Bot', { cardHint: playbookHint }).target).toBe('Pass');
 
-                // No known cheap enemy participant: hold it (avoids the loop).
+                // No known cheap enemy: hold it (avoids the loop).
                 const blind = new JigokuBotPolicy('playbook-assassin-blind');
                 expect(blind.decide(makeConflictWindowState({
                     amAttacker: false, attackerSkill: 4, defenderSkill: 2, hand: [assassination], honor: 10
                 }), 'Jigoku Bot', { cardHint: playbookHint }).target).toBe('Pass');
+            });
+
+            it('plays a conflict character before gating its granted duel action', function() {
+                const arbiter = {
+                    uuid: 'arbiter-1', id: 'arbiter-of-authority', name: 'Arbiter of Authority',
+                    type: 'character', location: 'hand', isPlayableByMe: true
+                };
+                const enemy = {
+                    uuid: 'enemy-1', id: 'aspiring-challenger', name: 'Aspiring Challenger',
+                    type: 'character', location: 'play area', inConflict: true, bowed: false,
+                    militarySkillSummary: { stat: '0' }, politicalSkillSummary: { stat: '1' }
+                };
+                const policy = new JigokuBotPolicy('playbook-arbiter');
+                const play = policy.decide(makeConflictWindowState({
+                    type: 'political', amAttacker: false, attackerSkill: 4, defenderSkill: 1,
+                    hand: [arbiter], opponentCardsInPlay: [enemy]
+                }), 'Jigoku Bot', {
+                    strategy: deriveDeckStrategy(['tsuma']),
+                    cardHint: playbookHint,
+                    handStats: { 'arbiter-1': { military: 0, political: 2 } }
+                });
+
+                expect(play.command).toBe('cardClicked');
+                expect(play.args[0]).toBe('arbiter-1');
             });
 
             it('plays Cavalry Reserves only with a stocked dynasty discard', function() {

@@ -1207,6 +1207,59 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
         expectComplete(spies);
     });
 
+    it('reaches Crane utility actions and Keen Warrior reaction through every seed and information mode', function() {
+        const profile = profileFromStrategy(flags());
+        const securedAttack = (source, opponentCardsInPlay) => makeState({
+            promptTitle: 'Conflict Action Window', menuTitle: 'Military Conflict', buttons: [PASS],
+            stats: { fate: 5, conflictsRemaining: 1 },
+            cardPiles: { cardsInPlay: [source], hand: [] }
+        }, {
+            cardPiles: {
+                hand: [event('enemy-card', 'banzai')],
+                cardsInPlay: opponentCardsInPlay
+            }
+        }, {
+            conflict: {
+                type: 'military', attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                attackerSkill: 8, defenderSkill: 0
+            }
+        });
+
+        const challenger = character('challenger', 'doji-challenger', {
+            location: 'play area', inConflict: true, bowed: false
+        });
+        const futureDefender = character('future-defender', 'enemy-defender', {
+            location: 'play area', inConflict: false, bowed: false
+        });
+        expectEveryPolicy(decideWithEveryPolicy(profile, securedAttack(challenger, [futureDefender])),
+            (decision, policyCase) => {
+                expect(decision.reason).withContext(policyCase.label).toBe('use-board-ability');
+                expect(decision.args[0]).withContext(policyCase.label).toBe('challenger');
+            });
+
+        const guardian = character('guardian', 'graceful-guardian', {
+            location: 'play area', inConflict: true, bowed: false
+        });
+        expectEveryPolicy(decideWithEveryPolicy(profile, securedAttack(guardian, [])),
+            (decision, policyCase) => {
+                expect(decision.reason).withContext(policyCase.label).toBe('use-board-ability');
+                expect(decision.args[0]).withContext(policyCase.label).toBe('guardian');
+            });
+
+        const keen = character('keen', 'keen-warrior', {
+            location: 'play area', selectable: true, inConflict: false, bowed: false
+        });
+        const keenWindow = makeState({
+            promptTitle: 'Any reactions to cards being revealed?',
+            menuTitle: 'Choose a reaction', buttons: [PASS],
+            cardPiles: { cardsInPlay: [keen] }
+        });
+        expectEveryPolicy(decideWithEveryPolicy(profile, keenWindow), (decision, policyCase) => {
+            expect(decision.reason).withContext(policyCase.label).toBe('trigger-hinted-ability');
+            expect(decision.args[0]).withContext(policyCase.label).toBe('keen');
+        });
+    });
+
     it('executes every Lion tactic method', function() {
         const spies = spyTactic(LionTactics);
         const strategy = flags({ aggressive: true });

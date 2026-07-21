@@ -45,6 +45,12 @@ interface BotDecision {
     command: BotCommandName;
     args: any[];
     target?: string;
+    cardId?: string;
+    cardType?: string;
+    cardSide?: string;
+    cardLocation?: string;
+    cardController?: string;
+    cardOwner?: string;
     reason: string;
 }
 
@@ -1419,10 +1425,24 @@ class JigokuBotPolicy {
     }
 
     private cardClickDecision(card: any, reason: string): BotDecision {
+        const playerName = (value: any): string | undefined => typeof value === 'string'
+            ? value
+            : value?.name;
         return {
             command: 'cardClicked',
             args: [card.uuid],
             target: card.name || card.uuid,
+            // Trace-only provenance. The card can move or leave play before
+            // JigokuBotController records the successful command, so capture
+            // its semantic identity at decision time. Runtime card-usage
+            // audits can then separate source activations from target clicks,
+            // mulligan selections, attackers, and defenders.
+            cardId: card.id,
+            cardType: card.type,
+            cardSide: card.side,
+            cardLocation: card.location,
+            cardController: playerName(card.controller),
+            cardOwner: playerName(card.owner),
             reason
         };
     }
@@ -2080,6 +2100,20 @@ class JigokuBotPolicy {
             if(passButton) {
                 return this.buttonDecision(passButton, 'pass-no-attackers');
             }
+
+            // Defender-chosen-ring declarations cannot be taken back after
+            // the ring is selected, so their attacker prompt has no Pass
+            // button. If a defensive plan reserved every otherwise legal
+            // body, commit the weakest one to satisfy the mandatory attacker
+            // instead of leaving an unfinishable prompt.
+            const requiredPick = this.sortBySkillDesc(
+                ready.filter((card) => !card.inConflict &&
+                    !this.isAttempted('cardClicked', [card.uuid])),
+                type
+            ).reverse()[0];
+            if(requiredPick) {
+                return this.cardClickDecision(requiredPick, 'declare-required-attacker');
+            }
         }
 
         return null;
@@ -2698,6 +2732,25 @@ class JigokuBotPolicy {
             crane.shouldUseBrashSamurai(sharedPlayCtx) ||
             crane.shouldUseDojiChallenger(sharedPlayCtx)
         );
+        // Some utility Actions are valuable only after the current conflict is
+        // already secured. Without this explicit, injectable playbook marker,
+        // the break/safe shortcut below passes before conflictAbilitySources()
+        // can ever click them (Doji Challenger was unreachable this way).
+        const actionBeforePass = !!cardHint && this.findVisibleCards(me).some((card) => {
+            if(!card.uuid || !card.id || card.facedown ||
+                !this.isDirectCardLegal(card, legalDirectCardUuids) ||
+                this.isCancelVetoed(card.id)) {
+                return false;
+            }
+            const hint: any = cardHint(card.id);
+            if(!hint?.inPlayAction || !hint.actionBeforePass) {
+                return false;
+            }
+            if(hint.oncePerRound && this.boardAbilityIsUsed(card, dragon)) {
+                return false;
+            }
+            return typeof hint.shouldUseAction !== 'function' || hint.shouldUseAction(sharedPlayCtx);
+        });
         if(standing.amAttacker) {
             const provinceStrength = this.attackedProvinceStrength(opponent, 4);
             const requiredLead = pathMargin ? Math.max(provinceStrength, 5) : provinceStrength;
@@ -2705,11 +2758,11 @@ class JigokuBotPolicy {
             // Assaulting the enemy STRONGHOLD: breaking it wins the game, so
             // the "too far gone" cap does not apply — spend everything on the
             // final push (mirrors the all-in stronghold defense).
-            if(!feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan && (breakDeficit <= 0 || (!strongholdAssault && breakDeficit > 6))) {
+            if(!feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan && !actionBeforePass && (breakDeficit <= 0 || (!strongholdAssault && breakDeficit > 6))) {
                 return pass;
             }
         } else {
-            if(!standing.losing && !feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan) {
+            if(!standing.losing && !feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan && !actionBeforePass) {
                 return pass;
             }
             const provinceStrength = this.attackedProvinceStrength(me, 3);
@@ -2717,7 +2770,7 @@ class JigokuBotPolicy {
             const cheapWin = standing.gap <= 3;
             // At the stronghold there is no "too far gone": every buff and
             // ability is thrown at the deficit because losing it is losing.
-            if(!strongholdDefense && !feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan && ((breakDeficit <= 0 && !cheapWin) || breakDeficit > 6)) {
+            if(!strongholdDefense && !feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan && !actionBeforePass && ((breakDeficit <= 0 && !cheapWin) || breakDeficit > 6)) {
                 return pass;
             }
         }
@@ -3217,7 +3270,11 @@ class JigokuBotPolicy {
             !duelist.pickAttachmentTarget(myCharacters, card.id, hint?.maxCopiesPerTarget)) {
             return false;
         }
-        if(duelist?.duelSourceId(card) && !duelist.shouldStartDuel(
+        // A conflict character that grants a duel Action is not yet among
+        // myCharacters while it is in hand. Gate the Action after it enters
+        // play; gating the purchase here made Arbiter of Authority impossible
+        // to play because DuelTactics could never find its source challenger.
+        if(card.type !== 'character' && duelist?.duelSourceId(card) && !duelist.shouldStartDuel(
             card,
             myCharacters,
             playCtx?.opponentCharacters || [],

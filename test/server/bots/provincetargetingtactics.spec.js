@@ -4,6 +4,16 @@ const {
 } = require('../../../build/server/game/bots/ProvinceTargeting.js');
 
 describe('ProvinceTargetingTactics', function() {
+    it('trades modest strength for denying a valuable hidden dynasty stack', function() {
+        const one = [{ facedown: true, location: 'province 1' }];
+        const two = [{ facedown: true, location: 'province 2' }];
+        const ranked = new ProvinceTargetingTactics().rank([one, two], [
+            { location: 'province 1', strength: 4, dynastyValue: 8 },
+            { location: 'province 2', strength: 3, dynastyValue: 0 }
+        ]);
+        expect(ranked[0]).toBe(one);
+    });
+
     const list = (id, location, strength, abilityClass = 'none', eminent = false) => [{
         uuid: id, id, name: id, isProvince: true, type: 'province', location,
         isBroken: false, facedown: false, eminent, provinceAbilityClass: abilityClass,

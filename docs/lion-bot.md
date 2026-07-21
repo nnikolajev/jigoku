@@ -169,7 +169,7 @@ and lost games across Dragon, Phoenix, and Scorpion. That pattern and sample
 size do not justify weakening the exact base-skill safety rule, so no
 matchup-specific tuning was added.
 
-Regression coverage executes both card paths for seeds 1, 2, 3, and 4, verifies
+Regression coverage executes both card paths for seeds 1, 2, and 3, verifies
 that total skill cannot override a losing base-skill matchup, verifies the
 injectable equal-skill threshold, and verifies singleton distribution. The
 all-opponent interaction audit ran 30 Lion games (10 opponents x 3 seeds) with

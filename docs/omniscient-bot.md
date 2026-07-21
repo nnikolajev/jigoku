@@ -1,166 +1,126 @@
-# Seed 3 — Omniscient (cheating) bot
+# Omniscient bot capability
 
-> **Status: shipped, gated, opt-in.** Seed 3 is seed 1's fate-aware heuristic plus a
-> perfect-information cheat layer. It is selected in the lobby's **Bot
-> type** dropdown ("omniscient (sees hidden cards)"). It never affects
-> seed 1 — every cheat branch is gated on a context object that is only built
-> for seed 3.
+> **Status: shipped, opt-in, and strategy-independent.** Omniscience is an
+> information-access capability, not a bot seed. The lobby checkbox and bot
+> configuration can enable it for seed 1, 2, or 3.
 
-## What it is
+## Configuration
 
-Seed 3 keeps the entire fate-aware seed-1 policy and feeds it the human's hidden
-information: the true contents of the human's hand, their fate, and the real
-strength of every province including the face-down ones. A fair bot cannot see
-any of this. The idea (user's): a bot that knows what the human is holding can
-target the weakest province, press when the human cannot fight back, and avoid
-walking into what it cannot win — a genuinely hard opponent whom a good human can
-still beat on decision-making.
-
-Draw-phase bidding uses the same deck-injectable `DrawBidTactics` as seeds 1
-and 2. Seed 3 also enables the injectable `MulliganTactics` described in
-[`mulligan-bot.md`](mulligan-bot.md). Draw bidding intentionally uses only information legitimate for the draw dial
-(public opponent hand size/economy plus exact own costs); omniscience continues
-to affect conflict-hand and hidden-province planning, not the tabletop honor
-dial itself.
-
-The seeds:
-
-| Seed | Bot | Notes |
-|------|-----|-------|
-| blank / 1 | Fate-aware heuristic | default, fair, no hidden info |
-| 2 | Old heuristic | previous dynasty economy |
-| **3** | **Omniscient (cheat)** | **fate-aware heuristic + sees hand/fate/face-down provinces** |
-
-## How it works
-
-```
-JigokuBotController (seed 3)                     FateAwareJigokuBotPolicy
-  buildOmniscient(me)  ── context.omniscient ──▶   omniscient branches
-   reads me.opponent (live Player):                (gated on `omni`)
-     · hand  → KnownCard[]  (real cards)             · attackProvinceDecision
-     · fate                                          · omniAttackedStrength
-     · provinces → true strength (even face-down)
+```json
+{
+  "bot": {
+    "enabled": true,
+    "seed": 1,
+    "omniscient": true
+  }
+}
 ```
 
-- **`DeckAnalysis.ts`** — the "deck analysis". A curated per-card conflict model
-  (printed name, fate cost, mil/pol skill, buff, event swing, tag) for supported
-  conflict cards. Card BODIES are
-  read live from the game objects, so any deck's characters/attachments are
-  covered exactly; the registry adds what a live object cannot express — what an
-  EVENT does (a duel, a removal). The controller builds a threat matrix for
-  every affordable budget from 0 through the opponent's current fate, on both
-  conflict axes. Each entry chooses the best affordable body and trick under
-  their shared fate budget; it does **not** sum the whole hand.
-- **`JigokuBotController.ts`** — `isOmniscient()` (seed 3), `buildOmniscient(me)`
-  assembles the cheat view from the live opponent `Player` each tick,
-  `knownCard()` overlays live stats with the registry, `opponentProvinces()`
-  reads true strengths, and `ensureDeckAnalyzed()` is the one-time gate that
-  reports which of the human's conflict events (if any) are unmodeled.
-- **`JigokuBotPolicy.ts`** and **`StrongholdDefenseTactics.ts`** — the
-  `context.omniscient` view drives six live behaviors:
-  1. **Hand-aware conflict type** (`omniPreferredConflictType`) — compares each
-     axis after subtracting the best body, flat printed attachment boost, or
-     curated event boost the opponent can afford from their real hand.
-  2. **Hidden-aware province targeting** (`attackProvinceDecision`) — uses the
-     same injectable Eminent/effective-strength/ability-timing ranking as every
-     seed, but applies it to the TRUE identity and strength of facedown cards.
-     Public Forum has effective priority strength 6 because it needs two breaks.
-  3. **True-strength sizing** (`omniAttackedStrength`) — the break math uses the
-     real strength of the (even face-down) attacked province instead of the
-     heuristic's guess-4 fallback.
-  4. **Token defense** (`defenderDecision`) — when the visible attack plus its
-     affordable hidden boost still cannot break, commits only one weak defender
-     to avoid the unopposed honor loss.
-  5. **Exact stronghold reserve** — the two-broken risk gate uses exact live
-     outer and stronghold-province strengths; after three own provinces are
-     broken, the survival planner combines the opponent's ready skill,
-     affordable hand boost, and affordable bow/send-home/discard/remove effects.
-     Unlike fair seeds, seed 3 may reserve multiple defenders when its exact
-     hidden-state calculation says one is unsafe.
-  6. **Exact Gossip naming** — Gossip still names only a card in the known
-     submitted opponent conflict deck, but seed 3 ranks exact hand copies and
-     current affordability above merely possible deck threats.
+The supported strategy seeds are:
 
-Province strength comes from the live province card's `getStrength()`, so
-holdings, the stronghold bonus, and active modifiers are included even when the
-province is face-down. Defender-disable detection walks the real ability trees
-and printed text, then limits the danger to cards the opponent can afford with
-their current fate.
+| Seed | Strategy |
+|---:|---|
+| 1 | fate-aware heuristic |
+| 2 | original dynasty-focused heuristic |
+| 3 | seed 1 plus board-aware dynasty development |
 
-## Deck-analysis gate
+`OmniscientBotCapability` is constructed independently of the selected policy.
+When disabled, it returns no hidden context and the strategy remains fair.
+When enabled, it supplies the same hidden-state model to any of the three
+strategies.
 
-The user's requirement: "if seed 3 is chosen and the deck is not yet analyzed it
-needs to be analyzed first." The analysis is the static `DeckAnalysis` registry.
-At game start the omniscient bot scans the
-human's whole deck for conflict events with no curated model and reports coverage
-in the game log:
-- fully modeled → "has analyzed the opponent deck: all N conflict events
-  modeled."
-- gaps → "is blind to K unanalyzed opponent card(s); add them to DeckAnalysis
-  for full strength." The bot still plays (bodies are read live); it is only
-  blind to those specific event tricks.
+## Information exposed
 
-To analyze a new opponent deck, add its conflict events to `ANALYSIS` in
-`DeckAnalysis.ts` (fetch card text from `https://www.emeralddb.org/api/cards`).
+The capability reads the opponent's live player object and supplies:
 
-## What was tried and MEASURED NET-NEGATIVE (kept off)
+- exact conflict hand, card costs, printed/live skills, attachment bonuses, and
+  curated event effects;
+- opponent fate and an affordability matrix for military and political boosts;
+- exact identities, current strengths, ability classes, and dynasty stacks of
+  face-down provinces;
+- affordable bow, send-home, discard, and removal effects;
+- exact hand copies for Gossip and exact bow-effect knowledge for Clarity of
+  Purpose.
 
-The user asked for the bot to size attacks against the human's hand, hold
-conflicts it cannot win, and concede lost defenses. Full versions were implemented and
-tested in legacy omniscient-vs-fate-aware self-play (alternating seats, deck held constant so
-strength cancels). All three **hurt** and are gated off. The narrower hand-aware
-conflict-type choice and token-defense case remain enabled because they use the
-same exact hand estimate without overcommitting bodies:
+Province strength uses the live card's `getStrength()`, so holdings, the
+stronghold bonus, and active modifiers are included. Public Forum has effective
+priority strength 6 only while ranking targets because it must be broken twice;
+its actual break strength is unchanged.
 
-- **Hand-threat attack sizing** (fold the human's affordable hand defense into
-  the break target) — made the bot over-commit against defense that never
-  materialized and lose bodies it needed for later conflicts. Crane mirror
-  dropped below 50%; higher threat scale was strictly worse.
-- **Defender pump** (defend against the human's post-commit hand pump) — made the
-  bot over-concede and stall. **Crane mirror 0-12.**
-- **Window hold** (as attacker HOLD when the human can swing out of reach; as
-  defender concede a provably lost conflict) — over-held and passed winnable
-  conflicts. **Crane mirror regressed to 1-11.**
+Every event in the ten standardized deck fixtures has a model in
+`DeckAnalysis.ts`. A one-time game message reports any missing event models when
+an unknown deck is used. Live character and attachment values do not require a
+registry entry.
 
-Lesson: the base ordinary-conflict commit/defend heuristic is well tuned;
-speculative overrides of *how much to commit* degrade it, because the bot
-opponent defends optimally while the estimate assumes worst case. Those broad
-overrides remain disabled. The narrow exception is last-province survival,
-where losing the stronghold ends the game and exact hidden hand information can
-justify reserving more defenders.
+## Injectable use of hidden knowledge
 
-## Result
+`DeckProfile` controls where exact information modifies decisions:
 
-Historical omniscient-vs-fate-aware self-play mirror (same deck, alternating seats):
+- `useOmniscientProvinceKnowledge`
+- `useOmniscientConflictAxis`
+- `omniscientAttackResponseBuffer`
+- `useOmniscientTokenDefense`
+- `omniscientEarthRingThreatBonus`
+- stronghold-defense hidden-threat weights and control detection
 
-| Deck | N | omniscient | generic |
-|------|---|--------|--------|
-| Unicorn (military) | 40 | **28 (70%)** | 12 |
-| Crane (duel/honor) | 30 | 15 | 15 |
+Exact province targeting is broadly safe. Treating every known hand card as a
+guaranteed maximum conflict swing was not safe: it caused over-commitment,
+unnecessary defense, and skipped windows. Those broad worst-case overrides
+remain disabled. Duel, Shugenja, Crab, and Unicorn profiles enable narrower
+uses whose effects were measured separately.
 
-Weakest-province + true-strength targeting is a clear win on a military
-province-breaking deck (Unicorn 70%) and neutral on Crane, whose game is decided
-by duels/honor rather than raw break math. Against a real (imperfect) human the
-cheat is meaningfully harder than seed 1: it never wastes an attack on a strong
-face-down province when a weak one is open. Bot specs include regression
-coverage for live hidden hand bonuses, facedown province strength,
-conflict-type choice, weakest-province targeting, affordable defender disables,
-and omniscient stronghold reserves.
+## Benchmark and 60% gate
 
-## How to run / test
+`botOmniscientRoundRobin.js` compares an omniscient strategy against its normal
+version. Its mirror gate holds seed and deck constant, alternates seats, and
+uses paired deterministic shuffles:
 
-```bash
-# from jigoku/, after npx tsc
-npx jasmine test/server/bots/deckanalysis.spec.js           # analysis unit tests
-npx jasmine test/server/bots/fateawarejigokubot.spec.js     # seed 1/3 policy + hidden-state boundary
-npx jasmine test/server/bots/jigokuheuristicbot.spec.js     # shared heuristic behavior
+```powershell
+# Focused quality gate: 40 same-deck games per deck
+node tools/selfplay/botOmniscientRoundRobin.js --seed 1 --games 40 --mirrors-only
 
-# self-play mirror to measure seed 3 vs seed 1 (deck constant, seats alternate):
-#   runGame({ names, seeds:[3,1], deckA, deckB })  via tools/selfplay/harness.js
-#   deckLoader exports loadUnicornDeck() and loadCraneDeck()
+# Standard client benchmark: 20 games for every ordered deck matchup
+node tools/selfplay/botOmniscientRoundRobin.js --seed 1
 ```
 
-Live: pick **omniscient (sees hidden cards)** in the lobby Bot type dropdown
-(passes bot `seed: "3"`). Fixtures for Crane Baseline live in
-`tools/selfplay/fixtures/crane-decklist.json`, `crane-cards.json`, and
-`crane-baseline-extra-cards.json`.
+The standard run writes the seed's `omniscient` section to
+`jigoku-client/client/botBenchmarkResults.json`. Custom counts, mirror-only
+runs, deck subsets, and alternate RNG seeds never replace client data.
+
+The 2026-07-21 N=40 mirror evaluation did **not** meet the requested 60% floor:
+
+| Seed | Decks at 60% | Aggregate omniscient record |
+|---:|---:|---:|
+| 1 | 1/10 (Crane Duels) | 211-189, 52.8% |
+| 2 | 0/10 | 202-198, 50.5% |
+| 3 | 1/10 (Crab) | 214-186, 53.5% |
+
+This is a failed quality gate, not evidence that exact information is useless.
+The current deterministic action policy does not yet convert that information
+into a consistent advantage. Full reports are under
+`tools/selfplay/out/omniscient-mirror-gate-seed*-final-evaluation.*`.
+
+The standardized all-opponent pool (20 games against each of ten decks) was
+also close to neutral: seed 1 50.6%, seed 2 49.5%, and seed 3 51.5%. These
+standard reports are `tools/selfplay/out/omniscient-round-robin-seed*.*` and
+are the results displayed by the client.
+
+## Tests
+
+```powershell
+npm run typecheck
+npx jasmine test/server/bots/deckanalysis.spec.js
+npx jasmine test/server/bots/deckprofiles.spec.js
+npx jasmine test/server/bots/fateawarejigokubot.spec.js
+npx jasmine test/server/bots/specializedpolicycoverage.spec.js
+npx jasmine test/tools/selfplay/botomniscientroundrobin.spec.js
+```
+
+The regressions cover capability/seed independence, hidden hand cost and event
+models, face-down province stacks, profile gates, and benchmark publication.
+
+The final live interaction audit ran every deck on seeds 1-3 once in fair mode
+and once with omniscience (60 games). Both sets passed with zero rejected
+clicks, cycles, budget failures, or stalls; maximum work was 14 decisions in a
+controller tick. Reports:
+`tools/selfplay/out/omniscient-refactor-final-{fair,omniscient}-interactions.*`.

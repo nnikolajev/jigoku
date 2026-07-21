@@ -21,6 +21,11 @@ export interface ProvinceTargetingProfile {
     // later. Deck profiles can move an unusually valuable/dangerous province
     // ahead of or behind every generic rule without duplicating this sorter.
     priorityTierById: Record<string, number>;
+    // Omniscient-only tie/tradeoff: valuable hidden dynasty stacks make a
+    // location cheaper to target because a break also denies those cards.
+    // `cap` prevents one stack from overriding grossly stronger provinces.
+    hiddenDynastyDenialWeight: number;
+    hiddenDynastyDenialCap: number;
 }
 
 export const PROVINCE_TARGETING_DEFAULTS: ProvinceTargetingProfile = {
@@ -36,7 +41,9 @@ export const PROVINCE_TARGETING_DEFAULTS: ProvinceTargetingProfile = {
     effectiveStrengthById: {
         'public-forum': 6
     },
-    priorityTierById: {}
+    priorityTierById: {},
+    hiddenDynastyDenialWeight: 1,
+    hiddenDynastyDenialCap: 6
 };
 
 export interface KnownProvinceTarget {
@@ -48,6 +55,8 @@ export interface KnownProvinceTarget {
     facedown?: boolean;
     eminent?: boolean;
     abilityClass?: ProvinceAbilityClass;
+    dynastyCardIds?: string[];
+    dynastyValue?: number;
 }
 
 interface RankedProvinceList {
@@ -88,7 +97,12 @@ export class ProvinceTargetingTactics {
         const rawStrength = Number.isFinite(exactStrength) ? exactStrength :
             (Number.isFinite(visibleStrength) ? visibleStrength : this.profile.unknownStrength);
         const strengthOverride = Number(this.profile.effectiveStrengthById[id]);
-        const strength = Number.isFinite(strengthOverride) ? strengthOverride : rawStrength;
+        const effectiveStrength = Number.isFinite(strengthOverride) ? strengthOverride : rawStrength;
+        const denial = Math.min(
+            Math.max(0, Number(exact?.dynastyValue) || 0) * Math.max(0, this.profile.hiddenDynastyDenialWeight),
+            Math.max(0, this.profile.hiddenDynastyDenialCap)
+        );
+        const strength = effectiveStrength - denial;
         const abilityClass = exact?.abilityClass || card?.provinceAbilityClass || 'unknown';
         const ability = Number(this.profile.abilityPriority[abilityClass]);
         const eminent = !!(exact?.eminent ?? card?.eminent);

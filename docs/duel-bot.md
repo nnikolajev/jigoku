@@ -145,8 +145,9 @@ All knobs are on `DuelBidProfile`:
 
 `DeckProfiles.ts` deep-merges partial `duelBidding` overrides, so a deck can
 change risk weights or objective without replacing prompt flow. Generic,
-fate-aware, and omniscient seeds all route through the same class. Seed 3 gets
-no hidden-hand advantage here; duel participants, honor, deck identity, and
+generic, fate-aware, and board-aware seeds all route through the same class.
+Optional omniscience gets no hidden-hand advantage here; duel participants,
+honor, deck identity, and
 spent public abilities are already public information.
 
 True Strike Kenjutsu is a special source but not a second bid system. Before

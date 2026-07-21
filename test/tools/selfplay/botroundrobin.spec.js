@@ -5,7 +5,7 @@ const { isStandardBenchmarkRun, parseArgs } = require('../../../tools/selfplay/b
 const { isDeployableSeed } = require('../../../tools/selfplay/_roundRobinWorker.js');
 
 describe('self-play bot round-robin options', function() {
-    it('defaults to 32 workers and fate-aware seed 1, and accepts omniscient seed 3', function() {
+    it('defaults to 32 workers, accepts board-aware seed 3, and separates omniscience', function() {
         expect(parseArgs([])).toEqual(jasmine.objectContaining({
             games: 40, workers: 32, botSeed: 1, drawBidPolicy: 'adaptive'
         }));
@@ -15,12 +15,12 @@ describe('self-play bot round-robin options', function() {
 
         expect(options.botSeed).toBe(3);
         expect(options.decks).toEqual(['Crane', 'PhoenixShugenja']);
-        expect(parseArgs(['--seed', '4']).botSeed).toBe(4);
-        expect(() => parseArgs(['--seed', '5'])).toThrowError('--seed must be a bot mode from 1 to 4');
+        expect(parseArgs(['--omniscient']).omniscient).toBe(true);
+        expect(() => parseArgs(['--seed', '4'])).toThrowError('--seed must be a bot mode from 1 to 3');
         expect(parseArgs(['--draw-bid', 'legacy']).drawBidPolicy).toBe('legacy');
         expect(() => parseArgs(['--draw-bid', 'random'])).toThrowError('--draw-bid must be adaptive or legacy');
-        expect([1, 2, 3, 4].every(isDeployableSeed)).toBe(true);
-        expect(isDeployableSeed(5)).toBe(false);
+        expect([1, 2, 3].every(isDeployableSeed)).toBe(true);
+        expect(isDeployableSeed(4)).toBe(false);
     });
 
     it('only publishes a complete 40-game full-deck round robin', function() {
@@ -31,6 +31,7 @@ describe('self-play bot round-robin options', function() {
         expect(isStandardBenchmarkRun(options, completeReport)).toBe(true);
         expect(isStandardBenchmarkRun(parseArgs(['--seed', '2', '--games', '100']), completeReport)).toBe(false);
         expect(isStandardBenchmarkRun(parseArgs(['--seed', '2', '--draw-bid', 'legacy']), completeReport)).toBe(false);
+        expect(isStandardBenchmarkRun(parseArgs(['--seed', '2', '--omniscient']), completeReport)).toBe(false);
         expect(isStandardBenchmarkRun(
             parseArgs(['--seed', '2', '--decks', DECK_LABELS.slice(0, 2).join(',')]),
             completeReport

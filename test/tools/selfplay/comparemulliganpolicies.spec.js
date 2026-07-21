@@ -10,7 +10,7 @@ describe('compareMulliganPolicies CLI', function() {
     it('defaults to every supported seed and accepts deck subsets', function() {
         expect(parseArgs([])).toEqual(jasmine.objectContaining({
             games: 20,
-            seeds: [1, 2, 3, 4]
+            seeds: [1, 2, 3]
         }));
         const parsed = parseArgs([
             '--games', '12', '--seeds', '2,3', '--decks', 'Lion,Unicorn'
@@ -21,8 +21,8 @@ describe('compareMulliganPolicies CLI', function() {
     });
 
     it('rejects removed seeds and unknown decks', function() {
-        expect(() => parseArgs(['--seeds', '5'])).toThrowError(
-            '--seeds must be a comma-separated subset of 1,2,3,4'
+        expect(() => parseArgs(['--seeds', '4'])).toThrowError(
+            '--seeds must be a comma-separated subset of 1,2,3'
         );
         expect(() => parseArgs(['--decks', 'Nope'])).toThrowError(/Unknown deck/);
     });

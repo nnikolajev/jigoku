@@ -16,7 +16,8 @@ function usage() {
         '',
         'Options:',
         '  --games <n>                    Games per deck/opponent/seed (default 1)',
-        '  --seeds <csv>                  Bot seeds (default 1,2,3,4)',
+        '  --seeds <csv>                  Bot seeds (default 1,2,3)',
+        '  --omniscient                   Enable hidden information on both seats',
         '  --decks <csv|all>              Decks under audit (default all)',
         '  --opponents <csv|all>          Opponent decks (default Crane)',
         '  --rng-seed <n>                 Deterministic base RNG seed (default 20260716)',
@@ -33,7 +34,7 @@ function usage() {
         '',
         `Deck labels: ${DECK_LABELS.join(', ')}`,
         '',
-        'Seeds 1, 2, 3, and 4 are deployable deterministic policies.'
+        'Seeds 1, 2, and 3 are deployable deterministic policies.'
     ].join('\n');
 }
 
@@ -49,7 +50,8 @@ function parseCsv(raw, allowed, label) {
 function parseArgs(argv) {
     const options = {
         games: 1,
-        seeds: [1, 2, 3, 4],
+        seeds: [1, 2, 3],
+        omniscient: false,
         decks: [...DECK_LABELS],
         opponents: ['Crane'],
         rngSeed: 20260716,
@@ -82,6 +84,10 @@ function parseArgs(argv) {
             options.help = true;
             continue;
         }
+        if(arg === '--omniscient') {
+            options.omniscient = true;
+            continue;
+        }
         if(i + 1 >= argv.length) {
             throw new Error(`Missing value for ${arg}`);
         }
@@ -110,8 +116,8 @@ function parseArgs(argv) {
     if(!Number.isInteger(options.rejectedCap) || options.rejectedCap < 0) {
         throw new Error('rejectedCap must be a non-negative integer');
     }
-    if(options.seeds.length === 0 || options.seeds.some((seed) => !Number.isInteger(seed) || seed < 1 || seed > 4)) {
-        throw new Error('seeds must be a comma-separated subset of 1,2,3,4');
+    if(options.seeds.length === 0 || options.seeds.some((seed) => !Number.isInteger(seed) || seed < 1 || seed > 3)) {
+        throw new Error('seeds must be a comma-separated subset of 1,2,3');
     }
     return options;
 }
@@ -173,6 +179,7 @@ async function runAuditGame(options, scenario) {
         const result = await runGame({
             names,
             seeds: [scenario.seed, scenario.seed],
+            omniscient: options.omniscient ? [true, true] : [false, false],
             ...decks,
             trace: true,
             maxRounds: options.maxRounds,
@@ -294,7 +301,7 @@ function markdownReport(payload) {
         '',
         `Generated: ${payload.generatedAt}`,
         '',
-        `Games: ${payload.options.games} per deck/opponent/seed; seeds ${payload.options.seeds.join(', ')}; opponents ${payload.options.opponents.join(', ')}.`,
+        `Games: ${payload.options.games} per deck/opponent/seed; seeds ${payload.options.seeds.join(', ')}; opponents ${payload.options.opponents.join(', ')}; omniscient ${payload.options.omniscient ? 'on' : 'off'}.`,
         '',
         '| deck | seed | status | games | clicks | rejected | unsupported | forced | cycles | no-progress | same-action | budgets | stalls | max/tick |',
         '|---|---:|:---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|'

@@ -10,6 +10,10 @@ export interface StrongholdDefenseProfile {
     // strictly below province strength + defense because ties at the break
     // threshold break a province in Jigoku.
     skillBuffer: number;
+    // Hidden event/body estimates are contextual. Decks opt in only after
+    // mirror validation; zero/false keeps proven visible-board reservation.
+    omniscientHandThreatWeight: number;
+    omniscientDefenderDisables: boolean;
     holdAllAgainstCovert: boolean;
     attackAllWhenOpponentHasNoConflict: boolean;
     // One turn before the stronghold is exposed, first player must not bow its
@@ -31,6 +35,8 @@ export const STRONGHOLD_DEFENSE_DEFAULTS: StrongholdDefenseProfile = {
     maxFairDefenders: 1,
     maxOmniscientDefenders: Number.POSITIVE_INFINITY,
     skillBuffer: 0,
+    omniscientHandThreatWeight: 0,
+    omniscientDefenderDisables: false,
     holdAllAgainstCovert: true,
     attackAllWhenOpponentHasNoConflict: true,
     preStrongholdDefenseEnabled: true,
@@ -61,7 +67,7 @@ export interface StrongholdDefenseInput {
     opponentPoliticalRemaining?: number;
     handThreat?: Partial<Record<StrongholdDefenseAxis, number>>;
     // Number of reserved characters the known opposing hand can remove, bow,
-    // or send home in the next conflict. Fair bots pass zero; seed 3 supplies
+    // or send home in the next conflict. Fair bots pass zero; omniscience supplies
     // its affordable exact-hand result.
     defenderDisables?: number;
     omniscient?: boolean;

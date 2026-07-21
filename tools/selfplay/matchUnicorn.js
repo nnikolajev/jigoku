@@ -3,7 +3,7 @@
 // Unicorn Cavalry Rush vs the Crane baseline. Seats alternate
 // to cancel first-player advantage. Usage:
 //   node tools/selfplay/matchUnicorn.js [games] [unicornSeed] [--trace]
-// Seeds: 1 fate-aware (default), 2 old heuristic, 3 omniscient. Crane uses seed 1.
+// Seeds: 1 fate-aware (default), 2 old heuristic, 3 board-aware. Crane uses seed 1.
 
 const { runGame } = require('./harness.js');
 const { loadUnicornDeck, loadCraneDeck } = require('./deckLoader.js');

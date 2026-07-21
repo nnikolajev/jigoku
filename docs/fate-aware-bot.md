@@ -1,16 +1,17 @@
 # Fate-Aware Heuristic Bot (Default)
 
 `FateAwareJigokuBotPolicy` is the default seed-1 policy and remains a separate
-copy of the generic heuristic bot. Seed 3 uses this same policy plus its
-omniscient hidden-information context.
+copy of the generic heuristic bot. Seed 3 uses this same foundation plus fair
+board-aware dynasty planning. Omniscience is independently available to either
+strategy.
 It inherits all conflict, targeting, card-playbook, and deck-profile behavior,
 but opts into a different dynasty economy and ring-fate rule. The previous
 `JigokuBotPolicy` remains available as seed 2.
 
 ## Selection
 
-Select **Fate-aware heuristic (default)** in the Jigoku client's bot
-difficulty dropdown. It sends seed `1`. Direct callers can
+Select **mixed** in the Jigoku client's bot type dropdown. It sends seed `1`.
+Direct callers can
 use seed 1:
 
 ```json
@@ -33,9 +34,10 @@ or the explicit policy selector used by controlled comparisons:
 }
 ```
 
-Use seed `2` for the old generic heuristic, seed `3` for fate-aware plus
-omniscient logic, and seed `4` for fate-aware plus fair board-aware dynasty
-development. Explicit `policy` is intended for paired analysis overrides.
+Use seed `2` for the old generic heuristic and seed `3` for fate-aware plus
+fair board-aware dynasty development. Set `omniscient: true` independently for
+hidden-state access. Explicit `policy` is intended for paired analysis
+overrides.
 
 ## Economy Rules
 

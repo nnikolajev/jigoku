@@ -66,22 +66,28 @@ means `adaptive` for every seed.
 node tools/selfplay/compareMulliganPolicies.js
 
 # focused comparison
-node tools/selfplay/compareMulliganPolicies.js --games 40 --seeds 1,2,3,4 --decks Crab,Phoenix
+node tools/selfplay/compareMulliganPolicies.js --games 40 --seeds 1,2,3 --decks Crab,Phoenix
 ```
 
 The comparison alternates seats, writes Markdown and JSON under
 `tools/selfplay/out/`, and never updates standardized client benchmarks.
 Historical tuning reports remain in `tools/selfplay/out/mulligan-ab-*`.
 
+The current direct A/B used 20 games per deck for seeds 1 and 2 and two seed-3
+streams. Adaptive mulligan finished 208-192 (52.0%) on seeds 1/2 and 150-150
+across the combined seed-3 streams. It is deployed as the shared default; the
+legacy policy remains only for controlled comparisons.
+
 ## Regression coverage
 
 `mulligantactics.spec.js` covers paid conflict cards, projected fate, stacked
 province costs, broken-province exclusion, board bands, holding/copy limits,
 Tsuma, Iron Crane Legion, and deck-family overrides. Controller tests lock the
-adaptive default for seeds 1-4 plus explicit legacy injection. Use
-`validateBotInteractions.js --seeds 1,2,3,4` as the no-cycle/stall gate.
+adaptive default for seeds 1-3 plus explicit legacy injection. Use
+`validateBotInteractions.js --seeds 1,2,3` as the no-cycle/stall gate.
 
-The final deployed-default audit ran all ten decks on all four seeds against
-Crane (40 games total). Every case passed with zero rejected clicks, detected
+The final deployed-default audit ran all ten decks on all three seeds against
+Crane (30 games total). Every case passed with zero rejected clicks, detected
 cycles, decision-budget failures, forced progress, stalls, or engine errors.
-Report: `tools/selfplay/out/adaptive-mulligan-all-seeds-final.{md,json}`.
+Report:
+`tools/selfplay/out/omniscient-refactor-final-fair-interactions.{md,json}`.

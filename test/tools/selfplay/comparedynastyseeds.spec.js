@@ -3,7 +3,7 @@
 const { DECK_LABELS } = require('../../../tools/selfplay/deckRegistry.js');
 const { dynastyStats, parseArgs } = require('../../../tools/selfplay/compareDynastySeeds.js');
 
-describe('seed 4 dynasty comparison tool', function() {
+describe('seed 3 dynasty comparison tool', function() {
     it('defaults to every deck and parses focused deterministic runs', function() {
         expect(parseArgs([])).toEqual(jasmine.objectContaining({
             games: 20, decks: DECK_LABELS, rngSeed: 20260720

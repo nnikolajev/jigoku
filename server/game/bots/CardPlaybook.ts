@@ -54,8 +54,8 @@ export interface PlaybookContext {
     allowStrengthOvercommit?: boolean; // Dragon card-count payoff exception
     clarityProtectedUuids?: string[]; // characters already protected by Clarity this conflict
     opponentParticipantCanBow?: boolean; // public board threat from a participating defender
-    omniscient?: boolean; // seed 3 has exact opposing-hand information
-    opponentHasAffordableBowEffect?: boolean; // exact seed-3 hand threat after fate check
+    omniscient?: boolean; // optional capability has exact opposing-hand information
+    opponentHasAffordableBowEffect?: boolean; // exact omniscient hand threat after fate check
     characterPrintedCosts?: Record<string, number>; // exact live printed cost by in-play character UUID
     characterBaseMilitary?: Record<string, number>; // exact live base military by in-play character UUID
     participatingCharacterCounts?: { self: number; opponent: number }; // exact live count, including virtual participants

@@ -11,8 +11,8 @@ import type { DeckProfile } from './DeckProfiles';
 import type { DuelBidContext } from './DuelBidTactics';
 import type { DrawBidContext } from './DrawBidTactics';
 import type { DynastyCharacterInfo } from './BoardAwareDynastyTactics';
-import { buildHandThreatMatrix, getCardModel } from './DeckAnalysis.js';
-import type { KnownCard, OmniProvince, Omniscient } from './DeckAnalysis';
+import type { KnownCard } from './DeckAnalysis';
+import OmniscientBotCapability from './OmniscientBotCapability.js';
 import { logger } from '../../logger.js';
 import type Game from '../game';
 import type Player from '../player';
@@ -54,6 +54,7 @@ class JigokuBotController {
     private recentExhaustSignatures: string[] = [];
     private consecutiveExhaustions = 0;
     private deckStrategy?: DeckStrategy;
+    private omniscientCapability: OmniscientBotCapability;
     // Display of Power installs its delayed ring replacement only after its
     // ability-effects event survives interrupts. Remember that success for
     // this conflict so another copy is not spent on the same ring. A canceled
@@ -62,13 +63,18 @@ class JigokuBotController {
     private displayOfPowerConflictUuid: string | null = null;
 
     constructor(private game: Game, readonly config: JigokuBotConfig, private runCommand: CommandRunner,
-        services: { hintService?: DeckHintService; consultant?: LiveConsultant; onStateChange?: () => void } = {}) {
+        services: {
+            hintService?: DeckHintService;
+            consultant?: LiveConsultant;
+            onStateChange?: () => void;
+            omniscientCapability?: OmniscientBotCapability;
+        } = {}) {
         const seed = config.seed || 1;
         const isBoardAware = config.policy === 'board-aware' ||
-            (config.policy === undefined && (seed === 4 || seed === '4'));
+            (config.policy === undefined && (seed === 3 || seed === '3'));
         const isFateAware = config.policy === 'fate-aware' ||
             isBoardAware ||
-            (config.policy === undefined && (seed === 1 || seed === '1' || seed === 3 || seed === '3'));
+            (config.policy === undefined && (seed === 1 || seed === '1'));
         // Adaptive opening and province refresh is shared bot behavior. Keep
         // legacy available only as an explicit A/B override; seed selects the
         // decision policy, not whether the bot understands mulligans.
@@ -78,6 +84,8 @@ class JigokuBotController {
             : isFateAware
             ? new FateAwareJigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy)
             : new JigokuBotPolicy(seed, config.drawBidPolicy, mulliganPolicy);
+        this.omniscientCapability = services.omniscientCapability ||
+            new OmniscientBotCapability(game, config.playerName, config.omniscient === true);
         this.onStateChange = services.onStateChange;
         (this.game as any).on?.(EventNames.OnInitiateAbilityEffects, (event: any) =>
             this.recordDisplayOfPowerInitiated(event));
@@ -97,9 +105,9 @@ class JigokuBotController {
         }
     }
 
-    // Seed 3 adds perfect hidden information to seed 1's fate-aware policy.
+    // Information access is independent from seed-selected strategy.
     private isOmniscient(): boolean {
-        return this.config.seed === 3 || this.config.seed === '3';
+        return this.omniscientCapability.enabled;
     }
 
     // Translate one live card the human holds into the model the policy reasons
@@ -107,117 +115,22 @@ class JigokuBotController {
     // (exact for any deck); the curated registry supplies what printed data
     // cannot express — chiefly an event's conflict swing and effect tag.
     private knownCard(card: any): KnownCard {
-        const model = getCardModel(card.id);
-        const data = card.cardData || {};
-        const type: string = card.type || (typeof card.getType === 'function' ? card.getType() : '') || data.type || model?.type || '';
-        const side = card.isConflict ? 'conflict' : card.isDynasty ? 'dynasty' : (data.side || model?.side || '');
-        const rawCost = typeof card.getCost === 'function' ? card.getCost() : (card.printedCost ?? data.cost);
-        const cost = Number(rawCost);
-        const mil = type === 'character'
-            ? (typeof card.getMilitarySkill === 'function' ? card.getMilitarySkill() : this.parseStat(data.military))
-            : 0;
-        const pol = type === 'character'
-            ? (typeof card.getPoliticalSkill === 'function' ? card.getPoliticalSkill() : this.parseStat(data.political))
-            : 0;
-        const milBonus = this.parseStat(data.military_bonus);
-        const polBonus = this.parseStat(data.political_bonus);
-        return {
-            id: card.id,
-            name: card.name || data.name || card.id,
-            type,
-            side,
-            fate: isNaN(cost) ? (model?.fate ?? 0) : Math.max(cost, 0),
-            mil: Math.max(Number(mil) || 0, 0),
-            pol: Math.max(Number(pol) || 0, 0),
-            milBonus: milBonus ?? model?.milBonus ?? 0,
-            polBonus: polBonus ?? model?.polBonus ?? 0,
-            swing: model?.swing ?? 0,
-            tag: model?.tag ?? 'utility',
-            canDisableDefender: this.cardCanDisableDefender(card),
-            canBowOpponent: this.cardCanBowOpponent(card),
-            conflictTypes: model?.conflictTypes || []
-        };
-    }
-
-    // Inspect the real card implementation, not only curated threat metadata.
-    // This catches cards such as For Shame whose nested choice can bow an
-    // opposing participant. Used only by seed 3's hidden-hand reserve plan.
-    private cardCanTargetOpponentWith(card: any, actions: Set<string>, textPattern: RegExp): boolean {
-        const abilities = ([] as any[]).concat(
-            card?.abilities?.actions || [],
-            card?.abilities?.reactions || [],
-            card?.abilities?.playActions || []
-        );
-        const seen = new Set<any>();
-        const visit = (value: any, opponentTarget: boolean, depth: number): boolean => {
-            if(!value || depth > 10 || seen.has(value)) {
-                return false;
-            }
-            if(Array.isArray(value)) {
-                return value.some((entry) => visit(entry, opponentTarget, depth + 1));
-            }
-            if(typeof value !== 'object') {
-                return false;
-            }
-            seen.add(value);
-            const side = String(value.controller || value.player || '').toLowerCase();
-            const targetsOpponent = opponentTarget || side === 'opponent' || side === 'any';
-            if(targetsOpponent && actions.has(String(value.name || ''))) {
-                return true;
-            }
-            const keys = [
-                'gameAction', 'gameActions', 'action', 'actions', 'choices', 'options',
-                'then', 'target', 'targets', 'ifTrueAction', 'ifFalseAction',
-                'replacementGameAction', 'defaultProperties', 'properties'
-            ];
-            return keys.some((key) => visit(value[key], targetsOpponent, depth + 1));
-        };
-
-        for(const ability of abilities) {
-            const targetsOpponent = (ability?.targets || []).some((target: any) => {
-                const side = String(target?.properties?.controller || target?.properties?.player || '').toLowerCase();
-                return side === 'opponent' || side === 'any';
-            });
-            seen.clear();
-            if(visit(ability?.properties, targetsOpponent, 0)) {
-                return true;
-            }
-        }
-
-        // Custom handler cards may not expose a GameAction tree. Keep a narrow
-        // printed-text fallback, excluding effects explicitly limited to own
-        // characters so a self-ready/bow cost is not treated as a threat.
-        const text = String(card?.cardData?.text || '').replace(/<[^>]*>/g, ' ').toLowerCase();
-        const controlEffect = textPattern.test(text);
-        const opposingTarget = /opponent|character in the conflict|participating character|a character|chosen character/.test(text);
-        const ownOnly = /character you control/.test(text) && !/opponent/.test(text);
-        return controlEffect && opposingTarget && !ownOnly;
+        return this.omniscientCapability.knownCard(card);
     }
 
     private cardCanDisableDefender(card: any): boolean {
-        return this.cardCanTargetOpponentWith(
-            card,
-            new Set(['bow', 'sendHome', 'discardFromPlay', 'returnToHand', 'returnToDeck', 'removeFromGame']),
-            /\bbow\b|send[^.]*\bhome\b|discard[^.]*character[^.]*from play|remove[^.]*character[^.]*from the conflict/
-        );
+        return this.omniscientCapability.cardCanDisableDefender(card);
     }
 
     private cardCanBowOpponent(card: any): boolean {
-        return this.cardCanTargetOpponentWith(card, new Set(['bow']), /\bbow\b/);
+        return this.omniscientCapability.cardCanBowOpponent(card);
     }
 
     // Visible board information is fair for every seed. Include abilities on
     // the participating defender and its attachments, because either can bow
     // the protected attacker before conflict resolution.
     private opponentParticipantCanBow(me: Player): boolean {
-        const opp = (me as any).opponent as Player | undefined;
-        const cards: any[] = typeof (opp as any)?.cardsInPlay?.toArray === 'function'
-            ? (opp as any).cardsInPlay.toArray()
-            : [];
-        return cards.some((card) => card?.type === 'character' && card.inConflict && !card.bowed && (
-            this.cardCanBowOpponent(card) ||
-            (card.attachments || []).some((attachment: any) => this.cardCanBowOpponent(attachment))
-        ));
+        return this.omniscientCapability.opponentParticipantCanBow(me);
     }
 
     private liveProvinceStrength(card: any): number {
@@ -228,78 +141,8 @@ class JigokuBotController {
         return Number.isFinite(strength) ? Math.max(strength, 0) : 0;
     }
 
-    // The true strength of every one of the human's provinces, including the
-    // face-down ones a fair bot cannot see.
-    private opponentProvinces(opp: Player): OmniProvince[] {
-        const out: OmniProvince[] = [];
-        const provinces: any[] = typeof (opp as any).getProvinces === 'function' ? (opp as any).getProvinces() : [];
-        for(const card of provinces) {
-            if(!card || card.isProvince === false) {
-                continue;
-            }
-            out.push({
-                location: card.location || '',
-                id: card.id || card.cardData?.id || '',
-                name: card.name || card.id || '',
-                // Do not read strengthSummary: it is intentionally empty while
-                // a province is face down. getStrength() still returns the live
-                // value including holdings, stronghold bonuses and effects.
-                strength: this.liveProvinceStrength(card),
-                broken: !!card.isBroken,
-                facedown: !!card.facedown,
-                eminent: typeof card.hasEminent === 'function' ? !!card.hasEminent() : false,
-                abilityClass: typeof card.getProvinceAbilityClass === 'function'
-                    ? card.getProvinceAbilityClass()
-                    : 'unknown'
-            });
-        }
-        return out;
-    }
-
-    private affordableDefenderDisableCount(cards: KnownCard[], fate: number): number {
-        let remaining = Math.max(0, Number(fate) || 0);
-        let count = 0;
-        const costs = cards.filter((card) => card.canDisableDefender)
-            .map((card) => Math.max(0, Number(card.fate) || 0))
-            .sort((left, right) => left - right);
-        for(const cost of costs) {
-            if(cost > remaining) {
-                continue;
-            }
-            remaining -= cost;
-            count++;
-        }
-        return count;
-    }
-
-    // Assemble the seed-3 cheat view from the live opponent Player. Recomputed
-    // each tick (cheap) so it always reflects the current hand/fate/board.
-    private buildOmniscient(me: Player): Omniscient | undefined {
-        if(!this.isOmniscient()) {
-            return undefined;
-        }
-        const opp = (me as any).opponent as Player | undefined;
-        if(!opp) {
-            return undefined;
-        }
-        const handCards: any[] = typeof (opp as any).hand?.toArray === 'function' ? (opp as any).hand.toArray() : [];
-        const oppHand = handCards.map((card) => this.knownCard(card));
-        const oppFate = Math.max(Number((opp as any).fate) || 0, 0);
-        const unmodeledEvents = Array.from(new Set(
-            oppHand.filter((card) => card.type === 'event' && !getCardModel(card.id)).map((card) => card.id)
-        ));
-        return {
-            oppName: (opp as any).name,
-            oppFate,
-            oppHand,
-            oppProvinces: this.opponentProvinces(opp),
-            handThreatMatrix: {
-                military: buildHandThreatMatrix(oppHand, oppFate, 'military'),
-                political: buildHandThreatMatrix(oppHand, oppFate, 'political')
-            },
-            affordableDefenderDisables: this.affordableDefenderDisableCount(oppHand, oppFate),
-            unmodeledEvents
-        };
+    private buildOmniscient(me: Player) {
+        return this.omniscientCapability.build(me);
     }
 
     // L5R deck lists are known information. Expose the opponent's complete
@@ -340,34 +183,12 @@ class JigokuBotController {
         return strengths.length > 0 ? Math.min(...strengths) : undefined;
     }
 
-    // One-time deck-analysis gate for seed 3 (satisfies "analyze the deck before
-    // the omniscient bot works"). Scans the human's whole deck for conflict
+    // One-time deck-analysis gate for the optional capability (satisfies
+    // "analyze the deck before the omniscient bot works"). Scans the human's whole deck for conflict
     // events with no curated model and reports coverage. The bot still plays if
     // some events are unmodeled — it is simply blind to those specific tricks.
-    private omniscientGateChecked = false;
     private ensureDeckAnalyzed(me: Player): void {
-        if(this.omniscientGateChecked || !this.isOmniscient()) {
-            return;
-        }
-        const opp = (me as any).opponent as Player | undefined;
-        if(!opp) {
-            return;
-        }
-        this.omniscientGateChecked = true;
-        const allCards: any[] = (this.game as any).allCards || [];
-        const oppEventIds = Array.from(new Set(allCards
-            .filter((card: any) => card.owner === opp && card.type === 'event' && card.cardData?.id)
-            .map((card: any) => card.cardData.id)));
-        const missing = oppEventIds.filter((id) => !getCardModel(id));
-        if(oppEventIds.length === 0) {
-            return;
-        }
-        if(missing.length === 0) {
-            this.game.addMessage(`${this.config.playerName} (omniscient) has analyzed the opponent deck: all ${oppEventIds.length} conflict events modeled.`);
-        } else {
-            logger.info(`Bot ${this.config.playerName} omniscient: ${missing.length}/${oppEventIds.length} opponent events unmodeled: ${missing.join(', ')}`);
-            this.game.addMessage(`${this.config.playerName} (omniscient) is blind to ${missing.length} unanalyzed opponent card(s); add them to DeckAnalysis for full strength.`);
-        }
+        this.omniscientCapability.ensureDeckAnalyzed(me);
     }
 
 
@@ -375,7 +196,7 @@ class JigokuBotController {
     // self-scheduled budget-exhaustion follow-ups — run outside the human
     // command path (GameServer.onGameMessage) that normally broadcasts state
     // after the bot acts. Without pushing state here the human's board freezes
-    // at the last human command while the bot silently plays on (seed 3 makes
+    // at the last human command while the bot silently plays on (omniscience makes
     // every step async, so this is the difference between a live and a frozen
     // opponent).
     private resumeTick(): void {
@@ -511,7 +332,7 @@ class JigokuBotController {
                     // Printed fate cost of dynasty province cards (reserve 1 fate).
                     dynastyCosts: this.dynastyCostsHint(player),
                     // Exact public printed skills, ability density, and live
-                    // honor-on-entry effects for seed 4's dynasty valuation.
+                    // honor-on-entry effects for board-aware dynasty valuation.
                     dynastyCharacterInfo: this.dynastyCharacterInfo(player),
                     // Player-state hand summaries omit printed conflict-card
                     // costs. Deck profiles need these to sequence reducers.
@@ -526,8 +347,8 @@ class JigokuBotController {
                     // its participant immediately when that defender can bow.
                     opponentParticipantCanBow: this.opponentParticipantCanBow(player),
                     // Seed 3 only: the cheat view (human hand/fate/true province
-                    // strengths). Undefined for every other seed, so the policy's
-                    // omniscient branches stay dormant for every other seed.
+                    // strengths). Undefined when the capability is disabled, so the
+                    // policy's omniscient branches stay dormant for fair bots.
                     omniscient: this.buildOmniscient(player)
                 });
 

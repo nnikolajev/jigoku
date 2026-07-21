@@ -8,7 +8,7 @@
 //   node tools/selfplay/winRates.js [gamesPerDeck] [botSeed] [craneSeed]
 //     [challengerPolicy] [challengerDrawBidPolicy] [craneDrawBidPolicy]
 // gamesPerDeck default 100. Seeds: 1 fate-aware (default), 2 old heuristic,
-// 3 omniscient, 4 board-aware dynasty. challengerPolicy is an optional
+// 3 board-aware dynasty. Omniscience is an independent optional capability.
 // generic/fate-aware/board-aware challenger override. Challenger and Crane seeds are
 // the same by default; craneSeed can override it for direct comparisons.
 // A single deck swings ~13pts at N=40, so use higher N for steadier numbers.
@@ -31,7 +31,7 @@ const PER_GAME_MS = 12000;
 
 function parseBotSeed(value) {
     const parsed = Number.parseInt(value, 10);
-    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 4 ? parsed : 1;
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 3 ? parsed : 1;
 }
 
 function parsePolicyOverride(value) {
@@ -49,14 +49,17 @@ function parseDrawBidPolicy(value) {
 }
 
 function parseArgs(argv = []) {
-    const botSeed = parseBotSeed(argv[1]);
+    const positional = argv.filter((value) => !String(value).startsWith('--'));
+    const botSeed = parseBotSeed(positional[1]);
     return {
-        games: parseInt(argv[0], 10) || STANDARD_GAMES,
+        games: parseInt(positional[0], 10) || STANDARD_GAMES,
         botSeed,
-        craneSeed: argv[2] === undefined ? botSeed : parseBotSeed(argv[2]),
-        challengerPolicy: parsePolicyOverride(argv[3]),
-        challengerDrawBidPolicy: parseDrawBidPolicy(argv[4]),
-        craneDrawBidPolicy: parseDrawBidPolicy(argv[5])
+        craneSeed: positional[2] === undefined ? botSeed : parseBotSeed(positional[2]),
+        challengerPolicy: parsePolicyOverride(positional[3]),
+        challengerDrawBidPolicy: parseDrawBidPolicy(positional[4]),
+        craneDrawBidPolicy: parseDrawBidPolicy(positional[5]),
+        challengerOmniscient: argv.includes('--challenger-omniscient'),
+        craneOmniscient: argv.includes('--crane-omniscient')
     };
 }
 
@@ -64,6 +67,8 @@ function isStandardBenchmarkRun(options, rows) {
     return options.games === STANDARD_GAMES &&
         options.botSeed === options.craneSeed &&
         !options.challengerPolicy &&
+        !options.challengerOmniscient &&
+        !options.craneOmniscient &&
         options.challengerDrawBidPolicy === 'adaptive' &&
         options.craneDrawBidPolicy === 'adaptive' &&
         rows.length === DECKS.length &&
@@ -78,18 +83,18 @@ function seedLabel(seed) {
     return ({
         1: 'fate-aware',
         2: 'old heuristic',
-        3: 'omniscient',
-        4: 'board-aware dynasty'
+        3: 'board-aware dynasty'
     })[seed];
 }
 
 function runDeckChild(label, games, botSeed, craneSeed, challengerPolicy,
-    challengerDrawBidPolicy, craneDrawBidPolicy) {
+    challengerDrawBidPolicy, craneDrawBidPolicy, challengerOmniscient, craneOmniscient) {
     return new Promise((resolve) => {
         const child = spawn(process.execPath, [
             '--max-old-space-size=1024', WORKER, label, String(games), String(botSeed),
             String(craneSeed), challengerPolicy || '',
-            challengerDrawBidPolicy, craneDrawBidPolicy
+            challengerDrawBidPolicy, craneDrawBidPolicy,
+            String(challengerOmniscient), String(craneOmniscient)
         ], {
             cwd: path.join(__dirname, '..', '..'),
             env: { ...process.env, LOG_LEVEL: 'error' }
@@ -137,14 +142,15 @@ async function main() {
     const options = parseArgs(process.argv.slice(2));
     const {
         games, botSeed, craneSeed, challengerPolicy,
-        challengerDrawBidPolicy, craneDrawBidPolicy
+        challengerDrawBidPolicy, craneDrawBidPolicy,
+        challengerOmniscient, craneOmniscient
     } = options;
     const challengerLabel = challengerPolicy || seedLabel(botSeed);
 
-    process.stderr.write(`running ${DECKS.length} deck simulations in parallel (${games} games each, challenger seed ${botSeed} ${seedLabel(botSeed)} draw ${challengerDrawBidPolicy}, Crane seed ${craneSeed} ${seedLabel(craneSeed)} draw ${craneDrawBidPolicy}${challengerPolicy ? `, challenger override ${challengerPolicy}` : ''})\n`);
+    process.stderr.write(`running ${DECKS.length} deck simulations in parallel (${games} games each, challenger seed ${botSeed} ${seedLabel(botSeed)}${challengerOmniscient ? ' +omniscient' : ''} draw ${challengerDrawBidPolicy}, Crane seed ${craneSeed} ${seedLabel(craneSeed)}${craneOmniscient ? ' +omniscient' : ''} draw ${craneDrawBidPolicy}${challengerPolicy ? `, challenger override ${challengerPolicy}` : ''})\n`);
     const deckRuns = await Promise.all(DECKS.map((label) =>
         runDeckChild(label, games, botSeed, craneSeed, challengerPolicy,
-            challengerDrawBidPolicy, craneDrawBidPolicy)));
+            challengerDrawBidPolicy, craneDrawBidPolicy, challengerOmniscient, craneOmniscient)));
     const rows = [];
     for(const { label, results, died } of deckRuns) {
         let wins = 0;
@@ -167,7 +173,7 @@ async function main() {
 
     rows.sort((a, b) => (b.played ? b.wins / b.played : 0) - (a.played ? a.wins / a.played : 0));
 
-    console.log(`\n=== Bot win rates vs Crane Baseline (challenger seed ${botSeed}, ${challengerLabel}, draw ${challengerDrawBidPolicy}; Crane seed ${craneSeed}, ${seedLabel(craneSeed)}, draw ${craneDrawBidPolicy}; N=${games}/deck, seats alternate) ===\n`);
+    console.log(`\n=== Bot win rates vs Crane Baseline (challenger seed ${botSeed}, ${challengerLabel}${challengerOmniscient ? ' + omniscient' : ''}, draw ${challengerDrawBidPolicy}; Crane seed ${craneSeed}, ${seedLabel(craneSeed)}${craneOmniscient ? ' + omniscient' : ''}, draw ${craneDrawBidPolicy}; N=${games}/deck, seats alternate) ===\n`);
     const deckWidth = Math.max('deck'.length, ...rows.map((row) => row.label.length));
     console.log(`${'deck'.padEnd(deckWidth)}  record     win%   played  top loss / note`);
     console.log(`${'-'.repeat(deckWidth)}  ---------  -----  ------  ------------------------`);
@@ -189,6 +195,7 @@ async function main() {
         const configPath = writeBenchmarkSection(botSeed, 'winRates', winRatesPayload(options, rows));
         console.log(`Standard client benchmark updated: ${configPath}`);
     } else if(games === STANDARD_GAMES && botSeed === craneSeed && !challengerPolicy &&
+        !challengerOmniscient && !craneOmniscient &&
         challengerDrawBidPolicy === 'adaptive' && craneDrawBidPolicy === 'adaptive') {
         console.log('Standard client benchmark not updated: run was incomplete.');
     }

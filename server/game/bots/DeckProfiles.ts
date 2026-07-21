@@ -88,9 +88,9 @@ export type DefenseCommitment = 'win-only' | 'prevent-break';
 
 export interface DeckProfile {
     // ---- dynasty / economy ----
-    fateAwareEconomy: FateAwareEconomyProfile; // conservative dynasty envelope used by seeds 1, 3, and 4
-    boardAwareDynasty: BoardAwareDynastyProfile; // seed-4 board/game-state dynasty planner
-    conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1-4
+    fateAwareEconomy: FateAwareEconomyProfile; // conservative dynasty envelope used by seeds 1 and 3
+    boardAwareDynasty: BoardAwareDynastyProfile; // seed-3 board/game-state dynasty planner
+    conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1-3
     mulligan: MulliganProfile; // shared opening hand/province mulligan and fate-phase refresh policy
     strongholdDefense: StrongholdDefenseProfile; // shared injectable last-province reserve planner for every seed
     provinceTargeting: ProvinceTargetingProfile; // shared injectable Eminent/strength/ability target priority for every seed
@@ -114,6 +114,14 @@ export interface DeckProfile {
                                  // conflict-phase hand cards. Good for most
                                  // decks; a pure body-flood rush wants every
                                  // fate on the board instead, so it opts out.
+    useOmniscientConflictAxis: boolean; // exact-hand axis comparison; decks
+                                        // with hard ring/type synergies may opt out
+    useOmniscientProvinceKnowledge: boolean; // exact hidden province/stack targeting
+    omniscientEarthRingThreatBonus: number; // deny a known playable hand threat
+    omniscientAttackResponseBuffer: number; // bounded extra break margin when a
+                                             // known affordable response exists
+    useOmniscientTokenDefense: boolean; // use exact hand to chump only when the
+                                         // attack still cannot break
 
     // ---- defense ----
     defenseCommitment: DefenseCommitment;
@@ -198,6 +206,7 @@ export const DEFAULT_PROFILE: DeckProfile = {
     mulligan: {
         ...DEFAULT_MULLIGAN_PROFILE,
         openingKeepHoldingIds: [...DEFAULT_MULLIGAN_PROFILE.openingKeepHoldingIds],
+        openingKeepConflictIds: [...DEFAULT_MULLIGAN_PROFILE.openingKeepConflictIds],
         openingDiscardCharacterIds: [...DEFAULT_MULLIGAN_PROFILE.openingDiscardCharacterIds],
         preferredCharacterIds: [...DEFAULT_MULLIGAN_PROFILE.preferredCharacterIds],
         endHoldingLimit: { ...DEFAULT_MULLIGAN_PROFILE.endHoldingLimit },
@@ -229,6 +238,11 @@ export const DEFAULT_PROFILE: DeckProfile = {
     attackCommitment: 'all-but-one',
     attackKeepHome: 1,
     reserveDynastyFate: true,
+    useOmniscientConflictAxis: false,
+    useOmniscientProvinceKnowledge: true,
+    omniscientEarthRingThreatBonus: 0,
+    omniscientAttackResponseBuffer: 0,
+    useOmniscientTokenDefense: false,
     defenseCommitment: 'prevent-break',
     spendCardsOnDefense: true,
     preventBreakAfterBrokenProvinces: 0,
@@ -254,6 +268,7 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         mulligan: {
             ...DEFAULT_PROFILE.mulligan,
             openingKeepHoldingIds: [...DEFAULT_PROFILE.mulligan.openingKeepHoldingIds],
+            openingKeepConflictIds: [...DEFAULT_PROFILE.mulligan.openingKeepConflictIds],
             openingDiscardCharacterIds: [...DEFAULT_PROFILE.mulligan.openingDiscardCharacterIds],
             preferredCharacterIds: [...DEFAULT_PROFILE.mulligan.preferredCharacterIds],
             endHoldingLimit: { ...DEFAULT_PROFILE.mulligan.endHoldingLimit },
@@ -296,6 +311,7 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         profile.mulligan = {
             ...RUSH_MULLIGAN_PROFILE,
             openingKeepHoldingIds: [...RUSH_MULLIGAN_PROFILE.openingKeepHoldingIds],
+            openingKeepConflictIds: [...RUSH_MULLIGAN_PROFILE.openingKeepConflictIds],
             openingDiscardCharacterIds: [...RUSH_MULLIGAN_PROFILE.openingDiscardCharacterIds],
             preferredCharacterIds: [...RUSH_MULLIGAN_PROFILE.preferredCharacterIds],
             endHoldingLimit: { ...RUSH_MULLIGAN_PROFILE.endHoldingLimit },
@@ -372,6 +388,12 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             honorRaceUtility: 1.5
         };
         profile.drawBidding = { ...HONOR_DRAW_BID_PROFILE };
+        // Duel decks have balanced axes and can profitably avoid the exact
+        // opposing duel/pump suite. Rush and card-count decks must keep their
+        // specialized conflict type even when the hidden hand looks scary.
+        profile.useOmniscientConflictAxis = true;
+        profile.omniscientAttackResponseBuffer = 1;
+        profile.useOmniscientTokenDefense = true;
         profile.fateAwareEconomy = {
             ...profile.fateAwareEconomy,
             preferDeckCharacters: true,
@@ -403,6 +425,7 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             preferDeckCharacters: true,
             preferDeckAdditionalFate: true
         };
+        profile.omniscientAttackResponseBuffer = 1;
     }
     if(strategy.attachmentTower) {
         profile.attachmentTower = {
@@ -531,7 +554,12 @@ const OVERRIDES: ProfileOverride[] = [
             // unchanged. Historical omniscient A/B: +6.7 pp vs Unicorn, +2.5 pp vs
             // Crane/Lion, neutral vs Scorpion/Dragon Attachments.
             strongholdDefense: {
-                preStrongholdThreatRatio: 1.5
+                preStrongholdThreatRatio: 1.5,
+                // Complete event modeling made the old full-hand value turtle:
+                // Display/Five Fires are powerful but not raw skill pumps.
+                // Reserve a small margin while keeping the exact disable gate.
+                omniscientHandThreatWeight: 0.25,
+                omniscientDefenderDisables: true
             },
             mulligan: {
                 openingHoldingLimit: 1,
@@ -558,6 +586,11 @@ const OVERRIDES: ProfileOverride[] = [
         match: (_ids, strategy) => strategy.defensive && strategy.holdingEngine,
         apply: {
             attackCommitment: 'breakable-or-pressure',
+            strongholdDefense: {
+                omniscientHandThreatWeight: 0.25,
+                omniscientDefenderDisables: true
+            },
+            omniscientAttackResponseBuffer: 1,
             boardAwareDynasty: {
                 fullPlannerAtUrgent: false,
                 secondPlayerDeficitPlanner: false
@@ -626,11 +659,26 @@ const OVERRIDES: ProfileOverride[] = [
             aggressiveFate: false,
             // Body-flood rush: every fate belongs on the board, not reserved.
             reserveDynastyFate: false,
+            // Cavalry can move/ready after declaration, so preserving its
+            // historical one-point known-response margin and safe token block
+            // costs less tempo than it does for Lion's committed swarm.
+            omniscientAttackResponseBuffer: 1,
+            useOmniscientTokenDefense: true,
             fateAwareEconomy: { ...SWARM_FATE_AWARE_ECONOMY },
             conflictCardEconomy: { ...SWARM_CONFLICT_CARD_ECONOMY },
             drawBidding: { ...CARD_ENGINE_DRAW_BID_PROFILE },
             mulligan: {
                 openingHoldingLimit: 1,
+                // This deck needs one movement engine more than four random
+                // free cards. Extra paid cards still cycle normally.
+                openingPaidConflictKeepLimit: 1,
+                openingKeepConflictIds: [
+                    'spyglass',
+                    'shiksha-scout',
+                    'adorned-barcha',
+                    'utaku-battle-steed',
+                    'shinomen-wayfinders'
+                ],
                 endHoldingLimit: { weak: 0, developing: 1, strong: 1 }
             },
             unicorn: {
@@ -709,10 +757,13 @@ const OVERRIDES: ProfileOverride[] = [
         match: (ids, strategy) => strategy.glory && ids.has('rally-to-the-cause'),
         apply: {
             strongholdProvinceId: 'rally-to-the-cause',
+            useOmniscientConflictAxis: false,
+            useOmniscientProvinceKnowledge: false,
+            omniscientEarthRingThreatBonus: 35,
             // Phoenix's durable glory bodies and holdings already have a
             // specialized seed-1 buyer. The generic catch-up planner bought
             // too many disposable bodies (15-25 in the fresh paired gate), so
-            // seed 4 decorates its chosen body with persistence but does not
+            // board-aware seed decorates its chosen body with persistence but does not
             // replace that buyer during deficit/stronghold states.
             boardAwareDynasty: {
                 fullPlannerAtUrgent: false,
@@ -1035,6 +1086,9 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     openingKeepHoldingIds: mulligan.openingKeepHoldingIds
                         ? [...mulligan.openingKeepHoldingIds]
                         : [...profile.mulligan.openingKeepHoldingIds],
+                    openingKeepConflictIds: mulligan.openingKeepConflictIds
+                        ? [...mulligan.openingKeepConflictIds]
+                        : [...profile.mulligan.openingKeepConflictIds],
                     openingDiscardCharacterIds: mulligan.openingDiscardCharacterIds
                         ? [...mulligan.openingDiscardCharacterIds]
                         : [...profile.mulligan.openingDiscardCharacterIds],

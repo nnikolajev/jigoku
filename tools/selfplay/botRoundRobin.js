@@ -29,7 +29,8 @@ Options:
   -w, --workers <count>     Parallel child processes (default: 32)
       --chunk-size <count>  Games per isolated job (default: ${DEFAULT_CHUNK_SIZE})
       --seed <number>       Both seats: 1 fate-aware, 2 old heuristic,
-                            3 omniscient, 4 board-aware dynasty (default: 1)
+                            3 board-aware dynasty (default: 1)
+      --omniscient          Give both seats exact hidden information
       --draw-bid <variant>  Both seats: adaptive or legacy (default: adaptive)
       --decks <a,b,...>     Limit round robin to named decks
       --out <path-prefix>   Report prefix (default: tools/selfplay/out/round-robin-latest)
@@ -62,6 +63,7 @@ function parseArgs(argv) {
         workers: defaultWorkers(),
         chunkSize: DEFAULT_CHUNK_SIZE,
         botSeed: 1,
+        omniscient: false,
         drawBidPolicy: 'adaptive',
         decks: [...DECK_LABELS],
         outPrefix: path.join(__dirname, 'out', 'round-robin-latest'),
@@ -80,9 +82,11 @@ function parseArgs(argv) {
             options.chunkSize = positiveInteger(argv[++i], arg);
         } else if(arg === '--seed') {
             options.botSeed = positiveInteger(argv[++i], arg);
-            if(options.botSeed > 4) {
-                throw new Error('--seed must be a bot mode from 1 to 4');
+            if(options.botSeed > 3) {
+                throw new Error('--seed must be a bot mode from 1 to 3');
             }
+        } else if(arg === '--omniscient') {
+            options.omniscient = true;
         } else if(arg === '--draw-bid') {
             options.drawBidPolicy = String(argv[++i] || '');
             if(!['adaptive', 'legacy'].includes(options.drawBidPolicy)) {
@@ -120,6 +124,7 @@ function isStandardBenchmarkRun(options, report) {
     const expectedMatchups = DECK_LABELS.length * (DECK_LABELS.length - 1) / 2;
     return options.games === STANDARD_ROUND_ROBIN_GAMES &&
         options.drawBidPolicy === 'adaptive' &&
+        !options.omniscient &&
         allDecks &&
         report.matchups.length === expectedMatchups &&
         report.matchups.every((matchup) =>
@@ -160,11 +165,12 @@ function parseJsonLines(text, results) {
     return remaining;
 }
 
-function runJob(job, botSeed, drawBidPolicy) {
+function runJob(job, botSeed, drawBidPolicy, omniscient) {
     return new Promise((resolve) => {
         const child = spawn(process.execPath, [
             '--max-old-space-size=1024', WORKER, job.left, job.right,
-            String(job.games), String(botSeed), String(job.startIndex), drawBidPolicy
+            String(job.games), String(botSeed), String(job.startIndex), drawBidPolicy,
+            String(omniscient)
         ], {
             cwd: path.join(__dirname, '..', '..'),
             env: { ...process.env, LOG_LEVEL: 'error' }
@@ -305,6 +311,7 @@ function renderMarkdown(report) {
         '# Bot Deck Round Robin', '', `Generated: ${generatedAt}`, '',
         `Games per matchup: ${config.games}  `,
         `Bot seed: ${config.botSeed}  `,
+        `Omniscient: ${config.omniscient ? 'yes' : 'no'}  `,
         `Draw bid policy: ${config.drawBidPolicy}  `,
         `Workers: ${config.workers}  `,
         `Chunk size: ${config.chunkSize}`, '',
@@ -339,7 +346,7 @@ function renderMarkdown(report) {
 }
 
 function printConsole(report, jsonPath, markdownPath) {
-    console.log(`\n=== Bot deck round robin (seed ${report.config.botSeed}, draw ${report.config.drawBidPolicy}, N=${report.config.games}/matchup) ===\n`);
+    console.log(`\n=== Bot deck round robin (seed ${report.config.botSeed}${report.config.omniscient ? ' + omniscient' : ''}, draw ${report.config.drawBidPolicy}, N=${report.config.games}/matchup) ===\n`);
     console.log('deck              record       avg vs opponents  overall');
     console.log('----------------  -----------  ----------------  -------');
     for(const row of report.deckSummaries) {
@@ -369,7 +376,7 @@ async function main() {
     process.stderr.write(`round robin: ${options.decks.length} decks, ${matchupCount} matchups, ${totalGames} games, ${options.workers} workers\n`);
 
     await runPool(jobs, options.workers,
-        (job) => runJob(job, options.botSeed, options.drawBidPolicy),
+        (job) => runJob(job, options.botSeed, options.drawBidPolicy, options.omniscient),
         (result, index) => {
         jobResults[index] = result;
         completedJobs++;
@@ -385,6 +392,7 @@ async function main() {
             workers: options.workers,
             chunkSize: options.chunkSize,
             botSeed: options.botSeed,
+            omniscient: options.omniscient,
             drawBidPolicy: options.drawBidPolicy
         },
         decks: options.decks,
@@ -405,7 +413,8 @@ async function main() {
         );
         console.log(`Standard client benchmark updated: ${configPath}`);
     } else if(options.games === STANDARD_ROUND_ROBIN_GAMES &&
-        options.drawBidPolicy === 'adaptive' && options.decks.length === DECK_LABELS.length) {
+        options.drawBidPolicy === 'adaptive' && !options.omniscient &&
+        options.decks.length === DECK_LABELS.length) {
         console.log('Standard client benchmark not updated: run was incomplete.');
     }
 }

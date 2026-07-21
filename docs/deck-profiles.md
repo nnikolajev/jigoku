@@ -19,9 +19,9 @@ reads the knobs; the profile is chosen per deck.
 
 | Knob | Meaning |
 |------|---------|
-| `fateAwareEconomy` | injectable dynasty purchase/fate policy used by seeds 1, 3, and 4 |
-| `boardAwareDynasty` | seed-4 board-power, urgency, player-order, hand-reserve, persistence, and conflict-character planner |
-| `conflictCardEconomy` | value-per-fate candidate planner shared by seeds 1, 2, 3, and 4 |
+| `fateAwareEconomy` | injectable dynasty purchase/fate policy used by seeds 1 and 3 |
+| `boardAwareDynasty` | seed-3 board-power, urgency, player-order, hand-reserve, persistence, and conflict-character planner |
+| `conflictCardEconomy` | value-per-fate candidate planner shared by seeds 1, 2, and 3 |
 | `provinceTargeting` | shared injectable province ordering: Eminent, effective strength, ability timing, and per-card overrides |
 | `strongholdDefense` | three-broken survival planner plus injectable two-broken risk gate and fair/omniscient defender limits |
 | `attachmentControl` | shared Let Go policy comparing own debuff removal with enemy attachment removal |
@@ -327,8 +327,8 @@ Current deck-independent behaviors:
    broken, `StrongholdDefenseTactics` calculates military and political threats
    against the combined stronghold-province strength. It may skip attacking,
    reserve the minimum safe defender set, or attack freely. A fair seed keeps at
-   most one calculated defender; seed 3 also adds affordable hidden-hand skill
-   and known bow/send-home/remove effects and may reserve more.
+   most one calculated defender; omniscient profiles may also add affordable
+   hidden-hand skill and known bow/send-home/remove effects and reserve more.
 5. **Safety exceptions**: attack freely when every opposing character is bowed;
    attack all-in when the opponent has no conflict remaining; race all-in when
    both strongholds are exposed. Any ready opposing Covert character causes the
@@ -379,7 +379,7 @@ node tools/selfplay/analyzePolicyGame.js --deck PhoenixShugenja --rng-seed 20260
 `validateBotInteractions.js` checks all registered decks for repeated clicks,
 unchanged-state runs, short prompt/action cycles, decision-budget exhaustion,
 unsupported prompts, stalls, timeouts, and engine errors. It defaults to the
-offline deployable seeds 1, 2, 3, and 4 and Crane opponents; use `--opponents all`
+offline deployable seeds 1, 2, and 3 and Crane opponents; use `--opponents all`
 for the full matrix:
 
 ```powershell
@@ -387,9 +387,9 @@ node tools/selfplay/validateBotInteractions.js
 node tools/selfplay/validateBotInteractions.js --opponents all --games 2
 ```
 
-All supported seeds are offline and deterministic. Seed 3 adds omniscient
-hidden-state evaluation and adaptive mulligan behavior; it needs no external
-model service or weights.
+All supported seeds are offline and deterministic. Optional omniscience can be
+injected into any seed; adaptive mulligan is shared by every seed. Neither
+feature needs an external model service or weights.
 
 ## Re-baseline (2026-07-11, after the Crane Duels onboarding)
 

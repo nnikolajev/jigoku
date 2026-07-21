@@ -12,6 +12,7 @@ Lobby game creation may include:
     "enabled": true,
     "deckId": "deck id",
     "seed": 1,
+    "omniscient": false,
     "difficulty": "mvp",
     "trace": true
   }
@@ -19,10 +20,11 @@ Lobby game creation may include:
 ```
 
 When `policy` is omitted, the seed selects the policy. Seed 1 uses the
-fate-aware policy, seed 2 preserves the old generic heuristic, seed 3 adds
-omniscient context to seed 1, and seed 4 adds fair board-aware dynasty planning
-to seed 1. Adaptive mulligan is shared by every seed. Explicit policy and
-`adaptive` / `legacy` mulligan values remain available for paired analysis.
+fate-aware policy, seed 2 preserves the old generic heuristic, and seed 3 adds
+fair board-aware dynasty planning to seed 1. Adaptive mulligan is shared by
+every seed. Omniscience is an independent capability (`omniscient: true`) that
+can be injected into any seed. Explicit policy and `adaptive` / `legacy`
+mulligan values remain available for paired analysis.
 
 The lobby creates a second player named `Jigoku Bot`, hydrates the configured deck, and starts the normal game-server handoff for the human player.
 
@@ -36,7 +38,7 @@ Current heuristics:
 - **Duel honor bid**: all seeds and decks use `DuelBidTactics`, not the draw-bid heuristic. It evaluates the full legal bid matrix using exact duel skills, both honor pools, round, tie effects, public opponent deck profile, and only unspent Iaijutsu Master reactions. It protects terminal honor cliffs, bids minimally in hopeless or already-secure positions, and mixes close bids so a fixed response cannot exploit it. Risk weights are injectable through `profile.duelBidding`; see [`duel-bot.md`](duel-bot.md).
 - **Dynasty phase**: plays faceup dynasty characters from its provinces during the dynasty action window (game-side cost validation rejects unaffordable plays without mutation), then passes.
 - **Fate on characters**: the controller reads the printed cost off the 'Choose additional fate' prompt step and the policy scales the investment with it — cost 0–2 characters get no fate (disposable bodies), cost 3–4 get 1, cost 5+ get 2, plus 1 more when fate is plentiful. It keeps 1 fate in reserve for conflict cards, except for cost-5+ characters: the powerhouse itself is the investment, so the reserve is spent rather than dropping it onto the board with no fate.
-- **Conflict declaration**: ring choice and conflict type are independent decisions, because any ring can be flipped military/political by clicking it again. Rings are scored purely by value — a ring holding 2+ fate is taken as a straight fate boost (biggest pile first); otherwise void leads but only when the opponent has a character with fate to strip, earth (card advantage) is always good, fire (honor/dishonor) is next, water is situational (strong when the opponent has 2+ ready no-fate characters to bow, mildly useful for readying an own bowed character while more conflicts remain, dead otherwise) and air trails. The conflict type comes from character strength: if the declared type does not match the side where the bot's ready characters carry more total skill, it clicks the ring again to flip it before committing. `ProvinceTargetingTactics` ranks unbroken targets for every seed: Eminent/start-faceup first, then effective strength, then provinces with no triggered ability, reveal-only reactions, other reactions, and Actions. Public Forum counts as effective strength 6 only for this priority because it needs two breaks; its real strength and break math are unchanged. Fair seeds use visible metadata and stable board order for unknown facedown cards; seed 3 applies the same ranking to their true hidden metadata. The entire ordering, per-card effective strength, and manual priority tier are injectable through `profile.provinceTargeting`. Attacker count is driven by break math: it commits skill until the total clears the attacked province's strength (4 assumed when facedown) plus the opponent's full possible ready defense; only when that target is unreachable does it fall back to sending everyone but the weakest, who stays home as a defender. It passes the conflict when no ready character has positive skill. The same scoring also drives generic 'choose a ring' prompts from card abilities.
+- **Conflict declaration**: ring choice and conflict type are independent decisions, because any ring can be flipped military/political by clicking it again. Rings are scored purely by value — a ring holding 2+ fate is taken as a straight fate boost (biggest pile first); otherwise void leads but only when the opponent has a character with fate to strip, earth (card advantage) is always good, fire (honor/dishonor) is next, water is situational (strong when the opponent has 2+ ready no-fate characters to bow, mildly useful for readying an own bowed character while more conflicts remain, dead otherwise) and air trails. The conflict type comes from character strength: if the declared type does not match the side where the bot's ready characters carry more total skill, it clicks the ring again to flip it before committing. `ProvinceTargetingTactics` ranks unbroken targets for every seed: Eminent/start-faceup first, then effective strength, then provinces with no triggered ability, reveal-only reactions, other reactions, and Actions. Public Forum counts as effective strength 6 only for this priority because it needs two breaks; its real strength and break math are unchanged. Fair bots use visible metadata and stable board order for unknown facedown cards; an omniscient bot applies the same ranking to their true hidden metadata regardless of strategy seed. The entire ordering, per-card effective strength, and manual priority tier are injectable through `profile.provinceTargeting`. Attacker count is driven by break math: it commits skill until the total clears the attacked province's strength (4 assumed when facedown) plus the opponent's full possible ready defense; only when that target is unreachable does it fall back to sending everyone but the weakest, who stays home as a defender. It passes the conflict when no ready character has positive skill. The same scoring also drives generic 'choose a ring' prompts from card abilities.
 - **Defenders**: parses the `attacker vs defender` skill line from the prompt and applies break math (a province breaks when attacker skill wins by at least the province strength): defends to win when its ready skill can reach the attacker's total, otherwise defends just enough to prevent the break, and commits nothing to hopeless defenses. When the stronghold province is attacked, ordinary caps are disabled and all ready defenders plus useful conflict cards remain available.
 - **Stronghold defense**: `StrongholdDefenseTactics` runs before every declaration. Its normal survival mode activates once three own provinces are broken. A preliminary risk stage also activates at two broken provinces when the bot is first player, the opponent has at least two ready characters and two conflict declarations left, and the opponent's combined ready military or political skill reaches the exact live strength of the weakest unbroken outer province plus the stronghold province. Live `getStrength()` includes holdings, the stronghold bonus, and active modifiers. The preliminary stage reserves the minimum safe defender or skips an unsafe first attack, then releases automatically once the opponent has fewer than two conflict opportunities. The normal mode accounts for both conflict axes, remaining conflict opportunities, Covert, and the minimum ready defender set needed for the counterattack. It attacks freely when the opponent is bowed, attacks all-in on the last conflict opportunity, and races all-in when both strongholds are exposed. Seed 3 adds exact affordable hand boosts and defender-disabling effects; fair seeds use visible board skill. Thresholds, threat ratio/buffer, minimum defenders, and the entire preliminary stage are injectable through `profile.strongholdDefense`, allowing rush decks to relax or disable it without branching shared policy code.
 - **Conflict action windows**: driven by break math, not just the win/lose gap. As the attacker it keeps playing until its skill lead reaches the attacked province's strength (winning 3 vs 0 against a 5-strength province breaks nothing — it plays 2 more skill), and stops once the break is secured or when the remaining deficit exceeds 6. As the defender it spends cards only to keep the attacked province from breaking or to steal a win within 3 skill; a lost conflict that breaks nothing is answered by saving the hand for its own attack. When acting, it first clicks its stronghold, the attacked province, and any board card with a playbook-known Action ability (see below; bowing is the cost, not fate; clicks with no legal ability are rejected without mutation), then — with at least 1 fate in reserve — plays cards from hand through the normal play menus. Hand candidates are filtered by the controller's `handStats` hint (printed skills/bonuses, hidden from summaries outside the play area): cards that add nothing to the current conflict type are skipped (no military attachments in political conflicts), and known contributions are played strongest first. Passes when already winning or when the conflict is hopeless.
@@ -113,10 +115,11 @@ The bot `seed` selects the brain:
 
 - **Seed 1 (default)** — the fate-aware heuristic. It preserves fate, invests in longer-lived expensive characters, and prioritizes rings holding fate.
 - **Seed 2** — the old generic hand-written heuristic, retained for comparisons.
-- **Seed 3** — seed 1's fate-aware heuristic plus omniscient hidden-hand and
-  face-down-province logic. See [`omniscient-bot.md`](omniscient-bot.md).
-- **Seed 4** — seed 1 plus fair board/game-state-aware dynasty development.
+- **Seed 3** — seed 1 plus fair board/game-state-aware dynasty development.
   See [`board-aware-dynasty-bot.md`](board-aware-dynasty-bot.md).
+
+Any seed may enable the optional hidden-hand and face-down-province capability.
+See [`omniscient-bot.md`](omniscient-bot.md).
 
 Seeds 1–4 are available in the normal client dropdown. Seed 3 is the only
 cheating/omniscient option. All four use adaptive mulligan by default.
@@ -139,11 +142,12 @@ Complete standard runs update
 `jigoku-client/client/botBenchmarkResults.json`; custom game counts, policy
 overrides, cross-seed Crane tests, selected-deck round robins, or incomplete
 workers do not. Jigoku client reads that file dynamically and shows each
-selected deck's vs-Crane and round-robin result for seeds 1, 2, 3, and 4.
+selected deck's vs-Crane and round-robin result for seeds 1, 2, and 3.
 
 The 2026-07-18 province/stronghold validation used the saved pre-change N=100
 round robins as baseline, then full N=40 matrices for seeds 1, 2, and 3. No deck
-showed paired evidence for reverting the generic province order. Seed-5 Phoenix
+showed paired evidence for reverting the generic province order. The historical
+seed-5 omniscient Phoenix
 Shugenja was the one supported fine-tune: raising its preliminary threat ratio
 to 1.5 moved its final round-robin result from 55.5% to 58.0%. Scorpion and
 Dragon aggregate drops were rechecked with paired profile variants; current

@@ -303,6 +303,7 @@ class Lobby {
             seed: botDetails.seed || 1,
             difficulty: botDetails.difficulty || 'mvp',
             policy: botDetails.policy,
+            omniscient: botDetails.omniscient === true,
             trace: botDetails.trace !== false,
             llm: botDetails.llm || env.botLlm
         };

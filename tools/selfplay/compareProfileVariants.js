@@ -77,8 +77,8 @@ function parseArgs(argv) {
     if(!getDeckLoader(options.deck) || !getDeckLoader(options.opponent)) {
         throw new Error(`Unknown deck. Valid: ${DECK_LABELS.join(', ')}`);
     }
-    if(options.seed > 4) {
-        throw new Error('--seed must be 1..4');
+    if(options.seed > 3) {
+        throw new Error('--seed must be 1..3');
     }
     for(const variant of options.variants) {
         const parameterized = /^(?:ratio|public-forum)-\d+(?:\.\d+)?$/.test(variant);

@@ -9,10 +9,10 @@ Run commands from `jigoku/`. The complete operational notes live in
 |---:|---|
 | `1` | Fate-aware mixed heuristic; normal default |
 | `2` | Original dynasty-focused heuristic |
-| `3` | Seed 1 plus omniscient hidden-state evaluation |
-| `4` | Seed 1 plus fair board-aware dynasty development |
+| `3` | Seed 1 plus fair board-aware dynasty development |
 
-Adaptive mulligan is the deployed default for all four seeds.
+Adaptive mulligan is the deployed default for all three seeds. Omniscience is
+an independent checkbox/configuration flag available to every seed.
 
 ## Build and tests
 
@@ -32,6 +32,10 @@ node tools/selfplay/winRates.js 40 3 1
 # 40 games per deck matchup by default; both seats use the selected seed
 node tools/selfplay/botRoundRobin.js
 node tools/selfplay/botRoundRobin.js --seed 3 --games 25 --workers 32
+
+# Omniscient capability versus the same normal seed
+node tools/selfplay/botOmniscientRoundRobin.js --seed 1
+node tools/selfplay/botOmniscientRoundRobin.js --seed 3 --games 40 --mirrors-only
 ```
 
 Only complete standard runs update
@@ -41,18 +45,20 @@ Only complete standard runs update
   seed, adaptive draw policy, no policy override;
 - `botRoundRobin.js`: 40 games per matchup, all registered decks, adaptive
   draw policy.
+- `botOmniscientRoundRobin.js`: 20 games per ordered matchup, all registered
+  decks, same strategy seed, omniscience enabled only for the candidate seat.
 
 Cross-seed, subset, custom-count, and legacy-policy runs remain diagnostics.
 
 ## Mulligan policy comparison
 
 ```powershell
-# Default: every deck, seeds 1/2/3/4, 20 games per deck and seed
+# Default: every deck, seeds 1/2/3, 20 games per deck and seed
 node tools/selfplay/compareMulliganPolicies.js
 
 # Full gate and focused deterministic stream
-node tools/selfplay/compareMulliganPolicies.js --games 40 --seeds 1,2,3,4
-node tools/selfplay/compareMulliganPolicies.js --games 20 --seeds 4 --decks Crab,Phoenix --rng-seed 20260721
+node tools/selfplay/compareMulliganPolicies.js --games 40 --seeds 1,2,3
+node tools/selfplay/compareMulliganPolicies.js --games 20 --seeds 3 --decks Crab,Phoenix --rng-seed 20260721
 ```
 
 The script alternates seats and puts adaptive and frozen legacy mulligan logic
@@ -61,7 +67,7 @@ updates client benchmarks. Options:
 
 ```text
 --games N       games per deck and seed (default 20)
---seeds CSV     subset of 1,2,3,4 (default all)
+--seeds CSV     subset of 1,2,3 (default all)
 --decks CSV     registered deck labels (default all)
 --rng-seed N    deterministic shuffle base
 --out PREFIX    report path without extension
@@ -74,7 +80,7 @@ and regroup discard choices. See `docs/mulligan-bot.md`.
 
 ```powershell
 node tools/selfplay/validateBotInteractions.js
-node tools/selfplay/validateBotInteractions.js --seeds 1,2,3,4 --opponents all --games 2
+node tools/selfplay/validateBotInteractions.js --seeds 1,2,3 --opponents all --games 2
 node tools/selfplay/validateBotInteractions.js --decks Crab,Phoenix --seeds 3 --games 2 --out tools/selfplay/out/mulligan-interactions
 ```
 
@@ -88,7 +94,7 @@ prompts, decision-budget exhaustion, stalls, timeouts, and engine errors.
 node tools/selfplay/compareDrawBidPolicies.js
 node tools/selfplay/drawBidMatrix.js
 
-# Seed 4 versus seed 1 with paired shuffles and alternating seats
+# Seed 3 versus seed 1 with paired shuffles and alternating seats
 node tools/selfplay/compareDynastySeeds.js
 node tools/selfplay/compareDynastySeeds.js --games 40 --decks Lion,Unicorn --rng-seed 20260720
 

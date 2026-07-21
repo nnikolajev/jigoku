@@ -2,15 +2,14 @@
 
 // TRUE MIRROR: the Crane precon on BOTH seats, seed 3 vs seed 1 — isolates the seed effect from deck noise. Seats alternate
 // to cancel first-player advantage. Usage:
-//   node tools/selfplay/mirrorCrane.js [games] [omniSeed] [--trace]
-// omniSeed 3 = omniscient + adaptive mulligan. Crane always plays fate-aware seed 1.
+//   node tools/selfplay/mirrorCrane.js [games] [seed] [--trace]
 
 const { runGame } = require('./harness.js');
 const { loadCraneDeck } = require('./deckLoader.js');
 
 async function main() {
     const games = parseInt(process.argv[2], 10) || 20;
-    const omniSeed = 3;
+    const omniSeed = Math.min(3, Math.max(1, parseInt(process.argv[3], 10) || 1));
     const trace = process.argv.includes('--trace');
 
     let omniWins = 0;
@@ -23,7 +22,8 @@ async function main() {
     for(let i = 0; i < games; i++) {
         const omniFirst = i % 2 === 0;
         const names = omniFirst ? ['Omni', 'Crane'] : ['Crane', 'Omni'];
-        const seeds = omniFirst ? [omniSeed, 1] : [1, omniSeed];
+        const seeds = [omniSeed, omniSeed];
+        const omniscient = omniFirst ? [true, false] : [false, true];
         const decks = omniFirst
             ? { deckA: loadCraneDeck(), deckB: loadCraneDeck() }
             : { deckA: loadCraneDeck(), deckB: loadCraneDeck() };
@@ -32,6 +32,7 @@ async function main() {
         const result = await runGame({
             names,
             seeds,
+            omniscient,
             ...decks,
             trace,
             onControllers: (list) => {

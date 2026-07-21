@@ -61,7 +61,7 @@ live games expose a legal interaction the generic action classifier cannot value
 
 `JigokuBotPolicy` remains a deterministic rule policy behind
 `JigokuBotController`. Candidate scoring now covers conflict-card economy,
-exact conflict contribution, injectable deck tactics, and seed 3's hidden-hand
+exact conflict contribution, injectable deck tactics, and optional hidden-hand
 and hidden-province threat evaluation. The former full-move LLM and learned
 evaluator seeds were removed after they failed to improve the deployed policy.
 

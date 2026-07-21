@@ -1,4 +1,4 @@
-// Deck analysis for the seed-3 "omniscient" bot.
+// Shared deck analysis for optional omniscient capability.
 //
 // The omniscient bot sees the human's hand and face-down provinces (it cheats).
 // To turn that knowledge into good decisions it needs to know, for every card
@@ -86,7 +86,73 @@ const ANALYSIS: CardModel[] = [
     { id: 'disparaging-challenge', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'duel' },
     { id: 'kakita-s-final-stance', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility', conflictTypes: ['military'] },
     { id: 'meditations-on-the-tao', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
-    { id: 'local-daimyo-s-retainer', type: 'character', side: 'conflict', fate: 1, mil: 2, pol: 2, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' }
+    { id: 'local-daimyo-s-retainer', type: 'character', side: 'conflict', fate: 1, mil: 2, pol: 2, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+
+    // Complete event coverage for every standardized bot deck. These are
+    // conservative skill-equivalent values for ONE live conflict; economy and
+    // post-conflict cards intentionally stay at zero. Hidden information must
+    // distinguish a real pump/removal/cancel from a dead card without summing
+    // an impossible whole hand.
+    { id: 'gossip', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'let-go', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'removal' },
+    { id: 'court-games', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'honor', conflictTypes: ['political'] },
+    { id: 'voice-of-honor', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
+    { id: 'noble-sacrifice', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 5, tag: 'removal' },
+    { id: 'policy-debate', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'duel', conflictTypes: ['political'] },
+
+    { id: 'levy', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'rebuild', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'siege-warfare', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'debuff' },
+    { id: 'give-no-ground', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'buff', conflictTypes: ['military'] },
+    { id: 'raise-the-alarm', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'body', conflictTypes: ['military'] },
+    { id: 'fruitful-respite', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'guardians-of-rokugan', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'withstand-the-darkness', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 1, tag: 'utility' },
+    { id: 'the-mountain-does-not-fall', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
+    { id: 'the-strength-of-the-mountain', type: 'event', side: 'conflict', fate: 3, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'utility' },
+
+    { id: 'banzai', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'buff', conflictTypes: ['military'] },
+    { id: 'void-fist', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
+    { id: 'hurricane-punch', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'buff', conflictTypes: ['military'] },
+    { id: 'swell-of-seafoam', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'honor' },
+    { id: 'defend-your-honor', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'duel' },
+    { id: 'in-service-to-my-lord', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'body' },
+    { id: 'iron-foundations-stance', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
+
+    { id: 'a-perfect-cut', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'buff', conflictTypes: ['military'] },
+    { id: 'feeding-an-army', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'for-greater-glory', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility', conflictTypes: ['military'] },
+    { id: 'ujiaki-s-offer', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility', conflictTypes: ['political'] },
+    { id: 'forebearer-s-echoes', type: 'event', side: 'conflict', fate: 2, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'body', conflictTypes: ['military'] },
+
+    { id: 'rout', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
+    { id: 'censure', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
+    { id: 'benten-s-touch', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'honor' },
+    { id: 'against-the-waves', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'body' },
+    { id: 'supernatural-storm', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'buff' },
+
+    { id: 'kirei-ko', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
+    { id: 'oracle-of-stone', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'draw' },
+    { id: 'the-path-of-man', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'display-of-power', type: 'event', side: 'conflict', fate: 2, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'utility' },
+    { id: 'earth-becomes-sky', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
+    { id: 'clarity-of-purpose', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
+    { id: 'consumed-by-five-fires', type: 'event', side: 'conflict', fate: 5, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 5, tag: 'removal' },
+
+    { id: 'duty', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'forgery', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
+    { id: 'deceptive-offer', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'buff' },
+    { id: 'make-an-opening', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'debuff' },
+    { id: 'compelling-testimony', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'debuff', conflictTypes: ['political'] },
+
+    { id: 'ride-on', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'body' },
+    { id: 'i-am-ready', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'body' },
+    { id: 'ujik-tactics', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'buff', conflictTypes: ['military'] },
+    { id: 'spoils-of-war', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'draw', conflictTypes: ['military'] },
+    { id: 'flank-the-enemy', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
+    { id: 'captive-audience', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility', conflictTypes: ['political'] },
+    { id: 'cavalry-reserves', type: 'event', side: 'conflict', fate: 3, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 6, tag: 'body', conflictTypes: ['military'] },
+    { id: 'challenge-on-the-fields', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'duel', conflictTypes: ['military'] }
 ];
 
 const BY_ID = new Map<string, CardModel>(ANALYSIS.map((card) => [card.id, card]));
@@ -133,7 +199,7 @@ export interface KnownCard {
     swing: number;
     tag: CardTag;
     // Live ability inspection: this hand card can bow, remove, or send home an
-    // opposing defender during a conflict. Used only by seed 3.
+    // opposing defender during a conflict. Used only when capability is on.
     canDisableDefender?: boolean;
     // Narrower Clarity of Purpose signal. Unlike canDisableDefender, this is
     // true only when the card can bow an opposing character.
@@ -167,10 +233,16 @@ export interface OmniProvince {
     facedown: boolean;
     eminent?: boolean;
     abilityClass?: 'none' | 'reveal' | 'reaction' | 'action' | 'unknown';
+    // Exact face-down dynasty stack at this location. Breaking a province
+    // discards every card in that stack, so an omniscient attacker can weigh
+    // denying a tower/holding engine against raw province strength. Rally and
+    // multi-card provinces are intentionally additive.
+    dynastyCardIds?: string[];
+    dynastyValue?: number;
 }
 
-// The complete cheat view handed to the policy for seed 3: the human's fate, the
-// real contents of their hand, and the true strength of every province.
+// Complete cheat view handed to any policy with capability enabled: opponent
+// fate, real hand contents, and true strength of every province.
 export interface Omniscient {
     oppName: string;
     oppFate: number;

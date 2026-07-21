@@ -1,10 +1,10 @@
 'use strict';
 
-// Direct seed-4 board-aware dynasty vs seed-1 fate-aware A/B. Both seats use
+// Direct seed-3 board-aware dynasty vs seed-1 fate-aware A/B. Both seats use
 // the same deck and adaptive shared systems; seats alternate and shuffles are
 // deterministic. Each two-game pair reuses the same shuffle stream with seats
 // swapped, removing most first-player/deck-order noise. This isolates the
-// seed-4 policy without changing standard
+// seed-3 policy without changing standard
 // client benchmark results.
 
 process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'error';
@@ -22,7 +22,7 @@ Options:
   --games <n>       Games per deck (default 20)
   --decks <csv>     Deck labels (default all)
   --rng-seed <n>    Deterministic base RNG seed (default 20260720)
-  --out <prefix>    Report prefix (default tools/selfplay/out/seed4-vs-seed1)
+  --out <prefix>    Report prefix (default tools/selfplay/out/seed3-vs-seed1)
   --help            Show help
 
 Deck labels: ${DECK_LABELS.join(', ')}`;
@@ -45,7 +45,7 @@ function parseArgs(argv) {
         games: 20,
         decks: [...DECK_LABELS],
         rngSeed: 20260720,
-        out: path.join(__dirname, 'out', 'seed4-vs-seed1'),
+        out: path.join(__dirname, 'out', 'seed3-vs-seed1'),
         help: false
     };
     for(let index = 0; index < argv.length; index++) {
@@ -107,20 +107,20 @@ function mergeStats(total, next) {
 
 function markdown(report) {
     const lines = [
-        '# Seed 4 board-aware dynasty vs seed 1', '',
+        '# Seed 3 board-aware dynasty vs seed 1', '',
         `Games per deck: ${report.config.games}; RNG seed: ${report.config.rngSeed}.`,
         'Same deck and adaptive shared systems; paired shuffle, seats swapped.', '',
-        '| Deck | Seed 4 record | Seed 4 win rate | Added fate 4/1 | Purchases 4/1 |',
+        '| Deck | Seed 3 record | Seed 3 win rate | Added fate 3/1 | Purchases 3/1 |',
         '|---|---:|---:|---:|---:|'
     ];
     for(const row of report.rows) {
-        lines.push(`| ${row.deck} | ${row.seed4Wins}-${row.seed1Wins} (+${row.other}) | ` +
-            `${(row.seed4WinRate * 100).toFixed(1)}% | ` +
-            `${row.seed4Stats.additionalFate}/${row.seed1Stats.additionalFate} | ` +
-            `${row.seed4Stats.purchases}/${row.seed1Stats.purchases} |`);
+        lines.push(`| ${row.deck} | ${row.seed3Wins}-${row.seed1Wins} (+${row.other}) | ` +
+            `${(row.seed3WinRate * 100).toFixed(1)}% | ` +
+            `${row.seed3Stats.additionalFate}/${row.seed1Stats.additionalFate} | ` +
+            `${row.seed3Stats.purchases}/${row.seed1Stats.purchases} |`);
     }
-    lines.push('', `Total: ${report.totals.seed4Wins}-${report.totals.seed1Wins} (+${report.totals.other}), ` +
-        `${(report.totals.seed4WinRate * 100).toFixed(1)}% seed 4.`);
+    lines.push('', `Total: ${report.totals.seed3Wins}-${report.totals.seed1Wins} (+${report.totals.other}), ` +
+        `${(report.totals.seed3WinRate * 100).toFixed(1)}% seed 3.`);
     return `${lines.join('\n')}\n`;
 }
 
@@ -137,28 +137,28 @@ async function main() {
             const deck = options.decks[deckIndex];
             const loadDeck = getDeckLoader(deck);
             const row = {
-                deck, seed4Wins: 0, seed1Wins: 0, other: 0,
-                seed4Stats: { reasons: {}, additionalFate: 0, purchases: 0 },
+                deck, seed3Wins: 0, seed1Wins: 0, other: 0,
+                seed3Stats: { reasons: {}, additionalFate: 0, purchases: 0 },
                 seed1Stats: { reasons: {}, additionalFate: 0, purchases: 0 }
             };
             for(let gameIndex = 0; gameIndex < options.games; gameIndex++) {
                 Math.random = seededRandom(
                     options.rngSeed + deckIndex * 10000 + Math.floor(gameIndex / 2)
                 );
-                const seed4First = gameIndex % 2 === 0;
+                const seed3First = gameIndex % 2 === 0;
                 let controllers = [];
                 const result = await runGame({
-                    names: seed4First ? ['Seed 4', 'Seed 1'] : ['Seed 1', 'Seed 4'],
-                    seeds: seed4First ? [4, 1] : [1, 4],
+                    names: seed3First ? ['Seed 3', 'Seed 1'] : ['Seed 1', 'Seed 3'],
+                    seeds: seed3First ? [3, 1] : [1, 3],
                     deckA: loadDeck(),
                     deckB: loadDeck(),
                     trace: true,
                     onControllers: (created) => { controllers = created; }
                 });
-                mergeStats(row.seed4Stats, dynastyStats(controllers[seed4First ? 0 : 1]));
-                mergeStats(row.seed1Stats, dynastyStats(controllers[seed4First ? 1 : 0]));
-                if(result.winner === 'Seed 4') {
-                    row.seed4Wins++;
+                mergeStats(row.seed3Stats, dynastyStats(controllers[seed3First ? 0 : 1]));
+                mergeStats(row.seed1Stats, dynastyStats(controllers[seed3First ? 1 : 0]));
+                if(result.winner === 'Seed 3') {
+                    row.seed3Wins++;
                 } else if(result.winner === 'Seed 1') {
                     row.seed1Wins++;
                 } else {
@@ -166,7 +166,7 @@ async function main() {
                 }
                 process.stderr.write(`\r${deck} ${gameIndex + 1}/${options.games}`);
             }
-            row.seed4WinRate = row.seed4Wins / Math.max(1, row.seed4Wins + row.seed1Wins);
+            row.seed3WinRate = row.seed3Wins / Math.max(1, row.seed3Wins + row.seed1Wins);
             rows.push(row);
         }
     } finally {
@@ -174,11 +174,11 @@ async function main() {
         process.stderr.write('\n');
     }
     const totals = rows.reduce((sum, row) => ({
-        seed4Wins: sum.seed4Wins + row.seed4Wins,
+        seed3Wins: sum.seed3Wins + row.seed3Wins,
         seed1Wins: sum.seed1Wins + row.seed1Wins,
         other: sum.other + row.other
-    }), { seed4Wins: 0, seed1Wins: 0, other: 0 });
-    totals.seed4WinRate = totals.seed4Wins / Math.max(1, totals.seed4Wins + totals.seed1Wins);
+    }), { seed3Wins: 0, seed1Wins: 0, other: 0 });
+    totals.seed3WinRate = totals.seed3Wins / Math.max(1, totals.seed3Wins + totals.seed1Wins);
     const report = { generatedAt: new Date().toISOString(), config: options, rows, totals };
     const output = markdown(report);
     console.log(output);

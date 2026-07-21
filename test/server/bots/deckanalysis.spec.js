@@ -5,12 +5,13 @@ const {
 } = require('../../../build/server/game/bots/DeckAnalysis.js');
 const craneCards = require('../../../tools/selfplay/fixtures/crane-cards.json');
 const craneDeck = require('../../../tools/selfplay/fixtures/crane-decklist.json');
+const { DECK_LOADERS } = require('../../../tools/selfplay/deckRegistry.js');
 
-// Regression tests for the seed-3 omniscient bot's deck analysis. Its live edge
+// Regression tests for the optional omniscient capability's deck analysis. Its live edge
 // depends on estimateHandThreat returning a
 // REALISTIC single-conflict threat — an earlier version summed the whole hand
 // and crippled play (Crane mirror 0-12), so these lock the shape of the model.
-describe('DeckAnalysis (seed-3 omniscient)', function() {
+describe('DeckAnalysis (omniscient capability)', function() {
     function known(id, overrides = {}) {
         const model = getCardModel(id) || {};
         return Object.assign(
@@ -40,6 +41,23 @@ describe('DeckAnalysis (seed-3 omniscient)', function() {
 
         expect(missingEvents).toEqual([]);
         expect(costMismatches).toEqual([]);
+    });
+
+    it('covers every event and exact printed cost in every standardized bot deck', function() {
+        const failures = [];
+        for(const [deck, loadDeck] of Object.entries(DECK_LOADERS)) {
+            for(const entry of loadDeck().conflictCards.filter((candidate) =>
+                candidate.card.type === 'event')) {
+                const model = getCardModel(entry.card.id);
+                if(!model) {
+                    failures.push(`${deck}:${entry.card.id}:missing`);
+                } else if(model.fate !== Number(entry.card.cost || 0)) {
+                    failures.push(`${deck}:${entry.card.id}:cost-${model.fate}-not-${entry.card.cost}`);
+                }
+            }
+        }
+
+        expect(failures).toEqual([]);
     });
 
     it('does NOT sum the whole hand — caps at best body + best trick', function() {

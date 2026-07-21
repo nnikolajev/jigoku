@@ -1,4 +1,4 @@
-// Seed-4 dynasty planner. Seed 1's FateAwareEconomy remains unchanged; this
+// Seed-3 dynasty planner. Seed 1's FateAwareEconomy remains unchanged; this
 // module adds board/game-state analysis and returns one purchase at a time.
 // All values live in DeckProfiles so archetypes can tune behavior without
 // branching on clan or card ids here.

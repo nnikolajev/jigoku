@@ -78,12 +78,14 @@ describe('fate-aware Jigoku bot policy', function() {
         };
     }
 
-    it('maps all four seeds and shares adaptive mulligans', function() {
+    it('maps all three strategy seeds, shares adaptive mulligans, and injects omniscience independently', function() {
         const defaultBot = new JigokuBotController({}, { playerName }, () => true);
         const seedOne = new JigokuBotController({}, { playerName, seed: '1' }, () => true);
         const seedTwo = new JigokuBotController({}, { playerName, seed: 2 }, () => true);
         const seedThree = new JigokuBotController({}, { playerName, seed: '3' }, () => true);
-        const seedFour = new JigokuBotController({}, { playerName, seed: 4 }, () => true);
+        const omniscientSeedTwo = new JigokuBotController(
+            {}, { playerName, seed: 2, omniscient: true }, () => true
+        );
         const analysisOverride = new JigokuBotController({}, { playerName, seed: 2, policy: 'fate-aware' }, () => true);
         const adaptiveSeedOne = new JigokuBotController(
             {}, { playerName, seed: 1, mulliganPolicy: 'adaptive' }, () => true
@@ -94,19 +96,20 @@ describe('fate-aware Jigoku bot policy', function() {
         expect(defaultBot.policy.constructor.name).toBe('FateAwareJigokuBotPolicy');
         expect(seedOne.policy.constructor.name).toBe('FateAwareJigokuBotPolicy');
         expect(seedTwo.policy.constructor.name).toBe('JigokuBotPolicy');
-        expect(seedThree.policy.constructor.name).toBe('FateAwareJigokuBotPolicy');
-        expect(seedFour.policy.constructor.name).toBe('BoardAwareJigokuBotPolicy');
+        expect(seedThree.policy.constructor.name).toBe('BoardAwareJigokuBotPolicy');
+        expect(omniscientSeedTwo.policy.constructor.name).toBe('JigokuBotPolicy');
+        expect(omniscientSeedTwo.isOmniscient()).toBe(true);
+        expect(seedTwo.isOmniscient()).toBe(false);
         expect(analysisOverride.policy.constructor.name).toBe('FateAwareJigokuBotPolicy');
         expect(seedOne.policy.mulliganPolicy).toBe('adaptive');
         expect(seedTwo.policy.mulliganPolicy).toBe('adaptive');
         expect(seedThree.policy.mulliganPolicy).toBe('adaptive');
-        expect(seedFour.policy.mulliganPolicy).toBe('adaptive');
         expect(adaptiveSeedOne.policy.mulliganPolicy).toBe('adaptive');
         expect(legacySeedThree.policy.mulliganPolicy).toBe('legacy');
     });
 
-    it('seed 4 can play a safe conflict character at home for its remaining conflict', function() {
-        const policy = new BoardAwareJigokuBotPolicy(4);
+    it('seed 3 can play a safe conflict character at home for its remaining conflict', function() {
+        const policy = new BoardAwareJigokuBotPolicy(3);
         const ambusher = {
             uuid: 'ambusher', id: 'ambusher', name: 'Ambusher', type: 'character',
             isConflict: true, isPlayableByMe: true, selectable: true
@@ -158,7 +161,7 @@ describe('fate-aware Jigoku bot policy', function() {
         expect(mode.target).toBe('Play Ambusher');
     });
 
-    it('maps real hidden hand boosts and live face-down province strength for seed 3', function() {
+    it('maps real hidden hand boosts and live face-down province strength for any enabled seed', function() {
         const hiddenAttachment = {
             id: 'unmodeled-war-banner',
             type: 'attachment',
@@ -208,9 +211,17 @@ describe('fate-aware Jigoku bot policy', function() {
             name: 'Human',
             fate: 2,
             hand: { toArray: () => [hiddenAttachment, hiddenCharacter, militaryEvent] },
-            getProvinces: () => [hiddenProvince, weakProvince]
+            getProvinces: () => [hiddenProvince, weakProvince],
+            getDynastyCardsInProvince: (location) => location === 'province 1' ? [{
+                id: 'hidden-tower', type: 'character', isDynasty: true,
+                cardData: { cost: '5' }, getCost: () => 5,
+                getMilitarySkill: () => 6, getPoliticalSkill: () => 3
+            }, {
+                id: 'hidden-holding', type: 'holding', isDynasty: true,
+                cardData: { cost: '0' }, getCost: () => 0
+            }] : []
         };
-        const controller = new JigokuBotController({}, { playerName, seed: 3 }, () => true);
+        const controller = new JigokuBotController({}, { playerName, seed: 2, omniscient: true }, () => true);
         const omniscient = controller.buildOmniscient({ opponent });
 
         expect(omniscient.oppHand[0]).toEqual(jasmine.objectContaining({
@@ -235,7 +246,9 @@ describe('fate-aware Jigoku bot policy', function() {
             strength: 8,
             facedown: true,
             eminent: false,
-            abilityClass: 'action'
+            abilityClass: 'action',
+            dynastyCardIds: ['hidden-tower', 'hidden-holding'],
+            dynastyValue: 9.25
         }));
         expect(hiddenProvince.getStrength).toHaveBeenCalled();
         expect(weakProvince.getStrength).toHaveBeenCalled();
@@ -265,12 +278,33 @@ describe('fate-aware Jigoku bot policy', function() {
         });
 
         // The real +3 military hand boost makes political the safer axis.
-        const switchType = controller.policy.decide(conflictState('Military'), playerName, { omniscient });
+        const omniscientDuelProfile = {
+            ...resolveDeckProfile([], undefined),
+            useOmniscientConflictAxis: true
+        };
+        const switchType = controller.policy.decide(conflictState('Military'), playerName, {
+            omniscient,
+            profile: omniscientDuelProfile
+        });
         expect(switchType.reason).toBe('switch-conflict-type');
 
         // Once on that axis, the real strength values make province 2 the target.
-        const attack = controller.policy.decide(conflictState('Political'), playerName, { omniscient });
-        expect(attack.args).toEqual(['province 2', 'Human', true]);
+        const attack = controller.policy.decide(conflictState('Political'), playerName, {
+            omniscient,
+            profile: omniscientDuelProfile
+        });
+        // Province 1 is much stronger, but breaking it also discards a hidden
+        // 5-cost tower plus holding. Exact stack denial makes it best target.
+        expect(attack.args).toEqual(['province 1', 'Human', true]);
+
+        const oneAxisState = conflictState('Military');
+        oneAxisState.players['Jigoku Bot'].promptTitle = 'Military Fire Conflict';
+        oneAxisState.players['Jigoku Bot'].cardPiles.cardsInPlay[0].politicalSkillSummary.stat = '0';
+        const oneAxisAttack = controller.policy.decide(oneAxisState, playerName, {
+            omniscient,
+            profile: omniscientDuelProfile
+        });
+        expect(oneAxisAttack.reason).not.toBe('switch-conflict-type');
     });
 
     it('detects affordable hidden-hand defender control and exact own stronghold strength', function() {
@@ -296,7 +330,7 @@ describe('fate-aware Jigoku bot policy', function() {
             getCost: () => 0,
             abilities: { actions: [], reactions: [], playActions: [] }
         };
-        const controller = new JigokuBotController({}, { playerName, seed: 3 }, () => true);
+        const controller = new JigokuBotController({}, { playerName, seed: 3, omniscient: true }, () => true);
         expect(controller.knownCard(bowEvent).canDisableDefender).toBe(true);
         expect(controller.knownCard(bowEvent).canBowOpponent).toBe(true);
         expect(controller.knownCard(ownOnlyBow).canDisableDefender).toBe(false);
@@ -405,7 +439,7 @@ describe('fate-aware Jigoku bot policy', function() {
         expect(buy.args[0]).toBe('strong');
     });
 
-    it('reads exact seed-4 stats and honored-on-entry state from every stacked character', function() {
+    it('reads exact seed-3 stats and honored-on-entry state from every stacked character', function() {
         const liveCharacter = (uuid, cost, military, political, glory, honored) => ({
             uuid,
             type: 'character',
@@ -427,7 +461,7 @@ describe('fate-aware Jigoku bot policy', function() {
                 liveCharacter('plain-body', 5, 6, 1, 1, false)
             ]
         };
-        const controller = new JigokuBotController(game, { playerName, seed: 4 }, () => true);
+        const controller = new JigokuBotController(game, { playerName, seed: 3 }, () => true);
 
         expect(controller.dynastyCharacterInfo(player)).toEqual({
             'tsuma-body': jasmine.objectContaining({

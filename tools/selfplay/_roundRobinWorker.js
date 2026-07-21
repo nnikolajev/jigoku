@@ -16,12 +16,13 @@ async function main() {
     const botSeed = Number.parseInt(process.argv[5], 10);
     const startIndex = Number.parseInt(process.argv[6], 10) || 0;
     const drawBidPolicy = process.argv[7] === 'legacy' ? 'legacy' : 'adaptive';
+    const omniscient = process.argv[8] === 'true';
     const loadLeftDeck = getDeckLoader(leftLabel);
     const loadRightDeck = getDeckLoader(rightLabel);
 
     if(!loadLeftDeck || !loadRightDeck || !Number.isInteger(games) || games < 1 ||
         !isDeployableSeed(botSeed)) {
-        process.stderr.write('usage: node _roundRobinWorker.js <leftDeck> <rightDeck> <games> <botSeed 1..4> <startIndex> [adaptive|legacy]\n');
+        process.stderr.write('usage: node _roundRobinWorker.js <leftDeck> <rightDeck> <games> <botSeed 1..3> <startIndex> [adaptive|legacy] [omniscient]\n');
         process.exit(2);
     }
 
@@ -35,6 +36,7 @@ async function main() {
         const result = await runGame({
             names,
             seeds: [botSeed, botSeed],
+            omniscient: [omniscient, omniscient],
             drawBidPolicies: [drawBidPolicy, drawBidPolicy],
             ...decks,
             trace: false
@@ -49,7 +51,7 @@ async function main() {
 }
 
 function isDeployableSeed(seed) {
-    return Number.isInteger(seed) && seed >= 1 && seed <= 4;
+    return Number.isInteger(seed) && seed >= 1 && seed <= 3;
 }
 
 if(require.main === module) {

@@ -24,11 +24,10 @@ describe('self-play win-rate deck selection', function() {
         expect(parseBotSeed('1')).toBe(1);
         expect(parseBotSeed('2')).toBe(2);
         expect(parseBotSeed('3')).toBe(3);
-        expect(parseBotSeed('4')).toBe(4);
+        expect(parseBotSeed('4')).toBe(1);
         expect(parseBotSeed('5')).toBe(1);
         expect(seedLabel(1)).toBe('fate-aware');
-        expect(seedLabel(3)).toBe('omniscient');
-        expect(seedLabel(4)).toBe('board-aware dynasty');
+        expect(seedLabel(3)).toBe('board-aware dynasty');
         expect(parsePolicyOverride('generic')).toBe('generic');
         expect(parsePolicyOverride('fate-aware')).toBe('fate-aware');
         expect(parsePolicyOverride('board-aware')).toBe('board-aware');
@@ -60,6 +59,10 @@ describe('self-play win-rate deck selection', function() {
         }));
         expect(parseArgs(['40', '1', '2', 'generic']).challengerPolicy).toBe('generic');
         expect(parseArgs(['40', '1', '2', '', 'adaptive', 'legacy']).craneDrawBidPolicy).toBe('legacy');
+        expect(parseArgs(['40', '1', '2', '--challenger-omniscient'])).toEqual(jasmine.objectContaining({
+            challengerOmniscient: true,
+            craneOmniscient: false
+        }));
     });
 
     it('keeps each bot seed attached to its deck when seats alternate', function() {
@@ -74,6 +77,7 @@ describe('self-play win-rate deck selection', function() {
         expect(isStandardBenchmarkRun(parseArgs(['100', '2', '1']), rows)).toBe(false);
         expect(isStandardBenchmarkRun(parseArgs(['100', '2', '2', 'generic']), rows)).toBe(false);
         expect(isStandardBenchmarkRun(parseArgs(['100', '2', '2', '', 'legacy']), rows)).toBe(false);
+        expect(isStandardBenchmarkRun(parseArgs(['100', '2', '2', '--challenger-omniscient']), rows)).toBe(false);
         expect(isStandardBenchmarkRun(parseArgs(['100', '2']), [
             ...rows.slice(0, -1),
             { ...rows[rows.length - 1], played: 99, died: 'incomplete' }

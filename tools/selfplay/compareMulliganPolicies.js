@@ -17,7 +17,7 @@ function usage() {
 
 Options:
   --games <n>       Games per deck and seed (default 20)
-  --seeds <csv>     Bot seeds on both seats (default 1,2,3,4)
+  --seeds <csv>     Bot seeds on both seats (default 1,2,3)
   --decks <csv>     Deck labels (default all)
   --rng-seed <n>    Deterministic base RNG seed (default 20260720)
   --out <prefix>    Report prefix (default tools/selfplay/out/mulligan-ab)
@@ -41,7 +41,7 @@ function csv(value) {
 function parseArgs(argv) {
     const options = {
         games: 20,
-        seeds: [1, 2, 3, 4],
+        seeds: [1, 2, 3],
         decks: [...DECK_LABELS],
         rngSeed: 20260720,
         out: path.join(__dirname, 'out', 'mulligan-ab'),
@@ -65,8 +65,8 @@ function parseArgs(argv) {
             throw new Error(`Unknown or incomplete argument: ${arg}`);
         }
     }
-    if(options.seeds.length === 0 || options.seeds.some((seed) => seed > 4)) {
-        throw new Error('--seeds must be a comma-separated subset of 1,2,3,4');
+    if(options.seeds.length === 0 || options.seeds.some((seed) => seed > 3)) {
+        throw new Error('--seeds must be a comma-separated subset of 1,2,3');
     }
     const unknown = options.decks.filter((label) => !DECK_LABELS.includes(label));
     if(options.decks.length === 0 || unknown.length > 0) {

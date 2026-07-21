@@ -152,7 +152,7 @@ Tuning attempts, measured:
 cd jigoku && npx tsc
 node tools/selfplay/matchScorpion.js <games> <1|2|5> [--trace]
 node tools/selfplay/winRates.js 100 <seed> <same-seed>
-node tools/selfplay/validateBotInteractions.js --decks Scorpion --opponents all --seeds 1,2,3,4
+node tools/selfplay/validateBotInteractions.js --decks Scorpion --opponents all --seeds 1,2,3
 ```
 
 `--trace` prints the Scorpion seat's decision-reason histogram. Unit tests:

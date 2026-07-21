@@ -60,7 +60,8 @@ function buildGame(names) {
 }
 
 function makeController(game, playerName, seed, trace = false,
-    policy = undefined, drawBidPolicy = undefined, mulliganPolicy = undefined) {
+    policy = undefined, drawBidPolicy = undefined, mulliganPolicy = undefined,
+    omniscient = false) {
     const runCommand = (command, name, args) => {
         if(!BOT_COMMANDS.has(command)) {
             return false;
@@ -83,6 +84,7 @@ function makeController(game, playerName, seed, trace = false,
             policy: policy,
             drawBidPolicy: drawBidPolicy,
             mulliganPolicy: mulliganPolicy,
+            omniscient: omniscient === true,
             llm: { enabled: false }
         },
         runCommand
@@ -112,6 +114,7 @@ async function runGame(options = {}) {
     const policies = options.policies || [];
     const drawBidPolicies = options.drawBidPolicies || [];
     const mulliganPolicies = options.mulliganPolicies || [];
+    const omniscient = options.omniscient || [];
     const controllers = names.map((name, i) => makeController(
         game,
         name,
@@ -119,7 +122,8 @@ async function runGame(options = {}) {
         options.trace,
         policies[i],
         drawBidPolicies[i],
-        mulliganPolicies[i]
+        mulliganPolicies[i],
+        omniscient[i]
     ));
     if(options.onControllers) {
         options.onControllers(controllers);

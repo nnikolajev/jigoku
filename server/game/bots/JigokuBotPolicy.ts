@@ -169,7 +169,7 @@ interface DecideContext {
     readyAfterMoveCharacterUuids?: Record<string, true>;
     // Seed-3 cheat view: the human's true hand/fate/province strengths. Present
     // only for the omniscient bot; every omniscient branch is gated on it, so
-    // Non-omniscient seeds (undefined here) keep identical behavior.
+    // Non-omniscient bots (undefined here) keep identical behavior.
     omniscient?: Omniscient;
     // Live duel skill gap (our side - their side) on the duel axis, before
     // honor bids. Present only during a duel bid; drives the bid heuristic.
@@ -199,7 +199,7 @@ interface DecideContext {
     // dynasty play can keep a 1-fate reserve for conflict-phase hand cards.
     dynastyCosts?: Record<string, number>;
     // Exact public printed character data and live honor-on-entry effects.
-    // Seed 4 uses this to compare board power and value cheap persistence.
+    // Board-aware seed uses this to compare board power and cheap persistence.
     dynastyCharacterInfo?: Record<string, DynastyCharacterInfo>;
     // Printed fate cost of conflict cards in our hand by uuid. Player-state
     // summaries omit it; profiles use this to sequence cost reducers.
@@ -294,6 +294,7 @@ class JigokuBotPolicy {
     private currentReadyAfterMoveCharacterUuids: Record<string, true> | undefined;
     private currentUnicorn: UnicornTactics | null = null;
     private currentDuelBidProfile: DuelBidProfile = DEFAULT_PROFILE.duelBidding;
+    private currentDeckProfile: DeckProfile = DEFAULT_PROFILE;
     // Experimental fate-aware copy state. Generic policy never enters these
     // branches: FateAwareJigokuBotPolicy opts in through the protected hook.
     private fateAwareRoundNumber = 0;
@@ -350,7 +351,7 @@ class JigokuBotPolicy {
         }
 
         // A normal conflict character may resolve without opening a mode
-        // prompt. Clear the seed-4 intent as soon as that physical card leaves
+        // prompt. Clear the seed-3 intent as soon as that physical card leaves
         // the hand so a later dual-mode copy cannot inherit character mode.
         if(this.boardAwareHomeConflictCharacterUuid &&
             !(me?.cardPiles?.hand || []).some((card: any) =>
@@ -616,6 +617,7 @@ class JigokuBotPolicy {
         // the strategy flags so a caller that passes only `strategy` (tests, older
         // paths) gets identical behavior to before the profile refactor.
         const profile = context.profile || profileFromStrategy(context.strategy);
+        this.currentDeckProfile = profile;
         // Dishonor/mill decks get a tactics object; null for every other deck,
         // and every dishonor branch below is gated on it.
         const dishonor = profile.dishonor ? new DishonorTactics(profile.dishonor) : null;
@@ -650,7 +652,7 @@ class JigokuBotPolicy {
         // Card-name controls have no prompt buttons and cannot use the normal
         // button fallback. Gossip must name a card from the opponent's actual,
         // publicly known conflict deck. Seed 3 may additionally prioritize an
-        // affordable copy it can see in hand; fair seeds use only deck makeup.
+        // affordable copy it can see in hand; fair bots use only deck makeup.
         const cardNameControl = (context.promptControls || []).find((control: any) =>
             control.type === 'card-name' && (control.command || 'menuButton') === 'menuButton');
         if(cardNameControl) {
@@ -920,7 +922,7 @@ class JigokuBotPolicy {
         }
 
         if(promptTitle.startsWith('Play ') || menuTitle.startsWith('Play ') || promptTitle === 'Choose an ability:') {
-            // Seed 4 deliberately selected a conflict character as a body at
+            // Board-aware seed deliberately selected a conflict character as a body at
             // home. Dual-mode characters such as Tattooed Wanderer otherwise
             // enter the shared attachment preference, cancel for lack of a
             // legal bearer, and get selected again forever.
@@ -1487,6 +1489,7 @@ class JigokuBotPolicy {
 
     private strongholdDefensePlan(me: any, opponent: any, profile: DeckProfile,
         omni?: Omniscient, exactStrength?: number, exactWeakestOuterStrength?: number): StrongholdDefensePlan {
+        const strongholdProfile = profile.strongholdDefense || DEFAULT_PROFILE.strongholdDefense;
         const visibleProvince = (me?.strongholdProvince || []).find((card: any) =>
             card.isProvince !== false && (card.isProvince || card.type === 'province' || card.facedown));
         const visibleStrength = Number(visibleProvince?.strengthSummary?.stat);
@@ -1501,11 +1504,14 @@ class JigokuBotPolicy {
             ? Number(exactWeakestOuterStrength)
             : (visibleOuterStrengths.length > 0 ? Math.min(...visibleOuterStrengths) : 3);
         const theirReady = this.myCharactersInPlay(opponent).filter((card) => !card.bowed);
-        const handThreat = omni ? {
-            military: this.omniHandThreat(omni, 'military').skill,
-            political: this.omniHandThreat(omni, 'political').skill
+        const hiddenThreatWeight = Math.max(0, Number(strongholdProfile.omniscientHandThreatWeight) || 0);
+        const useHiddenControl = !!strongholdProfile.omniscientDefenderDisables;
+        const useHiddenStrongholdPlan = !!omni && (hiddenThreatWeight > 0 || useHiddenControl);
+        const handThreat = omni && hiddenThreatWeight > 0 ? {
+            military: Math.ceil(this.omniHandThreat(omni, 'military').skill * hiddenThreatWeight),
+            political: Math.ceil(this.omniHandThreat(omni, 'political').skill * hiddenThreatWeight)
         } : undefined;
-        const tactics = new StrongholdDefenseTactics(profile.strongholdDefense);
+        const tactics = new StrongholdDefenseTactics(strongholdProfile);
         return tactics.plan({
             active: mustAttackStronghold(me),
             opponentStrongholdExposed: mustAttackStronghold(opponent),
@@ -1516,8 +1522,8 @@ class JigokuBotPolicy {
             opponentMilitaryRemaining: opponent?.stats?.militaryRemaining,
             opponentPoliticalRemaining: opponent?.stats?.politicalRemaining,
             handThreat,
-            defenderDisables: omni?.affordableDefenderDisables,
-            omniscient: !!omni,
+            defenderDisables: useHiddenControl ? omni?.affordableDefenderDisables : 0,
+            omniscient: useHiddenStrongholdPlan,
             myBrokenOuterProvinces: brokenOuterProvinceCount(me),
             isFirstPlayer: !!me?.firstPlayer,
             weakestOuterProvinceStrength: weakestOuterStrength
@@ -1848,7 +1854,7 @@ class JigokuBotPolicy {
                 // neutral-to-positive at N=100: Phoenix 40%->44%,
                 // CraneDuels 52%->52%. Kept - it exploits hand knowledge
                 // exactly where a human opponent differs from the bot.
-                const preferredType = omni
+                const preferredType = omni && profile.useOmniscientConflictAxis !== false
                     ? this.omniPreferredConflictType(me, opponent, omni, profile.forceMilitaryConflict)
                     : this.preferredConflictType(me, profile.forceMilitaryConflict);
                 const preferredRemaining = preferredType === 'military'
@@ -1968,8 +1974,21 @@ class JigokuBotPolicy {
             // dropped below 50%). The hand analysis (estimateHandThreat) is kept
             // and unit-tested for a future, more careful use; the live edge is
             // weakest-province targeting + true province strength.
-            const provinceStrength = omni ? this.omniAttackedStrength(opponent, omni) : this.attackedProvinceStrength(opponent, 4);
-            const breakTarget = provinceStrength + defenseEstimate;
+            const provinceStrength = omni && profile.useOmniscientProvinceKnowledge !== false
+                ? this.omniAttackedStrength(opponent, omni)
+                : this.attackedProvinceStrength(opponent, 4);
+            // Exact hidden hand knowledge supplies a small legality-safe
+            // margin, not the raw sum of every contextual effect. One extra
+            // skill is enough to stop a known pump/body from exploiting exact
+            // low province strength, while avoiding the historical whole-hand
+            // overcommit regression.
+            const configuredResponseBuffer = Math.max(0,
+                Number(profile.omniscientAttackResponseBuffer) || 0);
+            const knownResponseBuffer = omni && configuredResponseBuffer > 0 && this.omniHandThreat(
+                omni,
+                type === 'political' ? 'political' : 'military'
+            ).skill > 0 ? configuredResponseBuffer : 0;
+            const breakTarget = provinceStrength + defenseEstimate + knownResponseBuffer;
             const totalEligible = committed.length + candidates.length;
 
             // Lion's For Greater Glory puts fate on every Bushi in the
@@ -2097,6 +2116,13 @@ class JigokuBotPolicy {
             }
             case 'earth':
                 base = 40;
+                if(this.currentOmniscient && this.currentDeckProfile.omniscientEarthRingThreatBonus > 0) {
+                    const militaryThreat = this.omniHandThreat(this.currentOmniscient, 'military').skill;
+                    const politicalThreat = this.omniHandThreat(this.currentOmniscient, 'political').skill;
+                    if(Math.max(militaryThreat, politicalThreat) > 0) {
+                        base += this.currentDeckProfile.omniscientEarthRingThreatBonus;
+                    }
+                }
                 break;
             case 'fire':
                 base = 30;
@@ -2180,6 +2206,16 @@ class JigokuBotPolicy {
         const theirs = (type: string) => theirReady.reduce((total: number, card: any) => total + Math.max(this.skillValue(card, type) || 0, 0), 0);
         const advantage = (type: 'military' | 'political') =>
             mine(type) - theirs(type) - this.omniHandThreat(omni, type).skill;
+        // Hidden information must never steer the declaration onto an axis
+        // where we have no legal attacker. A zero-skill axis can look safer
+        // than a contested useful axis after subtracting the opponent board,
+        // which made the bot toggle, fail to commit, and lose a conflict.
+        if(mine('military') <= 0 && mine('political') > 0) {
+            return 'political';
+        }
+        if(mine('political') <= 0 && mine('military') > 0) {
+            return 'military';
+        }
         return advantage('military') >= advantage('political') ? 'military' : 'political';
     }
 
@@ -2215,7 +2251,10 @@ class JigokuBotPolicy {
         }
 
         const targeting = new ProvinceTargetingTactics(profile.provinceTargeting);
-        const candidateLists = targeting.rank(attackProvinceLists(opponent), omni?.oppProvinces || []);
+        const candidateLists = targeting.rank(
+            attackProvinceLists(opponent),
+            omni && profile.useOmniscientProvinceKnowledge !== false ? omni.oppProvinces : []
+        );
 
         for(const list of candidateLists) {
             const province = (list || []).find((card: any) => card.isProvince !== false && (card.isProvince || card.facedown));
@@ -2248,11 +2287,11 @@ class JigokuBotPolicy {
     }
 
     private defenderDecision(me: any, promptTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, shugenja: ShugenjaTactics | null = null, opponent?: any, legalDirectCardUuids?: Record<string, true>): BotDecision | null {
-        // NOTE: seed-3 defense-side omniscience (defending against the human's
+        // NOTE: broad defense-side omniscience (defending against the human's
         // post-commit hand pump, conceding provably-lost conflicts to save
         // bodies) was implemented and MEASURED NET-NEGATIVE — it made the bot
         // over-concede and stall (Crane mirror 0-12). The plumbing (`_omni`) is
-        // kept for a more careful future attempt; seed 3's live edge comes from
+        // kept for a more careful future attempt; the capability's live edge comes from
         // weakest-province targeting, true province strength and hand-aware
         // conflict-type choice. Only the resource-saving token-defense case
         // below remains; other defense sizing uses the base heuristic.
@@ -2344,7 +2383,7 @@ class JigokuBotPolicy {
         //   - otherwise defend to beat the REAL threat, not the visible
         //     skill — a minimal block sized on visible numbers is a free
         //     flip for a held pump card.
-        if(_omni && attackerSkill !== null) {
+        if(_omni && profile.useOmniscientTokenDefense && attackerSkill !== null) {
             const threat = this.omniHandThreat(_omni, type === 'political' ? 'political' : 'military');
             const effectiveAttack = attackerSkill + threat.skill;
             const provinceStrength = this.attackedProvinceStrength(me);
@@ -2483,7 +2522,7 @@ class JigokuBotPolicy {
     }
 
     private conflictWindowDecision(playerState: any, me: any, buttons: any[], handStats?: HandStats, cardHint?: CardHintLookup, profile: DeckProfile = DEFAULT_PROFILE, conflictCosts?: Record<string, number>, _omni?: Omniscient, dishonor: DishonorTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, glory: GloryTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, legalDirectCardUuids?: Record<string, true>): BotDecision | null {
-        // NOTE: seed-3 window-hold omniscience (as attacker, HOLD when the human
+        // NOTE: broad window-hold omniscience (as attacker, HOLD when the human
         // can swing the conflict out of break range; as defender, concede a
         // provably lost conflict to keep bodies) was implemented and MEASURED
         // NET-NEGATIVE — over-holding cost the bot conflicts it could have won
@@ -2726,7 +2765,7 @@ class JigokuBotPolicy {
         playCtx.canPlayConflictCard = canPlayConflictCard;
         playCtx.conflictCosts = conflictCosts || {};
 
-        // A visible participating bow source, or an affordable exact seed-3
+        // A visible participating bow source, or an affordable exact omniscient
         // hand bow, can act after our next pass. Protect now, before optional
         // board actions and ordinary value plays give that threat priority.
         const urgentClarityThreat = !!sharedPlayCtx.opponentParticipantCanBow ||
@@ -3673,7 +3712,7 @@ class JigokuBotPolicy {
             }
         }
 
-        // Seed 4 may convert an affordable conflict character into one more
+        // Board-aware seed may convert an affordable conflict character into one more
         // attacker at home between conflicts. Do this only when every existing
         // ready body is useless for remaining conflict types and the new body
         // can beat all visible ready defenders by itself. This preserves hand
@@ -4175,7 +4214,7 @@ class JigokuBotPolicy {
             !me?.firstPlayer &&
             analysis.opponentPower >= profile.boardAwareDynasty.severeBoardDeficitMinimumPower &&
             analysis.ownPower < analysis.opponentPower * profile.boardAwareDynasty.severeBoardDeficitRatio;
-        // Seed 4 is an optimization of seed 1, not a replacement buyer. Keep
+        // Board-aware seed is an optimization of seed 1, not a replacement buyer. Keep
         // seed 1's mature deck-specific purchase ordering in ordinary board
         // states. The full planner takes over only for exposed-stronghold
         // all-ins or a severe second-player power deficit; otherwise it

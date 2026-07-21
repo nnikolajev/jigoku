@@ -7,6 +7,7 @@
 // games that already streamed and moves on. Usage:
 //   node _deckWorker.js <deckLabel> <games> <botSeed> <craneSeed>
 //     <challengerPolicy> <challengerDrawBidPolicy> <craneDrawBidPolicy>
+//     <challengerOmniscient> <craneOmniscient>
 
 process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'error';
 
@@ -27,6 +28,8 @@ async function main() {
         : undefined;
     const challengerDrawBidPolicy = process.argv[7] === 'legacy' ? 'legacy' : 'adaptive';
     const craneDrawBidPolicy = process.argv[8] === 'legacy' ? 'legacy' : 'adaptive';
+    const challengerOmniscient = process.argv[9] === 'true';
+    const craneOmniscient = process.argv[10] === 'true';
     const loadDeck = getDeckLoader(label);
     if(!loadDeck || label === BASELINE_DECK) {
         process.stderr.write(`unknown deck ${label}\n`);
@@ -45,11 +48,14 @@ async function main() {
         const drawBidPolicies = botFirst
             ? [challengerDrawBidPolicy, craneDrawBidPolicy]
             : [craneDrawBidPolicy, challengerDrawBidPolicy];
+        const omniscient = botFirst
+            ? [challengerOmniscient, craneOmniscient]
+            : [craneOmniscient, challengerOmniscient];
         const decks = botFirst
             ? { deckA: loadDeck(), deckB: loadCraneDeck() }
             : { deckA: loadCraneDeck(), deckB: loadDeck() };
 
-        const result = await runGame({ names, seeds, policies, drawBidPolicies, ...decks, trace: false });
+        const result = await runGame({ names, seeds, policies, drawBidPolicies, omniscient, ...decks, trace: false });
         // One line per game so the parent salvages partial results on a hang.
         process.stdout.write(JSON.stringify({ winner: result.winner || null, reason: result.winReason || null }) + '\n');
     }

@@ -10,11 +10,10 @@ click-cycle detection. No external model service is needed.
 |---:|---|
 | 1 | Fate-aware mixed heuristic (default) |
 | 2 | Original dynasty-focused heuristic |
-| 3 | Seed 1 plus omniscient hidden-state logic |
-| 4 | Seed 1 plus fair board-aware dynasty development |
+| 3 | Seed 1 plus fair board-aware dynasty development |
 
-Adaptive mulligan is the default for all four seeds. The former omniscient
-seed 5 was renumbered to 3; old LLM/evaluator experiments were removed.
+Adaptive mulligan is the default for all three seeds. Omniscience is an
+independent capability that can be enabled for any seed.
 
 ## Main commands
 
@@ -36,18 +35,22 @@ node tools/selfplay/botRoundRobin.js --seed 3 --games 25 --workers 32
 
 # Same-deck adaptive mulligan versus explicit frozen legacy behavior
 node tools/selfplay/compareMulliganPolicies.js
-node tools/selfplay/compareMulliganPolicies.js --games 40 --seeds 1,2,3,4 --decks Crab,Phoenix
+node tools/selfplay/compareMulliganPolicies.js --games 40 --seeds 1,2,3 --decks Crab,Phoenix
 
-# Same-deck paired seed-4 dynasty planner versus seed 1
+# Same-deck paired seed-3 dynasty planner versus seed 1
 node tools/selfplay/compareDynastySeeds.js
 node tools/selfplay/compareDynastySeeds.js --games 40 --decks Lion,Unicorn
+
+# Optional omniscience versus the same normal strategy
+node tools/selfplay/botOmniscientRoundRobin.js --seed 1
+node tools/selfplay/botOmniscientRoundRobin.js --seed 3 --games 40 --mirrors-only
 
 # Adaptive draw bidding versus frozen legacy behavior
 node tools/selfplay/compareDrawBidPolicies.js
 
 # Detect repeated/no-progress clicks, budget exhaustion, and stalls
 node tools/selfplay/validateBotInteractions.js
-node tools/selfplay/validateBotInteractions.js --seeds 1,2,3,4 --opponents all --games 2
+node tools/selfplay/validateBotInteractions.js --seeds 1,2,3 --opponents all --games 2
 
 # Deterministic deep comparison and focused diagnostics
 node tools/selfplay/analyzePolicyGame.js --deck PhoenixShugenja --rng-seed 20260715
@@ -64,7 +67,7 @@ Use `--help` on a script for its complete option list.
 
 `compareMulliganPolicies.js` is the quality gate for `MulliganTactics`.
 Adaptive and legacy seats use the same deck and same bot seed, with seats
-alternating. The default covers every registered deck on seeds 1, 2, 3, and 4.
+alternating. The default covers every registered deck on seeds 1, 2, and 3.
 It writes Markdown and JSON under `tools/selfplay/out/` and never updates the
 client benchmark configuration.
 
@@ -78,10 +81,10 @@ The report includes:
 Use a small all-seed run for smoke coverage, then a larger focused run. Use
 `--rng-seed` to confirm a tuned outlier on a fresh shuffle stream.
 
-## Seed-4 dynasty A/B
+## Seed-3 dynasty A/B
 
 `compareDynastySeeds.js` holds deck and shuffle pair constant, alternates
-seats, and compares seed 4 directly with seed 1. Reports include records and
+seats, and compares seed 3 directly with seed 1. Reports include records and
 traced generic/board-aware purchase and additional-fate reasons. It never
 updates client benchmark configuration.
 
@@ -103,6 +106,8 @@ Only standardized runs update
   policy, no policy override;
 - round robin: 40 games per matchup, complete registered deck set, adaptive
   draw policy;
+- omniscient: 20 games per ordered deck matchup, complete registered deck set,
+  same strategy seed on both seats, only one seat omniscient;
 - current standardized suite id and no failed/incomplete jobs.
 
 Custom counts, deck subsets, cross-seed opponents, legacy draw policy, and
@@ -119,14 +124,14 @@ profile overrides remain diagnostic and never replace client results.
 - controller decision-budget exhaustion;
 - stalls, timeouts, step caps, or engine errors.
 
-Defaults cover all registered decks, seeds 1–4, and Crane as opponent. Reports
+Defaults cover all registered decks, seeds 1-3, and Crane as opponent. Reports
 are written as JSON and Markdown. Use `--opponents all` for the broadest gate.
 
 ## Harness
 
 `harness.js` exports `runGame(options)`. Important options include `names`,
 `seeds`, `policies`, `drawBidPolicies`, `mulliganPolicies`, `deckA`, `deckB`,
-`trace`, and `onControllers`. Every deployed seed defaults to adaptive
+`omniscient`, `trace`, and `onControllers`. Every deployed seed defaults to adaptive
 mulligan; an explicit `mulliganPolicies` pair lets the A/B script compare it
 with frozen legacy logic.
 

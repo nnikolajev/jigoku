@@ -3,7 +3,7 @@
 // Scorpion "Poison Mill" (dishonor deck) vs the Crane precon. Seats alternate
 // to cancel first-player advantage. Usage:
 //   node tools/selfplay/matchScorpion.js [games] [scorpionSeed] [--trace]
-// Seeds: 1 fate-aware (default), 2 old heuristic, 3 omniscient. Crane uses seed 1.
+// Seeds: 1 fate-aware (default), 2 old heuristic, 3 board-aware. Crane uses seed 1.
 
 const { runGame } = require('./harness.js');
 const { loadScorpionDeck, loadCraneDeck } = require('./deckLoader.js');

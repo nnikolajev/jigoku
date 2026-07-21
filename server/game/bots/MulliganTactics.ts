@@ -16,6 +16,8 @@ export interface MulliganProfile {
     openingStrongTarget: number;
     openingHoldingLimit: number;
     openingKeepHoldingIds: string[];
+    openingKeepConflictIds: string[];
+    openingPaidConflictKeepLimit: number;
     openingDiscardCharacterIds: string[];
     preferredCharacterIds: string[];
     rush: boolean;
@@ -43,6 +45,8 @@ export const DEFAULT_MULLIGAN_PROFILE: MulliganProfile = {
     openingStrongTarget: 1,
     openingHoldingLimit: 1,
     openingKeepHoldingIds: ['the-imperial-palace'],
+    openingKeepConflictIds: [],
+    openingPaidConflictKeepLimit: 0,
     openingDiscardCharacterIds: [],
     preferredCharacterIds: [],
     rush: false,
@@ -106,8 +110,19 @@ class MulliganTactics {
     }
 
     pickOpeningConflict(input: MulliganInput): MulliganPick {
-        const card = this.selectable(input.cards).find((candidate) =>
-            !candidate.selected && this.costOf(candidate, input.costsByUuid) > 0);
+        const cards = this.selectable(input.cards);
+        const keep = new Set(cards
+            .filter((candidate) => this.profile.openingKeepConflictIds.includes(candidate.id))
+            .sort((left, right) =>
+                this.profile.openingKeepConflictIds.indexOf(left.id) -
+                    this.profile.openingKeepConflictIds.indexOf(right.id) ||
+                this.costOf(left, input.costsByUuid) - this.costOf(right, input.costsByUuid) ||
+                String(left.uuid).localeCompare(String(right.uuid)))
+            .slice(0, this.profile.openingPaidConflictKeepLimit)
+            .map((candidate) => String(candidate.uuid)));
+        const card = cards.find((candidate) =>
+            !candidate.selected && this.costOf(candidate, input.costsByUuid) > 0 &&
+            !keep.has(String(candidate.uuid)));
         return {
             card,
             reason: card ? 'adaptive-mulligan-paid-conflict-card' : 'adaptive-finish-conflict-mulligan',

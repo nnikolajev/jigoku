@@ -45,13 +45,13 @@ current zone.
 - Seeds 1 and 2 rank only cards that actually occur in that public conflict
   deck. Copies, modeled swing, tactical tags, and matchup build-around weights
   decide which name is most important to the opposing game plan.
-- Seed 3 starts from the same public deck list, then adds its omniscient
-  advantage: exact copies in hand, current opponent fate, affordability, and
-  current conflict relevance.
+- With omniscience enabled, any seed starts from the same public deck list and
+  adds exact copies in hand, current opponent fate, affordability, and current
+  conflict relevance.
 - A high-weight card absent from the submitted deck can never be named. If no
   real deck card clears the minimum score, Gossip is not played.
 - The typed card-name prompt is submitted through the same legal controller
-  path as ordinary menu buttons. Tests cover seeds 1, 2, 3, and 4.
+  path as ordinary menu buttons. Tests cover seeds 1, 2, and 3.
 
 ## Card sequencing
 
@@ -78,7 +78,7 @@ current zone.
 
 - `CraneBaselineTactics`: 13 focused specs, including exact 40/40 fixture,
   public-deck-only Gossip choices, seed-3 fate awareness, typed card-name
-  controls for seeds 1/2/5, board-floor replenishment, solo sequencing,
+  controls for seeds 1/2/3, board-floor replenishment, solo sequencing,
   Shukujo, and shared Let Go targeting.
 - The 25 dedicated engine-card spec files present for this exact list run 133
   rules specs with no failures. Gossip's engine specs verify that the chosen
@@ -90,7 +90,7 @@ current zone.
   conflict starts. The final profile won by conquest in round 7, missed the
   floor in 0/5 conflict starts, averaged 3.2 late characters, and finished with
   four characters and seven fate.
-- Interaction audit: 30 games, seeds 1/2/5, every registered opponent; 13,353
+- Interaction audit: 30 games, the then-current seeds 1/2/5, every registered opponent; 13,353
   successful bot decisions, zero rejected decisions, zero loops, zero budget
   exhaustion, maximum 15 decisions in one controller tick.
 - Real-game utilization audit: 20 seed-1 games against Phoenix Shugenja clicked
@@ -125,13 +125,13 @@ Re-run the checks with:
 
 ```powershell
 node tools/selfplay/auditCards.js Crane 20 1 PhoenixShugenja
-node tools/selfplay/validateBotInteractions.js --games 1 --seeds 1,2,3,4 --decks Crane --opponents all
+node tools/selfplay/validateBotInteractions.js --games 1 --seeds 1,2,3 --decks Crane --opponents all
 node tools/selfplay/analyzePolicyGame.js --deck Crane --opponent PhoenixShugenja --control fate-aware --candidate fate-aware --opponent-policy fate-aware
 ```
 
 Changing the standard opponent invalidates old client win-rate and round-robin
 sections. The suite id now keeps those retired numbers hidden. Regenerate the
-standard seed 1/2/5 records with:
+standard seed 1/2/3 records with:
 
 ```powershell
 node tools/selfplay/winRates.js 100 1 1

@@ -19,10 +19,12 @@ export interface JigokuBotConfig {
     trace?: boolean;
     maxDecisionsPerTick?: number;
     // Seed 1 defaults to fate-aware; seed 2 selects the old generic heuristic;
-    // seed 3 adds omniscient context; seed 4 adds fair board-aware dynasty
-    // development to seed 1.
+    // seed 3 adds fair board-aware dynasty development to seed 1.
     // Explicit variants remain available for controlled policy comparisons.
     policy?: JigokuBotPolicyVariant;
+    // Independent information-access capability. Any policy seed can receive
+    // exact opposing hand and face-down province data when explicitly enabled.
+    omniscient?: boolean;
     // Adaptive is live default. Legacy preserves pre-refactor draw bids for
     // controlled self-play comparisons without reverting other bot logic.
     drawBidPolicy?: JigokuBotDrawBidPolicyVariant;

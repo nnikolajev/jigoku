@@ -3,7 +3,7 @@
 // Dragon "Monks In Da High House" (Togashi Mitsu card engine) vs the Crane precon. Seats alternate
 // to cancel first-player advantage. Usage:
 //   node tools/selfplay/matchDragon.js [games] [dragonSeed] [--trace]
-// Seeds: 1 fate-aware (default), 2 old heuristic, 3 omniscient. Crane uses seed 1.
+// Seeds: 1 fate-aware (default), 2 old heuristic, 3 board-aware. Crane uses seed 1.
 
 const { runGame } = require('./harness.js');
 const { loadDragonDeck, loadCraneDeck } = require('./deckLoader.js');

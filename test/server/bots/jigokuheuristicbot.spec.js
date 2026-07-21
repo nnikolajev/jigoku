@@ -1909,7 +1909,7 @@ describe('Jigoku heuristic bot', function() {
             expect(decision.args[0]).toBe('watch');
         });
 
-        it('makes seed 3 treat hidden Public Forum as strength 6 for target priority', function() {
+        it('makes an omniscient policy treat hidden Public Forum as strength 6 for target priority', function() {
             const hiddenState = state([
                 { facedown: true, location: 'province 1', isBroken: false },
                 { facedown: true, location: 'province 2', isBroken: false }
@@ -2456,9 +2456,13 @@ describe('Jigoku heuristic bot', function() {
             expect(second.args[0]).toBe('weak');
         });
 
-        it('seed 3 accounts for exact affordable boost and defender control', function() {
+        it('injectable omniscient stronghold profile accounts for exact boost and control', function() {
             const state = makeState('Choose an elemental ring', [character('army', 5, 5)]);
+            const profile = profileFromStrategy();
+            profile.strongholdDefense.omniscientHandThreatWeight = 1;
+            profile.strongholdDefense.omniscientDefenderDisables = true;
             const decision = new JigokuBotPolicy('last-province-omni').decide(state, 'Jigoku Bot', {
+                profile,
                 strongholdProvinceStrength: 4,
                 omniscient: {
                     oppName: 'Human', oppFate: 1, oppHand: [], oppProvinces: [], unmodeledEvents: [],

@@ -36,6 +36,26 @@ describe('MulliganTactics', function() {
         )).card).toBeUndefined();
     });
 
+    it('can keep a bounded priority list of paid opening conflict cards', function() {
+        const tactics = new MulliganTactics({
+            ...DEFAULT_MULLIGAN_PROFILE,
+            openingKeepConflictIds: ['spyglass', 'shiksha-scout'],
+            openingPaidConflictKeepLimit: 1
+        });
+        const scout = card('scout', 'shiksha-scout', 'character', 'hand');
+        const glass = card('glass', 'spyglass', 'attachment', 'hand');
+        const other = card('other', 'ride-on', 'event', 'hand');
+        const cards = [scout, glass, other];
+        const costs = { scout: 2, glass: 1, other: 1 };
+
+        // Priority order keeps Spyglass. Other paid cards still cycle.
+        expect(tactics.pickOpeningConflict(input(cards, costs)).card).toBe(scout);
+        scout.selected = true;
+        expect(tactics.pickOpeningConflict(input(cards, costs)).card).toBe(other);
+        other.selected = true;
+        expect(tactics.pickOpeningConflict(input(cards, costs)).card).toBeUndefined();
+    });
+
     it('uses projected next-turn fate and keeps a strong body plus cheap bodies', function() {
         const tactics = new MulliganTactics(DEFAULT_MULLIGAN_PROFILE);
         const extraHolding = card('holding-z', 'forgotten-library', 'holding');

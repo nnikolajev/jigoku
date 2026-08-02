@@ -91,6 +91,14 @@ export class DuelFlow extends BaseStepWithPipeline {
         if(!this.duel.winner) {
             this.game.addMessage('The duel ends in a draw');
         }
+        // Record the loser on the conflict so effects and bots can find it
+        // without each card keeping its own private tally.
+        const conflict = this.game.currentConflict;
+        if(conflict && this.duel.loser) {
+            for(const loser of Array.isArray(this.duel.loser) ? this.duel.loser : [this.duel.loser]) {
+                conflict.recordDuelLoser(loser);
+            }
+        }
         this.game.raiseEvent(EventNames.AfterDuel, {
             duel: this.duel,
             winner: this.duel.winner,

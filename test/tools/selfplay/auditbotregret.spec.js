@@ -39,7 +39,7 @@ describe('V2 regret audit', function() {
                 stateSignature: 's1', promptFingerprint: 'p1', intentId: 'intent:win', chosenCandidateId: 'pass',
                 disagreementType: 'uncertain', scoreGap: 5,
                 information: { certainty: 0.4, handHypotheses: 3, responsePackages: 2 },
-                terminal: { active: true, status: 'forced-win', selectedCandidateId: 'impact' },
+                terminal: { active: true, overrideEligible: true, status: 'forced-win', selectedCandidateId: 'impact' },
                 candidates: [
                     { id: 'pass', kind: 'pass', score: 0, tags: [], costs: {}, effectKinds: [], vetoes: [] },
                     { id: 'impact', kind: 'conflict-card', score: 5, tags: ['offense', 'payoff'], costs: { fate: 1 }, effectKinds: ['skill'], vetoes: [] },
@@ -71,5 +71,21 @@ describe('V2 regret audit', function() {
         expect(report.replays.length).toBe(2);
         expect(analyzeRegret([first, second], { replayLimit: 10 }).replays).toEqual(report.replays);
         expect(renderMarkdown(report)).toContain('Priorities');
+    });
+
+    it('does not report same-class terminal projections as missed direct wins', function() {
+        const entry = {
+            player: 'Bot', promptTitle: 'Action Window', target: 'Pass', selectedBy: 'fallback',
+            informationMode: 'fair', planner: {
+                stateSignature: 'same-class', promptFingerprint: 'prompt', chosenCandidateId: 'v1',
+                terminal: { active: true, overrideEligible: false, status: 'forced-win', selectedCandidateId: 'pass' },
+                candidates: [
+                    { id: 'v1', kind: 'v1-fallback', score: 0, tags: [], costs: {}, effectKinds: [], vetoes: [] },
+                    { id: 'pass', kind: 'pass', score: 0, tags: [], costs: {}, effectKinds: [], vetoes: [] }
+                ]
+            }
+        };
+
+        expect(analyzeRegret([entry]).findings.some((finding) => finding.type === 'missed-terminal')).toBeFalse();
     });
 });

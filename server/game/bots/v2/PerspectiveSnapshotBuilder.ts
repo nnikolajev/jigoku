@@ -34,6 +34,33 @@ function number(value: any, fallback = 0): number {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function remainingConflictOpportunity(player: any, explicit: any, type: ConflictType): number {
+    if(explicit?.[type] !== undefined && explicit?.[type] !== null) {
+        return Math.max(0, number(explicit[type]));
+    }
+    const live = player?.stats?.[`${type}Remaining`];
+    if(live !== undefined && live !== null) return Math.max(0, number(live));
+    const legacy = player?.[`${type}ConflictOpportunities`];
+    if(legacy !== undefined && legacy !== null) return Math.max(0, number(legacy));
+    const total = player?.stats?.conflictsRemaining;
+    return total !== undefined && total !== null && number(total) === 0 ? 0 : 1;
+}
+
+function remainingConflictTotal(player: any, explicit: any,
+    typed: Readonly<Record<ConflictType, number>>): number {
+    if(explicit?.total !== undefined && explicit?.total !== null) {
+        return Math.max(0, number(explicit.total));
+    }
+    // Explicit controller projections are complete fixtures/overrides. If
+    // they only supply typed counts, their sum is the intended total.
+    if(explicit?.military !== undefined || explicit?.political !== undefined) {
+        return typed.military + typed.political;
+    }
+    const live = player?.stats?.conflictsRemaining;
+    if(live !== undefined && live !== null) return Math.max(0, number(live));
+    return typed.military + typed.political;
+}
+
 function collection(value: any): any[] {
     if(Array.isArray(value)) return value;
     if(typeof value?.toArray === 'function') return value.toArray();
@@ -62,6 +89,10 @@ function characterProjection(card: any, fallbackController: PlayerId, index: num
         cardId: cardId(attachment),
         controllerId: controllerId(attachment, fallbackController),
         fate: number(attachment?.fate),
+        militaryBonus: number(attachment?.cardData?.military_bonus ?? attachment?.militaryBonus),
+        politicalBonus: number(attachment?.cardData?.political_bonus ?? attachment?.politicalBonus),
+        printedCost: Number.isFinite(number(attachment?.cardData?.cost ?? attachment?.cost, NaN))
+            ? number(attachment?.cardData?.cost ?? attachment?.cost) : undefined,
         nonStackingKeys: collection(attachment?.nonStackingKeys).map(String)
     }));
     const traits = Array.isArray(card?.traits)
@@ -90,8 +121,12 @@ function characterProjection(card: any, fallbackController: PlayerId, index: num
         traits,
         unique: !!(card?.isUnique || card?.unique || card?.cardData?.is_unique),
         attachments,
-        canMove: card?.canMove !== false,
-        canReady: card?.canReady !== false,
+        // These fields mean the character has a reusable movement/ready
+        // capability. Absence is not positive evidence: treating every card
+        // as movable/readyable caused tactical search to spend real towers as
+        // though they would automatically be available again.
+        canMove: card?.canMove === true,
+        canReady: card?.canReady === true,
         noBowAfterConflict: !!(card?.doesNotBow || card?.noBowAfterConflict),
         canAttackMilitary: card?.canAttackMilitary !== false && number(card?.militarySkillSummary ?? card?.military, 0) >= 0,
         canAttackPolitical: card?.canAttackPolitical !== false && number(card?.politicalSkillSummary ?? card?.political, 0) >= 0,
@@ -168,7 +203,15 @@ export default class PerspectiveSnapshotBuilder {
         const botName = input.botName || Object.keys(players).find((name) => players[name]?.promptTitle) || Object.keys(players)[0];
         const context = input.context || {};
         const phase = String(players[botName]?.phase || state.phase || context.phase || 'unknown');
-        const conflictId = options.conflictId || context.conflictId || state.conflict?.id || state.conflict?.uuid || state.currentConflict?.uuid;
+        const rawConflict = state.conflict || state.currentConflict || context.conflict;
+        const activeConflict = !!rawConflict && !!(
+            rawConflict.attackingPlayer || rawConflict.attackerId || rawConflict.attackingPlayerId ||
+            rawConflict.defendingPlayer || rawConflict.defenderId || rawConflict.defendingPlayerId ||
+            rawConflict.province || rawConflict.provinceLocation
+        );
+        const conflictId = activeConflict
+            ? options.conflictId || context.conflictId || rawConflict?.id || rawConflict?.uuid
+            : undefined;
         const scopes: GameScopeRef = {
             gameId: String(options.gameId || context.gameId || state.gameId || 'game'),
             roundId: String(options.roundId || context.roundId || context.roundNumber || state.roundNumber || 'round:0'),
@@ -215,31 +258,93 @@ export default class PerspectiveSnapshotBuilder {
                 selectable: ring.unselectable !== true
             };
         });
-        const liveConflict = state.conflict || state.currentConflict || context.conflict;
-        const conflict: ConflictProjection | undefined = liveConflict || conflictId ? {
+        const liveConflict = activeConflict ? rawConflict : undefined;
+        const resolvePlayerId = (value: any): PlayerId | undefined => {
+            const raw = value?.name || value?.id || value;
+            if(raw === undefined || raw === null) return undefined;
+            const text = String(raw);
+            return playerEntries.find(([playerId, player]) => playerId === text ||
+                String(player?.id || '') === text || String(player?.name || '') === text)?.[0] || text;
+        };
+        const conflictProvince = provinces.find((province) => province.inConflict);
+        const conflict: ConflictProjection | undefined = liveConflict ? {
             id: String(conflictId || 'conflict'),
-            attackerId: liveConflict?.attackingPlayer?.name || liveConflict?.attackerId,
-            defenderId: liveConflict?.defendingPlayer?.name || liveConflict?.defenderId,
+            attackerId: resolvePlayerId(liveConflict?.attackingPlayer ?? liveConflict?.attackerId ?? liveConflict?.attackingPlayerId),
+            defenderId: resolvePlayerId(liveConflict?.defendingPlayer ?? liveConflict?.defenderId ?? liveConflict?.defendingPlayerId),
             type: liveConflict?.type === 'military' || liveConflict?.type === 'political' ? liveConflict.type : undefined,
-            ring: liveConflict?.ring?.element || liveConflict?.ring,
-            provinceLocation: liveConflict?.province?.location || liveConflict?.provinceLocation,
+            ring: liveConflict?.ring?.element || liveConflict?.ring || liveConflict?.elements?.[0],
+            provinceLocation: liveConflict?.province?.location || liveConflict?.provinceLocation || conflictProvince?.location,
             attackerSkill: number(liveConflict?.attackerSkill ?? liveConflict?.attackerSkillTotal),
             defenderSkill: number(liveConflict?.defenderSkill ?? liveConflict?.defenderSkillTotal),
-            provinceStrength: number(liveConflict?.provinceStrength),
-            breakThreshold: number(liveConflict?.breakThreshold ?? liveConflict?.provinceStrength),
+            provinceStrength: number(liveConflict?.provinceStrength, conflictProvince?.effectiveStrength || 0),
+            breakThreshold: number(liveConflict?.breakThreshold ?? liveConflict?.provinceStrength,
+                conflictProvince?.effectiveStrength || 0),
             winnerId: liveConflict?.winner?.name || liveConflict?.winnerId
         } : undefined;
+        // Serialized player summaries have historically omitted or lagged
+        // `inConflict` and effective skill fields. The controller already
+        // supplies the exact public character projection used by V1's conflict
+        // planner, so merge it into the immutable V2 snapshot. This exposes no
+        // hidden information and prevents semantic actions from losing their
+        // real target identities.
+        const exactSides = context.conflictPlanningCharacters;
+        if(exactSides) {
+            const opponentId = playerEntries.find(([playerId]) => playerId !== botName)?.[0];
+            const exactById = new Map<string, { controllerId: PlayerId; card: any }>();
+            for(const card of collection(exactSides.self)) {
+                if(card?.uuid) exactById.set(String(card.uuid), { controllerId: botName, card });
+            }
+            for(const card of collection(exactSides.opponent)) {
+                if(card?.uuid && opponentId) exactById.set(String(card.uuid), { controllerId: opponentId, card });
+            }
+            for(let index = 0; index < characters.length; index++) {
+                const exact = exactById.get(characters[index].instanceId);
+                if(!exact) continue;
+                const participating = !!exact.card.inConflict;
+                const ready = exact.card.ready !== false;
+                const exactAttachments = new Map(collection(exact.card.attachments)
+                    .map((attachment: any) => [String(attachment.uuid), attachment]));
+                characters[index] = {
+                    ...characters[index],
+                    controllerId: exact.controllerId,
+                    military: number(exact.card.military, characters[index].military),
+                    political: number(exact.card.political, characters[index].political),
+                    participating,
+                    attacking: participating && conflict?.attackerId === exact.controllerId,
+                    defending: participating && conflict?.defenderId === exact.controllerId,
+                    ready,
+                    bowed: !ready,
+                    canAttackMilitary: exact.card.legalMilitary !== false,
+                    canAttackPolitical: exact.card.legalPolitical !== false,
+                    covert: !!exact.card.covert,
+                    noBowAfterConflict: exact.card.bowsAfterConflict === false,
+                    attachments: characters[index].attachments.map((attachment) => {
+                        const live = exactAttachments.get(attachment.instanceId);
+                        return live ? {
+                            ...attachment,
+                            militaryBonus: Math.max(0, number(live.militaryBonus)),
+                            politicalBonus: Math.max(0, number(live.politicalBonus)),
+                            printedCost: Number.isFinite(number(live.printedCost, NaN))
+                                ? number(live.printedCost) : attachment.printedCost
+                        } : attachment;
+                    })
+                };
+            }
+        }
         const remaining: Record<PlayerId, Record<ConflictType, number>> = {};
+        const remainingTotals: Record<PlayerId, number> = {};
         for(const [playerId, player] of playerEntries) {
             const explicit = context.remainingConflictOpportunities?.[playerId] || player?.remainingConflictOpportunities || {};
             remaining[playerId] = {
-                military: number(explicit.military, player?.militaryConflictOpportunities === 0 ? 0 : 1),
-                political: number(explicit.political, player?.politicalConflictOpportunities === 0 ? 0 : 1)
+                military: remainingConflictOpportunity(player, explicit, 'military'),
+                political: remainingConflictOpportunity(player, explicit, 'political')
             };
+            remainingTotals[playerId] = remainingConflictTotal(player, explicit, remaining[playerId]);
         }
         const opportunities: ConflictOpportunityProjection = {
             remainingByPlayer: remaining,
-            totalRemaining: Object.values(remaining).reduce((sum, value) => sum + value.military + value.political, 0)
+            remainingTotalByPlayer: remainingTotals,
+            totalRemaining: Object.values(remainingTotals).reduce((sum, value) => sum + value, 0)
         };
         const resources: LiveResources = {
             fateByPlayer: Object.fromEntries(Object.values(projectedPlayers).map((player) => [player.id, player.fate])),
@@ -272,6 +377,10 @@ export default class PerspectiveSnapshotBuilder {
             uuid: control.uuid,
             method: control.method
         }));
+        const legalAttachmentTargetIdsBySource = context.legalAttachmentTargetUuidsBySource
+            ? Object.fromEntries(Object.entries(context.legalAttachmentTargetUuidsBySource)
+                .map(([sourceId, targetIds]) => [String(sourceId), collection(targetIds).map(String).sort()]))
+            : undefined;
         const materialStateSignature = stableHash({
             scopes,
             phase,
@@ -281,7 +390,8 @@ export default class PerspectiveSnapshotBuilder {
             rings,
             hands,
             conflict,
-            opportunities
+            opportunities,
+            legalAttachmentTargetIdsBySource
         });
         return immutable({
             schemaVersion: 1,
@@ -291,6 +401,7 @@ export default class PerspectiveSnapshotBuilder {
             phase,
             prompt,
             promptControls,
+            legalAttachmentTargetIdsBySource,
             conflict,
             players: projectedPlayers,
             characters,

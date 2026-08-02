@@ -27,6 +27,11 @@ export interface JigokuBotConfig {
     traceLevel?: JigokuBotTraceLevel;
     v2Mode?: JigokuBotV2Mode;
     experiments?: Record<string, boolean>;
+    // Experimental: merged into context.profile.v2 for the V2 engine so
+    // offline self-play can inject gate/search/weight overrides (e.g. the
+    // autonomous-policy divergence experiment) without touching deck profiles.
+    // Default undefined leaves frozen V1/V2 behavior unchanged.
+    v2Profile?: Record<string, unknown>;
     maxDecisionsPerTick?: number;
     // Seed 1 defaults to fate-aware; seed 2 selects the old generic heuristic;
     // seed 3 adds fair board-aware dynasty development to seed 1.

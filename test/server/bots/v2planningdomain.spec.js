@@ -90,10 +90,84 @@ describe('V2 planning domain', function() {
         expect(first.hands.find((hand) => hand.playerId === 'Bot').cards[0].cardId).toBe('banzai');
         expect(first.provinces.find((province) => province.controllerId === 'Opponent' && province.location === 'province 1').cardId).toBeUndefined();
         expect(first.characters.find((character) => character.instanceId === 'own-character')).toEqual(jasmine.objectContaining({
-            military: 1, political: 3, fate: 1, ready: true, traits: ['courtier']
+            military: 1, political: 3, fate: 1, ready: true, traits: ['courtier'],
+            canMove: false, canReady: false
         }));
+        const explicitState = playerState();
+        explicitState.players.Bot.cardPiles.cardsInPlay[0].canMove = true;
+        explicitState.players.Bot.cardPiles.cardsInPlay[0].canReady = true;
+        const explicit = builder.build({ playerState: explicitState, botName: 'Bot', context: { roundNumber: 2 } },
+            { informationMode: 'fair' });
+        expect(explicit.characters.find((character) => character.instanceId === 'own-character')).toEqual(
+            jasmine.objectContaining({ canMove: true, canReady: true }));
         expect(Object.isFrozen(first)).toBeTrue();
         expect(Object.isFrozen(first.characters)).toBeTrue();
+    });
+
+    it('does not turn an empty serialized conflict shell into a live tactical position', function() {
+        const builder = new PerspectiveSnapshotBuilder();
+        const shell = { ...playerState(), conflict: {
+            id: 'conflict', attackerSkill: 0, defenderSkill: 0, provinceStrength: 0, breakThreshold: 0
+        } };
+        const inactive = builder.build({ playerState: shell, botName: 'Bot', context: { roundNumber: 2 } }, {
+            informationMode: 'fair', conflictId: 'conflict'
+        });
+        const live = playerState();
+        live.players.Bot.id = 'bot-id';
+        live.players.Opponent.id = 'opponent-id';
+        live.players.Opponent.provinces.one[0].inConflict = true;
+        const active = builder.build({ playerState: { ...live, conflict: {
+            id: 'conflict', attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+            type: 'military', elements: ['fire'], attackerSkill: 3, defenderSkill: 2
+        } }, botName: 'Bot', context: { roundNumber: 2 } }, { informationMode: 'fair' });
+
+        expect(inactive.conflict).toBeUndefined();
+        expect(inactive.scopes.conflictId).toBeUndefined();
+        expect(active.conflict).toEqual(jasmine.objectContaining({
+            attackerId: 'Bot', defenderId: 'Opponent', provinceLocation: 'province 1',
+            ring: 'fire', attackerSkill: 3, defenderSkill: 2, provinceStrength: 4,
+            breakThreshold: 4
+        }));
+    });
+
+    it('merges exact public controller participant identities into the immutable snapshot', function() {
+        const state = playerState();
+        state.conflict = {
+            id: 'c1', attackerId: 'Bot', defenderId: 'Opponent', type: 'military',
+            provinceLocation: 'province 1', attackerSkill: 4, defenderSkill: 2,
+            provinceStrength: 4, breakThreshold: 4
+        };
+        state.players.Opponent.cardPiles.cardsInPlay[0].attachments = [{
+            uuid: 'enemy-attachment', id: 'fine-katana', type: 'attachment'
+        }];
+        const snapshot = new PerspectiveSnapshotBuilder().build({
+            playerState: state, botName: 'Bot', context: {
+                roundNumber: 2,
+                legalAttachmentTargetUuidsBySource: { source: ['enemy-attachment'] },
+                conflictPlanningCharacters: {
+                    self: [{ uuid: 'own-character', military: 4, political: 5, ready: true, inConflict: true,
+                        legalMilitary: true, legalPolitical: false, covert: true, bowsAfterConflict: false }],
+                    opponent: [{ uuid: 'enemy-character', military: 2, political: 2, ready: false, inConflict: true,
+                        legalMilitary: false, legalPolitical: false, covert: false, bowsAfterConflict: true,
+                        attachments: [{ uuid: 'enemy-attachment', militaryBonus: 2, politicalBonus: 0, printedCost: 0 }] }]
+                }
+            }
+        }, { informationMode: 'fair' });
+
+        expect(snapshot.characters.find((character) => character.instanceId === 'own-character')).toEqual(jasmine.objectContaining({
+            controllerId: 'Bot', military: 4, political: 5, participating: true, attacking: true,
+            defending: false, ready: true, bowed: false, canAttackPolitical: false, covert: true,
+            noBowAfterConflict: true
+        }));
+        expect(snapshot.characters.find((character) => character.instanceId === 'enemy-character')).toEqual(jasmine.objectContaining({
+            controllerId: 'Opponent', participating: true, attacking: false, defending: true,
+            ready: false, bowed: true,
+            attachments: [jasmine.objectContaining({
+                instanceId: 'enemy-attachment', militaryBonus: 2, politicalBonus: 0, printedCost: 0
+            })]
+        }));
+        expect(snapshot.legalAttachmentTargetIdsBySource).toEqual({ source: ['enemy-attachment'] });
+        expect(Object.isFrozen(snapshot.legalAttachmentTargetIdsBySource.source)).toBeTrue();
     });
 
     it('resets conflict, phase, and round ledger scopes explicitly', function() {

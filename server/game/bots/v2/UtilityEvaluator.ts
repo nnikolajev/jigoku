@@ -10,6 +10,13 @@ import {
     type UtilityWeights
 } from './model/Utility';
 import { immutable } from './model/Stable';
+import {
+    exactConflictContribution,
+    hasDirectStrongholdBreak,
+    requiredConflictContribution,
+    requiredStrongholdContribution
+} from './ConflictThresholds';
+import { characterMaterialValue } from './BoardValue';
 
 export interface CandidateScoreAdjustment {
     readonly candidateId?: string;
@@ -31,18 +38,34 @@ export interface UtilityProfile {
     };
 }
 
-function targetIsStronghold(candidate: BotActionCandidate): boolean {
-    return candidate.targets.some((target: any) => target.kind === 'province' && target.location === 'stronghold province') ||
-        candidate.effects.some((effect: any) => effect.kind === 'province' && effect.location === 'stronghold province' && effect.break);
+function exactResourceCost(candidate: BotActionCandidate): number {
+    return Math.max(0, candidate.costs.fate || 0) + Math.max(0, candidate.costs.cards || 0) +
+        Math.max(0, candidate.costs.honor || 0);
+}
+
+export function semanticCandidateOrderKey(candidate: BotActionCandidate): string {
+    const source = candidate.source?.cardId || candidate.source?.location || candidate.source?.instanceId || '';
+    const targets = candidate.targets.map((target: any) => [
+        target.kind, target.cardId || target.location || target.element || target.id || target.instanceId || '',
+        target.controllerId || ''
+    ].join(':')).join('|');
+    return [candidate.kind, source, candidate.mode || '', targets,
+        candidate.commandPreview.command, candidate.commandPreview.target || ''].join('|');
 }
 
 function terminalRank(state: PlanningState, candidate: BotActionCandidate): number {
-    const strongholdThreat = state.conflict?.defenderId === state.perspectivePlayerId &&
-        state.conflict.provinceLocation === 'stronghold province';
-    if(targetIsStronghold(candidate) && candidate.tags.includes('offense')) return 5;
-    if(strongholdThreat && candidate.tags.includes('defense')) return 4;
-    if(candidate.tags.includes('terminal') && candidate.tags.includes('offense')) return 3;
-    if(candidate.tags.includes('terminal') && candidate.tags.includes('defense')) return 2;
+    const contribution = exactConflictContribution(state, candidate);
+    const strongholdRequired = requiredStrongholdContribution(state);
+    const conflictRequired = requiredConflictContribution(state);
+    if(candidate.tags.includes('offense') && hasDirectStrongholdBreak(candidate)) return 5;
+    if(strongholdRequired > 0 && contribution >= strongholdRequired) {
+        if(state.conflict?.attackerId === state.perspectivePlayerId && candidate.tags.includes('offense')) return 5;
+        if(state.conflict?.defenderId === state.perspectivePlayerId && candidate.tags.includes('defense')) return 4;
+    }
+    if(conflictRequired > 0 && contribution >= conflictRequired && candidate.tags.includes('terminal')) {
+        if(candidate.tags.includes('offense')) return 3;
+        if(candidate.tags.includes('defense')) return 2;
+    }
     return 1;
 }
 
@@ -50,6 +73,10 @@ export function compareScored(left: { candidate: BotActionCandidate; score: Scor
     right: { candidate: BotActionCandidate; score: ScoredUtility }): number {
     return right.score.terminalRank - left.score.terminalRank ||
         right.score.scalar - left.score.scalar ||
+        exactResourceCost(left.candidate) - exactResourceCost(right.candidate) ||
+        right.candidate.confidence - left.candidate.confidence ||
+        left.candidate.uncertainty - right.candidate.uncertainty ||
+        semanticCandidateOrderKey(left.candidate).localeCompare(semanticCandidateOrderKey(right.candidate)) ||
         left.candidate.id.localeCompare(right.candidate.id);
 }
 
@@ -73,21 +100,98 @@ export default class UtilityEvaluator {
         }
         for(const effect of candidate.effects) {
             if(effect.kind === 'skill') {
-                const raw = Math.max(0, effect.military || 0) + Math.max(0, effect.political || 0);
                 const conflict = state.conflict;
-                const required = conflict
-                    ? Math.max(0, conflict.defenderSkill - conflict.attackerSkill + Math.max(1, conflict.breakThreshold))
-                    : raw;
+                const rawForType = conflict?.type === 'political'
+                    ? Math.max(0, effect.political || 0)
+                    : conflict?.type === 'military'
+                        ? Math.max(0, effect.military || 0)
+                        : Math.max(0, effect.military || 0) + Math.max(0, effect.political || 0);
+                const target: any = effect.target;
+                const targetCharacter = target?.instanceId
+                    ? state.characters.find((entry) => entry.instanceId === target.instanceId)
+                    : undefined;
+                const exactTargetRelevant = !target || target.kind !== 'character' ||
+                    !!targetCharacter?.participating && targetCharacter.controllerId === state.perspectivePlayerId;
+                const raw = exactTargetRelevant ? rawForType : 0;
+                const required = !conflict ? raw
+                    : conflict.attackerId === state.perspectivePlayerId
+                        ? Math.max(0, conflict.defenderSkill - conflict.attackerSkill + Math.max(1, conflict.breakThreshold))
+                        : conflict.defenderId === state.perspectivePlayerId
+                            ? Math.max(0, conflict.attackerSkill - conflict.defenderSkill + 1)
+                            : 0;
                 const useful = Math.min(raw, required || raw);
                 const surplus = Math.max(0, raw - useful);
                 vector = addUtility(vector, { conflictOutcome: useful + surplus * 0.2, waste: -surplus * 0.8 });
-                explanation.push(`skill:useful=${useful},surplus=${surplus}`);
+                explanation.push(`skill:useful=${useful},surplus=${surplus},required=${required}`);
             } else if(effect.kind === 'bow' || effect.kind === 'remove') {
-                vector = addUtility(vector, { boardNow: 3, conflictOutcome: 2 });
-                explanation.push(`${effect.kind}-control`);
+                const target: any = effect.target;
+                const character = target?.instanceId
+                    ? state.characters.find((entry) => entry.instanceId === target.instanceId)
+                    : undefined;
+                const attachmentParent = target?.instanceId
+                    ? state.characters.find((entry) => entry.attachments?.some((attachment) =>
+                        attachment.instanceId === target.instanceId))
+                    : undefined;
+                const attachment = attachmentParent?.attachments.find((entry) =>
+                    entry.instanceId === target.instanceId);
+                if(character) {
+                    const opponent = character.controllerId !== state.perspectivePlayerId;
+                    const sign = opponent ? 1 : -1;
+                    const relevantSkill = state.conflict?.type === 'political'
+                        ? character.political : character.military;
+                    const current = character.participating && !character.bowed ? Math.max(0, relevantSkill) : 0;
+                    const material = characterMaterialValue(state, character);
+                    const future = effect.kind === 'remove' ? Math.max(0, material - current * 2) : 0;
+                    vector = addUtility(vector, {
+                        boardNow: sign * (current + (effect.kind === 'remove' ? 1 : 0)),
+                        boardFuture: sign * future * 0.5,
+                        conflictOutcome: sign * current
+                    });
+                    explanation.push(`${effect.kind}:${opponent ? 'opponent' : 'friendly'}:current=${current},material=${material}${effect.cost ? ':cost' : ''}`);
+                } else if(effect.kind === 'remove' && attachmentParent && attachment) {
+                    const opponent = attachmentParent.controllerId !== state.perspectivePlayerId;
+                    const sign = opponent ? 1 : -1;
+                    const relevantBonus = state.conflict?.type === 'political'
+                        ? attachment.politicalBonus : attachment.militaryBonus;
+                    const current = attachmentParent.participating && !attachmentParent.bowed
+                        ? Math.max(0, relevantBonus) : 0;
+                    const future = Math.max(0, attachment.militaryBonus) +
+                        Math.max(0, attachment.politicalBonus) + Math.max(0, attachment.printedCost || 0);
+                    vector = addUtility(vector, {
+                        boardNow: sign * (current + 1),
+                        boardFuture: sign * future * 0.5,
+                        conflictOutcome: sign * current
+                    });
+                    explanation.push(`remove:${opponent ? 'opponent' : 'friendly'}-attachment:current=${current},future=${future}`);
+                } else {
+                    vector = addUtility(vector, { boardNow: 0.5, conflictOutcome: 0.5, uncertainty: -1 });
+                    explanation.push(`${effect.kind}:unbound-target`);
+                }
+            } else if(effect.kind === 'move' &&
+                (candidate.kind === 'attacker-set' || candidate.kind === 'defender-set')) {
+                // Declaring a participant consumes future board flexibility;
+                // the set planner scores threshold and preserved board once.
+                explanation.push('participant-commitment');
             } else if(effect.kind === 'ready' || effect.kind === 'move') {
                 vector = addUtility(vector, { boardNow: 2, boardFuture: 1, flexibility: 1 });
                 explanation.push(effect.kind);
+            } else if(effect.kind === 'status') {
+                const target: any = effect.target;
+                const character = target?.instanceId
+                    ? state.characters.find((entry) => entry.instanceId === target.instanceId)
+                    : undefined;
+                const improvesOwn = effect.status === 'honored' &&
+                    character?.controllerId === state.perspectivePlayerId && !character.honored;
+                const weakensOpponent = effect.status === 'dishonored' &&
+                    character?.controllerId !== state.perspectivePlayerId && !character.dishonored;
+                const swing = improvesOwn || weakensOpponent ? Math.max(0, character?.glory || 0) : 0;
+                const current = character?.participating ? swing : 0;
+                vector = addUtility(vector, {
+                    conflictOutcome: current,
+                    boardNow: swing * 0.5,
+                    boardFuture: character && character.fate > 0 ? swing * 0.25 : 0
+                });
+                explanation.push(`status:${effect.status}:swing=${swing},current=${current}`);
             } else if(effect.kind === 'resource') {
                 vector = addUtility(vector, { fate: effect.fate || 0, cards: effect.cards || 0, honor: effect.honor || 0 });
                 explanation.push('resource-effect');
@@ -120,7 +224,13 @@ export default class UtilityEvaluator {
                 explanation.push('extra-conflict');
             }
         }
-        if(candidate.tags.includes('defense')) vector = addUtility(vector, { strongholdSafety: state.conflict?.provinceLocation === 'stronghold province' ? 50 : 2 });
+        if(candidate.tags.includes('defense')) {
+            const strongholdRequired = requiredStrongholdContribution(state);
+            const preventsImmediateBreak = strongholdRequired > 0 &&
+                exactConflictContribution(state, candidate) >= strongholdRequired;
+            vector = addUtility(vector, { strongholdSafety: preventsImmediateBreak ? 50 : 2 });
+            explanation.push(preventsImmediateBreak ? 'stronghold-save:exact-threshold' : 'ordinary-defense');
+        }
         if(candidate.tags.includes('setup')) vector = addUtility(vector, { comboProgress: 2, boardFuture: 1 });
         if(candidate.tags.includes('payoff')) vector = addUtility(vector, { comboProgress: 4 });
         if(candidate.uncertainty > 0) {

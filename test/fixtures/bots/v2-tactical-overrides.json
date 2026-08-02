@@ -1,0 +1,74 @@
+[
+  {
+    "id": "terminal-play",
+    "expectedReason": "terminal-play",
+    "state": { "attackerId": "Bot", "defenderId": "Opponent", "location": "stronghold province", "attackerSkill": 5, "defenderSkill": 4, "breakThreshold": 4, "opponentBroken": 3, "botFate": 3 },
+    "v1": { "command": "menuButton", "args": ["pass", "pass-button"], "target": "Pass" },
+    "expectedArgs": ["winning-blow"],
+    "candidates": [
+      { "name": "pass", "kind": "pass", "command": "menuButton", "args": ["pass", "pass-button"], "target": "Pass", "confidence": 0.99 },
+      { "name": "winning-blow", "kind": "conflict-card", "target": "Winning Blow", "costs": { "cards": 1 }, "tags": ["terminal", "offense", "payoff"], "confidence": 0.99, "targets": [{ "kind": "province", "controllerId": "Opponent", "location": "stronghold province" }], "effects": [{ "kind": "province", "location": "stronghold province", "break": true }] }
+    ]
+  },
+  {
+    "id": "minimum-sufficient-response",
+    "expectedReason": "minimum-sufficient-response",
+    "state": { "attackerId": "Bot", "defenderId": "Opponent", "location": "province 1", "attackerSkill": 3, "defenderSkill": 4, "breakThreshold": 1, "botFate": 3 },
+    "v1": { "command": "cardClicked", "args": ["excess"], "target": "Excess" },
+    "expectedArgs": ["enough"],
+    "candidates": [
+      { "name": "enough", "kind": "conflict-card", "target": "Enough", "costs": { "cards": 1 }, "tags": ["payoff"], "confidence": 0.98, "effects": [{ "kind": "skill", "military": 2, "political": 0, "duration": "conflict", "target": { "kind": "character", "instanceId": "bot-char", "controllerId": "Bot" } }] },
+      { "name": "excess", "kind": "conflict-card", "target": "Excess", "costs": { "cards": 1 }, "tags": ["payoff"], "confidence": 0.98, "effects": [{ "kind": "skill", "military": 8, "political": 0, "duration": "conflict", "target": { "kind": "character", "instanceId": "bot-char", "controllerId": "Bot" } }] }
+    ]
+  },
+  {
+    "id": "resource-preservation",
+    "expectedReason": "resource-preservation",
+    "state": { "attackerId": "Opponent", "defenderId": "Bot", "location": "stronghold province", "attackerSkill": 8, "defenderSkill": 2, "breakThreshold": 5, "botFate": 3 },
+    "v1": { "command": "cardClicked", "args": ["diversion"], "target": "Diversion" },
+    "expectedArgs": ["reserved-defense"],
+    "candidates": [
+      { "name": "reserved-defense", "kind": "conflict-card", "target": "Reserved Defense", "costs": { "fate": 2, "cards": 1 }, "tags": ["terminal", "defense", "payoff"], "confidence": 0.99, "effects": [{ "kind": "skill", "military": 6, "political": 0, "duration": "conflict", "target": { "kind": "character", "instanceId": "bot-char", "controllerId": "Bot" } }] },
+      { "name": "diversion", "kind": "conflict-card", "target": "Diversion", "costs": { "fate": 2, "cards": 1 }, "tags": ["payoff"], "confidence": 0.99, "effects": [{ "kind": "skill", "military": 2, "political": 0, "duration": "conflict", "target": { "kind": "character", "instanceId": "bot-char", "controllerId": "Bot" } }] }
+    ]
+  },
+  {
+    "id": "semantic-setup-payoff",
+    "expectedReason": "semantic-setup-payoff",
+    "state": { "attackerId": "Bot", "defenderId": "Opponent", "location": "province 1", "attackerSkill": 3, "defenderSkill": 4, "breakThreshold": 1, "botFate": 1, "opponentHand": 1 },
+    "v1": { "command": "menuButton", "args": ["pass", "pass-button"], "target": "Pass" },
+    "expectedArgs": ["setup"],
+    "liveSearch": true,
+    "candidates": [
+      { "name": "pass", "kind": "pass", "command": "menuButton", "args": ["pass", "pass-button"], "target": "Pass", "confidence": 0.99 },
+      { "name": "setup", "kind": "in-play-ability", "target": "Setup", "tags": ["setup"], "confidence": 0.99, "effects": [{ "kind": "resource", "fate": 2, "cards": 0, "honor": 0, "target": { "kind": "player", "id": "Bot" } }] },
+      { "name": "payoff", "kind": "conflict-card", "target": "Payoff", "costs": { "fate": 3, "cards": 1 }, "tags": ["payoff"], "confidence": 0.99, "effects": [{ "kind": "skill", "military": 6, "political": 0, "duration": "conflict", "target": { "kind": "character", "instanceId": "bot-char", "controllerId": "Bot" } }] }
+    ]
+  },
+  {
+    "id": "joint-dynasty-package",
+    "expectedReason": "resource-preservation",
+    "state": { "phase": "dynasty", "botFate": 5, "packageValue": 12 },
+    "v1": { "command": "menuButton", "args": ["pass", "pass-button"], "target": "Pass" },
+    "expectedArgs": ["package-body"],
+    "candidates": [
+      { "name": "pass", "kind": "pass", "command": "menuButton", "args": ["pass", "pass-button"], "target": "Pass", "confidence": 0.99 },
+      { "name": "package-body", "kind": "dynasty-purchase", "target": "Package Body", "costs": { "fate": 2, "additionalFate": 1 }, "tags": ["economy", "setup"], "confidence": 0.99 }
+    ]
+  },
+  {
+    "id": "durable-free-attachment",
+    "expectedReason": "semantic-setup-payoff",
+    "state": { "attackerId": "Bot", "defenderId": "Opponent", "location": "province 1", "attackerSkill": 5, "defenderSkill": 0, "breakThreshold": 4, "botFate": 1, "botCharacterFate": 2 },
+    "v1": { "command": "menuButton", "args": ["pass", "pass-button"], "target": "Pass" },
+    "expectedArgs": ["fine-katana"],
+    "liveSearch": true,
+    "candidates": [
+      { "name": "pass", "kind": "pass", "command": "menuButton", "args": ["pass", "pass-button"], "target": "Pass", "confidence": 0.99 },
+      { "name": "fine-katana", "kind": "conflict-card", "target": "Fine Katana", "costs": { "cards": 1 }, "tags": ["attachment", "setup"], "confidence": 0.99, "effects": [
+        { "kind": "attachment", "cardId": "fine-katana", "target": { "kind": "character", "instanceId": "bot-char", "controllerId": "Bot" } },
+        { "kind": "skill", "military": 2, "political": 0, "duration": "while-attached", "target": { "kind": "character", "instanceId": "bot-char", "controllerId": "Bot" } }
+      ] }
+    ]
+  }
+]

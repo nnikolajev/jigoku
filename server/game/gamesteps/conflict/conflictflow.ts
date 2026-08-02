@@ -29,6 +29,16 @@ Conflict Resolution
  */
 
 class ConflictFlow extends BaseStepWithPipeline {
+    /**
+     * Offline diagnostic hook: fires once per attacked province at the instant
+     * the game decides whether it breaks. Left null in every shipped
+     * configuration; an analysis tool assigns it to measure how much a holding
+     * or province card actually contributes to holding a province, rather than
+     * pricing it from card text. It observes only — no game state, event, or
+     * ordering depends on it.
+     */
+    static provinceDefenseProbe: ((event: Record<string, unknown>) => void) | null = null;
+
     conflict: any;
     canPass: boolean;
     covert: any[];
@@ -850,11 +860,36 @@ class ConflictFlow extends BaseStepWithPipeline {
         this.conflict.provinceStrengthsAtResolution.forEach((a: any) => {
             let province = a.province;
             let strength = a.strength === undefined ? province.getStrength() : a.strength;
-            if(
-                this.conflict.isAttackerTheWinner() &&
+            const broke = this.conflict.isAttackerTheWinner() &&
                 this.conflict.skillDifference >= strength &&
-                !province.isBroken
-            ) {
+                !province.isBroken;
+            // Offline diagnostic hook, null in every shipped configuration. This
+            // is the one place the game decides whether a province holds, so it
+            // is where a holding's real defensive contribution can be measured
+            // instead of guessed. Observes only.
+            ConflictFlow.provinceDefenseProbe?.({
+                provinceId: province?.id,
+                strength,
+                skillDifference: this.conflict.skillDifference,
+                attackerSkill: this.conflict.attackerSkill,
+                defenderSkill: this.conflict.defenderSkill,
+                attackerCount: this.conflict.getNumberOfParticipantsFor?.(this.conflict.attackingPlayer),
+                defenderCount: this.conflict.getNumberOfParticipantsFor?.(this.conflict.defendingPlayer),
+                attackerWon: this.conflict.isAttackerTheWinner(),
+                alreadyBroken: !!province.isBroken,
+                broke,
+                conflictType: this.conflict.conflictType,
+                defender: this.conflict.defendingPlayer?.name,
+                holdings: (this.game as any).allCards
+                    .filter((card: any) => card?.controller === province.controller &&
+                        (card?.type === 'holding' || card?.getType?.() === 'holding') &&
+                        String(card.location || '') === String(province.location || ''))
+                    .map((card: any) => ({
+                        id: card.id,
+                        strengthBonus: Number(card?.cardData?.strength_bonus) || 0
+                    }))
+            });
+            if(broke) {
                 this.game.applyGameAction(null, { break: province });
             }
         });

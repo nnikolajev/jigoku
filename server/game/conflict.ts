@@ -36,6 +36,7 @@ export class Conflict extends GameObject {
     skillDifference?: number;
     winner?: Player;
     winnerDetermined = false;
+    readonly duelLosers = new Set<BaseCard>();
     winnerSkill?: number;
 
     constructor(
@@ -106,6 +107,17 @@ export class Conflict extends GameObject {
         return defenderCountRestrictions.length === 0 ? -1 : Math.min(...defenderCountRestrictions);
     }
 
+    /**
+     * Characters that have lost a duel during THIS conflict. Storied Defeat is
+     * gated on exactly this set, and it was previously tracked only inside
+     * that card, so nothing else - including a bot - could see it.
+     */
+    recordDuelLoser(card: BaseCard): void {
+        if(card) {
+            this.duelLosers.add(card);
+        }
+    }
+
     getSummary() {
         let effects = this.getEffects(EffectNames.ForceConflictUnopposed);
         let forcedUnopposed = effects.length !== 0;
@@ -124,7 +136,8 @@ export class Conflict extends GameObject {
                 ),
             unopposed: !(this.#defenders && this.#defenders.size > 0 && !forcedUnopposed),
             declarationComplete: this.#declarationComplete,
-            defendersChosen: this.defendersChosen
+            defendersChosen: this.defendersChosen,
+            duelLoserUuids: [...this.duelLosers].map((card) => card.uuid)
         };
     }
 

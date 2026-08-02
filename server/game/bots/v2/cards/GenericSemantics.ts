@@ -121,8 +121,18 @@ export const REPRESENTATIVE_SEMANTICS: readonly CardSemanticModel[] = [
         targetRules: [{ ...ownCharacter, traits: ['cavalry'] }],
         synergies: [{ id: 'ride-on:movement-trigger', role: 'enabler', withTags: ['movement-trigger'], scoreDelta: 2 }]
     },
-    ready('i-am-ready'),
-    status('way-of-the-crane', 'honored', 'self'),
+    // I Am Ready selects a bowed Unicorn as its remove-fate cost and readies
+    // that same character. It is not a generic event followed by a target.
+    semanticAction('i-am-ready', [{ kind: 'ready',
+        conditional: 'remove-fate-from-bowed-unicorn-and-ready-same-character' }], {
+        timings: ['conflict-phase'], targets: [{ kind: 'character', side: 'self' }],
+        planningTags: ['ready'], condition: 'cost-target-is-effect-target', confidence: 0.65
+    }),
+    semanticAction('way-of-the-crane', [{ kind: 'status', status: 'honored',
+        conditional: 'friendly-crane-character' }], {
+        timings: ['conflict-phase'], targets: [{ kind: 'character', side: 'self' }],
+        planningTags: ['honored'], condition: 'target-faction-crane', confidence: 0.75
+    }),
     {
         ...status('court-games', 'honored', 'self'),
         actions: [
@@ -146,7 +156,15 @@ export const REPRESENTATIVE_SEMANTICS: readonly CardSemanticModel[] = [
         actions: [{ ...prevention('clarity-of-purpose', 'bow-after-conflict', 1).actions[0], delayed: true }]
     },
     displayOfPowerSemantic(),
-    duel('game-of-sadane', 'political', 3, 1),
+    // Game of Sadane selects a friendly challenger, then an opposing duel
+    // target, then traverses the duel-bid protocol. One-target expansion is
+    // incomplete and must stay shadow-only.
+    semanticAction('game-of-sadane', [{ kind: 'duel', duelType: 'political', skillDelta: 3,
+        conditional: 'select-challenger-then-opponent-and-resolve-duel' }], {
+        timings: ['conflict'], targets: [{ kind: 'character', side: 'opponent', participating: true }],
+        cost: { fate: 1 }, planningTags: ['duel'],
+        condition: 'multi-target-duel-macro-required', confidence: 0.65
+    }),
     resource('oracle-of-stone', 0, 2, 0),
     reducer('iron-mountain-castle', 1, 'attachment')
 ];

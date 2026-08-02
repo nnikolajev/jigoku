@@ -76,7 +76,7 @@ describe('V2 shadow and confidence gating', function() {
         }));
     });
 
-    it('enables only a high-confidence semantic stronghold defense correction', function() {
+    it('keeps stronghold defender set construction on V1 until a complete set macro exists', function() {
         const fallback = {
             version: 'v1', seedState: 7,
             decide: () => ({ command: 'menuButton', args: ['pass', 'pass-button'], target: 'Pass', reason: 'synthetic-v1-pass' })
@@ -117,11 +117,11 @@ describe('V2 shadow and confidence gating', function() {
         const decision = engine.decide(input);
 
         expect(decision).toEqual(jasmine.objectContaining({
-            command: 'cardClicked', args: ['last-guard'], target: 'Last Guard'
+            command: 'menuButton', args: ['pass', 'pass-button'], target: 'Pass'
         }));
-        expect(engine.lastDecisionTrace.selectedBy).toBe('v2');
-        expect(engine.lastDecisionTrace.fallbackReason).toBeUndefined();
-        expect(engine.lastDecisionTrace.planner.disagreementType).toBe('proven-v2-improvement');
+        expect(engine.lastDecisionTrace.selectedBy).toBe('fallback');
+        expect(engine.lastDecisionTrace.fallbackReason).toBe('below-v2-confidence-gate');
+        expect(engine.lastDecisionTrace.planner.disagreementType).toBe('semantic-gap');
         expect(engine.lastDecisionTrace.planner.candidates.some((candidate) =>
             candidate.kind === 'v1-fallback' && candidate.vetoes.some((entry) => entry.code === 'terminal-loss'))).toBeTrue();
     });
@@ -156,6 +156,47 @@ describe('V2 shadow and confidence gating', function() {
         expect(engine.lastDecisionTrace.planner.fallbackReason).not.toBe('search-budget-exhausted');
     });
 
+    it('uses the cheap V1 path for enabled mechanical prompts before building projections', function() {
+        const configuration = golden.configurations[0];
+        const prompt = golden.prompts.find((entry) => entry.class === 'bid');
+        const direct = new V1PolicyAdapter(configuration.config);
+        const engine = new V2BotEngine(new V1PolicyAdapter(configuration.config), {
+            playerName: golden.botName, ...configuration.config,
+            engineVersion: 'v2', v2Mode: 'enabled', traceLevel: 'benchmark'
+        });
+        const input = inputFor(prompt, configuration);
+
+        expect(engine.decide(input)).toEqual(direct.decide(input));
+        expect(engine.lastDecisionTrace.fallbackReason).toBe('planning-ineligible:mechanical-prompt');
+        expect(engine.lastDecisionTrace.planner).toEqual(jasmine.objectContaining({
+            candidateCount: 0,
+            eligibility: jasmine.objectContaining({ eligible: false, reason: 'mechanical-prompt' })
+        }));
+        expect(engine.lastDecisionTrace.planner.profiling.stageCalls.snapshot).toBe(0);
+        expect(engine.lastDecisionTrace.planner.profiling.stageCalls.eligibility).toBe(1);
+    });
+
+    it('reuses immutable semantic and information projections only for identical shadow inputs', function() {
+        const configuration = golden.configurations[0];
+        const prompt = golden.prompts.find((entry) => entry.class === 'pass');
+        const engine = new V2BotEngine(new V1PolicyAdapter(configuration.config), {
+            playerName: golden.botName, ...configuration.config,
+            engineVersion: 'v2', v2Mode: 'shadow', traceLevel: 'benchmark'
+        });
+        const input = inputFor(prompt, configuration);
+
+        engine.decide(input);
+        expect(engine.lastDecisionTrace.planner.profiling.cache).toEqual({
+            'card-semantics': { hits: 0, misses: 1 },
+            'opponent-information': { hits: 0, misses: 1 }
+        });
+        engine.decide(input);
+        expect(engine.lastDecisionTrace.planner.profiling.cache).toEqual({
+            'card-semantics': { hits: 1, misses: 0 },
+            'opponent-information': { hits: 1, misses: 0 }
+        });
+    });
+
     it('executes a retained semantic macro step before the mechanical V1 fast path', function() {
         const configuration = golden.configurations[0];
         const fallback = new V1PolicyAdapter(configuration.config);
@@ -179,6 +220,11 @@ describe('V2 shadow and confidence gating', function() {
         player.promptTitle = 'Choose a target';
         player.menuTitle = '';
         player.buttons = [];
+        player.selectCard = true;
+        player.cardPiles.cardsInPlay = [
+            ...(player.cardPiles.cardsInPlay || []),
+            { uuid: 'target-uuid', id: 'target-card', type: 'character', location: 'play area', selectable: true }
+        ];
 
         expect(engine.decide(next)).toEqual(jasmine.objectContaining({
             command: 'cardClicked', args: ['target-uuid'], target: 'chosen-character',

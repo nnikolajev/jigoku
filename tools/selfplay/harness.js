@@ -91,6 +91,7 @@ function makeController(game, playerName, seed, trace = false,
             deckProfileId: engineOptions.deckProfileId,
             traceLevel: engineOptions.traceLevel,
             experiments: engineOptions.experiments,
+            v2Profile: engineOptions.v2Profile,
             llm: { enabled: false }
         },
         runCommand
@@ -142,7 +143,8 @@ async function runGame(options = {}) {
             v2Mode: v2Modes[i],
             deckProfileId: deckProfileIds[i],
             traceLevel: traceLevels[i],
-            experiments: experiments[i]
+            experiments: experiments[i],
+            v2Profile: (options.v2Profiles || [])[i]
         }
     ));
     if(options.onControllers) {
@@ -188,7 +190,19 @@ async function runGame(options = {}) {
     let lastSig = signature();
     let noProgress = 0;
     const startedAt = Date.now();
-    const maxGameMs = options.maxGameMs || 30000;
+    // Wall-clock backstop. This is NOT the loop detector - real loops are caught
+    // by the no-progress `stalled` check and by `maxSteps`. Its only job is to
+    // stop one game hanging a batch. Because it is wall clock, it fires on games
+    // that are merely SLOW when workers oversubscribe the CPU: measured, Crab vs
+    // Lion at 24 workers on 18 cores lost 3 of 32 games to this cap and 0 of 40
+    // at 4 workers. Callers running in parallel must scale it.
+    // 30s was tuned before the attacker-allocation rollout and still cut 7 of
+    // 1800 games even at one worker per core; the surviving cases are body-heavy
+    // boards (DragonAttachments vs Lion) that are slow, not stuck. Loops are
+    // caught by `stalled`/`maxSteps` in well under this budget, so a longer
+    // backstop costs nothing but removes the false non-results.
+    const maxGameMs = options.maxGameMs ||
+        Number(process.env.HARNESS_MAX_GAME_MS) || 90000;
 
     while(!game.winner && !state.error && steps < maxSteps) {
         if((game.roundNumber || 0) > maxRounds) {

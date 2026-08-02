@@ -1,6 +1,6 @@
 import { getPlaybookEntry } from '../../CardPlaybook.js';
 import { getCardModel } from '../../DeckAnalysis.js';
-import type { BotActionCandidate, UsageLimit } from '../model/Candidate';
+import type { ActionTag, BotActionCandidate, UsageLimit } from '../model/Candidate';
 import type { DynamicEffectEvaluator, EffectDescriptor } from '../model/Effects';
 import type { PlanningState } from '../model/PlanningState';
 import type { TargetRef } from '../model/References';
@@ -14,6 +14,8 @@ export interface TargetSemantic {
     readonly side: SemanticTargetSide;
     readonly participating?: boolean;
     readonly ready?: boolean;
+    readonly honored?: boolean;
+    readonly dishonored?: boolean;
     readonly traits?: readonly string[];
     readonly maximum?: number;
 }
@@ -24,6 +26,7 @@ export interface CostSemantic {
     readonly cards?: number;
     readonly bowSource?: boolean;
     readonly sacrificeSource?: boolean;
+    readonly sacrificeCharacter?: 'honored' | 'dishonored' | 'any';
     readonly alternative?: string;
 }
 
@@ -98,6 +101,11 @@ export interface SemanticProjection {
     readonly confidence: number;
     readonly notes: readonly string[];
 }
+
+const ACTION_TAGS = new Set<ActionTag>([
+    'terminal', 'defense', 'offense', 'economy', 'setup', 'payoff', 'movement', 'ready',
+    'control', 'cancel', 'reducer', 'attachment', 'ring', 'province', 'duel', 'uncertain', 'fallback'
+]);
 
 function derivedModel(cardId: string): CardSemanticModel | undefined {
     const playbook = getPlaybookEntry(cardId);
@@ -200,6 +208,9 @@ export default class CardSemanticRegistry {
     }
 
     enrich(state: PlanningState, candidate: BotActionCandidate): BotActionCandidate {
+        // Buying a dynasty card is not that card's printed action. Its board and
+        // persistence value belongs to joint resource planning, not action semantics.
+        if(candidate.kind === 'dynasty-purchase') return candidate;
         const cardId = candidate.source?.cardId;
         const model = this.get(cardId);
         if(!model || candidate.effects.length > 0) return candidate;
@@ -207,6 +218,10 @@ export default class CardSemanticRegistry {
         const projection = this.project(cardId, state, candidate);
         return immutable({
             ...candidate,
+            tags: [...new Set([
+                ...candidate.tags,
+                ...(model.planningTags || []).filter((tag): tag is ActionTag => ACTION_TAGS.has(tag as ActionTag))
+            ])],
             effects: projection?.effects || [],
             costs: {
                 ...candidate.costs,

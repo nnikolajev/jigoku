@@ -26,6 +26,7 @@ function usage() {
   --games <even-n>             Games per deck; seats alternate (default 2)
   --rng-seed <n>               Paired deterministic RNG seed
   --include-traces             Include benchmark-level V2 decision traces for regret mining
+  --v2-profile <json|path>     Experimental context.profile.v2 override for V2 seats (gate/weights/search)
   --out <prefix>               JSON/Markdown output prefix
   --require-equivalence        Exit nonzero on any outcome/trace mismatch`;
 }
@@ -68,6 +69,16 @@ function parseArgs(argv = []) {
             options.rngSeed = positiveInteger(argv[++index], arg);
         } else if(arg === '--out') {
             options.outPrefix = path.resolve(argv[++index]);
+        } else if(arg === '--v2-profile') {
+            // Inline JSON or a path to a JSON file merged into context.profile.v2
+            // for every V2 seat (experimental gate/weight/search overrides).
+            const raw = String(argv[++index] || '');
+            const text = fs.existsSync(raw) ? fs.readFileSync(raw, 'utf8') : raw;
+            try {
+                options.v2Profile = JSON.parse(text);
+            } catch(error) {
+                throw new Error(`--v2-profile must be valid JSON or a JSON file path: ${error.message}`);
+            }
         } else if(arg === '--require-equivalence') {
             options.requireEquivalence = true;
         } else if(arg === '--include-traces') {
@@ -243,6 +254,7 @@ async function replay(options, deck, deckIndex, gameIndex, candidateVersion) {
         deckB: loader(),
         engineVersions: versions,
         v2Modes: versions.map((version) => version === 'v2' ? options.v2Mode : undefined),
+        v2Profiles: versions.map((version) => version === 'v2' ? options.v2Profile : undefined),
         omniscient,
         traceLevels: versions.map((version) => version === 'v2'
             ? options.includeTraces ? 'research' : 'benchmark'
@@ -266,8 +278,13 @@ function emptyPlannerMetrics() {
         plannerErrors: 0, planChurn: 0, tacticalCorrections: 0,
         thresholdQualifiedPreferences: 0, provenDisagreements: 0,
         likelyDisagreements: 0, uncertainDisagreements: 0,
-        scoringGaps: 0, semanticGaps: 0, v1Preferred: 0, agreements: 0
+        scoringGaps: 0, semanticGaps: 0, v1Preferred: 0, agreements: 0,
+        stageMs: {}, stageCalls: {}, cacheHits: {}, cacheMisses: {}
     };
+}
+
+function numericPlannerMetricKeys() {
+    return Object.entries(emptyPlannerMetrics()).filter(([, value]) => typeof value === 'number').map(([key]) => key);
 }
 
 function collectPlannerMetrics(entries = []) {
@@ -280,6 +297,16 @@ function collectPlannerMetrics(entries = []) {
         metrics.decisions++;
         metrics.plannerMs += Number(entry.durationMs) || 0;
         metrics.searchedNodes += Number(planner.budget?.searchedNodes) || 0;
+        for(const [stage, duration] of Object.entries(planner.profiling?.stageDurationsMs || {})) {
+            metrics.stageMs[stage] = (metrics.stageMs[stage] || 0) + (Number(duration) || 0);
+        }
+        for(const [stage, calls] of Object.entries(planner.profiling?.stageCalls || {})) {
+            metrics.stageCalls[stage] = (metrics.stageCalls[stage] || 0) + (Number(calls) || 0);
+        }
+        for(const [kind, cache] of Object.entries(planner.profiling?.cache || {})) {
+            metrics.cacheHits[kind] = (metrics.cacheHits[kind] || 0) + (Number(cache.hits) || 0);
+            metrics.cacheMisses[kind] = (metrics.cacheMisses[kind] || 0) + (Number(cache.misses) || 0);
+        }
         if(entry.selectedBy === 'fallback') metrics.fallbackDecisions++;
         if(entry.selectedBy === 'v2') metrics.v2Decisions++;
         if(planner.budget?.exhausted || entry.fallbackReason === 'search-budget-exhausted') metrics.budgetExhaustions++;
@@ -316,7 +343,17 @@ function collectPlannerMetrics(entries = []) {
 
 function addPlannerMetrics(target, entries) {
     const metrics = collectPlannerMetrics(entries);
-    for(const key of Object.keys(metrics)) target[key] += metrics[key];
+    for(const key of numericPlannerMetricKeys()) target[key] += metrics[key];
+    for(const [stage, duration] of Object.entries(metrics.stageMs)) {
+        target.stageMs[stage] = (target.stageMs[stage] || 0) + duration;
+    }
+    for(const [stage, calls] of Object.entries(metrics.stageCalls)) {
+        target.stageCalls[stage] = (target.stageCalls[stage] || 0) + calls;
+    }
+    for(const kind of new Set([...Object.keys(metrics.cacheHits), ...Object.keys(metrics.cacheMisses)])) {
+        target.cacheHits[kind] = (target.cacheHits[kind] || 0) + (metrics.cacheHits[kind] || 0);
+        target.cacheMisses[kind] = (target.cacheMisses[kind] || 0) + (metrics.cacheMisses[kind] || 0);
+    }
 }
 
 function finalizePlannerMetrics(target) {
@@ -325,6 +362,15 @@ function finalizePlannerMetrics(target) {
     target.meanPlannerMs = target.decisions ? target.plannerMs / target.decisions : 0;
     target.planChurnRate = target.decisions ? target.planChurn / target.decisions : 0;
     target.tacticalCorrectionRate = target.decisions ? target.tacticalCorrections / target.decisions : 0;
+    target.meanStageMsPerDecision = Object.fromEntries(Object.entries(target.stageMs)
+        .map(([stage, duration]) => [stage, target.decisions ? duration / target.decisions : 0]));
+    target.meanStageMsPerCall = Object.fromEntries(Object.entries(target.stageMs)
+        .map(([stage, duration]) => [stage, target.stageCalls[stage] ? duration / target.stageCalls[stage] : 0]));
+    target.cacheHitRate = Object.fromEntries([...new Set([...Object.keys(target.cacheHits), ...Object.keys(target.cacheMisses)])]
+        .map((kind) => {
+            const attempts = (target.cacheHits[kind] || 0) + (target.cacheMisses[kind] || 0);
+            return [kind, attempts ? (target.cacheHits[kind] || 0) / attempts : 0];
+        }));
 }
 
 function markdown(report) {
@@ -347,6 +393,8 @@ function markdown(report) {
         `Fallback rate: ${percent(report.totals.fallbackRate)}; plan churn ${report.totals.planChurn}/${report.totals.decisions}; tactical corrections ${report.totals.tacticalCorrections}.`,
         `Evidence gate: ${report.totals.thresholdQualifiedPreferences} preference(s) met confidence >= 0.90 and score advantage >= 3; disagreements proven/likely/uncertain/scoring/semantic/V1-preferred/agreement: ${report.totals.provenDisagreements}/${report.totals.likelyDisagreements}/${report.totals.uncertainDisagreements}/${report.totals.scoringGaps}/${report.totals.semanticGaps}/${report.totals.v1Preferred}/${report.totals.agreements}.`,
         `Planner: ${report.totals.meanNodesPerDecision.toFixed(1)} nodes/decision, ${report.totals.meanPlannerMs.toFixed(2)} ms/decision, ${report.totals.budgetExhaustions} budget exhaustion(s), ${report.totals.plannerErrors} planner error(s). Runtime candidate/control: ${report.totals.meanCandidateMs.toFixed(1)}/${report.totals.meanControlMs.toFixed(1)} ms/game.`,
+        `Planner stages (ms/decision): ${Object.entries(report.totals.meanStageMsPerDecision).sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])).map(([stage, duration]) => `${stage} ${duration.toFixed(3)}`).join('; ') || 'none'}.`,
+        `Projection-cache hit rates: ${Object.entries(report.totals.cacheHitRate).sort(([left], [right]) => left.localeCompare(right)).map(([kind, rate]) => `${kind} ${percent(rate)}`).join('; ') || 'none'}.`,
         ''
     );
     return `${lines.join('\n')}\n`;
@@ -426,8 +474,18 @@ async function main() {
     }
     const totals = rows.reduce((total, row) => {
         for(const key of ['wins', 'losses', 'other', 'played', 'outcomeEquivalent', 'traceEquivalent', 'candidateMs', 'controlMs',
-            ...Object.keys(emptyPlannerMetrics())]) {
+            ...numericPlannerMetricKeys()]) {
             total[key] += row[key];
+        }
+        for(const [stage, duration] of Object.entries(row.stageMs)) {
+            total.stageMs[stage] = (total.stageMs[stage] || 0) + duration;
+        }
+        for(const [stage, calls] of Object.entries(row.stageCalls)) {
+            total.stageCalls[stage] = (total.stageCalls[stage] || 0) + calls;
+        }
+        for(const kind of new Set([...Object.keys(row.cacheHits), ...Object.keys(row.cacheMisses)])) {
+            total.cacheHits[kind] = (total.cacheHits[kind] || 0) + (row.cacheHits[kind] || 0);
+            total.cacheMisses[kind] = (total.cacheMisses[kind] || 0) + (row.cacheMisses[kind] || 0);
         }
         return total;
     }, { wins: 0, losses: 0, other: 0, played: 0, outcomeEquivalent: 0, traceEquivalent: 0, candidateMs: 0, controlMs: 0, ...emptyPlannerMetrics() });
@@ -475,4 +533,4 @@ if(require.main === module) {
     });
 }
 
-module.exports = { collectPlannerMetrics, firstTraceDifference, markdown, normalizedTrace, parseArgs, seededRandom, wilson };
+module.exports = { collectPlannerMetrics, finalizePlannerMetrics, firstTraceDifference, markdown, normalizedTrace, parseArgs, seededRandom, wilson };

@@ -1,5 +1,6 @@
 const {
     collectPlannerMetrics,
+    finalizePlannerMetrics,
     firstTraceDifference,
     normalizedTrace,
     parseArgs,
@@ -80,7 +81,12 @@ describe('compareBotVersions', function() {
             fallbackReason: 'search-budget-exhausted',
             planner: {
                 intentId: 'a', disagreementType: 'v1-preferred', confidence: 0.95, scoreGap: 4,
-                budget: { searchedNodes: 10, exhausted: true }
+                budget: { searchedNodes: 10, exhausted: true },
+                profiling: {
+                    stageDurationsMs: { snapshot: 1.25, 'utility-scoring': 0.5 },
+                    stageCalls: { snapshot: 1, 'utility-scoring': 1 },
+                    cache: { 'card-semantics': { hits: 1, misses: 2 } }
+                }
             }
         }, {
             engineVersion: 'v2', selectedBy: 'v2', durationMs: 3,
@@ -97,5 +103,13 @@ describe('compareBotVersions', function() {
             planChurn: 1, tacticalCorrections: 1, thresholdQualifiedPreferences: 1,
             provenDisagreements: 1, v1Preferred: 1
         }));
+        expect(metrics.stageMs).toEqual({ snapshot: 1.25, 'utility-scoring': 0.5 });
+        expect(metrics.stageCalls).toEqual({ snapshot: 1, 'utility-scoring': 1 });
+        expect(metrics.cacheHits).toEqual({ 'card-semantics': 1 });
+        expect(metrics.cacheMisses).toEqual({ 'card-semantics': 2 });
+        finalizePlannerMetrics(metrics);
+        expect(metrics.meanStageMsPerDecision).toEqual({ snapshot: 0.625, 'utility-scoring': 0.25 });
+        expect(metrics.meanStageMsPerCall).toEqual({ snapshot: 1.25, 'utility-scoring': 0.5 });
+        expect(metrics.cacheHitRate['card-semantics']).toBeCloseTo(1 / 3, 8);
     });
 });

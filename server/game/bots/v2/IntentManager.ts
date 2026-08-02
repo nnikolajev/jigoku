@@ -179,6 +179,14 @@ export default class IntentManager {
         return !!this.macro && !!this.macroProgress;
     }
 
+    get activeMacroId(): string | undefined {
+        return this.macro?.id;
+    }
+
+    get activeMacroStartedAtSignature(): string | undefined {
+        return this.macro?.startedAtSignature;
+    }
+
     setMacro(macro: ActionMacro, progress?: MacroProgress): void {
         this.macro = macro;
         this.macroProgress = progress || { macroId: macro.id, completedStepIds: [] };

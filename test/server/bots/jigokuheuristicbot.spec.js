@@ -5438,4 +5438,68 @@ describe('Jigoku heuristic bot', function() {
         expect(game.continue).toHaveBeenCalled();
         expect(controller.trace[0].result).toBe('success');
     });
+
+    // The Pursuit of Justice reads "during a conflict at a water province",
+    // and CardAction.checkProvinceCondition tests the CONFLICT province's
+    // element rather than identity with the card, so it is live at either
+    // player's water province. Its target condition is isParticipating(), so
+    // the only readyable characters are participants bowed mid-conflict (by an
+    // effect, or moved in already bowed) - participants do not bow on
+    // declaration in this ruleset, they bow on returning home.
+    describe('The Pursuit of Justice', function() {
+        const province = () => ({
+            uuid: 'justice', id: 'the-pursuit-of-justice', name: 'The Pursuit of Justice',
+            type: 'province', isProvince: true, facedown: false, location: 'province 2'
+        });
+        const participant = (uuid, bowed, mil) => ({
+            uuid: uuid, name: uuid, id: uuid, type: 'character', bowed: bowed, inConflict: true,
+            location: 'play area', militarySkillSummary: { stat: String(mil) },
+            politicalSkillSummary: { stat: '0' }
+        });
+        const stateWith = (characters) => ({
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', id: 'BOT', phase: 'conflict',
+                    promptTitle: 'Conflict Action Window', menuTitle: 'Choose a card to play',
+                    buttons: [{ text: 'Pass', arg: 'pass', uuid: 'p' }],
+                    provinces: { 'province 2': [province()] },
+                    cardPiles: { cardsInPlay: characters, hand: [] },
+                    stats: { fate: 0, honor: 10 }
+                },
+                'Human': { name: 'Human', id: 'HUMAN', cardPiles: { cardsInPlay: [] }, stats: { fate: 0, honor: 10 } }
+            },
+            conflict: { attackingPlayerId: 'BOT', defendingPlayerId: 'HUMAN', type: 'military' }
+        });
+        const hint = (id) => id === 'the-pursuit-of-justice'
+            ? require('../../../build/server/game/bots/CardPlaybook').getPlaybookEntry('the-pursuit-of-justice')
+            : undefined;
+
+        it('fires at a water conflict province when a participant is bowed', function() {
+            const decision = new JigokuBotPolicy('bot').decide(
+                stateWith([participant('bowedBig', true, 5), participant('readyOne', false, 3)]),
+                'Jigoku Bot',
+                { cardHint: hint, conflictProvinceElements: ['water'] }
+            );
+            expect(decision.command).toBe('cardClicked');
+            expect(decision.args[0]).toBe('justice');
+        });
+
+        it('does not fire at a non-water conflict province', function() {
+            const decision = new JigokuBotPolicy('bot').decide(
+                stateWith([participant('bowedBig', true, 5)]),
+                'Jigoku Bot',
+                { cardHint: hint, conflictProvinceElements: ['fire'] }
+            );
+            expect(decision.args && decision.args[0]).not.toBe('justice');
+        });
+
+        it('does not fire when no participant is bowed', function() {
+            const decision = new JigokuBotPolicy('bot').decide(
+                stateWith([participant('readyOne', false, 3)]),
+                'Jigoku Bot',
+                { cardHint: hint, conflictProvinceElements: ['water'] }
+            );
+            expect(decision.args && decision.args[0]).not.toBe('justice');
+        });
+    });
 });

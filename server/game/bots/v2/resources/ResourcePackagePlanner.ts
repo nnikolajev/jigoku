@@ -181,11 +181,19 @@ export default class ResourcePackagePlanner {
 
     annotate(candidates: readonly BotActionCandidate[], plan: JointResourcePlan): readonly BotActionCandidate[] {
         const preferred = new Set(plan.preferredCandidateIds);
+        const selectedPackages = [plan.selectedDynasty, plan.selectedConflict].filter((pkg): pkg is ResourcePackage => !!pkg);
         return immutable(candidates.map((candidate) => {
             if(!preferred.has(candidate.id)) return candidate;
+            const selectedPackage = selectedPackages.find((pkg) => pkg.candidateIds.includes(candidate.id));
+            const packageShare = selectedPackage ? selectedPackage.expectedValue / Math.max(1, selectedPackage.candidateIds.length) : 0;
             const annotation: CandidateAnnotation = {
                 proposer: 'resource-package-planner', note: 'member-of-selected-joint-package',
-                scoreDelta: { comboProgress: 2, flexibility: 1 } as Partial<UtilityVector>
+                scoreDelta: {
+                    boardNow: candidate.kind === 'dynasty-purchase' ? Math.min(3, packageShare * 0.25) : 0,
+                    boardFuture: Math.min(12, packageShare),
+                    comboProgress: 2,
+                    flexibility: 1
+                } as Partial<UtilityVector>
             };
             return { ...candidate, annotations: [...(candidate.annotations || []), annotation] };
         })) as readonly BotActionCandidate[];

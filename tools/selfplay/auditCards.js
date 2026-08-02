@@ -250,6 +250,10 @@ function analyzeRow(row, minimumSeen) {
             id: card.id, name: card.name, type: card.type, side: card.side,
             playExpected, abilityExpected, available, playUses, abilityUses,
             clicks: row.clicks[card.id] || 0, reasons: row.reasons[card.id] || {},
+            // Engine ground truth (see _cardUsageWorker.js): only moves when the
+            // ability/play actually reached its initiation window.
+            resolvedAbilities: row.resolvedAbilities?.[card.id] || 0,
+            resolvedPlays: row.resolvedPlays?.[card.id] || 0,
             semanticStages: Object.fromEntries(SEMANTIC_STAGES.map((stage) => [stage, row.semanticStages[stage][card.id] || 0])),
             playStatus: !playExpected ? 'not-required' : playUses > 0 ? 'covered' :
                 playAvailability >= minimumSeen ? 'candidate' : 'unseen',
@@ -284,6 +288,7 @@ function summarize(options, jobResults) {
                     seed, mode, deck, engineVersion: options.engineVersion, v2Mode: options.v2Mode,
                     games: 0, wins: 0, losses: 0, other: 0,
                     failedJobs: [], clicks: {}, plays: {}, abilities: {}, reasons: {},
+                    resolvedAbilities: {}, resolvedPlays: {},
                     semanticStages: Object.fromEntries(SEMANTIC_STAGES.map((stage) => [stage, {}])),
                     availableGames: { hand: {}, province: {}, play: {}, selectable: {}, sourceSelectable: {} },
                     cardList
@@ -301,7 +306,7 @@ function summarize(options, jobResults) {
             row[key] += job.result[key] || 0;
         }
         row.failedJobs.push(...(job.result.failed || []).map((failure) => ({ opponent: job.opponent, ...failure })));
-        for(const key of ['clicks', 'plays', 'abilities']) {
+        for(const key of ['clicks', 'plays', 'abilities', 'resolvedAbilities', 'resolvedPlays']) {
             addCounts(row[key], job.result[key]);
         }
         addReasons(row.reasons, job.result.reasons);
@@ -336,6 +341,7 @@ function summarizeDeckCoverage(rows, minimumSeen) {
                     playExpected: card.playExpected, abilityExpected: card.abilityExpected,
                     available: { hand: 0, province: 0, play: 0, selectable: 0, sourceSelectable: 0 },
                     playUses: 0, abilityUses: 0, clicks: 0,
+                    resolvedAbilities: 0, resolvedPlays: 0,
                     semanticStages: Object.fromEntries(SEMANTIC_STAGES.map((stage) => [stage, 0]))
                 };
                 deck.cards.set(card.id, total);
@@ -346,6 +352,8 @@ function summarizeDeckCoverage(rows, minimumSeen) {
             total.playUses += card.playUses;
             total.abilityUses += card.abilityUses;
             total.clicks += card.clicks;
+            total.resolvedAbilities += card.resolvedAbilities || 0;
+            total.resolvedPlays += card.resolvedPlays || 0;
             for(const stage of SEMANTIC_STAGES) total.semanticStages[stage] += card.semanticStages?.[stage] || 0;
         }
     }

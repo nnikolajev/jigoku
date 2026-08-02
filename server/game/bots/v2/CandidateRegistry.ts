@@ -137,7 +137,11 @@ export class GenericPromptContributor implements CandidateContributor {
             }));
         }
         const visible = cards(rawState);
-        const selectable = visible.filter((card) => card.selectable && card.uuid);
+        // Conflict prompt semantics are stricter than the serializer's broad
+        // `selectable` flag. The conflict contributor owns those prompts so a
+        // playable hand card cannot masquerade as a declaration/target choice.
+        const specializedConflictPrompt = /conflict|attacker|defender|reaction|interrupt|action window|initiate an action/.test(title);
+        const selectable = specializedConflictPrompt ? [] : visible.filter((card) => card.selectable && card.uuid);
         for(const card of selectable) {
             const target = targetRef(card, context.state.perspectivePlayerId);
             const kind: BotActionKind = /mulligan/.test(title) ? 'mulligan'
@@ -175,7 +179,8 @@ export class DynastyContributor implements CandidateContributor {
     contribute(context: CandidateCollectionContext): readonly BotActionCandidate[] {
         const rawState = context.input.playerState || {};
         const me = rawState.players?.[context.state.perspectivePlayerId] || {};
-        if(me.promptTitle !== 'Play cards from provinces' && me.menuTitle !== 'Initiate an action') return [];
+        if(context.state.phase !== 'dynasty' ||
+            (me.promptTitle !== 'Play cards from provinces' && me.menuTitle !== 'Initiate an action')) return [];
         const costs = context.input.context?.dynastyCosts || {};
         const fate = context.state.players[context.state.perspectivePlayerId]?.fate || 0;
         const legalDirect = context.input.context?.legalDirectCardUuids;
@@ -198,7 +203,10 @@ export class DynastyContributor implements CandidateContributor {
                     macro: macroForDynasty(card, additionalFate, context.state),
                     costs: { fate: cost + additionalFate, additionalFate }, effects: [],
                     prerequisites: [{ id: 'affordable', description: 'purchase package is affordable', satisfied: true }],
-                    tags: ['economy'], limits: [], uncertainty: 0.25, confidence: 0.8, proposer: this.id
+                    tags: ['economy'], limits: [],
+                    uncertainty: legalSet ? 0.05 : 0.25,
+                    confidence: legalSet ? 0.95 : 0.8,
+                    proposer: this.id
                 }));
             }
         }
@@ -226,21 +234,43 @@ export class ConflictContributor implements CandidateContributor {
     contribute(context: CandidateCollectionContext): readonly BotActionCandidate[] {
         const rawState = context.input.playerState || {};
         const me = rawState.players?.[context.state.perspectivePlayerId] || {};
-        const title = `${me.promptTitle || ''} ${me.menuTitle || ''}`.toLowerCase();
-        if(!/conflict|attacker|defender|reaction|interrupt/.test(title)) return [];
+        const promptTitle = String(me.promptTitle || '').toLowerCase();
+        const menuTitle = String(me.menuTitle || '').toLowerCase();
+        const title = `${promptTitle} ${menuTitle}`;
+        if(!/conflict|attacker|defender|reaction|interrupt|action window|initiate an action/.test(title)) return [];
         const result: BotActionCandidate[] = [];
-        for(const card of cards(rawState).filter((entry) => entry.selectable && entry.uuid)) {
+        // Conflict action menus also render score summaries such as
+        // "Attacker: 3 Defender: 4". Those labels describe the live conflict;
+        // they do not ask the controller to select participants.
+        const participantPrompt = /\b(?:choose|select|declare)\b[^|\r\n]*(?:attackers?|defenders?)\b|\b(?:attackers?|defenders?)\b[^|\r\n]*\b(?:choose|select)\b/;
+        const selectingParticipant = participantPrompt.test(promptTitle) || participantPrompt.test(menuTitle);
+        const selectingAttacker = selectingParticipant && /\battackers?\b/.test(`${promptTitle} ${menuTitle}`);
+        const selectingDefender = selectingParticipant && /\bdefenders?\b/.test(`${promptTitle} ${menuTitle}`);
+        const selectingProvince = /choose[^|]*province|select[^|]*province|attack[^|]*province/.test(title);
+        const selectingTarget = /choose|select|target/.test(title) &&
+            !selectingParticipant && !selectingProvince && !/reaction|interrupt/.test(title);
+        const sourceWindow = !selectingParticipant && !selectingProvince && !selectingTarget &&
+            /action window|initiate an action|reaction|interrupt/.test(title);
+        const legalDirect = context.input.context?.legalDirectCardUuids;
+        const legalSet = legalDirect ? new Set(Object.keys(legalDirect).filter((uuid) => legalDirect[uuid])) : undefined;
+        // Direct-click prompts expose legality through the controller's live
+        // prompt checker, not through serialized `selectable` flags. When that
+        // exact set exists it is the authority; requiring both signals hides
+        // every real action source from V2 while V1 can still click it.
+        for(const card of cards(rawState).filter((entry) => entry.uuid &&
+            (legalSet ? legalSet.has(entry.uuid) : entry.selectable))) {
             const target = targetRef(card, context.state.perspectivePlayerId);
-            const selectingParticipant = /attacker|defender/.test(title);
-            const selectingTarget = /choose|select|target/.test(title) && !/reaction|interrupt/.test(title);
-            const selectingProvince = /choose[^|]*province|select[^|]*province|attack[^|]*province/.test(title);
-            const kind: BotActionKind = /attacker/.test(title) ? 'attacker-set'
-                : /defender/.test(title) ? 'defender-set'
+            const provinceCard = card.type === 'province' || card.isProvince;
+            if(selectingParticipant && card.type !== 'character') continue;
+            if(selectingProvince && !provinceCard) continue;
+            if(!selectingParticipant && !selectingProvince && !selectingTarget && !sourceWindow) continue;
+            const kind: BotActionKind = selectingAttacker ? 'attacker-set'
+                : selectingDefender ? 'defender-set'
                     : /reaction/.test(title) ? 'reaction'
                         : /interrupt/.test(title) ? 'interrupt'
-                            : (card.type === 'province' || card.isProvince) && selectingProvince ? 'province-choice'
-                            : card.location === 'hand' ? 'conflict-card'
-                                : selectingTarget ? 'target-selection' : 'in-play-ability';
+                            : provinceCard && selectingProvince ? 'province-choice'
+                                : selectingTarget ? 'target-selection'
+                                    : card.location === 'hand' ? 'conflict-card' : 'in-play-ability';
             const terminalDefense = kind === 'defender-set' && context.state.conflict?.provinceLocation === 'stronghold province';
             const actionSource: CardRef | undefined = !selectingParticipant && kind !== 'target-selection' && kind !== 'province-choice' ? {
                 kind: 'card', instanceId: String(card.uuid), cardId: card.id,
@@ -251,7 +281,8 @@ export class ConflictContributor implements CandidateContributor {
                 commandPreview: { command: 'cardClicked', args: [card.uuid], target: card.name },
                 costs: card.location === 'hand' ? { cards: 1 } : {}, effects: [], prerequisites: [],
                 tags: kind === 'defender-set' ? (terminalDefense ? ['terminal', 'defense'] : ['defense']) : ['offense'], limits: [],
-                uncertainty: terminalDefense ? 0 : 0.35, confidence: terminalDefense ? 0.98 : 0.7, proposer: this.id
+                uncertainty: terminalDefense ? 0 : actionSource && legalSet ? 0.1 : 0.35,
+                confidence: terminalDefense ? 0.98 : actionSource && legalSet ? 0.95 : 0.7, proposer: this.id
             }));
         }
         for(const [index, list] of Object.values(me.provinces || {}).entries()) {
@@ -277,16 +308,18 @@ export class ConflictContributor implements CandidateContributor {
                 }));
             }
         }
-        for(const [element, ring] of Object.entries(rawState.rings || {}) as [string, any][]) {
-            if(ring?.unselectable === true) continue;
-            result.push(makeCandidate({
-                kind: 'conflict-declaration', mode: `${element}:${ring?.conflictType || 'any'}`,
-                targets: [{ kind: 'ring', element: element as any }],
-                commandPreview: { command: 'ringClicked', args: [element], target: element },
-                costs: { conflictOpportunities: 1 }, effects: [{ kind: 'ring', element: element as any, fate: Number(ring?.fate) || 0 }],
-                prerequisites: [], tags: ['offense', 'ring'], limits: [], uncertainty: 0.2,
-                confidence: 0.8, proposer: this.id
-            }));
+        if(me.selectRing === true || /choose ring|select ring|declare.*conflict|initiate.*conflict/.test(title)) {
+            for(const [element, ring] of Object.entries(rawState.rings || {}) as [string, any][]) {
+                if(ring?.unselectable === true) continue;
+                result.push(makeCandidate({
+                    kind: 'conflict-declaration', mode: `${element}:${ring?.conflictType || 'any'}`,
+                    targets: [{ kind: 'ring', element: element as any }],
+                    commandPreview: { command: 'ringClicked', args: [element], target: element },
+                    costs: { conflictOpportunities: 1 }, effects: [{ kind: 'ring', element: element as any, fate: Number(ring?.fate) || 0 }],
+                    prerequisites: [], tags: ['offense', 'ring'], limits: [], uncertainty: 0.2,
+                    confidence: 0.8, proposer: this.id
+                }));
+            }
         }
         return result;
     }

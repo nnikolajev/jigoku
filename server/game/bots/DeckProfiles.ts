@@ -75,6 +75,13 @@ import {
     RUSH_CONFLICT_PHASE_PLANNER
 } from './ConflictPhasePlanner.js';
 import type { ConflictPhasePlannerProfile } from './ConflictPhasePlanner';
+import type { ConflictActionProfile } from './v2/ConflictActionPlanner';
+import { DEFAULT_CONFLICT_INTENTS } from './DeckConflictIntents.js';
+import type {
+    ConflictIntentProfile,
+    DeckConflictIntentRule,
+    DeckDefenseIntentRule
+} from './DeckConflictIntents';
 
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
@@ -100,6 +107,10 @@ export interface DeckProfile {
     conflictDeckSafety: ConflictDeckSafetyProfile; // seed-1/3 optional deck-consumption safety
     conflictCardEconomy: ConflictCardEconomyProfile; // shared injectable conflict-card value/fate planner for seeds 1-3
     conflictPlanning: ConflictPhasePlannerProfile; // shared bounded same-phase declaration rollout
+    conflictIntents: ConflictIntentProfile; // per-deck declaration options the shared rollout ranks
+    // V2-only outcome weights for in-conflict card sequencing. Undefined uses
+    // the planner defaults; a deck overrides only the weights it cares about.
+    conflictActionPlan?: Partial<ConflictActionProfile>;
     mulligan: MulliganProfile; // shared opening hand/province mulligan and fate-phase refresh policy
     strongholdDefense: StrongholdDefenseProfile; // shared injectable last-province reserve planner for every seed
     provinceTargeting: ProvinceTargetingProfile; // shared injectable Eminent/strength/ability target priority for every seed
@@ -200,6 +211,11 @@ export interface DeckProfile {
     // ---- Unicorn cavalry movement/rush playstyle ----
     // Exact participation, move-in sequencing and movement attachment targets.
     unicorn?: UnicornProfile;
+
+    // Names of the per-deck overrides that matched, in application order. This
+    // is the deck's identity for layers that tune per deck without re-deriving
+    // it from the card list (Bot V2's conflict intents).
+    overrideNames?: string[];
 }
 
 // Generic baseline = a deck with no strategy flags (e.g. Crane, unknown). These
@@ -218,6 +234,7 @@ export const DEFAULT_PROFILE: DeckProfile = {
     },
     conflictCardEconomy: { ...DEFAULT_CONFLICT_CARD_ECONOMY },
     conflictPlanning: { ...DEFAULT_CONFLICT_PHASE_PLANNER },
+    conflictIntents: { ...DEFAULT_CONFLICT_INTENTS, rules: [], defenseRules: [] },
     mulligan: {
         ...DEFAULT_MULLIGAN_PROFILE,
         openingKeepHoldingIds: [...DEFAULT_MULLIGAN_PROFILE.openingKeepHoldingIds],
@@ -286,6 +303,12 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         },
         conflictCardEconomy: { ...DEFAULT_PROFILE.conflictCardEconomy },
         conflictPlanning: { ...DEFAULT_PROFILE.conflictPlanning },
+        conflictIntents: {
+            ...DEFAULT_PROFILE.conflictIntents,
+            rules: DEFAULT_PROFILE.conflictIntents.rules.map((rule) => ({ ...rule })),
+            defenseRules: (DEFAULT_PROFILE.conflictIntents.defenseRules || [])
+                .map((rule) => ({ ...rule }))
+        },
         mulligan: {
             ...DEFAULT_PROFILE.mulligan,
             openingKeepHoldingIds: [...DEFAULT_PROFILE.mulligan.openingKeepHoldingIds],
@@ -502,7 +525,7 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
 // merged over the strategy-derived profile. Matched by card contents + derived
 // strategy so it works in both live play and self-play (no deck-id needed).
 type DeckProfileOverride = Omit<Partial<DeckProfile>,
-    'strongholdDefense' | 'provinceTargeting' | 'duelBidding' | 'drawBidding' | 'legacyDrawBidding' | 'mulligan' | 'boardAwareDynasty' | 'conflictDeckSafety' | 'conflictPlanning'> & {
+    'strongholdDefense' | 'provinceTargeting' | 'duelBidding' | 'drawBidding' | 'legacyDrawBidding' | 'mulligan' | 'boardAwareDynasty' | 'conflictDeckSafety' | 'conflictPlanning' | 'conflictIntents'> & {
     strongholdDefense?: Partial<StrongholdDefenseProfile>;
     provinceTargeting?: Omit<Partial<ProvinceTargetingProfile>, 'abilityPriority' | 'effectiveStrengthById' | 'priorityTierById'> & {
         abilityPriority?: Partial<ProvinceTargetingProfile['abilityPriority']>;
@@ -528,6 +551,13 @@ type DeckProfileOverride = Omit<Partial<DeckProfile>,
         forcedHonorLossByOpponentCardId?: Record<string, number>;
     };
     conflictPlanning?: Partial<ConflictPhasePlannerProfile>;
+    conflictActionPlan?: Partial<ConflictActionProfile>;
+    // `rules` replaces wholesale — a deck owns its declaration policy outright
+    // rather than inheriting half of another deck's list.
+    conflictIntents?: Omit<Partial<ConflictIntentProfile>, 'rules' | 'defenseRules'> & {
+        rules?: DeckConflictIntentRule[];
+        defenseRules?: DeckDefenseIntentRule[];
+    };
 };
 
 interface ProfileOverride {
@@ -1031,6 +1061,7 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                 boardAwareDynasty,
                 conflictDeckSafety,
                 conflictPlanning,
+                conflictIntents,
                 ...flatApply
             } = override.apply;
             const apply: Partial<DeckProfile> = { ...flatApply };
@@ -1174,6 +1205,16 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     ...conflictPlanning
                 };
             }
+            if(conflictIntents) {
+                apply.conflictIntents = {
+                    ...profile.conflictIntents,
+                    ...conflictIntents,
+                    rules: (conflictIntents.rules || profile.conflictIntents.rules)
+                        .map((rule) => ({ ...rule })),
+                    defenseRules: (conflictIntents.defenseRules ||
+                        profile.conflictIntents.defenseRules || []).map((rule) => ({ ...rule }))
+                };
+            }
             if(override.apply.attachmentControl) {
                 apply.attachmentControl = {
                     ...override.apply.attachmentControl,
@@ -1193,6 +1234,10 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                 };
             }
             Object.assign(profile, apply);
+            // Record which per-deck overrides matched. Bot V2 keys its own
+            // deck-specific tuning off these names (docs/bot-v2-deck-tuning.md)
+            // without having to re-derive the deck from its card list.
+            profile.overrideNames = [...(profile.overrideNames || []), override.name];
         }
     }
     return profile;

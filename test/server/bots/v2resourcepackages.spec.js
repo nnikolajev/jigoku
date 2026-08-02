@@ -2,6 +2,8 @@ const { emptyLedgers } = require('../../../build/server/game/bots/v2/model/Ledge
 const ResourcePackagePlanner = require('../../../build/server/game/bots/v2/resources/ResourcePackagePlanner.js').default;
 const { ARCHETYPE_RESOURCE_PROFILES } = require('../../../build/server/game/bots/v2/resources/ResourcePackagePlanner.js');
 const SafetyVetoPipeline = require('../../../build/server/game/bots/v2/SafetyVetoPipeline.js').default;
+const DynastyPackageLedger = require('../../../build/server/game/bots/v2/resources/DynastyPackageLedger.js').default;
+const { resolveV1CandidateReference } = require('../../../build/server/game/bots/v2/V2BotEngine.js');
 
 describe('V2 joint resource package planning', function() {
     function state(options = {}) {
@@ -123,5 +125,60 @@ describe('V2 joint resource package planning', function() {
         const annotated = planner.annotate([action], plan)[0];
         expect(annotated.annotations).toContain(jasmine.objectContaining({ proposer: 'resource-package-planner' }));
         expect(action.annotations).toBeUndefined();
+    });
+
+    it('retains exactly one dynasty package and cannot replan another in the same phase', function() {
+        const a = candidate('a', 'dynasty-purchase', { costs: { fate: 1 } });
+        const b = candidate('b', 'dynasty-purchase', { costs: { fate: 1 } });
+        const c = candidate('c', 'dynasty-purchase', { costs: { fate: 1 } });
+        const pkg = {
+            id: 'package:dynasty:a|b', kind: 'dynasty', candidateIds: ['a', 'b'],
+            fateCost: 2, honorCost: 0, cardCost: 0, expectedValue: 5,
+            expectedParticipations: 2, reducerIds: [], rationale: []
+        };
+        const plan = {
+            dynastyPackages: [pkg], conflictPackages: [], selectedDynasty: pkg,
+            reservations: [], preferredCandidateIds: ['a', 'b'], releasedReservationIds: [],
+            marginalDynastyValue: 3, marginalConflictValue: 0
+        };
+        const ledger = new DynastyPackageLedger();
+        const first = ledger.prepare(state(), plan, [a, b]);
+        expect([...first.candidateIds].sort()).toEqual(['a', 'b']);
+        expect(ledger.proof(first, 'a')).toEqual({ kind: 'initial-joint-package', packageId: pkg.id });
+
+        ledger.commit(state(), pkg, 'a');
+        const retained = ledger.prepare(state(), plan, [b, c]);
+        expect([...retained.candidateIds]).toEqual(['b']);
+        expect(ledger.proof(retained, 'b')).toEqual({ kind: 'retained-joint-package', packageId: pkg.id });
+
+        ledger.commit(state(), pkg, 'b');
+        const replacement = { ...plan, selectedDynasty: { ...pkg, id: 'package:dynasty:c', candidateIds: ['c'] }, preferredCandidateIds: ['c'] };
+        expect([...ledger.prepare(state(), replacement, [c]).candidateIds]).toEqual([]);
+
+        const nextPhase = state();
+        nextPhase.scopes = { ...nextPhase.scopes, phaseId: 'dynasty:next' };
+        expect([...ledger.prepare(nextPhase, replacement, [c]).candidateIds]).toEqual(['c']);
+    });
+
+    it('does not assign an unresolved V1 source click to an arbitrary fate-allocation variant', function() {
+        const cheap = candidate('buy:cheap', 'dynasty-purchase', {
+            instanceId: 'shared-card', costs: { fate: 3, additionalFate: 0 }
+        });
+        const expensive = {
+            ...candidate('buy:expensive', 'dynasty-purchase', {
+                instanceId: 'shared-card', costs: { fate: 10, additionalFate: 7 }
+            }),
+            commandPreview: cheap.commandPreview
+        };
+        const fallback = {
+            ...candidate('v1', 'v1-fallback', { instanceId: 'shared-card' }),
+            commandPreview: cheap.commandPreview
+        };
+        const decision = { command: 'cardClicked', args: ['buy:cheap'], target: 'character' };
+        const reference = resolveV1CandidateReference([expensive, cheap, fallback], decision);
+
+        expect(reference.ambiguous).toBeTrue();
+        expect(reference.nativeMatches.map((entry) => entry.id).sort()).toEqual(['buy:cheap', 'buy:expensive']);
+        expect(reference.candidate.id).toBe('v1');
     });
 });

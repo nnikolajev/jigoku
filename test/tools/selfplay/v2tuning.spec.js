@@ -11,13 +11,15 @@ const {
 const { allPairs, loadPartitions, validatePartitions } = require('../../../tools/selfplay/v2BenchmarkPartitions.js');
 
 function report(rngSeed, overrides = {}) {
-    const rates = overrides.rates || [0.55, 0.5, 0.6];
+    const rates = overrides.rates || [0.75, 0.7, 0.8];
+    const wins = overrides.wins ?? 15;
+    const losses = overrides.losses ?? 5;
+    const other = overrides.other ?? 0;
     return {
         configurationHash: `report-${rngSeed}`,
         config: { rngSeed, seed: 1, mode: 'fair' },
         totals: {
-            wins: overrides.wins ?? 11, losses: overrides.losses ?? 9,
-            other: overrides.other ?? 0, played: 20,
+            wins, losses, other, played: wins + losses + other,
             meanCandidateMs: overrides.candidateMs ?? 110,
             meanControlMs: 100, fallbackRate: overrides.fallbackRate ?? 0.2,
             budgetExhaustions: overrides.budgetExhaustions ?? 0,
@@ -79,11 +81,48 @@ describe('Bot V2 benchmark partitions and offline tuning', function() {
         expect(oneRun.eligibleForDefault).toBe(false);
         expect(oneRun.promotionBlockers).toContain('insufficient-distinct-holdout-rng');
 
+        const uneven = evaluateCandidate({
+            ...candidate,
+            holdoutReports: [
+                report(27101, { wins: 13, losses: 7 }),
+                report(27102, { wins: 17, losses: 3 })
+            ]
+        }, manifest, process.cwd(), partitions);
+        expect(uneven.holdout.winRate).toBe(0.75);
+        expect(uneven.eligibleForDefault).toBe(false);
+        expect(uneven.promotionBlockers).toContain('repeated-holdout-below-win-rate');
+
+        const smallPartitions = {
+            ...partitions,
+            promotion: { ...partitions.promotion, minimumDeckGamesPerRun: 10 }
+        };
+        const underpowered = evaluateCandidate({
+            ...candidate,
+            holdoutReports: [
+                report(27101, { wins: 7, losses: 3 }),
+                report(27102, { wins: 7, losses: 3 })
+            ]
+        }, manifest, process.cwd(), smallPartitions);
+        expect(underpowered.holdout.winRate).toBe(0.7);
+        expect(underpowered.eligibleForDefault).toBe(false);
+        expect(underpowered.promotionBlockers).toContain('combined-wilson-lower-bound');
+
         const outlier = evaluateCandidate({
             ...candidate,
             holdoutReports: [report(27101, { rates: [0.1, 0.8, 0.8] }), report(27102)]
         }, manifest, process.cwd(), partitions);
         expect(outlier.eligibleForDefault).toBe(false);
         expect(outlier.promotionBlockers).toContain('severe-deck-outlier');
+
+        const unsafe = evaluateCandidate({
+            ...candidate,
+            holdoutReports: [
+                report(27101, { fallbackRate: 0.96, budgetExhaustions: 1, candidateMs: 700 }),
+                report(27102, { fallbackRate: 0.96, candidateMs: 700 })
+            ]
+        }, manifest, process.cwd(), partitions);
+        expect(unsafe.promotionBlockers).toContain('holdout-fallback-rate');
+        expect(unsafe.promotionBlockers).toContain('holdout-budget-exhaustion');
+        expect(unsafe.promotionBlockers).toContain('holdout-runtime-ratio');
     });
 });

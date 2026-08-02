@@ -49,6 +49,10 @@ export interface DeckSynergyProfile {
     readonly resourceProfile: ResourcePlanningProfile;
     readonly fateReserve?: number;
     readonly conflictCardReserve?: number;
+    /** Extra ordinary-province defense margin for archetypes built to defend. */
+    readonly defenderResponseReserve?: number;
+    /** Persistent character engines that should be preserved during minimum-defense allocation. */
+    readonly defenderFutureValueBonuses?: Readonly<Record<string, number>>;
 }
 
 export interface DeckSynergyContext {
@@ -202,7 +206,7 @@ export const DECK_SYNERGY_PROFILES: Readonly<Record<DeckSynergyArchetype, DeckSy
                 scoreDelta: { honor: 2, comboProgress: 3 }, rationale: 'honored setup enables Voice and Noble Sacrifice' }),
             edge({ id: 'crane:noble-sacrifice', role: 'payoff', source: { cardIds: ['noble-sacrifice'] },
                 conditions: ['own-honored-present', 'enemy-dishonored-present'],
-                scoreDelta: { boardNow: 5, comboProgress: 5 }, rationale: 'trade the cheapest honored source for a valuable dishonored enemy' }),
+                scoreDelta: { comboProgress: 1 }, rationale: 'consider only the exact net value of the honored-for-dishonored trade' }),
             edge({ id: 'crane:voice-protection', role: 'protection', source: { cardIds: ['voice-of-honor'] },
                 conditions: ['own-honored-present'], scoreDelta: { risk: 3, flexibility: 2 },
                 rationale: 'honor lead makes Voice of Honor live' }),
@@ -261,7 +265,7 @@ export const DECK_SYNERGY_PROFILES: Readonly<Record<DeckSynergyArchetype, DeckSy
         ]
     },
     'crab-holding': {
-        id: 'crab-holding', resourceProfile: { archetype: 'holding', cards: {
+        id: 'crab-holding', defenderResponseReserve: 2, resourceProfile: { archetype: 'holding', cards: {
             'kaiu-forges': { type: 'holding', value: 5 }, 'seventh-tower': { type: 'holding', value: 5 },
             'northern-curtain-wall': { type: 'holding', value: 4 }, 'third-whisker-warrens': { type: 'holding', value: 4 }
         } },
@@ -279,7 +283,9 @@ export const DECK_SYNERGY_PROFILES: Readonly<Record<DeckSynergyArchetype, DeckSy
         ]
     },
     'phoenix-glory': {
-        id: 'phoenix-glory', fateReserve: 1, resourceProfile: { archetype: 'generic' },
+        id: 'phoenix-glory', fateReserve: 1,
+        defenderFutureValueBonuses: { 'isawa-kaede': 4 },
+        resourceProfile: { archetype: 'generic' },
         edges: [
             edge({ id: 'phoenix:glory-honor', role: 'enabler',
                 source: { cardIds: ['isawa-mori-seido', 'benten-s-touch', 'magnificent-kimono'] },
@@ -400,6 +406,21 @@ export default class DeckSynergyContributor {
 
     profileIds(context: DeckSynergyContext): readonly DeckSynergyArchetype[] {
         return inferredProfileIds(context);
+    }
+
+    defenderResponseReserve(context: DeckSynergyContext): number {
+        return inferredProfileIds(context).reduce((maximum, id) =>
+            Math.max(maximum, this.profiles[id].defenderResponseReserve || 0), 0);
+    }
+
+    defenderFutureValueBonuses(context: DeckSynergyContext): Readonly<Record<string, number>> {
+        const result: Record<string, number> = {};
+        for(const id of inferredProfileIds(context)) {
+            for(const [cardId, value] of Object.entries(this.profiles[id].defenderFutureValueBonuses || {})) {
+                result[cardId] = Math.max(result[cardId] || 0, value);
+            }
+        }
+        return immutable(result);
     }
 
     private tags(candidate: BotActionCandidate): ReadonlySet<string> {

@@ -127,7 +127,12 @@ function analyzeRegret(entries, options = {}) {
                 runnerUpCandidateId: planner.runnerUpCandidateId, runnerUpGap: planner.runnerUpGap
             }));
         }
-        if(planner.terminal?.active && ['forced-win', 'avoids-forced-loss'].includes(planner.terminal.status) &&
+        // Terminal activation alone is not regret evidence. The solver often
+        // sees every ordinary action as preserving the same future forced win.
+        // Runtime traces mark only complete, causal, direct terminal actions
+        // that improve on the V1 reference as override-eligible.
+        if(planner.terminal?.overrideEligible === true &&
+            ['forced-win', 'avoids-forced-loss'].includes(planner.terminal.status) &&
             planner.chosenCandidateId !== planner.terminal.selectedCandidateId) {
             findings.push(finding('missed-terminal', entry, decisionIndex, Math.max(10, Math.abs(planner.scoreGap || 0)), 0.9, {
                 status: planner.terminal.status, selectedCandidateId: planner.terminal.selectedCandidateId,

@@ -1,6 +1,6 @@
 export type UseWhen = 'always' | 'losing' | 'winning' | 'attacked' | 'never';
 export type TargetSide = 'self' | 'enemy' | 'either' | 'none';
-export type TargetPreference = 'strongest' | 'weakest' | 'most-fate' | 'any';
+export type TargetPreference = 'strongest' | 'weakest' | 'most-fate' | 'strongest-bowed' | 'any';
 
 /**
  * The standardized "data out" contract for LLM card analysis. One hint per
@@ -19,7 +19,7 @@ export interface CardHint {
 
 const USE_WHEN = new Set<UseWhen>(['always', 'losing', 'winning', 'attacked', 'never']);
 const TARGET_SIDE = new Set<TargetSide>(['self', 'enemy', 'either', 'none']);
-const TARGET_PREFERENCE = new Set<TargetPreference>(['strongest', 'weakest', 'most-fate', 'any']);
+const TARGET_PREFERENCE = new Set<TargetPreference>(['strongest', 'weakest', 'most-fate', 'strongest-bowed', 'any']);
 
 export function validateCardHint(raw: any, cardId: string): CardHint | null {
     if(!raw || typeof raw !== 'object') {

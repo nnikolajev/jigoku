@@ -116,7 +116,7 @@ describe('ConflictPhasePlanner', function() {
             rings: [ring('water')]
         });
         expect(rush.profile.aggression).toBeGreaterThan(regular.profile.aggression);
-        expect(RUSH_CONFLICT_PHASE_PLANNER.applyAttackerPlan).toBeFalse();
+        expect(RUSH_CONFLICT_PHASE_PLANNER.applyAttackerPlan).toBeTrue();
     });
 
     it('can be disabled for an exact legacy A/B', function() {
@@ -131,7 +131,9 @@ describe('ConflictPhasePlanner', function() {
     it('keeps risky integrations disabled while applying target planning', function() {
         expect(DEFAULT_CONFLICT_PHASE_PLANNER.applyPassPlan).toBeFalse();
         expect(DEFAULT_CONFLICT_PHASE_PLANNER.applyRingPlan).toBeFalse();
-        expect(DEFAULT_CONFLICT_PHASE_PLANNER.applyAttackerPlan).toBeFalse();
+        // Shipped 2026-07-31: measured per deck against an otherwise identical
+        // field, all ten decks positive, mean +4.67pp +-1.44.
+        expect(DEFAULT_CONFLICT_PHASE_PLANNER.applyAttackerPlan).toBeTrue();
         expect(DEFAULT_CONFLICT_PHASE_PLANNER.applyTypePlan).toBeFalse();
         expect(DEFAULT_CONFLICT_PHASE_PLANNER.applyTargetPlan).toBeTrue();
         expect(DEFAULT_CONFLICT_PHASE_PLANNER.applyDynastyProjection).toBeFalse();

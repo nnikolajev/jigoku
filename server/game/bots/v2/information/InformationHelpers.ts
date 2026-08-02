@@ -39,10 +39,14 @@ function effectsFor(card: OpponentCardModel, state: PlanningState, opponent: Pla
     const ownTarget = own[0] ? { kind: 'character' as const, instanceId: own[0].instanceId, cardId: own[0].cardId, controllerId: own[0].controllerId } : undefined;
     const theirTarget = theirs[0] ? { kind: 'character' as const, instanceId: theirs[0].instanceId, cardId: theirs[0].cardId, controllerId: theirs[0].controllerId } : undefined;
     if(card.canBowOpponent && ownTarget) return [{ kind: 'bow', target: ownTarget }];
-    if(card.canDisableDefender && ownTarget) return [{ kind: 'remove', method: 'discard', target: ownTarget, confidence: 0.7 }];
-    if(card.tag === 'removal' && ownTarget) return [{ kind: 'remove', method: 'discard', target: ownTarget, confidence: 0.7 }];
+    // These are adversarial search hypotheses, not claims about the hidden
+    // card's chosen target. Applying the modeled effect to the strongest
+    // publicly eligible character is deliberately pessimistic, so the
+    // projection is safe to search at full effect confidence.
+    if(card.canDisableDefender && ownTarget) return [{ kind: 'remove', method: 'discard', target: ownTarget, confidence: 1 }];
+    if(card.tag === 'removal' && ownTarget) return [{ kind: 'remove', method: 'discard', target: ownTarget, confidence: 1 }];
     if(card.tag === 'duel' && ownTarget) return [{ kind: 'duel', duelType: 'opponent-response', skillDelta: card.swing || 0, target: ownTarget }];
-    if(card.tag === 'honor' && ownTarget) return [{ kind: 'status', status: 'dishonored', target: ownTarget, confidence: 0.65 }];
+    if(card.tag === 'honor' && ownTarget) return [{ kind: 'status', status: 'dishonored', target: ownTarget, confidence: 1 }];
     const military = (card.military || 0) + (card.militaryBonus || 0) + (card.swing || 0);
     const political = (card.political || 0) + (card.politicalBonus || 0) + (card.swing || 0);
     if((military > 0 || political > 0) && theirTarget) return [{ kind: 'skill', military, political, duration: 'conflict', target: theirTarget }];
@@ -51,12 +55,16 @@ function effectsFor(card: OpponentCardModel, state: PlanningState, opponent: Pla
 }
 
 function responseCandidate(card: OpponentCardModel, state: PlanningState, hypothesisWeight: number,
-    index: number): BotActionCandidate | undefined {
+    copyOrdinal: number): BotActionCandidate | undefined {
     const opponent = opponentId(state);
     if(card.conflictTypes?.length && state.conflict?.type && !card.conflictTypes.includes(state.conflict.type)) return undefined;
     const effects = effectsFor(card, state, opponent);
     if(effects.length === 0) return undefined;
-    const source = { kind: 'card' as const, instanceId: `hypothesis:${card.id}:${index}`, cardId: card.id, controllerId: opponent, location: 'hand' };
+    // Equivalent hypotheses must expose the same semantic action identity. An
+    // absolute hand index makes the same card appear to be many unrelated
+    // responses, which can reject otherwise bounded tactical positions. Keep
+    // only the copy ordinal so two genuinely playable copies remain distinct.
+    const source = { kind: 'card' as const, instanceId: `hypothesis:${card.id}:copy:${copyOrdinal}`, cardId: card.id, controllerId: opponent, location: 'hand' };
     const targets = effects.map((effect) => effect.target).filter(Boolean) as any[];
     const commandPreview = { command: 'cardClicked' as const, args: [source.instanceId], target: card.name || card.id };
     const identity = { kind: 'conflict-card' as const, source, targets, commandPreview };
@@ -77,7 +85,12 @@ export function responsePackages(state: PlanningState, hypotheses: readonly Hand
     const used = new Set(evidence.usedLimits || []);
     const packages: OpponentResponsePackage[] = [];
     for(const hypothesis of hypotheses) {
-        const candidates = hypothesis.cards.map((card, index) => responseCandidate(card, state, hypothesis.weight, index))
+        const copiesByCard = new Map<string, number>();
+        const candidates = hypothesis.cards.map((card) => {
+            const copyOrdinal = copiesByCard.get(card.id) || 0;
+            copiesByCard.set(card.id, copyOrdinal + 1);
+            return responseCandidate(card, state, hypothesis.weight, copyOrdinal);
+        })
             .filter((candidate): candidate is BotActionCandidate => !!candidate)
             .filter((candidate) => candidate.limits.every((limit) => !used.has(limit.key)))
             .sort((left, right) => left.costs.fate! - right.costs.fate! || left.id.localeCompare(right.id));

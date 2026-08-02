@@ -6,7 +6,7 @@ import type {
     PlanningState,
     PlayerProjection
 } from '../model/PlanningState';
-import type { PlayerId } from '../model/References';
+import type { PlayerId, ProvinceRef } from '../model/References';
 import { immutable, stableHash } from '../model/Stable';
 
 export interface ProjectionResult {
@@ -62,6 +62,8 @@ export default class EffectSimulator {
         let conflictSeed = state.conflict ? { ...state.conflict } : undefined;
         let opportunities = {
             remainingByPlayer: Object.fromEntries(Object.entries(state.opportunities.remainingByPlayer).map(([id, value]) => [id, { ...value }])),
+            remainingTotalByPlayer: state.opportunities.remainingTotalByPlayer
+                ? { ...state.opportunities.remainingTotalByPlayer } : undefined,
             totalRemaining: state.opportunities.totalRemaining
         };
         const hands: HandProjection[] = state.hands.map((hand) => ({ ...hand, cards: hand.cards.map((card) => ({ ...card })) }));
@@ -131,11 +133,19 @@ export default class EffectSimulator {
                 applied.push(effect.kind);
             } else if(effect.kind === 'remove' && id) {
                 const before = characters.length;
-                characters = characters.filter((entry) => entry.instanceId !== id).map((entry) => ({
-                    ...entry,
-                    attachments: entry.attachments.filter((attachment) => attachment.instanceId !== id)
-                }));
-                if(characters.length !== before || character) applied.push(effect.kind);
+                let attachmentRemoved = false;
+                characters = characters.filter((entry) => entry.instanceId !== id).map((entry) => {
+                    const attachment = entry.attachments.find((item) => item.instanceId === id);
+                    if(!attachment) return entry;
+                    attachmentRemoved = true;
+                    return {
+                        ...entry,
+                        military: Math.max(0, entry.military - Math.max(0, attachment.militaryBonus)),
+                        political: Math.max(0, entry.political - Math.max(0, attachment.politicalBonus)),
+                        attachments: entry.attachments.filter((item) => item.instanceId !== id)
+                    };
+                });
+                if(characters.length !== before || character || attachmentRemoved) applied.push(effect.kind);
             } else if(effect.kind === 'resource') {
                 const playerId = controllerFor(effect, actorId);
                 updatePlayer(players, playerId, { fate: effect.fate || 0, honor: effect.honor || 0 });
@@ -158,6 +168,8 @@ export default class EffectSimulator {
                         cardId: effect.cardId || candidate.source?.cardId,
                         controllerId: actorId,
                         fate: 0,
+                        militaryBonus: 0,
+                        politicalBonus: 0,
                         nonStackingKeys: effect.nonStackingKey ? [effect.nonStackingKey] : []
                     }]
                 };
@@ -171,8 +183,13 @@ export default class EffectSimulator {
                 if(effect.fate) updatePlayer(players, actorId, { fate: effect.fate });
                 applied.push(effect.kind);
             } else if(effect.kind === 'province') {
-                const wasBroken = provinces.find((province) => province.location === effect.location)?.broken;
-                provinces = provinces.map((province) => province.location === effect.location ? {
+                const target = candidate.targets.find((entry) =>
+                    entry.kind === 'province' && entry.location === effect.location) as ProvinceRef | undefined;
+                const matchesTarget = (province: typeof provinces[number]) => province.location === effect.location &&
+                    (!target || province.controllerId === target.controllerId) &&
+                    (!target?.instanceId || province.instanceId === target.instanceId);
+                const wasBroken = provinces.find(matchesTarget)?.broken;
+                provinces = provinces.map((province) => matchesTarget(province) ? {
                     ...province,
                     effectiveStrength: effect.strength ?? province.effectiveStrength,
                     visible: effect.reveal === true || province.visible,
@@ -180,7 +197,7 @@ export default class EffectSimulator {
                     attackEligible: effect.break ? false : province.attackEligible
                 } : province);
                 if(effect.break && !wasBroken) {
-                    const province = provinces.find((entry) => entry.location === effect.location);
+                    const province = provinces.find(matchesTarget);
                     if(province) updatePlayer(players, province.controllerId, { brokenProvinceCount: 1 });
                 }
                 applied.push(effect.kind);
@@ -200,6 +217,10 @@ export default class EffectSimulator {
                             ...opportunities.remainingByPlayer,
                             [actorId]: { ...current, [type]: current[type] + effect.extraOpportunity }
                         },
+                        remainingTotalByPlayer: opportunities.remainingTotalByPlayer ? {
+                            ...opportunities.remainingTotalByPlayer,
+                            [actorId]: (opportunities.remainingTotalByPlayer[actorId] || 0) + effect.extraOpportunity
+                        } : undefined,
                         totalRemaining: opportunities.totalRemaining + effect.extraOpportunity
                     };
                 }

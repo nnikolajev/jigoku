@@ -37,6 +37,13 @@ node tools/selfplay/winRates.js 40 3 1
 node tools/selfplay/botRoundRobin.js
 node tools/selfplay/botRoundRobin.js --seed 3 --games 25 --workers 32
 
+# One deck pilots V2 against a V1 field, with a V2 profile override.
+# `--engine-version v2` would put V2 on BOTH seats, which moves a deck's number
+# for two reasons at once; `--v2-decks` keeps the field on V1 so the result is
+# comparable to the all-V1 baselines in baselines/v1/.
+node tools/selfplay/botRoundRobin.js --games 100 --v2-decks Crab --v2-mode pass-through \
+  --v2-profile '{"deckProfile":{"conflictPlanning":{"hopelessAttackKeepHome":3}}}'
+
 # Seed 3 planner-enabled decks against every seed-1/seed-2 deck
 node tools/selfplay/botSeedRoundRobin.js --subject-seed 3 --opponent-seeds 1,2 --games 20 --decks Dragon,Lion,PhoenixShugenja --trace
 
@@ -87,7 +94,22 @@ node tools/selfplay/auditBotRegret.js --input tools/selfplay/out/v2-vs-v1-seed1-
 # Engine-aware click and semantic/payoff gates
 node tools/selfplay/validateBotInteractions.js --engine-version v2 --v2-mode enabled --seeds 1,2,3 --opponents all --games 2
 node tools/selfplay/auditCards.js --engine-version v2 --v2-mode enabled --decks all --seeds 1,2,3 --opponents all --modes fair,omniscient --games 2
+
+# Inject an experimental context.profile.v2 override for the V2 seat (gate flags,
+# utility weights, search limits). Inline JSON or a JSON file path. Additive and
+# off by default; used for offline coefficient tuning and gated research slices.
+node tools/selfplay/compareBotVersions.js --v2-mode enabled --seed 1 --mode fair --games 6 --decks Crane,Lion \
+  --v2-profile '{"highConfidenceGate":{"allowAutonomousPolicy":true}}' --out tools/selfplay/out/v2-autonomous-smoke
 ```
+
+`--v2-profile` is the measurement path for weight/gate experiments: it flows
+`config.v2Profile` -> controller -> `context.profile.v2`, so any `UtilityProfile`
+(`weights`, `adjustments`, `searchLimits`) or `highConfidenceGate` field can be
+tested against V1 without editing deck profiles or runtime defaults.
+`highConfidenceGate.allowAutonomousPolicy` (default off, research only) lets the
+top-scored utility candidate execute on execution-safe single-command kinds; it
+currently loses badly to V1 (~6-8%) and stays disabled — see
+`docs/bot-v2-rejected-experiments.md`.
 
 `compareBotVersions.js` writes versioned JSON/Markdown with per-deck confidence
 intervals, seats, paired RNG, victory types, runtime, searched nodes, fallback,
@@ -187,6 +209,10 @@ Only standardized runs update
 - omniscient: 20 games per ordered deck matchup, complete registered deck set,
   same strategy seed on both seats, only one seat omniscient;
 - current standardized suite id and no failed/incomplete jobs.
+
+A run with `--v2-decks` or `--v2-profile` is never treated as standardized, even
+if everything else matches, so a V2 comparison can never overwrite the V1
+baseline it is being compared against.
 
 Custom counts, deck subsets, cross-seed opponents, legacy draw policy, and
 profile overrides remain diagnostic and never replace client results.

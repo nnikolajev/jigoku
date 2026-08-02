@@ -57,11 +57,68 @@ describe('V2 candidate collection', function() {
         }));
         expect(stale.candidates.some((candidate) => candidate.kind === 'ring-choice')).toBeFalse();
 
+        const actionWindow = registry.collect(context({
+            promptTitle: 'Conflict Action Window',
+            rings: { fire: { element: 'fire', unselectable: false } }
+        }));
+        expect(actionWindow.candidates.some((candidate) => candidate.kind === 'conflict-declaration')).toBeFalse();
+
         const live = registry.collect(context({
             promptTitle: 'Choose a ring', selectRing: true,
             rings: { fire: { element: 'fire', unselectable: false } }
         }));
         expect(live.candidates.some((candidate) => candidate.kind === 'ring-choice')).toBeTrue();
+    });
+
+    it('does not score action-source cards while choosing a conflict province', function() {
+        const collection = new CandidateRegistry().collect(context({
+            promptTitle: 'Political Earth Conflict', menuTitle: 'Choose province to attack',
+            hand: [{ uuid: 'let-go', id: 'let-go', name: 'Let Go', type: 'event', location: 'hand', selectable: true }],
+            provinces: {
+                one: [{ uuid: 'enemy-province', id: 'shameful-display', type: 'province', location: 'province 1', selectable: true }],
+                two: [], three: [], four: []
+            }
+        }));
+
+        expect(collection.candidates.some((candidate) => candidate.kind === 'province-choice')).toBeTrue();
+        expect(collection.candidates.some((candidate) =>
+            candidate.kind === 'conflict-card' || candidate.kind === 'in-play-ability')).toBeFalse();
+        expect(collection.candidates.some((candidate) => candidate.commandPreview.args[0] === 'let-go')).toBeFalse();
+    });
+
+    it('uses the controller exact-legal set for high-confidence action sources', function() {
+        const prompt = {
+            promptTitle: 'Action Window', menuTitle: 'Initiate an action',
+            hand: [
+                // Real direct-click prompts frequently omit serialized
+                // selectable flags; controller live legality remains exact.
+                { uuid: 'legal', id: 'fine-katana', name: 'Fine Katana', type: 'attachment', location: 'hand' },
+                { uuid: 'stale', id: 'voice-of-honor', name: 'Voice of Honor', type: 'event', location: 'hand', selectable: true }
+            ]
+        };
+        const exact = new CandidateRegistry().collect(context(prompt, { legalDirectCardUuids: { legal: true } }));
+        const action = exact.candidates.find((candidate) => candidate.commandPreview.args[0] === 'legal');
+        expect(action.kind).toBe('conflict-card');
+        expect(action.confidence).toBe(0.95);
+        expect(exact.candidates.some((candidate) => candidate.commandPreview.args[0] === 'stale')).toBeFalse();
+
+        prompt.hand[0].selectable = true;
+        const approximate = new CandidateRegistry().collect(context(prompt));
+        expect(approximate.candidates.find((candidate) => candidate.commandPreview.args[0] === 'legal').confidence).toBe(0.7);
+    });
+
+    it('does not mistake conflict score labels for an attacker or defender selection prompt', function() {
+        const collection = new CandidateRegistry().collect(context({
+            promptTitle: 'Conflict Action Window',
+            menuTitle: 'Military Fire conflict\nAttacker: 3 Defender: 4',
+            hand: [{ uuid: 'banzai', id: 'banzai', name: 'Banzai!', type: 'event', location: 'hand' }]
+        }, { legalDirectCardUuids: { banzai: true } }));
+        const source = collection.candidates.find((candidate) => candidate.commandPreview.args[0] === 'banzai');
+        expect(source).toBeDefined();
+        expect(source.kind).toBe('conflict-card');
+        expect(source.confidence).toBe(0.95);
+        expect(collection.candidates.some((candidate) =>
+            candidate.kind === 'attacker-set' || candidate.kind === 'defender-set')).toBeFalse();
     });
 
     it('enumerates every affordable dynasty fate amount and legal in-play ability without submitting commands', function() {
@@ -104,6 +161,41 @@ describe('V2 candidate collection', function() {
             expect(collection.candidates.some((candidate) => candidate.kind === kind))
                 .withContext(`${prompt.promptTitle}/${prompt.menuTitle || ''}/${kind}`).toBeTrue();
         }
+    });
+
+    it('projects live typed conflict opportunities and lets explicit controller values override them', function() {
+        const raw = context({ promptTitle: 'Military Fire Conflict', menuTitle: 'Choose attackers' }).input;
+        raw.playerState.players.Bot.stats = {
+            ...raw.playerState.players.Bot.stats,
+            conflictsRemaining: 1,
+            militaryRemaining: 1,
+            politicalRemaining: 1
+        };
+        raw.playerState.players.Opponent.stats = {
+            ...raw.playerState.players.Opponent.stats,
+            conflictsRemaining: 0,
+            militaryRemaining: 0,
+            politicalRemaining: 0
+        };
+        const live = builder.build(raw, { informationMode: 'fair' });
+        expect(live.opportunities.remainingByPlayer).toEqual({
+            Bot: { military: 1, political: 1 },
+            Opponent: { military: 0, political: 0 }
+        });
+        expect(live.opportunities.remainingTotalByPlayer).toEqual({ Bot: 1, Opponent: 0 });
+        expect(live.opportunities.totalRemaining).toBe(1);
+
+        raw.context.remainingConflictOpportunities = {
+            Bot: { military: 0, political: 2 },
+            Opponent: { military: 1, political: 0 }
+        };
+        const explicit = builder.build(raw, { informationMode: 'fair' });
+        expect(explicit.opportunities.remainingByPlayer).toEqual({
+            Bot: { military: 0, political: 2 },
+            Opponent: { military: 1, political: 0 }
+        });
+        expect(explicit.opportunities.remainingTotalByPlayer).toEqual({ Bot: 2, Opponent: 1 });
+        expect(explicit.opportunities.totalRemaining).toBe(3);
     });
 
     it('deduplicates semantic candidates while preserving proposer annotations and score deltas', function() {

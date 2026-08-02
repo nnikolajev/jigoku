@@ -182,12 +182,13 @@ const cavalryReserves = semanticAction('cavalry-reserves', [
 });
 
 const nobleSacrifice = semanticAction('noble-sacrifice', [
-    { kind: 'remove', method: 'discard', conditional: 'dishonored-opponent' }
+    { kind: 'remove', method: 'discard', confidence: 1 }
 ], {
-    timings: ['conflict-phase'], cost: { fate: 1, sacrificeSource: true },
-    targets: [{ kind: 'character', side: 'opponent', traits: [] }],
+    timings: ['conflict-phase'], cost: { fate: 1, sacrificeCharacter: 'honored' },
+    targets: [{ kind: 'character', side: 'opponent', dishonored: true, traits: [] }],
     planningTags: ['honored', 'dishonored', 'removal', 'payoff'],
-    synergies: [{ id: 'noble-sacrifice:honor-setup', role: 'payoff', withTags: ['honored'], scoreDelta: 7 }]
+    synergies: [{ id: 'noble-sacrifice:honor-setup', role: 'payoff', withTags: ['honored'], scoreDelta: 1 }],
+    confidence: 0.98
 });
 
 export const DECK_SEMANTICS: readonly CardSemanticModel[] = [
@@ -210,10 +211,33 @@ export const DECK_SEMANTICS: readonly CardSemanticModel[] = [
     }),
     prevention('finger-of-jade', 'targeted-opponent-effect'),
 
-    movement('golden-plains-outpost', 'conflict'),
-    movement('adorned-barcha', 'conflict'),
-    ready('shiotome-encampment'),
-    ready('moto-outrider'),
+    semanticAction('golden-plains-outpost', [{ kind: 'move', destination: 'conflict' }], {
+        timings: ['conflict'],
+        targets: [{ kind: 'character', side: 'self', traits: ['cavalry'] }],
+        planningTags: ['movement'],
+        confidence: 0.95
+    }),
+    // Adorned Barcha moves its attached parent, then targets a participating
+    // character to bow. The generic one-target movement shape cannot express
+    // that two-character contract, so keep it below the live override floor.
+    semanticAction('adorned-barcha', [{ kind: 'move', destination: 'conflict',
+        conditional: 'move-attached-parent-and-bow-participant' }], {
+        timings: ['conflict'], targets: [{ kind: 'character', side: 'either', participating: true }],
+        planningTags: ['movement'], confidence: 0.75
+    }),
+    semanticAction('shiotome-encampment', [{ kind: 'ready', conditional: 'claimed-military-ring' }], {
+        timings: ['conflict-phase'],
+        targets: [{ kind: 'character', side: 'self', traits: ['cavalry'] }],
+        planningTags: ['movement', 'ready'],
+        condition: 'claimed-military-ring',
+        confidence: 0.75
+    }),
+    // Moto Outrider readies itself and has no target prompt. The generic
+    // source/target macro would click a nonexistent second step.
+    semanticAction('moto-outrider', [{ kind: 'ready', conditional: 'ready-source-during-military-conflict' }], {
+        timings: ['conflict'], planningTags: ['movement', 'ready'],
+        condition: 'source-targeted-effect', confidence: 0.75
+    }),
     ready('twilight-rider'),
     semanticAction('minami-kaze-regulars', [{ kind: 'ready', conditional: 'win-with-participant-majority' }], {
         timings: ['reaction'], planningTags: ['movement-trigger', 'conflict-win', 'ready', 'payoff']
@@ -223,7 +247,12 @@ export const DECK_SEMANTICS: readonly CardSemanticModel[] = [
     }),
 
     cancel('gossip', 'named-card'),
-    status('way-of-the-crane', 'honored', 'self'),
+    // Target must be Crane; faction is not yet projected on characters.
+    semanticAction('way-of-the-crane', [{ kind: 'status', status: 'honored',
+        conditional: 'friendly-crane-character' }], {
+        timings: ['conflict-phase'], targets: [{ kind: 'character', side: 'self' }],
+        planningTags: ['honored'], condition: 'target-faction-crane', confidence: 0.75
+    }),
     semanticAction('kakita-blade', [{ kind: 'resource', honor: 1, conditional: 'win-duel' }], {
         timings: ['reaction'], planningTags: ['duel', 'honor', 'payoff']
     }),
@@ -235,8 +264,28 @@ export const DECK_SEMANTICS: readonly CardSemanticModel[] = [
         planningTags: ['duel', 'control', 'payoff']
     }),
 
-    ready('hayaken-no-shiro'),
-    ready('in-service-to-my-lord'),
+    // Hayaken no Shiro can only ready a Bushi with printed cost below three.
+    // Printed character cost is not yet present in PlanningState, so retain the
+    // semantic for scoring/coverage but do not manufacture a live target macro.
+    semanticAction('hayaken-no-shiro', [{ kind: 'ready', conditional: 'bushi-printed-cost<3' }], {
+        timings: ['conflict-phase'],
+        targets: [{ kind: 'character', side: 'self', traits: ['bushi'] }],
+        planningTags: ['lion', 'bushi', 'ready'],
+        condition: 'target-printed-cost-known-and-below-three',
+        confidence: 0.75
+    }),
+    // This event has two different character selections: bow a friendly
+    // non-unique character as its cost, then choose a unique character to
+    // ready, finally returning itself to the bottom of the conflict deck. A
+    // generic source/target macro skips the cost prompt and is unsafe.
+    semanticAction('in-service-to-my-lord', [{ kind: 'ready',
+        conditional: 'bow-nonunique-cost-then-ready-unique-and-bottom-source' }], {
+        timings: ['conflict-phase'],
+        targets: [{ kind: 'character', side: 'self' }],
+        planningTags: ['lion', 'ready'],
+        condition: 'multi-step-cost-and-target-macro-required',
+        confidence: 0.65
+    }),
     semanticAction('ujiaki-s-offer', [{ kind: 'conflict', extraOpportunity: 1,
         conditional: 'additional-military-conflict' }], {
         timings: ['conflict-phase'], cost: { fate: 1 }, planningTags: ['lion', 'swarm', 'additional-conflict', 'payoff']
@@ -269,7 +318,15 @@ export const DECK_SEMANTICS: readonly CardSemanticModel[] = [
         conditional: 'modify-glory+2-until-end-of-phase', duration: 'phase' }], {
         timings: ['conflict-phase'], planningTags: ['glory', 'status-payoff', 'setup'], confidence: 0.65
     }),
-    ready('against-the-waves', 1),
+    // Against the Waves chooses both a Shugenja and a bow/ready mode. Until
+    // mode-aware semantic macros exist, keep it below the live override floor.
+    semanticAction('against-the-waves', [{ kind: 'ready', conditional: 'choose-bow-or-ready-mode' }], {
+        timings: ['conflict-phase'],
+        targets: [{ kind: 'character', side: 'self', traits: ['shugenja'] }],
+        planningTags: ['shugenja', 'ready'],
+        condition: 'mode-selection-macro-required',
+        confidence: 0.65
+    }),
 
     semanticAction('high-house-of-light', [
         { kind: 'prevention', event: 'opponent-event-targeting-monk' },

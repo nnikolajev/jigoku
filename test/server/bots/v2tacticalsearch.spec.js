@@ -68,12 +68,60 @@ describe('V2 tactical effect search', function() {
         expect(Object.isFrozen(result.state)).toBeTrue();
     });
 
+    it('removes an exact attachment and its printed skill without mutating the live projection', function() {
+        const original = state();
+        original.characters[1] = {
+            ...original.characters[1],
+            military: 6,
+            attachments: [{
+                instanceId: 'enemy-katana', cardId: 'fine-katana', controllerId: 'Opponent', fate: 0,
+                militaryBonus: 2, politicalBonus: 0, printedCost: 0, nonStackingKeys: []
+            }]
+        };
+        original.conflict = { ...original.conflict, defenderSkill: 6 };
+        const target = {
+            kind: 'card', instanceId: 'enemy-katana', cardId: 'fine-katana',
+            controllerId: 'Opponent', location: 'play area'
+        };
+        const action = candidate('let-go', {
+            targets: [target], costs: { cards: 1 },
+            effects: [{ kind: 'remove', method: 'discard', target, confidence: 1 }]
+        });
+
+        const result = new EffectSimulator().apply(original, action);
+        const enemy = result.state.characters.find((entry) => entry.instanceId === 'enemy-char');
+
+        expect(enemy.military).toBe(4);
+        expect(enemy.attachments).toEqual([]);
+        expect(result.state.conflict.defenderSkill).toBe(4);
+        expect(result.appliedEffectKinds).toContain('remove');
+        expect(original.characters[1].military).toBe(6);
+        expect(original.characters[1].attachments.length).toBe(1);
+    });
+
+    it('applies a province effect only to its exact controller target', function() {
+        const original = state();
+        const target = { kind: 'province', controllerId: 'Opponent', location: 'stronghold province' };
+        const action = candidate('break-opponent-stronghold', {
+            targets: [target],
+            effects: [{ kind: 'province', location: 'stronghold province', break: true }]
+        });
+
+        const result = new EffectSimulator().apply(original, action);
+
+        expect(result.state.provinces.find((entry) => entry.controllerId === 'Opponent' && entry.stronghold).broken).toBeTrue();
+        expect(result.state.provinces.find((entry) => entry.controllerId === 'Bot' && entry.stronghold).broken).toBeFalse();
+        expect(result.state.players.Opponent.brokenProvinceCount).toBe(1);
+        expect(result.state.players.Bot.brokenProvinceCount).toBe(0);
+    });
+
     it('prunes dominated actions while retaining deterministic strategic diversity', function() {
         const search = new TacticalSearch();
         const target = { kind: 'character', instanceId: 'bot-char', controllerId: 'Bot' };
         const cheap = candidate('cheap', { targets: [target], costs: { fate: 0 }, effects: [{ kind: 'skill', military: 2, target }] });
         const expensive = candidate('expensive', { targets: [target], costs: { fate: 2 }, effects: [{ kind: 'skill', military: 2, target }] });
-        const ready = candidate('ready', { tags: ['ready'], effects: [{ kind: 'ready', target }] });
+        const enemy = { kind: 'character', instanceId: 'enemy-char', controllerId: 'Opponent' };
+        const ready = candidate('control', { tags: ['control'], targets: [enemy], effects: [{ kind: 'bow', target: enemy }] });
         const first = search.prescore(state(), [expensive, ready, cheap], {}, { beamWidth: 1, maxCandidates: 3 });
         const second = search.prescore(state(), [cheap, expensive, ready], {}, { beamWidth: 1, maxCandidates: 3 });
         expect(first.map((entry) => entry.candidate.id)).toEqual(second.map((entry) => entry.candidate.id));
@@ -160,5 +208,97 @@ describe('V2 tactical effect search', function() {
         const second = search.search(state(), [...actions].reverse(), {}, options);
         expect(first.firstCandidate.id).toBe(second.firstCandidate.id);
         expect(first.principalLine).toEqual(second.principalLine);
+    });
+
+    it('does not replay another semantic variant of a consumed physical hand card', function() {
+        const search = new TacticalSearch();
+        const source = { kind: 'card', instanceId: 'court-games-copy', cardId: 'court-games', controllerId: 'Bot', location: 'hand' };
+        const enemy = { kind: 'character', instanceId: 'enemy-char', controllerId: 'Opponent' };
+        const own = { kind: 'character', instanceId: 'bot-char', controllerId: 'Bot' };
+        const dishonor = candidate('court-games-dishonor', {
+            source, targets: [enemy], costs: { cards: 1 }, tags: ['payoff'],
+            effects: [{ kind: 'status', status: 'dishonored', target: enemy }]
+        });
+        const honor = candidate('court-games-honor', {
+            source, targets: [own], costs: { cards: 1 }, tags: ['payoff'],
+            effects: [{ kind: 'status', status: 'honored', target: own }]
+        });
+        const result = search.search(state(), [dishonor, honor], {}, {
+            limits: { depth: 3, nodeBudget: 30 }, responseProvider: () => [pass()]
+        });
+
+        expect(result.principalLine.filter((step) =>
+            step.candidateId === dishonor.id || step.candidateId === honor.id).length).toBe(1);
+    });
+
+    it('does not project a duplicate status payoff from a second physical copy', function() {
+        const search = new TacticalSearch();
+        const enemy = { kind: 'character', instanceId: 'enemy-char', controllerId: 'Opponent' };
+        const courtGames = (copy) => candidate(`court-games:${copy}`, {
+            source: { kind: 'card', instanceId: copy, cardId: 'court-games', controllerId: 'Bot', location: 'hand' },
+            targets: [enemy], costs: { cards: 1 }, tags: ['payoff'],
+            effects: [{ kind: 'status', status: 'dishonored', target: enemy }]
+        });
+        const copies = [courtGames('copy-1'), courtGames('copy-2')];
+        const result = search.search(state(), copies, {}, {
+            limits: { depth: 3, nodeBudget: 30 }, responseProvider: () => [pass()]
+        });
+
+        expect(result.principalLine.filter((step) => copies.some((entry) => entry.id === step.candidateId)).length).toBe(1);
+    });
+
+    it('does not reuse an exhausted semantic usage limit in projected search', function() {
+        const search = new TacticalSearch();
+        const limited = candidate('round-limited-ready', {
+            effects: [{ kind: 'resource', fate: 1 }],
+            limits: [{ key: 'round-limited-ready', scope: 'round', maximum: 1 }]
+        });
+        const secondSource = candidate('round-limited-ready:copy', {
+            effects: [{ kind: 'resource', fate: 1 }],
+            limits: [{ key: 'round-limited-ready', scope: 'round', maximum: 1 }]
+        });
+        const result = search.search(state(), [limited, secondSource], {}, {
+            limits: { depth: 3, nodeBudget: 30 }, responseProvider: () => [pass()]
+        });
+
+        expect(result.principalLine.filter((step) =>
+            step.candidateId === limited.id || step.candidateId === secondSource.id).length).toBe(1);
+    });
+
+    it('uses semantic root ordering when runtime card UUIDs change', function() {
+        const search = new TacticalSearch();
+        const run = (prefix) => {
+            const alpha = candidate(`${prefix}-alpha-runtime`, {
+                target: 'Alpha Action', tags: ['offense'],
+                source: { kind: 'card', instanceId: `${prefix}-alpha-runtime`, cardId: 'alpha-action', controllerId: 'Bot', location: 'hand' }
+            });
+            const beta = candidate(`${prefix}-beta-runtime`, {
+                target: 'Beta Action', tags: ['defense'],
+                source: { kind: 'card', instanceId: `${prefix}-beta-runtime`, cardId: 'beta-action', controllerId: 'Bot', location: 'hand' }
+            });
+            return search.search(state(), [beta, alpha], {}, { limits: { depth: 1, nodeBudget: 10 } });
+        };
+
+        const first = run('uuid-z').firstCandidate.source.cardId;
+        expect(run('uuid-a').firstCandidate.source.cardId).toBe(first);
+        expect(['alpha-action', 'beta-action']).toContain(first);
+    });
+
+    it('evaluates coherent response scenarios separately and keeps the pessimistic root result', function() {
+        const search = new TacticalSearch();
+        const target = { kind: 'character', instanceId: 'bot-char', controllerId: 'Bot' };
+        const enough = candidate('enough', { targets: [target], effects: [{ kind: 'skill', military: 2, target }] });
+        const excess = candidate('excess', { targets: [target], effects: [{ kind: 'skill', military: 6, target }] });
+        const threat = candidate('opponent-bow', { targets: [target], effects: [{ kind: 'bow', target }] });
+        const result = search.searchScenarios(state(), [excess, enough], [
+            { id: 'hand:pass', candidates: [pass()] },
+            { id: 'hand:bow', candidates: [pass(), threat] }
+        ], {}, { limits: { depth: 2, beamWidth: 4, maxCandidates: 4, nodeBudget: 100 } });
+
+        expect(result.complete).toBeTrue();
+        expect(result.firstCandidate.id).toBe(enough.id);
+        expect(result.rootEvaluations.every((entry) => entry.responseScenarioId)).toBeTrue();
+        expect(result.searchedNodes).toBeGreaterThan(0);
+        expect(result.reason).toBe('complete');
     });
 });

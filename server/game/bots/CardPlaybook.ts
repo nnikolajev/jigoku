@@ -42,6 +42,7 @@ export interface PlaybookContext {
     conflictDiscard?: any[]; // own conflict discard pile (weapon recursion gates)
     hand?: any[]; // own conflict hand (spell-recursion and setup gates)
     rings?: any[]; // live rings (ring-manipulation action gates)
+    conflictProvinceElements?: string[]; // elements of the current conflict province(s), both sides
     opponentHandSize?: number; // public hidden-card count for Tadaka's discard gate
     cardsPlayed?: number; // cards played this conflict (Dragon count-payoff gates)
     opponentCardsPlayed?: number; // Ichi counts cards played by both players
@@ -2000,6 +2001,23 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         oncePerRound: true,
         shouldUseAction: (ctx) => participating(ctx.myCharacters).filter((card) => card.id === 'solitary-hero').length === 1 &&
             participating(ctx.myCharacters).length === 1 && participating(ctx.opponentCharacters).length > 0
+    }),
+
+    // Province Action, usable at ANY water conflict province - our own or the
+    // opponent's - because `CardAction.checkProvinceCondition` tests the element
+    // of the conflict province, not identity with this card (see the "should
+    // work at your opponents water provinces" case in its spec). Attacking
+    // bows our own declared characters, so the free ready is most often
+    // available on offense.
+    'the-pursuit-of-justice': entry('the-pursuit-of-justice', {
+        targetSide: 'self',
+        targetPreference: 'strongest-bowed',
+        priority: 7,
+        summary: 'water conflict province: ready our strongest bowed participant',
+        inPlayAction: true,
+        oncePerRound: true,
+        shouldUseAction: (ctx) => (ctx.conflictProvinceElements || []).includes('water') &&
+            participating(ctx.myCharacters).some((card) => card.bowed)
     }),
 
     'agasha-sumiko-2': entry('agasha-sumiko-2', {

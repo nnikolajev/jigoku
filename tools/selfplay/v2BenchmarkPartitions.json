@@ -33,8 +33,13 @@
     "minimumDistinctHoldoutRngSeeds": 2,
     "minimumHoldoutRuns": 2,
     "minimumDeckGamesPerRun": 20,
-    "minimumAggregateWinRate": 0.5,
+    "minimumAggregateWinRate": 0.7,
+    "minimumRepeatedHoldoutWinRate": 0.7,
+    "minimumCombinedWilsonLowerBound": 0.5,
     "maximumStallRate": 0,
+    "maximumRuntimeRatio": 6,
+    "maximumFallbackRate": 0.95,
+    "maximumBudgetExhaustions": 0,
     "maximumPlannerErrors": 0,
     "maximumSevereDeckOutliers": 0
   }

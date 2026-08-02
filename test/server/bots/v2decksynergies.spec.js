@@ -222,6 +222,18 @@ describe('V2 deck synergy contributors', function() {
         ]));
     });
 
+    it('applies the Crab response reserve without leaking it into other deck profiles', function() {
+        expect(contributor.defenderResponseReserve({ profile: { mulliganForHoldings: true } })).toBe(2);
+        expect(contributor.defenderResponseReserve({ deckProfileId: 'crab' })).toBe(2);
+        expect(contributor.defenderResponseReserve({ deckProfileId: 'crane' })).toBe(0);
+    });
+
+    it('injects Phoenix persistent-engine defense value without affecting other profiles', function() {
+        expect(contributor.defenderFutureValueBonuses({ profile: { glory: {} } }))
+            .toEqual({ 'isawa-kaede': 4 });
+        expect(contributor.defenderFutureValueBonuses({ deckProfileId: 'crane' })).toEqual({});
+    });
+
     it('ports Phoenix glory and Dragon Monk semantics while preserving their separate deck gates', function() {
         const shugenja = character('asako-tsuki', { traits: ['shugenja'], honored: true });
         const phoenix = contributor.contribute(state({ characters: [shugenja] }), [

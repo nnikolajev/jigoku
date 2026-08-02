@@ -40,6 +40,15 @@ function variance(values) {
     return values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
 }
 
+function wilsonLowerBound(wins, decided, z = 1.96) {
+    if(decided <= 0) return 0;
+    const p = wins / decided;
+    const denominator = 1 + z * z / decided;
+    const center = p + z * z / (2 * decided);
+    const margin = z * Math.sqrt((p * (1 - p) + z * z / (4 * decided)) / decided);
+    return Math.max(0, (center - margin) / denominator);
+}
+
 function summarizeReport(report, thresholds = {}) {
     const totals = report.totals || {};
     const played = Number(totals.played) || 0;
@@ -53,13 +62,15 @@ function summarizeReport(report, thresholds = {}) {
     const severeDeckOutliers = deckRates.filter((rate) => rate < severeThreshold).length;
     const controlRuntime = Number(totals.meanControlMs) || 0;
     const candidateRuntime = Number(totals.meanCandidateMs) || 0;
+    const wins = Number(totals.wins) || 0;
+    const losses = Number(totals.losses) || 0;
     return {
         configurationHash: report.configurationHash,
         rngSeed: report.config?.rngSeed,
         strategySeed: report.config?.seed ?? report.config?.botSeed,
         informationMode: report.config?.mode ?? (report.config?.omniscient ? 'omniscient' : 'fair'),
-        played,
-        winRate: decided ? (Number(totals.wins) || 0) / decided : 0,
+        played, wins, losses, decided,
+        winRate: decided ? wins / decided : 0,
         stallRate: played ? (Number(totals.other) || 0) / played : 1,
         runtimeRatio: controlRuntime > 0 ? candidateRuntime / controlRuntime : 1,
         fallbackRate: Number.isFinite(totals.fallbackRate) ? totals.fallbackRate : 1,
@@ -73,6 +84,9 @@ function summarizeReport(report, thresholds = {}) {
 
 function aggregateSummaries(summaries, penalties = DEFAULT_PENALTIES) {
     const played = summaries.reduce((sum, report) => sum + report.played, 0);
+    const wins = summaries.reduce((sum, report) => sum + report.wins, 0);
+    const losses = summaries.reduce((sum, report) => sum + report.losses, 0);
+    const decided = wins + losses;
     const weighted = (key, fallback = 0) => played
         ? summaries.reduce((sum, report) => {
             const value = Number(report[key]);
@@ -81,8 +95,18 @@ function aggregateSummaries(summaries, penalties = DEFAULT_PENALTIES) {
         : fallback;
     const result = {
         reports: summaries.length,
-        played,
-        winRate: weighted('winRate'),
+        played, wins, losses, decided,
+        winRate: decided ? wins / decided : 0,
+        wilsonLowerBound: wilsonLowerBound(wins, decided),
+        reportWinRates: summaries.map((report) => ({
+            rngSeed: report.rngSeed,
+            strategySeed: report.strategySeed,
+            informationMode: report.informationMode,
+            wins: report.wins,
+            losses: report.losses,
+            decided: report.decided,
+            winRate: report.winRate
+        })),
         stallRate: weighted('stallRate', 1),
         runtimeRatio: weighted('runtimeRatio', 1),
         fallbackRate: weighted('fallbackRate', 1),
@@ -130,11 +154,17 @@ function validateCoefficients(coefficients, parent = {}, bounds = {}) {
 
 function holdoutEligibility(holdout, promotion) {
     const reasons = [];
+    const repeatedFloor = promotion.minimumRepeatedHoldoutWinRate ?? promotion.minimumAggregateWinRate ?? 0.7;
     if(holdout.reports < (promotion.minimumHoldoutRuns || 2)) reasons.push('insufficient-holdout-runs');
     if(holdout.rngSeeds.length < (promotion.minimumDistinctHoldoutRngSeeds || 2)) reasons.push('insufficient-distinct-holdout-rng');
     if(holdout.played < (promotion.minimumDeckGamesPerRun || 1) * Math.max(1, holdout.reports)) reasons.push('insufficient-holdout-games');
     if(holdout.winRate < (promotion.minimumAggregateWinRate ?? 0.5)) reasons.push('aggregate-holdout-regression');
+    if(holdout.reportWinRates.some((report) => report.winRate < repeatedFloor)) reasons.push('repeated-holdout-below-win-rate');
+    if(holdout.wilsonLowerBound <= (promotion.minimumCombinedWilsonLowerBound ?? 0.5)) reasons.push('combined-wilson-lower-bound');
     if(holdout.stallRate > (promotion.maximumStallRate ?? 0)) reasons.push('holdout-stalls');
+    if(holdout.runtimeRatio > (promotion.maximumRuntimeRatio ?? Infinity)) reasons.push('holdout-runtime-ratio');
+    if(holdout.fallbackRate > (promotion.maximumFallbackRate ?? 1)) reasons.push('holdout-fallback-rate');
+    if(holdout.budgetExhaustions > (promotion.maximumBudgetExhaustions ?? 0)) reasons.push('holdout-budget-exhaustion');
     if(holdout.plannerErrors > (promotion.maximumPlannerErrors ?? 0)) reasons.push('planner-errors');
     if(holdout.severeDeckOutliers > (promotion.maximumSevereDeckOutliers ?? 0)) reasons.push('severe-deck-outlier');
     return { eligible: reasons.length === 0, reasons };

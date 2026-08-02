@@ -4,6 +4,7 @@ import type { ConflictType, PlayerId } from '../model/References';
 import { immutable, stableHash } from '../model/Stable';
 import type { OpponentInformationSnapshot, OpponentResponsePackage } from '../information/OpponentInformationProvider';
 import EffectSimulator from '../search/EffectSimulator.js';
+import { semanticCandidateOrderKey } from '../UtilityEvaluator.js';
 
 export interface TerminalSolverProfile {
     readonly honorDanger?: number;
@@ -355,6 +356,8 @@ export default class TerminalSolver {
         }).sort((left, right) => right.terminalRank - left.terminalRank || right.aggregate - left.aggregate ||
             Number(candidates.find((candidate) => candidate.id === right.candidateId)?.kind === 'pass') -
                 Number(candidates.find((candidate) => candidate.id === left.candidateId)?.kind === 'pass') ||
+            semanticCandidateOrderKey(candidates.find((candidate) => candidate.id === left.candidateId)!)
+                .localeCompare(semanticCandidateOrderKey(candidates.find((candidate) => candidate.id === right.candidateId)!)) ||
             left.candidateId.localeCompare(right.candidateId));
         const selected = evaluations[0];
         const firstCandidate = candidates.find((candidate) => candidate.id === selected?.candidateId);

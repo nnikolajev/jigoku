@@ -7,6 +7,7 @@ export interface SafetyContext {
     readonly attemptedActionKeys?: readonly string[];
     readonly noProgressActionKeys?: readonly string[];
     readonly staleTargetIds?: readonly string[];
+    readonly failedMacroIds?: readonly string[];
     readonly honorFloor?: number;
     readonly mandatoryDefenderCount?: number;
     readonly hardFateReserve?: number;
@@ -41,6 +42,8 @@ function existingTargetIds(state: PlanningState): Set<string> {
     return new Set([
         ...Object.keys(state.players),
         ...state.characters.map((character) => character.instanceId),
+        ...state.characters.flatMap((character) => character.attachments?.map((attachment) =>
+            attachment.instanceId) || []),
         ...state.provinces.flatMap((province) => [province.instanceId, province.location]).filter(Boolean) as string[],
         ...state.rings.map((ring) => ring.element)
     ]);
@@ -58,9 +61,12 @@ export default class SafetyVetoPipeline {
         const stale = new Set(context.staleTargetIds || []);
         const attempted = new Set(context.attemptedActionKeys || []);
         const noProgress = new Set(context.noProgressActionKeys || []);
+        const failedMacros = new Set(context.failedMacroIds || []);
         const me = state.players[state.perspectivePlayerId];
         const ownStrongholdThreat = state.conflict?.defenderId === state.perspectivePlayerId &&
-            state.conflict.provinceLocation === 'stronghold province';
+            state.conflict.provinceLocation === 'stronghold province' &&
+            state.conflict.attackerSkill - state.conflict.defenderSkill >=
+                Math.max(1, state.conflict.breakThreshold);
         const readyDefenders = state.characters.filter((character) =>
             character.controllerId === state.perspectivePlayerId && character.ready).length;
 
@@ -80,6 +86,10 @@ export default class SafetyVetoPipeline {
             const key = actionKey(candidate);
             if(attempted.has(key)) failures.push(veto(candidate, 'attempted-click', 'candidate repeats an attempted command'));
             if(noProgress.has(key)) failures.push(veto(candidate, 'no-progress', 'candidate previously produced no material progress'));
+            if(candidate.macro && failedMacros.has(candidate.macro.id)) {
+                failures.push(veto(candidate, 'failed-macro-at-state',
+                    'candidate macro already failed live target validation in this material state'));
+            }
             if(ownStrongholdThreat && passCommand) {
                 failures.push(veto(candidate, 'terminal-loss', 'cannot pass while the stronghold requires a legal defense'));
             }
@@ -89,11 +99,18 @@ export default class SafetyVetoPipeline {
             const honorAfter = me.honor - Math.max(0, candidate.costs.honor || 0);
             const reservedMember = new Set(context.reservedCandidateIds || []).has(candidate.id);
             const fateAfter = me.fate - Math.max(0, candidate.costs.fate || 0);
-            if(!reservedMember && fateAfter < (context.hardFateReserve || 0)) {
+            if(fateAfter < 0) {
+                failures.push(veto(candidate, 'insufficient-fate-now', 'candidate is not affordable in the current state'));
+            }
+            if(!reservedMember && (context.hardFateReserve || 0) > 0 && fateAfter >= 0 && fateAfter < (context.hardFateReserve || 0)) {
                 failures.push(veto(candidate, 'hard-fate-reserve', 'candidate would break a terminal resource-package fate reservation'));
             }
             const handSize = state.hands.find((hand) => hand.playerId === state.perspectivePlayerId)?.size || 0;
-            if(!reservedMember && handSize - Math.max(0, candidate.costs.cards || 0) < (context.hardCardReserve || 0)) {
+            const cardsAfter = handSize - Math.max(0, candidate.costs.cards || 0);
+            if(cardsAfter < 0) {
+                failures.push(veto(candidate, 'insufficient-cards-now', 'candidate cannot pay its current card cost'));
+            }
+            if(!reservedMember && (context.hardCardReserve || 0) > 0 && cardsAfter >= 0 && cardsAfter < (context.hardCardReserve || 0)) {
                 failures.push(veto(candidate, 'hard-card-reserve', 'candidate would break a terminal resource-package card reservation'));
             }
             if(honorAfter <= (context.honorFloor ?? 0) && !candidate.tags.includes('terminal')) {
@@ -111,7 +128,7 @@ export default class SafetyVetoPipeline {
             for(const effect of candidate.effects) {
                 if((effect.kind === 'bow' || effect.kind === 'remove' ||
                     (effect.kind === 'status' && effect.status === 'dishonored')) &&
-                    effectTargetIsOwn(effect, state) && !candidate.tags.includes('setup')) {
+                    effectTargetIsOwn(effect, state) && effect.cost !== true && !candidate.tags.includes('setup')) {
                     failures.push(veto(candidate, 'target-polarity', 'harmful effect targets a friendly object'));
                 }
                 if((effect.kind === 'ready' || (effect.kind === 'status' && effect.status === 'honored')) &&

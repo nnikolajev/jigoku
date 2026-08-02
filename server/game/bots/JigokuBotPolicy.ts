@@ -33,9 +33,20 @@ import BoardAwareDynastyTactics from './BoardAwareDynastyTactics.js';
 import type { DynastyCharacterInfo, DynastyHandCard } from './BoardAwareDynastyTactics';
 import ConflictDeckSafetyTactics from './ConflictDeckSafetyTactics.js';
 import ConflictPhasePlanner from './ConflictPhasePlanner.js';
+import { planConflictActions, DEFAULT_CONFLICT_ACTION_PROFILE } from './v2/ConflictActionPlanner.js';
+import type { ConflictAction } from './v2/ConflictActionPlanner';
+import {
+    valueCard, voiceOfHonorValue, defendYourHonorValue, insultToInjuryValue,
+    incomingEventValue, trackReaction, hasCardValueModel, REACTION_ONLY_CARDS,
+    persistentSkillValue, towerCharacter, strongestContributor, participating
+} from './v2/CardValueModel.js';
+import type { CardValue, CardValueContext, HoldingInPlay, ValuedCharacter } from './v2/CardValueModel';
+import DeckConflictIntents from './DeckConflictIntents.js';
 import type {
     ConflictAxis,
+    ConflictDefensePlan,
     ConflictPhasePlan,
+    ConflictPhasePlannerInput,
     ConflictPlannerCharacter,
     ConflictPlannerTarget,
     ConflictPlanningPolicyVariant
@@ -181,6 +192,16 @@ interface DecideContext {
     duelParticipantIaijutsuReady?: Record<string, boolean>;
     // Exact public in-play character values omitted from serialized state.
     characterPrintedCosts?: Record<string, number>;
+    // Printed stats of characters in our dynasty discard. Cavalry Reserves
+    // recruits out of there and the serialized summary has no printed stats.
+    dynastyDiscardBodies?: Array<Record<string, unknown>>;
+    // Province-strength bonuses of holdings in our discard and in our provinces.
+    // Rebuild trades one for the other; strength is break arithmetic.
+    holdingStrengths?: { discard: number[]; provinces: number[]; inPlay?: HoldingInPlay[] };
+    // Province elements of the current conflict, both sides. Abilities that key
+    // off "a conflict at a <element> province" need this; the serialized player
+    // summary does not carry province elements.
+    conflictProvinceElements?: string[];
     characterBaseMilitary?: Record<string, number>;
     participatingCharacterCounts?: { self: number; opponent: number };
     cavalryCharacterUuids?: Record<string, true>;
@@ -243,6 +264,19 @@ interface DecideContext {
 }
 
 class JigokuBotPolicy {
+    // Offline diagnostic hook. Left null in every shipped configuration; an
+    // analysis tool assigns it to learn WHICH gate closed a conflict action
+    // window. It observes only — no decision, reason string, or ordering
+    // depends on it, so assigning it cannot change how the bot plays.
+    static windowProbe: ((event: Record<string, unknown>) => void) | null = null;
+    /** Companion probe: which gate rejected an individual hand card. */
+    static intentProbe: ((event: Record<string, unknown>) => void) | null = null;
+    /** Companion probe: what the V2 action planner decided, and why. */
+    static actionPlanProbe: ((event: Record<string, unknown>) => void) | null = null;
+    /** Companion probe: the break arithmetic behind an attacker declaration. */
+    static declarationProbe: ((event: Record<string, unknown>) => void) | null = null;
+
+    private intentDenyReason: string | null = null;
     private random: SeededRandom;
     private lastSignature = '';
     private attempted = new Set<string>();
@@ -312,6 +346,23 @@ class JigokuBotPolicy {
     private currentOpponentDuelBidding: DuelBidProfile | undefined;
     private currentDuelParticipantIaijutsuReady: Record<string, boolean> | undefined;
     private currentCharacterPrintedCosts: Record<string, number> | undefined;
+    // The value-model view of the conflict window currently being decided.
+    // Undefined outside a conflict window, which is what keeps the veto below
+    // from firing on stale board state in a dynasty or action window.
+    private currentValueContext: CardValueContext | undefined;
+    private currentUseCardValueModel = false;
+    private currentVetoDeadCards = false;
+    // Live fate cost of every conflict card we can play, by uuid. Duel synergy
+    // has to know whether a follow-up is AFFORDABLE, not merely held.
+    private currentConflictCosts: Record<string, number> | undefined;
+    private currentDynastyDiscardBodies: Array<Record<string, unknown>> | undefined;
+    private currentHoldingStrengths: {
+        discard: number[];
+        provinces: number[];
+        inPlay?: HoldingInPlay[];
+    } | undefined;
+    private currentConflictProvinceElements: string[] | undefined;
+    private currentOpponentConflictDeck: KnownCard[] | undefined;
     private currentCharacterBaseMilitary: Record<string, number> | undefined;
     private currentParticipatingCharacterCounts: { self: number; opponent: number } | undefined;
     private currentCavalryCharacterUuids: Record<string, true> | undefined;
@@ -396,6 +447,14 @@ class JigokuBotPolicy {
         this.currentOpponentDuelBidding = context.opponentDuelBidding;
         this.currentDuelParticipantIaijutsuReady = context.duelParticipantIaijutsuReady;
         this.currentCharacterPrintedCosts = context.characterPrintedCosts;
+        this.currentConflictCosts = context.conflictCosts;
+        this.currentDynastyDiscardBodies = context.dynastyDiscardBodies;
+        this.currentHoldingStrengths = context.holdingStrengths;
+        this.currentConflictProvinceElements = context.conflictProvinceElements;
+        this.currentOpponentConflictDeck = context.opponentConflictDeck;
+        this.currentValueContext = undefined;
+        this.currentUseCardValueModel = false;
+        this.currentVetoDeadCards = false;
         this.currentCharacterBaseMilitary = context.characterBaseMilitary;
         this.currentParticipatingCharacterCounts = context.participatingCharacterCounts;
         this.currentCavalryCharacterUuids = context.cavalryCharacterUuids;
@@ -884,7 +943,7 @@ class JigokuBotPolicy {
         }
 
         if(menuTitle.toLowerCase().includes('choose defenders') && !menuTitle.toLowerCase().includes('covert')) {
-            return this.defenderDecision(me, promptTitle, buttons, profile, context.omniscient, dishonor, context.cardHint, shugenja, opponent, context.legalDirectCardUuids);
+            return this.defenderDecision(me, promptTitle, buttons, profile, context.omniscient, dishonor, context.cardHint, shugenja, opponent, context.legalDirectCardUuids, playerState, context);
         }
 
         if(title.includes('choose first player')) {
@@ -1840,6 +1899,27 @@ class JigokuBotPolicy {
             : { desired: shugenjaFate, reason: 'tadaka-setup-fate' };
     }
 
+    /** Public board view of a player's characters, as the phase rollout sees it. */
+    private plannerCharacters(player: any): ConflictPlannerCharacter[] {
+        return this.myCharactersInPlay(player).map((card) => ({
+            uuid: String(card.uuid),
+            military: Math.max(0, this.skillValue(card, 'military') || 0),
+            political: Math.max(0, this.skillValue(card, 'political') || 0),
+            ready: !card.bowed,
+            inConflict: !!card.inConflict,
+            legalMilitary: (this.skillValue(card, 'military') ?? -1) >= 0,
+            legalPolitical: (this.skillValue(card, 'political') ?? -1) >= 0,
+            covert: !!card.covert,
+            bowsAfterConflict: true,
+            // Deck rules name bodies by printed id and trait, so the identity
+            // travels with the planner's character view.
+            cardId: card.id ? String(card.id) : undefined,
+            traits: (card.traits || []).map((trait: any) => String(trait).toLowerCase()),
+            glory: Math.max(0, Number(card.glory) || 0),
+            fate: Math.max(0, Number(card.fate) || 0)
+        }));
+    }
+
     private conflictPhaseLookahead(
         playerState: any,
         me: any,
@@ -1862,27 +1942,29 @@ class JigokuBotPolicy {
         if(this.conflictPlanningPolicy === 'legacy' || !profile.conflictPlanning?.enabled) {
             return null;
         }
-        const visibleCharacters = (player: any): ConflictPlannerCharacter[] =>
-            this.myCharactersInPlay(player).map((card) => ({
-                uuid: String(card.uuid),
-                military: Math.max(0, this.skillValue(card, 'military') || 0),
-                political: Math.max(0, this.skillValue(card, 'political') || 0),
-                ready: !card.bowed,
-                inConflict: !!card.inConflict,
-                legalMilitary: (this.skillValue(card, 'military') ?? -1) >= 0,
-                legalPolitical: (this.skillValue(card, 'political') ?? -1) >= 0,
-                covert: !!card.covert,
-                bowsAfterConflict: true
-            }));
+        const visibleCharacters = (player: any) => this.plannerCharacters(player);
         const exact = context.conflictPlanningCharacters;
-        const selfCharacters = (exact?.self || visibleCharacters(me)).map((card) => ({
+        // The exact V2 snapshot carries live skills but not printed identity;
+        // deck rules key on that, so merge it back in from the public board.
+        const identify = (cards: ConflictPlannerCharacter[], player: any): ConflictPlannerCharacter[] => {
+            if(cards.every((card) => card.cardId !== undefined)) {
+                return cards;
+            }
+            const known = new Map(visibleCharacters(player).map((card) => [card.uuid, card]));
+            return cards.map((card) => {
+                const match = known.get(card.uuid);
+                return match ? { ...match, ...card, cardId: card.cardId ?? match.cardId,
+                    traits: card.traits ?? match.traits } : card;
+            });
+        };
+        const selfCharacters = identify(exact?.self || visibleCharacters(me), me).map((card) => ({
             ...card,
             ready: card.ready && (!reservedUuids.has(card.uuid) || !!card.inConflict)
         }));
         if(projectedSelfCharacter) {
             selfCharacters.push(projectedSelfCharacter);
         }
-        const opponentCharacters = exact?.opponent || visibleCharacters(opponent);
+        const opponentCharacters = identify(exact?.opponent || visibleCharacters(opponent), opponent);
         const rings = Object.values(playerState?.rings || {})
             .filter((ring: any) => ring && ring.unselectable !== true && !ring.claimed)
             .map((ring: any) => ({
@@ -1917,6 +1999,27 @@ class JigokuBotPolicy {
             political: hand ? estimateHandThreat(hand, fate, 'political').skill : 0
         });
         const forcedAttackerUuids = selfCharacters.filter((card) => card.inConflict).map((card) => card.uuid);
+        const selfOpportunities = opportunities(me);
+        // The deck proposes concrete declarations; the shared rollout below
+        // ranks them against each other AND against the generic lines, so the
+        // base engine still owns the final whole-phase sequence.
+        const options = profile.conflictPlanning?.applyIntentPlan
+            ? new DeckConflictIntents(profile.conflictIntents).build({
+                round: Math.max(1, Number(context.roundNumber) || this.currentRoundNumber || 1),
+                selfCharacters,
+                handCardIds: (me?.cardPiles?.hand || [])
+                    .map((card: any) => String(card?.id || ''))
+                    .filter((id: string) => id.length > 0),
+                ringElements: rings.map((ring) => ring.element),
+                targets: opponentTargets,
+                opportunities: selfOpportunities,
+                selfBrokenProvinces: brokenOuterProvinceCount(me),
+                opponentBrokenProvinces: brokenOuterProvinceCount(opponent),
+                honor: Number.isFinite(Number(me?.stats?.honor)) ? Number(me?.stats?.honor) : 10,
+                opponentHonor: Number.isFinite(Number(opponent?.stats?.honor)) ? Number(opponent?.stats?.honor) : 10,
+                fate: Math.max(0, Number(me?.stats?.fate) || 0)
+            })
+            : [];
         const planner = new ConflictPhasePlanner(freshPhase ? {
             ...profile.conflictPlanning,
             // Dynasty projection needs direction, not a full proof tree. Four
@@ -1929,7 +2032,9 @@ class JigokuBotPolicy {
         return planner.plan({
             selfCharacters,
             opponentCharacters,
-            selfOpportunities: opportunities(me),
+            options,
+            reservedSelfUuids: [...reservedUuids],
+            selfOpportunities,
             opponentOpportunities: opportunities(opponent),
             rings,
             selfTargets,
@@ -1938,14 +2043,145 @@ class JigokuBotPolicy {
             opponentBrokenProvinces: brokenOuterProvinceCount(opponent),
             actor: freshPhase && !me?.firstPlayer ? 'opponent' : 'self',
             selfHandThreat: threat(context.ownConflictHand, Number(me?.stats?.fate) || 0),
+            // In fair mode the exact opponent hand is hidden, so the rollout
+            // otherwise treats every under-defended board as a free win and
+            // over-declares marginal / off-axis conflicts (measured: more
+            // political, lower average skill, more losses). A bounded defense
+            // buffer from PUBLIC hand size and fate makes the planner assume the
+            // opponent can answer, so it keeps to conflicts it can actually win
+            // on its strong axis. Gated by profile; default (0) is unchanged V1.
             opponentHandThreat: context.omniscient
                 ? threat(context.omniscient.oppHand, context.omniscient.oppFate)
-                : undefined,
+                : (() => {
+                    const buffer = Number(profile.conflictPlanning?.fairDefenseBuffer) || 0;
+                    if(buffer <= 0) {
+                        return undefined;
+                    }
+                    const handSize = (opponent?.cardPiles?.hand || []).length;
+                    const oppFate = Math.max(0, Number(opponent?.stats?.fate) || 0);
+                    const answers = buffer * Math.min(handSize, oppFate + 1);
+                    return answers > 0 ? { military: answers, political: answers } : undefined;
+                })(),
             lockedAxis,
             lockedRingElement,
             lockedTargetLocation,
             forcedAttackerUuids
         });
+    }
+
+    /**
+     * Size the live defense against the whole conflict phase.
+     *
+     * Every defender bows, so saving a province on their conflict can cost us
+     * our own. The rollout scores each candidate defense by its outcome plus
+     * the rest of the phase played with those bodies bowed; deck rules may
+     * name bodies that must defend or must stay home.
+     */
+    private conflictPhaseDefensePlan(
+        playerState: any,
+        me: any,
+        opponent: any,
+        profile: DeckProfile,
+        context: DecideContext,
+        axis: ConflictAxis,
+        attackerSkill: number,
+        provinceStrength: number
+    ): ConflictDefensePlan | null {
+        if(this.conflictPlanningPolicy === 'legacy' || !profile.conflictPlanning?.enabled ||
+            !profile.conflictPlanning.applyDefensePlan) {
+            return null;
+        }
+        const selfCharacters = this.plannerCharacters(me);
+        const opponentCharacters = this.plannerCharacters(opponent);
+        const rings = Object.values(playerState?.rings || {})
+            .filter((ring: any) => ring && ring.unselectable !== true && !ring.claimed)
+            .map((ring: any) => ({
+                element: String(ring.element),
+                fate: Math.max(0, Number(ring.fate) || 0),
+                selfValue: this.normalizedRingEffectValue(ring, me, opponent),
+                opponentValue: this.normalizedRingEffectValue(ring, opponent, me)
+            }));
+        const opportunities = (player: any) => ({
+            total: Math.max(0, Number(player?.stats?.conflictsRemaining) || 0),
+            military: Math.max(0, Number(player?.stats?.militaryRemaining) || 0),
+            political: Math.max(0, Number(player?.stats?.politicalRemaining) || 0)
+        });
+        const contested = PROVINCE_KEYS.map((key) => me?.provinces?.[key] || [])
+            .concat([me?.strongholdProvince || []])
+            .flat()
+            .find((card: any) => card?.inConflict && !card?.isBroken);
+        const stronghold = contested?.location === 'stronghold province';
+        const attackerUuids = opponentCharacters.filter((card) => card.inConflict)
+            .map((card) => card.uuid);
+        const committedDefenderUuids = selfCharacters.filter((card) => card.inConflict)
+            .map((card) => card.uuid);
+        const honor = Number(me?.stats?.honor);
+        // An unopposed loss costs 1 honor. That is close to free in a normal
+        // game (a low bid recovers it) and only matters near a dishonor loss,
+        // so the penalty is scaled in rather than applied flat.
+        const honorPressure = Number.isFinite(honor)
+            ? Math.max(0, Math.min(1, (8 - honor) / 6))
+            : 0;
+        const selfOpportunities = opportunities(me);
+        const input: ConflictPhasePlannerInput = {
+            selfCharacters,
+            opponentCharacters,
+            selfOpportunities,
+            opponentOpportunities: opportunities(opponent),
+            rings,
+            selfTargets: this.conflictPlanningTargets(me, profile, [], context.strongholdProvinceStrength),
+            opponentTargets: this.conflictPlanningTargets(opponent, profile),
+            selfBrokenProvinces: brokenOuterProvinceCount(me),
+            opponentBrokenProvinces: brokenOuterProvinceCount(opponent),
+            actor: 'self',
+            selfHandThreat: {
+                military: 0,
+                political: 0
+            },
+            honorPressure,
+            // Match V1's per-deck buffer: the minimum-sufficient defense is
+            // precisely the one an unseen pump flips.
+            defenseBuffer: Math.max(0, Number(profile.defenseSkillBuffer) || 0)
+        };
+        const live = {
+            axis,
+            ringElement: playerState?.conflict?.element
+                ? String(playerState.conflict.element).toLowerCase()
+                : undefined,
+            targetLocation: contested?.location ? String(contested.location) : undefined,
+            targetStrength: Math.max(0, provinceStrength),
+            targetStronghold: stronghold,
+            attackerSkill: Math.max(0, attackerSkill),
+            attackerUuids,
+            committedDefenderUuids
+        };
+        const intents = new DeckConflictIntents(profile.conflictIntents);
+        const maximumDefense = selfCharacters
+            .filter((card) => card.ready && (axis === 'military'
+                ? card.legalMilitary !== false : card.legalPolitical !== false))
+            .reduce((sum, card) => sum + Math.max(0, Number(card[axis]) || 0), 0);
+        const options = intents.buildDefense({
+            round: Math.max(1, Number(context.roundNumber) || this.currentRoundNumber || 1),
+            selfCharacters,
+            handCardIds: (me?.cardPiles?.hand || [])
+                .map((card: any) => String(card?.id || ''))
+                .filter((id: string) => id.length > 0),
+            ringElements: rings.map((ring) => ring.element),
+            targets: input.selfTargets,
+            opportunities: selfOpportunities,
+            selfBrokenProvinces: input.selfBrokenProvinces,
+            opponentBrokenProvinces: input.opponentBrokenProvinces,
+            honor: Number.isFinite(honor) ? honor : 10,
+            opponentHonor: Number.isFinite(Number(opponent?.stats?.honor)) ? Number(opponent?.stats?.honor) : 10,
+            fate: Math.max(0, Number(me?.stats?.fate) || 0)
+        }, {
+            axis,
+            ringElement: live.ringElement,
+            targetStronghold: stronghold,
+            attackerSkill: live.attackerSkill,
+            breakInevitable: live.attackerSkill - maximumDefense >= live.targetStrength
+        });
+        return new ConflictPhasePlanner(profile.conflictPlanning).planDefense(input, live, options);
     }
 
     /**
@@ -1969,9 +2205,13 @@ class JigokuBotPolicy {
         shugenja: ShugenjaTactics | null,
         attachmentTower: DragonAttachmentTactics | null
     ): Record<string, number> {
+        // Both dynasty decision paths consume these scores, so the projection
+        // is gated on the fate-aware economy rather than the board-aware one.
+        // The old board-aware gate silently made this a no-op for seed 1, which
+        // is why the layer had never actually been measured there.
         if(this.conflictPlanningPolicy === 'legacy' || !profile.conflictPlanning?.enabled ||
             !profile.conflictPlanning.applyDynastyProjection ||
-            !this.usesBoardAwareDynastyEconomy()) {
+            !this.usesFateAwareEconomy()) {
             return {};
         }
         const fate = Math.max(0, Number(me?.stats?.fate) || 0);
@@ -2111,6 +2351,22 @@ class JigokuBotPolicy {
             conflictMatch ? selectedElement : undefined,
             declarationLocked ? selectedProvince?.location : undefined
         );
+        // A plan the DECK authored is a specific play it asked for, already
+        // ranked against every alternative sequence by the shared rollout, so it
+        // executes without the generic per-layer apply flags (which stay off:
+        // the deck-blind rollout over-declares off-axis conflicts in fair mode).
+        // Crucially it only overrides the layers the deck actually NAMED — a
+        // deck that expressed a conflict-type preference does not thereby also
+        // seize ring choice and attacker selection.
+        const intentPlan = !!lookahead?.optionId && lookahead.action === 'attack'
+            ? lookahead.option
+            : undefined;
+        const useRingPlan = !!intentPlan?.ringElement || !!profile.conflictPlanning?.applyRingPlan;
+        const useTypePlan = !!intentPlan?.axis || !!profile.conflictPlanning?.applyTypePlan;
+        const useTargetPlan = !!intentPlan?.targetLocation || !!profile.conflictPlanning?.applyTargetPlan;
+        const useAttackerPlan = !!intentPlan?.exactAttackers ||
+            (intentPlan?.requiredAttackerUuids || []).length > 0 ||
+            !!profile.conflictPlanning?.applyAttackerPlan;
 
         if(lowerMenu.includes('elemental ring')) {
             const passButton = this.findButton(buttons, ['pass conflict']);
@@ -2136,7 +2392,7 @@ class JigokuBotPolicy {
                     return RING_ORDER.indexOf(a.element) - RING_ORDER.indexOf(b.element);
                 });
 
-            const plannedRing = profile.conflictPlanning?.applyRingPlan && lookahead?.ringElement
+            const plannedRing = useRingPlan && lookahead?.ringElement
                 ? rings.find((candidate: any) => candidate.element === lookahead.ringElement &&
                     !this.isAttempted('ringClicked', [candidate.element]))
                 : undefined;
@@ -2147,7 +2403,9 @@ class JigokuBotPolicy {
                     command: 'ringClicked',
                     args: [ring.element],
                     target: ring.element,
-                    reason: plannedRing ? 'conflict-lookahead-ring' : 'declare-conflict-ring'
+                    reason: plannedRing
+                        ? (intentPlan ? `${lookahead!.reason}-ring` : 'conflict-lookahead-ring')
+                        : 'declare-conflict-ring'
                 };
             }
 
@@ -2168,17 +2426,17 @@ class JigokuBotPolicy {
                 // neutral-to-positive at N=100: Phoenix 40%->44%,
                 // CraneDuels 52%->52%. Kept - it exploits hand knowledge
                 // exactly where a human opponent differs from the bot.
-                const preferredType = profile.conflictPlanning?.applyTypePlan &&
+                const preferredType = useTypePlan &&
                     lookahead?.action === 'attack' && lookahead.conflictType
                     ? lookahead.conflictType
                     : omni && profile.useOmniscientConflictAxis !== false
-                    ? this.omniPreferredConflictType(me, opponent, omni, profile.forceMilitaryConflict)
-                    : this.preferredConflictType(me, profile.forceMilitaryConflict);
+                        ? this.omniPreferredConflictType(me, opponent, omni, profile.forceMilitaryConflict)
+                        : this.preferredConflictType(me, profile.forceMilitaryConflict);
                 const preferredRemaining = preferredType === 'military'
                     ? Number(me?.stats?.militaryRemaining)
                     : Number(me?.stats?.politicalRemaining);
                 const element = conflictMatch[2].toLowerCase();
-                if(profile.conflictPlanning?.applyRingPlan && lookahead?.ringElement &&
+                if(useRingPlan && lookahead?.ringElement &&
                     lookahead.ringElement !== element &&
                     (!legalRingElements || !!legalRingElements[lookahead.ringElement]) &&
                     !this.isAttempted('ringClicked', [lookahead.ringElement])) {
@@ -2196,15 +2454,15 @@ class JigokuBotPolicy {
                         command: 'ringClicked',
                         args: [element],
                         target: element,
-                        reason: profile.conflictPlanning?.applyTypePlan && lookahead?.conflictType
-                            ? 'conflict-lookahead-switch-type'
+                        reason: useTypePlan && lookahead?.conflictType
+                            ? (intentPlan ? `${lookahead.reason}-type` : 'conflict-lookahead-switch-type')
                             : 'switch-conflict-type'
                     };
                 }
             }
             return this.attackProvinceDecision(
                 opponent, omni, legalDirectCardUuids, profile,
-                profile.conflictPlanning?.applyTargetPlan ? lookahead?.targetLocation : undefined);
+                useTargetPlan ? lookahead?.targetLocation : undefined);
         }
 
         if(lowerMenu.includes('covert')) {
@@ -2224,8 +2482,15 @@ class JigokuBotPolicy {
             const type = conflictType || 'military';
             const committed = this.myCharactersInPlay(me).filter((card) => card.inConflict);
             const finalStrongholdPush = this.strongholdUnderAttack(opponent);
+            // The winning deck option may want bodies held out of THIS
+            // declaration (a cavalry mover that joins later, a wall that stays
+            // home). A final stronghold push overrides every reserve.
+            const declarationReserved = intentPlan && !finalStrongholdPush &&
+                (lookahead?.reserveUuids || []).length > 0
+                ? new Set([...reserved, ...lookahead!.reserveUuids!])
+                : reserved;
             const legalUncommitted = ready.filter((card) =>
-                !card.inConflict && !reserved.has(String(card.uuid)));
+                !card.inConflict && !declarationReserved.has(String(card.uuid)));
             const eligible = legalUncommitted.filter((card) => (this.skillValue(card, type) || 0) > 0);
             let candidates = this.sortBySkillDesc(
                 finalStrongholdPush
@@ -2336,8 +2601,7 @@ class JigokuBotPolicy {
             const payoffCandidate = greaterGloryReady ? candidates.find((card) =>
                 (Number(card.fate) || 0) === 0 && (card.traits || []).includes('bushi') &&
                 !this.isAttempted('cardClicked', [card.uuid])) : null;
-            const usePlannedAttackers = !!lookahead && lookahead.action === 'attack' &&
-                profile.conflictPlanning?.applyAttackerPlan;
+            const usePlannedAttackers = !!lookahead && lookahead.action === 'attack' && useAttackerPlan;
             const plannedAttackerUuids = new Set(usePlannedAttackers ? lookahead.attackerUuids : []);
             const plannedNext = usePlannedAttackers
                 ? candidates.find((card) => plannedAttackerUuids.has(String(card.uuid)) &&
@@ -2346,19 +2610,75 @@ class JigokuBotPolicy {
             const plannedComplete = usePlannedAttackers && committed.length > 0 &&
                 [...plannedAttackerUuids].every((uuid) => committed.some((card) => String(card.uuid) === uuid));
 
+            JigokuBotPolicy.declarationProbe?.({
+                deckProfile: (profile.overrideNames || []).join(','),
+                conflictType: type,
+                committedCount: committed.length,
+                committedSkill,
+                potentialSkill,
+                breakTarget,
+                provinceStrength,
+                defenseEstimate,
+                totalEligible,
+                keepHome: Math.max(1, profile.attackKeepHome),
+                attackCommitment: profile.attackCommitment,
+                finalStrongholdPush,
+                plannedNext: !!plannedNext,
+                plannedComplete
+            });
+
             if(profile.conflictPlanning?.applyPassPlan && lookahead?.action === 'pass' && committed.length === 0) {
                 const passButton = this.findButton(buttons, ['pass conflict']);
                 if(passButton) {
                     return this.buttonDecision(passButton, lookahead.reason);
                 }
             }
-            if(plannedNext) {
-                return this.cardClickDecision(plannedNext, 'conflict-lookahead-attacker');
+            // V2 declaration sizing. The rollout plans for the whole phase and
+            // will initiate short of a break this declaration could still
+            // reach, because it is holding the body back for the next conflict.
+            // A deck that loses by conquest wants the province instead: fall
+            // through to the break heuristic, which tops the attack up.
+            const planShortOfBreak = !!profile.conflictPlanning?.secureReachableBreak &&
+                potentialSkill >= breakTarget && committedSkill < breakTarget;
+
+            // Hopeless-attack trimming. When no allocation of the whole board can
+            // reach the break, every extra body sent is bowed for a conflict that
+            // was already lost — but sending NOTHING is worse (measured: passing
+            // hopeless conflicts cost Crab 13-17pp, because a defensive deck then
+            // has no win condition at all). So the deck caps the size of an
+            // unwinnable attack instead of declining it.
+            //
+            // This deliberately applies to the ROLLOUT's planned set as well.
+            // Gating it on the generic `unbreakableCommit` path alone made it
+            // inert: with `applyAttackerPlan` on, the planned branches below
+            // return before that path is ever evaluated, and the flag produced a
+            // bit-identical run over 54 paired games.
+            const hopelessKeepHome = Math.max(0,
+                Number(profile.conflictPlanning?.hopelessAttackKeepHome) || 0);
+            const attackIsHopeless = profile.conflictPlanning?.hopelessAttackKeepHome !== undefined &&
+                !finalStrongholdPush && !strongholdPlan.forceAllAttackers &&
+                (potentialSkill - breakTarget) < (profile.conflictPlanning?.hopelessAttackReach ?? -4);
+            const hopelessCap = Math.max(1, totalEligible - hopelessKeepHome);
+            const hopelessTrimmed = attackIsHopeless && committed.length >= hopelessCap;
+
+            // A stronghold race is the one place the rollout's objective is
+            // simply wrong. It commits the smallest set that wins the PHASE,
+            // but breaking a stronghold ends the GAME, so there is no later
+            // conflict to preserve bodies for. Hand these back to the generic
+            // commitment path, which sends everything.
+            const strongholdRace = finalStrongholdPush || strongholdPlan.forceAllAttackers ||
+                profile.attackCommitment === 'all';
+
+            if(plannedNext && !hopelessTrimmed && !strongholdRace) {
+                return this.cardClickDecision(plannedNext,
+                    intentPlan ? `${lookahead!.reason}-attacker` : 'conflict-lookahead-attacker');
             }
-            if(plannedComplete && !payoffCandidate) {
+            if((plannedComplete || hopelessTrimmed) && !payoffCandidate && !planShortOfBreak &&
+                !strongholdRace) {
                 const initiate = this.findButton(buttons, ['initiate conflict']);
                 if(initiate) {
-                    return this.buttonDecision(initiate, 'conflict-lookahead-initiate');
+                    return this.buttonDecision(initiate,
+                        intentPlan ? `${lookahead!.reason}-initiate` : 'conflict-lookahead-initiate');
                 }
             }
 
@@ -2383,11 +2703,17 @@ class JigokuBotPolicy {
             // Final stronghold pushes override these caps and commit all eligible
             // attackers when a guaranteed break is not yet reachable.
             const keepHome = Math.max(1, profile.attackKeepHome);
+            // V2 declaration sizing, part two: the same hopeless cap applied to
+            // the generic (non-rollout) commitment path. Every mode below sends
+            // the same number of bodies whether the break is one point away or
+            // fifteen. Undefined leaves the mode exactly as V1 sized it.
             let unbreakableCommit: boolean;
             if(strongholdPlan.forceAllAttackers || finalStrongholdPush || profile.attackCommitment === 'all') {
                 unbreakableCommit = committed.length < totalEligible;
             } else if(profile.attackCommitment === 'breakable-or-hold') {
                 unbreakableCommit = false;
+            } else if(attackIsHopeless) {
+                unbreakableCommit = committed.length < hopelessCap;
             } else if(profile.attackCommitment === 'breakable-or-pressure') {
                 unbreakableCommit = committed.length < Math.max(1, totalEligible - keepHome);
             } else {
@@ -2660,8 +2986,8 @@ class JigokuBotPolicy {
                         reason: preferredLocation && province.location === preferredLocation
                             ? 'conflict-lookahead-target'
                             : province.location === 'stronghold province'
-                            ? 'attack-facedown-stronghold'
-                            : 'attack-facedown-province'
+                                ? 'attack-facedown-stronghold'
+                                : 'attack-facedown-province'
                     };
                 }
             }
@@ -2670,7 +2996,7 @@ class JigokuBotPolicy {
         return null;
     }
 
-    private defenderDecision(me: any, promptTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, shugenja: ShugenjaTactics | null = null, opponent?: any, legalDirectCardUuids?: Record<string, true>): BotDecision | null {
+    private defenderDecision(me: any, promptTitle: string, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, _omni?: Omniscient, dishonor: DishonorTactics | null = null, cardHint?: CardHintLookup, shugenja: ShugenjaTactics | null = null, opponent?: any, legalDirectCardUuids?: Record<string, true>, playerState?: any, decisionContext: DecideContext = {}): BotDecision | null {
         // NOTE: broad defense-side omniscience (defending against the human's
         // post-commit hand pump, conceding provably-lost conflicts to save
         // bodies) was implemented and MEASURED NET-NEGATIVE — it made the bot
@@ -2791,6 +3117,24 @@ class JigokuBotPolicy {
         // least the province strength. Defend to win when reachable, otherwise
         // defend just enough to prevent the break, otherwise keep the board.
         const provinceStrength = this.attackedProvinceStrength(me);
+
+        // Phase-aware defense: bow bodies only when they are not worth more in
+        // our own remaining conflict. Everything above still takes precedence —
+        // stronghold defense, Display of Power and Art of War are unconditional.
+        const defensePlan = playerState && opponent
+            ? this.conflictPhaseDefensePlan(playerState, me, opponent, profile, decisionContext,
+                type === 'political' ? 'political' : 'military', attackerSkill, provinceStrength)
+            : null;
+        if(defensePlan) {
+            const wanted = new Set(defensePlan.defenderUuids);
+            const next = candidates.find((card) => wanted.has(String(card.uuid)));
+            if(next) {
+                return this.cardClickDecision(next, defensePlan.reason);
+            }
+            return this.buttonDecision(done, defensePlan.concede
+                ? `${defensePlan.reason}-concede`
+                : `${defensePlan.reason}-sufficient`);
+        }
         const moverIsDirectCandidate = !!unicornMover && candidates.includes(unicornMover);
         const externalMoveSkill = unicornMover && unicornMoveCtx && !moverIsDirectCandidate
             ? this.currentUnicorn?.projectedMoveSwing(unicornMover, unicornMoveCtx) || 0
@@ -2912,10 +3256,16 @@ class JigokuBotPolicy {
         // NET-NEGATIVE — over-holding cost the bot conflicts it could have won
         // (Crane mirror regressed to 1-11). The `_omni` plumbing is kept for a
         // more careful future attempt; the base window heuristic is unchanged.
-        const pass = this.buttonDecision(this.findButton(buttons, ['pass']) || buttons[0], 'pass-window');
+        const rawPass = this.buttonDecision(this.findButton(buttons, ['pass']) || buttons[0], 'pass-window');
+        // `pass` records which gate closed the window for offline analysis and
+        // returns the identical decision object the gate would have returned.
+        const pass = (gate: string, detail: Record<string, unknown> = {}) => {
+            JigokuBotPolicy.windowProbe?.({ gate, ...detail });
+            return rawPass;
+        };
         const standing = this.conflictStanding(playerState, me);
         if(!standing) {
-            return pass;
+            return pass('no-standing');
         }
 
         // While defending, the attacked own province's Conflict Action is free
@@ -2950,7 +3300,7 @@ class JigokuBotPolicy {
 
         // The Art of War draws 3 on breaking — never spend cards saving it.
         if(!standing.amAttacker && this.shouldConcedeProvince(me)) {
-            return pass;
+            return pass('concede-art-of-war');
         }
 
         // The stronghold province under attack loses the game if it breaks:
@@ -2962,7 +3312,7 @@ class JigokuBotPolicy {
         // every card and fate for its own attacks — it passes every defensive
         // window and lets the province fall if it must.
         if(!profile.spendCardsOnDefense && !standing.amAttacker && !strongholdDefense) {
-            return pass;
+            return pass('rush-never-spends-on-defense');
         }
 
         // Breaking provinces wins the game, so the win/lose gap alone is not
@@ -3101,30 +3451,6 @@ class JigokuBotPolicy {
             }
             return typeof hint.shouldUseAction !== 'function' || hint.shouldUseAction(sharedPlayCtx);
         });
-        if(standing.amAttacker) {
-            const provinceStrength = this.attackedProvinceStrength(opponent, 4);
-            const requiredLead = pathMargin ? Math.max(provinceStrength, 5) : provinceStrength;
-            const breakDeficit = requiredLead - (standing.attackerSkill - standing.defenderSkill);
-            // Assaulting the enemy STRONGHOLD: breaking it wins the game, so
-            // the "too far gone" cap does not apply — spend everything on the
-            // final push (mirrors the all-in stronghold defense).
-            if(!feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan && !actionBeforePass && (breakDeficit <= 0 || (!strongholdAssault && breakDeficit > 6))) {
-                return pass;
-            }
-        } else {
-            if(!standing.losing && !feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan && !actionBeforePass) {
-                return pass;
-            }
-            const provinceStrength = this.attackedProvinceStrength(me, 3);
-            const breakDeficit = standing.attackerSkill - provinceStrength + 1 - standing.defenderSkill;
-            const cheapWin = standing.gap <= 3;
-            // At the stronghold there is no "too far gone": every buff and
-            // ability is thrown at the deficit because losing it is losing.
-            if(!strongholdDefense && !feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan && !actionBeforePass && ((breakDeficit <= 0 && !cheapWin) || breakDeficit > 6)) {
-                return pass;
-            }
-        }
-
         const myHonor = me?.stats?.honor ?? 10;
         const playCtx: any = {
             conflictType,
@@ -3160,14 +3486,58 @@ class JigokuBotPolicy {
             stronghold: me?.stronghold,
             yokuniCopiedNiten: this.yokuniCopiedNiten,
             activeConflict: true,
+            duelLoserUuids: playerState?.conflict?.duelLoserUuids || [],
             clarityProtectedUuids: sharedPlayCtx.clarityProtectedUuids,
             opponentParticipantCanBow: sharedPlayCtx.opponentParticipantCanBow,
+            conflictProvinceElements: this.currentConflictProvinceElements,
             omniscient: sharedPlayCtx.omniscient,
             opponentHasAffordableBowEffect: sharedPlayCtx.opponentHasAffordableBowEffect,
             conflictDeckConsumptionAllowed: sharedPlayCtx.conflictDeckConsumptionAllowed
         };
         playCtx.canPlayConflictCard = canPlayConflictCard;
         playCtx.conflictCosts = conflictCosts || {};
+        // Built once per window and read by the intent veto, so every card in
+        // this window is priced against the same board.
+        this.currentUseCardValueModel = !!profile.conflictPlanning?.useCardValueModel;
+        this.currentVetoDeadCards = !!profile.conflictPlanning?.vetoDeadCards;
+        this.currentValueContext = this.currentUseCardValueModel || this.currentVetoDeadCards
+            ? this.cardValueContext(me, playCtx, opponent)
+            : undefined;
+
+        // MEASURED, NOT SHIPPED: letting the action planner overrule these
+        // "too far gone" cutoffs (deficit above 6) was tried and cost games —
+        // seed 1, n=180, Dragon 15->13 and Phoenix 15->12 against the shipped
+        // baseline. At that deficit no affordable combination reaches the
+        // threshold, so the planner only ever bought marginal skill in
+        // conflicts that were already decided. The cutoffs stay authoritative
+        // on every engine; the planner runs after them.
+        if(standing.amAttacker) {
+            const provinceStrength = this.attackedProvinceStrength(opponent, 4);
+            const requiredLead = pathMargin ? Math.max(provinceStrength, 5) : provinceStrength;
+            const breakDeficit = requiredLead - (standing.attackerSkill - standing.defenderSkill);
+            // Assaulting the enemy STRONGHOLD: breaking it wins the game, so
+            // the "too far gone" cap does not apply — spend everything on the
+            // final push (mirrors the all-in stronghold defense).
+            if(!feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan && !actionBeforePass && (breakDeficit <= 0 || (!strongholdAssault && breakDeficit > 6))) {
+                return pass(breakDeficit <= 0 ? 'attack-already-breaking' : 'attack-deficit-too-large',
+                    { breakDeficit, provinceStrength, attackerSkill: standing.attackerSkill, defenderSkill: standing.defenderSkill });
+            }
+        } else {
+            if(!standing.losing && !feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan && !actionBeforePass) {
+                return pass('defense-already-winning',
+                    { attackerSkill: standing.attackerSkill, defenderSkill: standing.defenderSkill });
+            }
+            const provinceStrength = this.attackedProvinceStrength(me, 3);
+            const breakDeficit = standing.attackerSkill - provinceStrength + 1 - standing.defenderSkill;
+            const cheapWin = standing.gap <= 3;
+            // At the stronghold there is no "too far gone": every buff and
+            // ability is thrown at the deficit because losing it is losing.
+            if(!strongholdDefense && !feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan && !actionBeforePass && ((breakDeficit <= 0 && !cheapWin) || breakDeficit > 6)) {
+                return pass(breakDeficit > 6 ? 'defense-deficit-too-large' : 'defense-province-safe',
+                    { breakDeficit, provinceStrength, gap: standing.gap, attackerSkill: standing.attackerSkill, defenderSkill: standing.defenderSkill });
+            }
+        }
+
 
         // A visible participating bow source, or an affordable exact omniscient
         // hand bow, can act after our next pass. Protect now, before optional
@@ -3258,13 +3628,13 @@ class JigokuBotPolicy {
         // Foundations cycles after a prior Kiho) until the conflict is saved or
         // no useful play remains.
         if(dragonPayoffReady && !strongholdDefense && !strongholdAssault) {
-            return pass;
+            return pass('dragon-payoff-reached', { cardsPlayed, dragonCardTarget });
         }
         const dragonSaveException = saveDragonCards && standing.losing && dragonCardTarget >= 5 &&
             myCharacters.some((card) => card.inConflict && !card.bowed) &&
             dragonPool.some((card: any) => card.id === 'centipede-tattoo' && card.isPlayableByMe);
         if(saveDragonCards && !dragonSaveException) {
-            return pass;
+            return pass('dragon-saving-cards', { cardsPlayed, dragonCardTarget });
         }
 
         // NOTE: an old `if(fate < 1) return pass` reserve gate lived here. It
@@ -3386,6 +3756,19 @@ class JigokuBotPolicy {
                 strengthNeeded
             );
         }
+        // V2 action planning. Deck bearer rules become priced preferences, and
+        // the whole spend is chosen against the conflict outcome rather than
+        // one card at a time. Off for V1, which keeps the pipeline above.
+        if(profile.conflictPlanning?.applyActionPlan) {
+            const planned = this.conflictActionPlanCard(
+                playable, me, opponent, playCtx, profile, standing,
+                { cardHint, handStats, conflictCosts, lion, duelist, attachmentTower,
+                    legalDirectCardUuids, strongholdConflict: strongholdDefense || strongholdAssault });
+            if(planned) {
+                return this.cardClickDecision(planned, 'play-conflict-card');
+            }
+        }
+
         if(playable.length > 0) {
             if(dragon && ['hurricane-punch', 'void-fist', 'swell-of-seafoam', 'iron-foundations-stance'].includes(playable[0].id)) {
                 this.dragonKihoPlayed = true;
@@ -3393,7 +3776,402 @@ class JigokuBotPolicy {
             return this.cardClickDecision(playable[0], 'play-conflict-card');
         }
 
-        return pass;
+        // Reached the bottom with an open budget: every gate above allowed
+        // spending, but no hand card survived the intent filter. Record what
+        // was in hand so offline analysis can tell "nothing to play" apart
+        // from "intent filter rejected a card that would have won".
+        return pass('no-card-passed-intent-filter', {
+            amAttacker: standing.amAttacker,
+            fate: me?.stats?.fate ?? 0,
+            strengthNeeded,
+            rejected: this.normalConflictPlayCandidates(me, opponent)
+                .filter((card: any) => card.uuid && !this.isAttempted('cardClicked', [card.uuid]))
+                .map((card: any) => `${card.id}${card.isPlayableByMe ? '' : '!unplayable'}`)
+        });
+    }
+
+    /**
+     * Adapt the live state summary into the shape the V2 card value model
+     * reads. Skill comes from the live summaries, so attachments, buffs and
+     * status tokens are already folded in.
+     */
+    private cardValueContext(me: any, playCtx: any, opponent?: any): CardValueContext {
+        const adapt = (card: any): ValuedCharacter => ({
+            uuid: card.uuid,
+            id: card.id,
+            inConflict: !!card.inConflict,
+            bowed: !!card.bowed,
+            // The live summary names these `isHonored`/`isDishonored`; the
+            // bare `honored` spelling is undefined on every real card and
+            // silently made every honor-status effect look impossible.
+            honored: !!(card.isHonored ?? card.honored),
+            dishonored: !!(card.isDishonored ?? card.dishonored),
+            glory: Number(card.glorySummary?.stat ?? card.glory),
+            fate: Number(card.fate) || 0,
+            isUnique: !!card.isUnique,
+            traits: (card.traits || []).map((trait: any) => String(trait).toLowerCase()),
+            military: this.skillValue(card, 'military'),
+            political: this.skillValue(card, 'political'),
+            attachments: (card.attachments || []).map((attachment: any) => ({
+                uuid: attachment.uuid,
+                id: attachment.id,
+                militaryBonus: this.skillValue(attachment, 'military') ?? undefined,
+                politicalBonus: this.skillValue(attachment, 'political') ?? undefined
+            }))
+        });
+        return {
+            conflictType: playCtx?.conflictType === 'political' ? 'political' : 'military',
+            amAttacker: !!playCtx?.amAttacker,
+            activeConflict: !!playCtx?.activeConflict,
+            honor: Number(me?.stats?.honor) || 0,
+            fate: Number(me?.stats?.fate) || 0,
+            myCharacters: (playCtx?.myCharacters || []).map(adapt),
+            opponentCharacters: (playCtx?.opponentCharacters || []).map(adapt),
+            hand: (playCtx?.hand || []).map((card: any) => ({ id: card.id, uuid: card.uuid })),
+            printedCostByUuid: this.currentCharacterPrintedCosts,
+            handCostByUuid: this.currentConflictCosts,
+            myBid: Number(me?.showBid) || 0,
+            opponentBid: Number(opponent?.showBid) || 0,
+            opponentHonor: Number(opponent?.stats?.honor) || 0,
+            // Only the omniscient capability can see the opposing hand. Without
+            // it the models fall back to the size, which every player knows.
+            opponentHand: this.currentOmniscient?.oppHand?.map((card) => ({
+                id: card.id, name: card.name, fate: card.fate
+            })),
+            opponentHandSize: (opponent?.cardPiles?.hand || []).length,
+            conflictsRemaining: Number(me?.stats?.conflictsRemaining) || 0,
+            opponentFate: Number(opponent?.stats?.fate) || 0,
+            conflictSkillDifference: Math.abs(
+                (Number(playCtx?.mySkill) || 0) - (Number(playCtx?.opponentSkill) || 0)),
+            discardHoldingStrengths: this.currentHoldingStrengths?.discard,
+            provinceHoldingStrength: Math.max(0, ...(this.currentHoldingStrengths?.provinces || [0])),
+            // Identity and province state per holding, not just a strength
+            // number: a card that SPENDS a holding has to know which one is
+            // cheapest to lose.
+            playHoldings: this.currentHoldingStrengths?.inPlay,
+            // Public deck-list information: the biggest curated swing the
+            // opponent could still draw. Gossip is priced against it, and
+            // `CraneBaselineTactics.pickGossipCard` chooses the actual name.
+            bestBlockableThreat: Math.max(0, ...(this.currentOpponentConflictDeck || [])
+                .filter((card) => card.side === 'conflict')
+                .map((card) => Number(card.swing) || 0), 0),
+            haveImperialFavor: !!me?.imperialFavor,
+            myGlory: Number(me?.stats?.glory) || 0,
+            opponentGlory: Number(opponent?.stats?.glory) || 0,
+            // A bow effect only threatens us if they can actually pay for one.
+            opponentCanBow: !!playCtx?.opponentHasAffordableBowEffect ||
+                !!playCtx?.opponentParticipantCanBow,
+            // Discard-pile bodies are not in play, so their printed stats come
+            // from the controller rather than the serialized summary.
+            dynastyDiscard: (this.currentDynastyDiscardBodies || []) as any,
+            // Siege Warfare needs a holding in play. Holdings sit in province
+            // slots, not among characters, so the whole visible tree is scanned
+            // rather than the character list.
+            haveHolding: this.findVisibleCards(me).some((card: any) =>
+                card?.type === 'holding' && !card.facedown),
+            attackedProvinceStrength: Number(playCtx?.attackedProvinceStrength),
+            strengthNeeded: Number(playCtx?.strengthNeeded),
+            cardsPlayed: Number(playCtx?.cardsPlayed) || 0,
+            // Published by Conflict.getSummary(); previously this set was
+            // private to the Storied Defeat card and invisible to the bot.
+            duelLoserUuids: Array.isArray(playCtx?.duelLoserUuids) ? playCtx.duelLoserUuids : []
+        };
+    }
+
+    /**
+     * V2's reaction gate for cards whose worth is only knowable at the instant
+     * they would fire.
+     *
+     * V1 clicks all three of these blind: Voice of Honor cancels whatever event
+     * the opponent played, Defend Your Honor duels over it, and Insult to Injury
+     * dishonors whichever character just lost a duel. Each is a whole card, and
+     * each is frequently spent on nothing. The value model answers "is this
+     * worth its card right now"; below the bar we hold it.
+     *
+     * Returns true when the card should be HELD. Gated on `useCardValueModel`,
+     * which only V2 profiles set, so V1's behavior is untouched.
+     */
+    /**
+     * Value gate for an ability admitted by `triggeredAbilityAllowIds` (V2).
+     *
+     * These abilities SPEND a board resource rather than a card, so the usual
+     * rule — never let a `hold` become a veto — is inverted here. A `hold` means
+     * the thing being spent is worth more than the effect (Kaiu Siege Force
+     * bottoming a load-bearing wall to unbow), and firing anyway destroys a
+     * permanent for a one-round gain. The rule exists because refusing a FREE
+     * card that is worth nothing unplayed loses value; that reasoning does not
+     * transfer to an ability with a real, recurring price.
+     *
+     * Only ids on the allow list reach this, so nothing V1 plays is affected.
+     */
+    private triggeredAbilityValueHeld(cardId: string, playerState: any, me: any): boolean {
+        if(!hasCardValueModel(cardId)) {
+            return false;
+        }
+        const opponent = this.opponentPlayer(playerState, me);
+        const conflict = playerState?.conflict;
+        const value = valueCard(cardId, this.cardValueContext(me, {
+            conflictType: conflict?.type === 'political' ? 'political' : 'military',
+            amAttacker: conflict?.attackingPlayerId === me?.id,
+            activeConflict: !!conflict?.type,
+            myCharacters: this.myCharactersInPlay(me),
+            opponentCharacters: this.myCharactersInPlay(opponent),
+            hand: me?.cardPiles?.hand || []
+        }, opponent));
+        if(!value) {
+            return false;
+        }
+        trackReaction(cardId, value.blocked || value.hold ? 'skipped' : 'fired', value.reason || '');
+        return !!value.blocked || !!value.hold;
+    }
+
+    private reactionCardHeld(
+        cardId: string,
+        playerState: any,
+        me: any,
+        profile: DeckProfile,
+        windowTitle: string
+    ): boolean {
+        if(!profile.conflictPlanning?.useCardValueModel) {
+            return false;
+        }
+        const opponent = this.opponentPlayer(playerState, me);
+        const conflict = playerState?.conflict;
+        const context = this.cardValueContext(me, {
+            conflictType: conflict?.type === 'political' ? 'political' : 'military',
+            amAttacker: conflict?.attackingPlayerId === me?.id,
+            activeConflict: !!conflict?.type,
+            myCharacters: this.myCharactersInPlay(me),
+            opponentCharacters: this.myCharactersInPlay(opponent),
+            hand: me?.cardPiles?.hand || [],
+            duelLoserUuids: conflict?.duelLoserUuids || []
+        }, opponent);
+        const configured = Number(profile.conflictActionPlan?.cancelThreshold);
+        const threshold = Number.isFinite(configured) ? configured : 4;
+
+        const held = (decision: CardValue, detail = ''): boolean => {
+            trackReaction(cardId, decision.blocked ? 'skipped' : 'fired',
+                detail + '|' + (decision.reason || ''));
+            return !!decision.blocked;
+        };
+        if(cardId === 'voice-of-honor' || cardId === 'defend-your-honor') {
+            const incoming = incomingEventValue(windowTitle);
+            if(incoming === null) {
+                // Unrecognised event: keep V1's behavior rather than hold a
+                // cancel against an unknown threat.
+                trackReaction(cardId, 'unknown', windowTitle);
+                return false;
+            }
+            return held(cardId === 'voice-of-honor'
+                ? voiceOfHonorValue(context, incoming, threshold)
+                : defendYourHonorValue(context, incoming, threshold),
+            'incoming=' + incoming);
+        }
+        if(cardId === 'insult-to-injury') {
+            return held(insultToInjuryValue(context));
+        }
+        return false;
+    }
+
+    /**
+     * Pick the next card to play by scoring the whole spend against the
+     * conflict outcome (V2 only).
+     *
+     * Two things change versus the pipeline above. Cards the deck's preferred
+     * BEARER picker rejected are re-admitted as priced options rather than
+     * dropped, and combinations are evaluated together, so two small pumps
+     * that only clear the break threshold jointly are found. Returns null
+     * whenever passing or V1's order is at least as good, so this can only add
+     * plays the outcome model actually wants.
+     */
+    private conflictActionPlanCard(
+        playable: any[],
+        me: any,
+        opponent: any,
+        playCtx: any,
+        profile: DeckProfile,
+        standing: { losing: boolean; amAttacker: boolean; attackerSkill: number; defenderSkill: number },
+        deps: {
+            cardHint?: CardHintLookup;
+            handStats?: HandStats;
+            conflictCosts?: Record<string, number>;
+            lion: LionTactics | null;
+            duelist: DuelTactics | null;
+            attachmentTower: DragonAttachmentTactics | null;
+            legalDirectCardUuids?: Record<string, true>;
+            strongholdConflict: boolean;
+        }
+    ): any | null {
+        const relaxPenalty = Number(profile.conflictPlanning?.actionPlanRelaxPenalty);
+        const penalty = Number.isFinite(relaxPenalty) ? relaxPenalty : 30;
+        const byKey = new Map<string, any>();
+        const actions: ConflictAction[] = [];
+        // Reaction/interrupt cards the planner declined to treat as card plays.
+        // Reported on the probe so their reachability is measurable rather than
+        // assumed.
+        const skippedReactions: string[] = [];
+        const valueContext = this.cardValueContext(me, playCtx, opponent);
+        // Endorsement is recomputed rather than inherited from `playable`: the
+        // deficit-gate call site has no pre-filtered list, and inheriting an
+        // empty one would price every card as deck-vetoed.
+        const endorses = (card: any) => this.conflictCardPlayIntentInner(
+            card, playCtx, deps.cardHint, deps.handStats, false,
+            deps.lion, deps.duelist, deps.attachmentTower, undefined, false, false);
+
+        const consider = (card: any, relaxed: boolean) => {
+            const uuid = String(card.uuid || '');
+            if(!uuid || byKey.has(uuid)) {
+                return;
+            }
+            // Live cost is required: an unknown cost cannot be budgeted, and
+            // guessing one risks planning a spend the player cannot afford.
+            if(!deps.conflictCosts || !Object.prototype.hasOwnProperty.call(deps.conflictCosts, uuid)) {
+                return;
+            }
+            // Interrupts and reactions cannot be played as a normal card action,
+            // and their value model has no incoming event to price here. Duty in
+            // particular reports abilityValue 1000 ("do not lose the game"),
+            // which dominated every plan and burned the window on a click that
+            // could never resolve.
+            if(card.id && REACTION_ONLY_CARDS.has(card.id)) {
+                skippedReactions.push(card.id);
+                return;
+            }
+            const hint: any = card.id && deps.cardHint ? deps.cardHint(card.id) : undefined;
+            const cost = Math.max(0, Number(deps.conflictCosts[uuid]) || 0);
+
+            // A live value model beats the printed number: Assassination is
+            // worth the skill of the body it actually removes, not a constant.
+            const modelled = valueCard(card.id, valueContext);
+            if(modelled) {
+                if(modelled.blocked) {
+                    return;
+                }
+                byKey.set(uuid, card);
+                actions.push({
+                    key: uuid,
+                    cardId: card.id,
+                    uuid,
+                    cost,
+                    honorCost: Math.max(0, Number(modelled.honorCost) || 0),
+                    selfSkill: modelled.selfSkill,
+                    opponentSkill: modelled.opponentSkill,
+                    abilityValue: modelled.abilityValue,
+                    persistentValue: modelled.persistentValue,
+                    provinceStrengthDelta: modelled.provinceStrengthDelta,
+                    deckPreference: relaxed ? -penalty : 0,
+                    relaxed,
+                    reason: modelled.reason
+                });
+                return;
+            }
+
+            const contribution = this.handContribution(card, playCtx.conflictType, deps.handStats, deps.cardHint, playCtx);
+            // Only cards with a known skill effect can be scored against the
+            // break threshold. Everything else stays on V1's ordering.
+            if(contribution === null || !Number.isFinite(contribution) || contribution === 0) {
+                return;
+            }
+            const enemySide = contribution < 0 && hint?.targetSide === 'enemy';
+            byKey.set(uuid, card);
+            // An ATTACHMENT keeps paying its bonus in every later conflict, an
+            // event pays once. Without this the planner swapped Fine Katana for
+            // Banzai and Ornate Fan for Court Games purely because the one-shot
+            // number was bigger this window.
+            //
+            // Debuffs count too: a debuff persists on the OPPOSING body, so it is
+            // priced off that body's fate rather than ours. The bearer is an
+            // estimate - the real one is only chosen when the card is clicked - so
+            // the likely target stands in: our tower for a buff, their best live
+            // contributor for a debuff.
+            const persists = card.type === 'attachment';
+            const bearer = !persists ? undefined
+                : enemySide
+                    ? strongestContributor(
+                        participating(valueContext.opponentCharacters), valueContext.conflictType)
+                    : towerCharacter(valueContext.myCharacters, valueContext.conflictType);
+            actions.push({
+                key: uuid,
+                cardId: card.id,
+                uuid,
+                cost,
+                selfSkill: enemySide ? 0 : Math.max(0, contribution),
+                opponentSkill: enemySide ? -Math.abs(contribution) : 0,
+                abilityValue: hint?.abilityValue ? 2 : 0,
+                persistentValue: persists
+                    ? persistentSkillValue(contribution, valueContext, bearer)
+                    : 0,
+                deckPreference: relaxed ? -penalty : 0,
+                relaxed
+            });
+        };
+
+        for(const card of playable) {
+            consider(card, false);
+        }
+        // Admit the rest of the hand, pricing each card by whether the deck's
+        // own bearer rules endorse it. A vetoed card is a legal play the deck
+        // merely dislikes — the engine still supplies only legal targets when
+        // it is clicked — so it becomes an expensive option, not an absent one.
+        for(const card of this.normalConflictPlayCandidates(me, opponent)) {
+            if(!card.isPlayableByMe || !card.uuid || byKey.has(String(card.uuid)) ||
+                !this.isDirectCardLegal(card, deps.legalDirectCardUuids) ||
+                this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id)) {
+                continue;
+            }
+            if(endorses(card)) {
+                consider(card, false);
+            } else if(this.conflictCardPlayIntentInner(
+                card, playCtx, deps.cardHint, deps.handStats, false,
+                deps.lion, deps.duelist, deps.attachmentTower, undefined, false, true)) {
+                consider(card, true);
+            }
+        }
+        if(actions.length === 0) {
+            return null;
+        }
+
+        const provinceStrength = standing.amAttacker
+            ? this.attackedProvinceStrength(opponent, 4)
+            : this.attackedProvinceStrength(me, 3);
+        const plan = planConflictActions({
+            amAttacker: standing.amAttacker,
+            attackerSkill: standing.attackerSkill,
+            defenderSkill: standing.defenderSkill,
+            provinceStrength,
+            fate: Number(me?.stats?.fate) || 0,
+            honor: Number(me?.stats?.honor) || 10,
+            strongholdConflict: deps.strongholdConflict,
+            actions
+        }, {
+            ...DEFAULT_CONFLICT_ACTION_PROFILE,
+            ...(profile.conflictActionPlan || {})
+        });
+        const first = plan?.actions[0];
+        JigokuBotPolicy.actionPlanProbe?.({
+            // V1's own choice for this window. `playable` arrives here already
+            // sorted by the deck comparators AND fate-budget ordered, so its head
+            // is exactly the card V1 would click. Returning null falls through to
+            // it, so "planner abstains" and "planner agrees" are the same
+            // OUTCOME - the divergence set is substitutions plus additions.
+            v1Choice: playable[0]?.id ?? null,
+            v1PlayableCount: playable.length,
+            amAttacker: standing.amAttacker,
+            attackerSkill: standing.attackerSkill,
+            defenderSkill: standing.defenderSkill,
+            provinceStrength,
+            fate: Number(me?.stats?.fate) || 0,
+            candidates: actions.map((entry) => `${entry.cardId}${entry.relaxed ? '*' : ''}:${entry.selfSkill}/${entry.cost}`),
+            skippedReactions,
+            chosen: plan ? plan.actions.map((entry) => entry.cardId) : null,
+            breaks: plan?.breaks ?? null,
+            wins: plan?.wins ?? null,
+            gain: plan?.gain ?? null
+        });
+        if(!first?.uuid) {
+            return null;
+        }
+        return byKey.get(first.uuid) || null;
     }
 
     // Own in-play cards worth clicking for their Action abilities during a
@@ -3557,6 +4335,7 @@ class JigokuBotPolicy {
             winSkillNeeded: standing?.losing ? standing.gap : 0,
             clarityProtectedUuids: Array.from(this.clarityProtectedUuids),
             opponentParticipantCanBow: this.currentOpponentParticipantCanBow,
+            conflictProvinceElements: this.currentConflictProvinceElements,
             omniscient: !!omniscient,
             opponentHasAffordableBowEffect: !!omniscient &&
                 omniscient.oppHand.some((card) =>
@@ -3584,7 +4363,7 @@ class JigokuBotPolicy {
             .concat(opponent?.strongholdProvince || [])
             .concat(...Object.values(opponent?.provinces || {}) as any[])
             .filter((card: any) =>
-            !!card?.id && !card?.facedown && !String(card?.location || '').toLowerCase().includes('hand'));
+                !!card?.id && !card?.facedown && !String(card?.location || '').toLowerCase().includes('hand'));
         const tactics = new ConflictDeckSafetyTactics(
             this.currentDeckProfile.conflictDeckSafety || DEFAULT_PROFILE.conflictDeckSafety
         );
@@ -3629,6 +4408,9 @@ class JigokuBotPolicy {
             .filter((card: any) => !this.failedPlayCards.has(card.uuid));
     }
 
+    // Thin observing wrapper. The inner method holds all behavior; this only
+    // attributes a rejection to a named gate for offline analysis. A gate that
+    // reports nothing is one of the deck-specific target checks.
     private conflictCardHasPlayIntent(
         card: any,
         playCtx: any,
@@ -3641,11 +4423,62 @@ class JigokuBotPolicy {
         forcedAttachmentBearerUuid?: string,
         allowWithoutReadyParticipant = false
     ): boolean {
+        const probe = JigokuBotPolicy.intentProbe;
+        if(!probe) {
+            return this.conflictCardPlayIntentInner(card, playCtx, cardHint, handStats, feedCards,
+                lion, duelist, attachmentTower, forcedAttachmentBearerUuid, allowWithoutReadyParticipant);
+        }
+        this.intentDenyReason = null;
+        const allowed = this.conflictCardPlayIntentInner(card, playCtx, cardHint, handStats, feedCards,
+            lion, duelist, attachmentTower, forcedAttachmentBearerUuid, allowWithoutReadyParticipant);
+        if(!allowed) {
+            probe({ cardId: card?.id, why: this.intentDenyReason || 'deck-specific-target' });
+        }
+        this.intentDenyReason = null;
+        return allowed;
+    }
+
+    private conflictCardPlayIntentInner(
+        card: any,
+        playCtx: any,
+        cardHint?: CardHintLookup,
+        handStats?: HandStats,
+        feedCards = false,
+        lion: LionTactics | null = null,
+        duelist: DuelTactics | null = null,
+        attachmentTower: DragonAttachmentTactics | null = null,
+        forcedAttachmentBearerUuid?: string,
+        allowWithoutReadyParticipant = false,
+        // When set, the deck's preferred-BEARER pickers are skipped. Those
+        // pickers express where an attachment is worth the most, not whether
+        // it may legally be played; the engine still supplies only legal
+        // bearers. Every other gate, including strategic ability gates, still
+        // applies. Used by the V2 action planner to price a deck preference
+        // instead of treating it as a veto.
+        relaxDeckAttachmentTargets = false
+    ): boolean {
+        const deny = (why: string) => {
+            this.intentDenyReason = why;
+            return false;
+        };
         const myCharacters = playCtx?.myCharacters || [];
         const hint: any = card.id && cardHint ? cardHint(card.id) : undefined;
-        if(duelist?.isTowerAttachment(card.id) &&
+        // V2 only: refuse a card the live value model says has no useful
+        // application right now - Assassination with no legal target, Rout with
+        // no participating Bushi, a duel we lose. V1 plays these on a flat
+        // constant and frequently spends them on nothing.
+        if(this.currentVetoDeadCards && this.currentValueContext && card.id &&
+            hasCardValueModel(card.id) && !REACTION_ONLY_CARDS.has(card.id)) {
+            const value = valueCard(card.id, this.currentValueContext);
+            // `hold` means "legal but below my threshold" and must NOT veto:
+            // a preference enforced as a veto cost 22pp on PhoenixShugenja.
+            if(value?.blocked && !value.hold) {
+                return deny('value-model:' + (value.reason || 'blocked'));
+            }
+        }
+        if(!relaxDeckAttachmentTargets && duelist?.isTowerAttachment(card.id) &&
             !duelist.pickAttachmentTarget(myCharacters, card.id, hint?.maxCopiesPerTarget)) {
-            return false;
+            return deny('duel-tower-target');
         }
         // A conflict character that grants a duel Action is not yet among
         // myCharacters while it is in hand. Gate the Action after it enters
@@ -3700,7 +4533,7 @@ class JigokuBotPolicy {
                 return false;
             }
         }
-        if(this.currentUnicorn?.profile.singletonAttachments.includes(card.id) &&
+        if(!relaxDeckAttachmentTargets && this.currentUnicorn?.profile.singletonAttachments.includes(card.id) &&
             !this.currentUnicorn.pickAttachmentTarget(
                 card.id,
                 myCharacters,
@@ -3710,7 +4543,7 @@ class JigokuBotPolicy {
                 playCtx?.strengthNeeded,
                 this.currentReadyAfterMoveCharacterUuids
             )) {
-            return false;
+            return deny('unicorn-attachment-target');
         }
         if(this.currentUnicorn && card.id === 'challenge-on-the-fields') {
             const unicorn = this.currentUnicorn;
@@ -3735,7 +4568,7 @@ class JigokuBotPolicy {
                 return false;
             }
         }
-        if(attachmentTower?.isAttachment(card.id)) {
+        if(attachmentTower?.isAttachment(card.id) && !relaxDeckAttachmentTargets) {
             const target = attachmentTower.pickAttachmentTarget(
                 myCharacters,
                 card.id,
@@ -3743,7 +4576,7 @@ class JigokuBotPolicy {
                 this.yokuniCopiedNiten
             );
             if(!target || (forcedAttachmentBearerUuid && target.uuid !== forcedAttachmentBearerUuid)) {
-                return false;
+                return deny('dragon-attachment-target');
             }
         }
 
@@ -3752,28 +4585,28 @@ class JigokuBotPolicy {
         if(!allowWithoutReadyParticipant && !hasReadyParticipant && card.type !== 'character' &&
             card.id !== 'consumed-by-five-fires' &&
             !(attachmentTower && attachmentTower.isAttachment(card.id))) {
-            return false;
+            return deny('no-ready-participant');
         }
 
         if(hint) {
             if(hint.useWhen === 'never' || hint.useWhen === 'winning') {
-                return false;
+                return deny(`use-when-${hint.useWhen}`);
             }
             if(hint.conflictTypes.length > 0 && !hint.conflictTypes.includes(playCtx.conflictType)) {
-                return false;
+                return deny('wrong-conflict-type');
             }
             if(typeof hint.shouldPlay === 'function' && !hint.shouldPlay(playCtx)) {
-                return false;
+                return deny('playbook-should-play');
             }
             if(hint.optionalDrawCards && typeof playCtx?.conflictDeckConsumptionAllowed === 'function' &&
                 !playCtx.conflictDeckConsumptionAllowed(hint.optionalDrawCards)) {
-                return false;
+                return deny('deck-safety');
             }
             const maxCopiesPerTarget = hint.maxCopiesPerTarget;
             if(maxCopiesPerTarget && (hint.targetSide === 'self' || hint.attachSide === 'self') &&
                 !myCharacters.some((target: any) =>
                     this.attachmentCopyCount(target, card.id) < maxCopiesPerTarget)) {
-                return false;
+                return deny('max-copies-per-target');
             }
         }
 
@@ -3781,15 +4614,15 @@ class JigokuBotPolicy {
         const strengthNeeded = Number(playCtx?.strengthNeeded);
         if(Number.isFinite(strengthNeeded) && strengthNeeded <= 0 && contribution !== null && contribution > 0 &&
             !hint?.abilityValue && !playCtx?.allowStrengthOvercommit) {
-            return false;
+            return deny('strength-already-sufficient');
         }
         if(contribution !== null && contribution < 0) {
-            return !!hint && hint.targetSide === 'enemy';
+            return !!hint && hint.targetSide === 'enemy' ? true : deny('negative-contribution');
         }
         if(contribution === 0) {
-            return feedCards || (!!hint && !!hint.abilityValue);
+            return feedCards || (!!hint && !!hint.abilityValue) ? true : deny('zero-contribution');
         }
-        return contribution === null || contribution > 0;
+        return contribution === null || contribution > 0 ? true : deny('no-contribution');
     }
 
     // null = unknown contribution (events and cards the controller sent no
@@ -4276,16 +5109,16 @@ class JigokuBotPolicy {
                 }
                 : profile.fateAwareEconomy.preferDeckCharacters
                     ? this.fateAwareDeckDynastyPreference(
-                    playable,
-                    dynastyCosts || {},
-                    me,
-                    dishonor,
-                    lion,
-                    duelist,
-                    shugenja,
-                    attachmentTower,
-                    crane,
-                    dynamicFateReserve
+                        playable,
+                        dynastyCosts || {},
+                        me,
+                        dishonor,
+                        lion,
+                        duelist,
+                        shugenja,
+                        attachmentTower,
+                        crane,
+                        dynamicFateReserve
                     )
                     : null;
             // Lion's A Season of War is a dynasty event, so it has no
@@ -5056,6 +5889,11 @@ class JigokuBotPolicy {
         // Character/event reactions fire only with an LLM hint that rates the
         // ability worth using — blind triggers waste fate and honor.
         if(cardHint) {
+            // V2-only: ids a deck admits despite a sub-6 playbook priority.
+            // This window is the ONLY path a character's Action/Reaction takes,
+            // so a low priority is not a preference there — it is a structural
+            // block. See `triggeredAbilityAllowIds`.
+            const allowLowPriority = new Set(profile.conflictPlanning?.triggeredAbilityAllowIds || []);
             // Attachments remain nested under their bearer in the public state.
             // An attachment we own on an opposing character therefore is not in
             // `me`, even when its interrupt is selectable for us (Tainted Koku).
@@ -5065,7 +5903,12 @@ class JigokuBotPolicy {
                         return false;
                     }
                     const hint = cardHint(card.id);
-                    if(!hint || hint.useWhen === 'never' || hint.priority < 6) {
+                    if(!hint || hint.useWhen === 'never' ||
+                        (hint.priority < 6 && !allowLowPriority.has(card.id))) {
+                        return false;
+                    }
+                    if(allowLowPriority.has(card.id) &&
+                        this.triggeredAbilityValueHeld(card.id, playerState, me)) {
                         return false;
                     }
                     const optionalDeckConsumption = (hint as any).optionalAbilityConflictDeckCardsConsumed ??
@@ -5083,6 +5926,12 @@ class JigokuBotPolicy {
                         return false;
                     }
                     if(card.id === 'voice-of-honor' && interruptedEventIsMine === true) {
+                        return false;
+                    }
+                    // V2: a reaction is only worth its card when what it stops
+                    // (or dishonors) is worth more than the threshold. V1 fired
+                    // all of these blind at every opportunity.
+                    if(this.reactionCardHeld(card.id, playerState, me, profile, windowTitle)) {
                         return false;
                     }
                     if(card.id === 'display-of-power' && displayOfPowerActive) {
@@ -6838,6 +7687,11 @@ class JigokuBotPolicy {
             });
         }
         const sorted = this.sortBySkillDesc(cards, skillType);
+        // A free ready is worth nothing on an already-ready character, so this
+        // preference puts bowed candidates first and only then sorts by skill.
+        if(preference === 'strongest-bowed') {
+            return sorted.slice().sort((a, b) => Number(!!b.bowed) - Number(!!a.bowed));
+        }
         return preference === 'weakest' ? sorted.reverse() : sorted;
     }
 

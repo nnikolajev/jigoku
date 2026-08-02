@@ -10,6 +10,7 @@ import { getPlaybookEntry, deriveDeckStrategy } from './CardPlaybook.js';
 import type { DeckStrategy } from './CardPlaybook';
 import { resolveDeckProfile } from './DeckProfiles.js';
 import type { DeckProfile } from './DeckProfiles';
+import { applyV2DeckProfile } from './v2/V2DeckProfiles.js';
 import type { DuelBidContext } from './DuelBidTactics';
 import type { DrawBidContext } from './DrawBidTactics';
 import type { DynastyCharacterInfo } from './BoardAwareDynastyTactics';
@@ -23,6 +24,7 @@ import type Ring from '../ring';
 import type BaseCard from '../basecard';
 import type { JigokuBotConfig } from './JigokuBotConfig';
 import { CharacterStatus, EffectNames, EventNames } from '../Constants';
+import { PlayAttachmentAction } from '../PlayAttachmentAction.js';
 
 interface BotTraceEntry {
     player: string;
@@ -197,28 +199,78 @@ class JigokuBotController {
                 return rings.some((ring: any) => provinces.some((province: any) => {
                     try {
                         return card.canDeclareAsAttacker(axis, ring, province);
-                    } catch {
+                    } catch{
                         return false;
                     }
                 }));
             };
             return cards.filter((card: any) => (card?.type || card?.getType?.()) === 'character')
-                .map((card: any) => ({
-                    uuid: String(card.uuid),
-                    military: Math.max(0, Number(card.getMilitarySkill?.()) || 0),
-                    political: Math.max(0, Number(card.getPoliticalSkill?.()) || 0),
-                    ready: !card.bowed,
-                    inConflict: !!card.inConflict,
-                    legalMilitary: legal(card, 'military'),
-                    legalPolitical: legal(card, 'political'),
-                    covert: !!card.isCovert?.(),
-                    bowsAfterConflict: typeof card.bowsOnReturnHome === 'function'
-                        ? !!card.bowsOnReturnHome()
-                        : true
-                }));
+                .map((card: any) => {
+                    const attachments: any[] = Array.isArray(card.attachments) ? card.attachments
+                        : typeof card.attachments?.toArray === 'function' ? card.attachments.toArray() : [];
+                    return {
+                        uuid: String(card.uuid),
+                        military: Math.max(0, Number(card.getMilitarySkill?.()) || 0),
+                        political: Math.max(0, Number(card.getPoliticalSkill?.()) || 0),
+                        ready: !card.bowed,
+                        inConflict: !!card.inConflict,
+                        legalMilitary: legal(card, 'military'),
+                        legalPolitical: legal(card, 'political'),
+                        covert: !!card.isCovert?.(),
+                        bowsAfterConflict: typeof card.bowsOnReturnHome === 'function'
+                            ? !!card.bowsOnReturnHome()
+                            : true,
+                        attachments: attachments.map((attachment: any) => {
+                            const military = Number(attachment?.cardData?.military_bonus) || 0;
+                            const political = Number(attachment?.cardData?.political_bonus) || 0;
+                            const switched = attachment?.isAttachmentBonusModifierSwitchActive?.() === true;
+                            const printedCost = Number(attachment?.cardData?.cost);
+                            return {
+                                uuid: String(attachment.uuid),
+                                militaryBonus: switched ? political : military,
+                                politicalBonus: switched ? military : political,
+                                printedCost: Number.isFinite(printedCost) ? printedCost : undefined
+                            };
+                        })
+                    };
+                });
         };
         const opponent = (me as any).opponent;
         return { self: describe(me), opponent: describe(opponent) };
+    }
+
+    /**
+     * Exact, public attachment targets from Jigoku's own target resolver.
+     * This is a read-only legality query: V2 still submits the ordinary source
+     * and target clicks, and the live prompt remains authoritative.
+     */
+    private legalAttachmentTargetUuidsBySource(me: Player): Record<string, readonly string[]> {
+        const hand: any[] = typeof (me as any).hand?.toArray === 'function' ? (me as any).hand.toArray() : [];
+        const result: Record<string, readonly string[]> = {};
+        for(const source of hand) {
+            if(!source?.uuid || typeof source.getPlayActions !== 'function') {
+                continue;
+            }
+            const action = source.getPlayActions().find((entry: any) => entry instanceof PlayAttachmentAction);
+            if(!action) {
+                continue;
+            }
+            try {
+                const context = action.createContext(me);
+                const target = action.targets?.[0];
+                const legal = typeof target?.getAllLegalTargets === 'function'
+                    ? target.getAllLegalTargets(context) : [];
+                result[String(source.uuid)] = legal
+                    .filter((card: any) => card?.uuid && (card?.type || card?.getType?.()) === 'character')
+                    .map((card: any) => String(card.uuid))
+                    .sort((left: string, right: string) => left.localeCompare(right));
+            } catch{
+                // A custom target resolver may need state not available during
+                // a controller hint. An empty exact set keeps V2 on V1.
+                result[String(source.uuid)] = [];
+            }
+        }
+        return result;
     }
 
     // Own province is known information. Read the live game object so a still
@@ -368,7 +420,7 @@ class JigokuBotController {
                     // analysis for the same card.
                     cardHint: (cardId: string) => getPlaybookEntry(cardId) || this.hintService?.getHint(cardId),
                     strategy: this.currentDeckStrategy(player),
-                    profile: this.currentDeckProfile(player),
+                    profile: this.decisionProfile(player),
                     opponentConflictDeck: this.opponentConflictDeck(player),
                     ownConflictHand: this.ownConflictHand(player),
                     opponentDuelBidding: this.opponentDuelBidProfile(player),
@@ -377,6 +429,9 @@ class JigokuBotController {
                     // summaries. Lion uses these for Elegant Tessen legality
                     // and True Strike Kenjutsu's base-skill matchup.
                     characterPrintedCosts: this.characterPrintedCosts(player),
+                    dynastyDiscardBodies: this.dynastyDiscardBodies(player),
+                    holdingStrengths: this.holdingStrengths(player),
+                    conflictProvinceElements: this.conflictProvinceElements(),
                     characterBaseMilitary: this.characterBaseMilitary(player),
                     participatingCharacterCounts: this.participatingCharacterCounts(player),
                     cavalryCharacterUuids: this.cavalryCharacterUuids(player),
@@ -390,6 +445,7 @@ class JigokuBotController {
                     interruptedEventIsMine: this.currentInterruptedEventIsMine(player),
                     displayOfPowerActive: this.displayOfPowerActiveThisConflict(),
                     legalDirectCardUuids: this.currentLegalDirectCardUuids(player),
+                    legalAttachmentTargetUuidsBySource: this.legalAttachmentTargetUuidsBySource(player),
                     legalRingElements: this.currentLegalRingElements(player),
                     // Printed fate cost of dynasty province cards (reserve 1 fate).
                     dynastyCosts: this.dynastyCostsHint(player),
@@ -552,6 +608,72 @@ class JigokuBotController {
         this.deckProfile = resolveDeckProfile(this.deckCardIds(player), strategy);
         logger.info(`Bot ${this.config.playerName} deck profile: ${JSON.stringify(this.deckProfile)}`);
         return this.deckProfile;
+    }
+
+    // Deck profile merged with any injected experimental V2 profile override
+    // (config.v2Profile). Convention:
+    //   - `v2Profile.deckProfile`          -> deep-merged into the DeckProfile
+    //     top level for every deck (shared `conflictPlanning` declaration
+    //     layers for the V2 seat while the V1 control keeps its defaults).
+    //   - `v2Profile.deckProfileByArchetype` -> per-archetype overrides keyed
+    //     by the resolved profile's win-condition flag (`lion`, `unicorn`,
+    //     `dishonor`, `glory`, `shugenja`, `dragon`, else `standard`); merged
+    //     OVER the shared `deckProfile`. This is how the V2 seat carries
+    //     deck-specific declaration tuning on top of the generic V2 logic
+    //     without touching the frozen V1 deck profiles. Production-safe: the
+    //     archetype is derived from the resolved profile, not a self-play label.
+    //   - every other key in v2Profile     -> merged into `profile.v2` (V2
+    //     engine gate/weights/search config; V1 ignores it).
+    // Kept additive so frozen behavior is unchanged when no override is supplied.
+    private static profileArchetype(profile: any): string {
+        if(!profile) {
+            return 'standard';
+        }
+        return profile.lion ? 'lion'
+            : profile.unicorn ? 'unicorn'
+                : profile.dishonor ? 'dishonor'
+                    : profile.glory ? 'glory'
+                        : profile.shugenja ? 'shugenja'
+                            : profile.dragon ? 'dragon'
+                                : 'standard';
+    }
+
+    private decisionProfile(player: Player): DeckProfile | undefined {
+        // Bot V2 carries its own per-deck tuning, the same way V1 does. It is
+        // applied only for the V2 engine so V1's measured behavior stays frozen
+        // and every V2-vs-V1 comparison remains a clean A/B.
+        const base = this.config.engineVersion === 'v2'
+            ? applyV2DeckProfile(this.currentDeckProfile(player))
+            : this.currentDeckProfile(player);
+        const override = this.config.v2Profile as any;
+        if(!override) {
+            return base;
+        }
+        const { deckProfile: sharedTop, deckProfileByArchetype, ...v2Fields } = override;
+        const baseAny = (base as any) || {};
+        const archetype = JigokuBotController.profileArchetype(baseAny);
+        const perDeck = (deckProfileByArchetype && deckProfileByArchetype[archetype]) || {};
+        const topLevel: any = { ...(sharedTop || {}), ...perDeck };
+        const baseV2 = baseAny.v2 || {};
+        const merged: any = {
+            ...baseAny,
+            ...topLevel,
+            v2: {
+                ...baseV2,
+                ...v2Fields,
+                highConfidenceGate: { ...(baseV2.highConfidenceGate || {}), ...(v2Fields.highConfidenceGate || {}) }
+            }
+        };
+        // Deep-merge conflictPlanning across base -> shared -> per-deck so a
+        // per-deck override only changes the flags/coefficients it names.
+        if(baseAny.conflictPlanning || sharedTop?.conflictPlanning || perDeck.conflictPlanning) {
+            merged.conflictPlanning = {
+                ...(baseAny.conflictPlanning || {}),
+                ...(sharedTop?.conflictPlanning || {}),
+                ...(perDeck.conflictPlanning || {})
+            };
+        }
+        return merged as DeckProfile;
     }
 
     // Kick off deck analysis on the first tick after the game initialises.
@@ -959,6 +1081,106 @@ class JigokuBotController {
             const value = Number(card?.cardData?.cost ?? card?.printedCost);
             return Number.isFinite(value) ? value : undefined;
         });
+    }
+
+    /**
+     * Printed stats of the CHARACTERS sitting in this player's dynasty discard.
+     *
+     * The serialized card summary carries live skill only, which is empty
+     * outside play, and it deliberately stays that way: V1 code paths read
+     * `printedCost` straight off summaries, so adding fields there would move
+     * the frozen control. Routing it through the bot context instead keeps the
+     * data V2-only. Discard piles are public, so this is not hidden information.
+     */
+    private dynastyDiscardBodies(player: Player): Array<Record<string, unknown>> {
+        const pile: any[] = typeof (player as any)?.dynastyDiscardPile?.toArray === 'function'
+            ? (player as any).dynastyDiscardPile.toArray()
+            : [];
+        return pile
+            .filter((card: any) => card?.type === 'character' || card?.getType?.() === 'character')
+            .map((card: any) => ({
+                uuid: card.uuid,
+                id: card.id,
+                traits: Array.from(card.getTraits ? card.getTraits() : []).map((trait: any) =>
+                    String(trait).toLowerCase()),
+                printedCost: this.parseStat(card.printedCost ?? card.cardData?.cost) ?? undefined,
+                military: Math.max(0, Number(card.printedMilitarySkill) || 0),
+                political: Math.max(0, Number(card.printedPoliticalSkill) || 0),
+                glory: Math.max(0, Number(card.glory) || 0),
+                isUnique: !!card.isUnique?.()
+            }));
+    }
+
+    /**
+     * Province-strength bonuses of the HOLDINGS in this player's dynasty discard,
+     * and of the holding already installed in each province.
+     *
+     * Rebuild swaps a discard holding into an unbroken province, and for a wall
+     * deck the strength bonus is the entire point — it raises the threshold an
+     * attacker has to clear. Routed through the bot context for the same reason
+     * as `dynastyDiscardBodies`: the serialized card summary has no printed
+     * strength, and adding it there would move the frozen V1 control.
+     */
+    /**
+     * Province elements of the CURRENT conflict, both sides.
+     *
+     * Abilities like The Pursuit of Justice key off the conflict province's
+     * element rather than owning that province ("during a conflict at a water
+     * province"), and `CardAction.checkProvinceCondition` tests every province
+     * returned by `Conflict.getConflictProvinces()`. The serialized player
+     * summary carries no province element, so the gate is impossible to write
+     * without this.
+     */
+    private conflictProvinceElements(): string[] {
+        const conflict: any = (this.game as any)?.currentConflict;
+        if(typeof conflict?.getConflictProvinces !== 'function') {
+            return [];
+        }
+        const elements = new Set<string>();
+        for(const province of conflict.getConflictProvinces() || []) {
+            for(const element of province?.getElement?.() || []) {
+                elements.add(String(element));
+            }
+        }
+        return [...elements];
+    }
+
+    private holdingStrengths(player: Player): {
+        discard: number[];
+        provinces: number[];
+        inPlay: Array<{ id: string; strengthBonus: number; provinceBroken: boolean }>;
+    } {
+        const bonusOf = (card: any) =>
+            Math.max(0, this.parseStat(card?.cardData?.strength_bonus) ?? 0);
+        const pile: any[] = typeof (player as any)?.dynastyDiscardPile?.toArray === 'function'
+            ? (player as any).dynastyDiscardPile.toArray()
+            : [];
+        const isHolding = (card: any) => card?.type === 'holding' || card?.getType?.() === 'holding';
+        const inPlay: any[] = ((this.game as any).allCards || [])
+            .filter((card: any) => card?.controller === player && isHolding(card) &&
+                String(card.location || '').startsWith('province'));
+        // Which province each holding sits in decides what giving it up costs.
+        // A holding in a BROKEN province is defending nothing — the province
+        // cannot be broken twice — so its strength bonus is already spent, and
+        // it is the cheapest thing on the board to sacrifice.
+        const brokenProvinces = new Set<string>();
+        for(const key of ['province 1', 'province 2', 'province 3', 'province 4', 'stronghold province']) {
+            const cards: any[] = (player as any).getProvinceCardInProvince?.(key)
+                ? [(player as any).getProvinceCardInProvince(key)]
+                : [];
+            if(cards.some((card: any) => card?.isBroken)) {
+                brokenProvinces.add(key);
+            }
+        }
+        return {
+            discard: pile.filter(isHolding).map(bonusOf),
+            provinces: inPlay.map(bonusOf),
+            inPlay: inPlay.map((card: any) => ({
+                id: String(card.id || ''),
+                strengthBonus: bonusOf(card),
+                provinceBroken: brokenProvinces.has(String(card.location || ''))
+            }))
+        };
     }
 
     private characterBaseMilitary(player: Player): Record<string, number> {
@@ -1474,8 +1696,6 @@ class JigokuBotController {
             text.includes('play cards from provinces') ||
             text.includes('conflict action window');
     }
-
-
 
 
     private isLegalFacedownClick(player: Player, args: any[]): boolean {

@@ -1,8 +1,11 @@
 import type { BotDecision } from '../../BotEngine';
+import type { V2OverrideReason } from '../HighConfidenceOverridePolicy';
 import type { BotActionCandidate, CandidateVeto } from '../model/Candidate';
 import type { UtilityVector } from '../model/Utility';
 import type { PlanningState } from '../model/PlanningState';
 import type { RootSearchEvaluation, SearchTraceNode } from '../search/TacticalSearch';
+import type { V2PlannerProfilingTrace } from './PlannerProfiler';
+import type { PlanningEligibilityResult } from '../PlanningEligibility';
 
 export type V2DisagreementType =
     | 'agreement'
@@ -17,6 +20,7 @@ export interface V2CandidateTrace {
     readonly id: string;
     readonly kind: string;
     readonly proposer: string;
+    readonly mode?: string;
     readonly command: string;
     readonly target?: string;
     readonly cardId?: string;
@@ -39,6 +43,8 @@ export interface V2PlannerTrace {
     readonly traceLevel?: 'production' | 'benchmark' | 'research';
     readonly stateSignature?: string;
     readonly promptFingerprint?: string;
+    readonly profiling?: V2PlannerProfilingTrace;
+    readonly eligibility?: PlanningEligibilityResult;
     readonly intentId?: string;
     readonly intentObjective?: string;
     readonly intentRetained?: boolean;
@@ -54,6 +60,11 @@ export interface V2PlannerTrace {
     readonly disagreementType: V2DisagreementType;
     readonly scoreGap?: number;
     readonly confidence?: number;
+    readonly overrideProof?: {
+        readonly reason: V2OverrideReason;
+        readonly evidence: readonly string[];
+    };
+    readonly overrideRejectionEvidence?: readonly string[];
     readonly principalLine?: readonly {
         readonly ply: number;
         readonly actorId: string;
@@ -63,6 +74,7 @@ export interface V2PlannerTrace {
         readonly stateSignature: string;
     }[];
     readonly searchUtility?: number;
+    readonly searchReason?: string;
     readonly prunedCandidates?: number;
     readonly searchNodes?: readonly SearchTraceNode[];
     readonly rootEvaluations?: readonly RootSearchEvaluation[];
@@ -76,6 +88,8 @@ export interface V2PlannerTrace {
     };
     readonly terminal?: {
         readonly active: boolean;
+        /** True only for a complete, causal, direct terminal improvement over V1. */
+        readonly overrideEligible?: boolean;
         readonly reasons: readonly string[];
         readonly exact: boolean;
         readonly aggregation: string;

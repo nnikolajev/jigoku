@@ -2,7 +2,11 @@ import type { BotActionCandidate } from '../model/Candidate';
 import type { PlanningState } from '../model/PlanningState';
 import type { PlayerId } from '../model/References';
 import type { ScoredUtility } from '../model/Utility';
-import UtilityEvaluator, { compareScored, type UtilityProfile } from '../UtilityEvaluator.js';
+import UtilityEvaluator, {
+    compareScored,
+    semanticCandidateOrderKey,
+    type UtilityProfile
+} from '../UtilityEvaluator.js';
 import { immutable, stableSerialize } from '../model/Stable';
 import EffectSimulator from './EffectSimulator.js';
 
@@ -35,6 +39,12 @@ export interface RootSearchEvaluation {
     readonly candidateId: string;
     readonly utility: number;
     readonly line: readonly SearchLineStep[];
+    readonly responseScenarioId?: string;
+}
+
+export interface TacticalResponseScenario {
+    readonly id: string;
+    readonly candidates: readonly BotActionCandidate[];
 }
 
 export interface TacticalSearchResult {
@@ -89,6 +99,17 @@ function effectIdentity(candidate: BotActionCandidate): string {
     });
 }
 
+function semanticLineOrderKey(line: readonly SearchLineStep[],
+    candidateKeys: ReadonlyMap<string, string>): string {
+    return line.map((step) => [
+        step.ply,
+        step.actorId,
+        step.candidateKind,
+        candidateKeys.get(step.candidateId) || step.candidateId,
+        step.score
+    ].join(':')).join('|');
+}
+
 function opponentId(state: PlanningState, actorId: PlayerId): PlayerId {
     return Object.keys(state.players).find((id) => id !== actorId) || actorId;
 }
@@ -100,6 +121,59 @@ function terminal(state: PlanningState): boolean {
 
 function phaseBoundary(state: PlanningState): boolean {
     return !!state.conflict?.winnerId;
+}
+
+function usageKeys(candidate: BotActionCandidate): readonly string[] {
+    const keys = [`candidate:${candidate.id}`];
+    // Different mode/target candidates can share one physical card. Once a
+    // hand card is projected as played, every semantic variant of that source
+    // must disappear from the rest of the line.
+    if(candidate.source?.location === 'hand' && (candidate.costs.cards || 0) > 0) {
+        keys.push(`source:${candidate.source.instanceId}`);
+    }
+    return keys;
+}
+
+function alreadyUsed(candidate: BotActionCandidate, used: ReadonlySet<string>): boolean {
+    return candidate.kind !== 'pass' && usageKeys(candidate).some((key) => used.has(key));
+}
+
+function limitScopeId(state: PlanningState, scope: BotActionCandidate['limits'][number]['scope']): string | undefined {
+    return scope === 'conflict' ? state.scopes.conflictId
+        : scope === 'phase' ? state.scopes.phaseId
+            : scope === 'round' ? state.scopes.roundId : state.scopes.gameId;
+}
+
+function respectsProjectedUsage(state: PlanningState, candidate: BotActionCandidate): boolean {
+    return candidate.limits.every((limit) => {
+        const scopeId = limitScopeId(state, limit.scope);
+        if(!scopeId) return true;
+        const used = state.ledgers.usage.find((entry) =>
+            entry.key === limit.key && entry.scope === limit.scope && entry.scopeId === scopeId)?.count || 0;
+        return used < limit.maximum;
+    });
+}
+
+function hasProjectedPayoff(state: PlanningState, candidate: BotActionCandidate): boolean {
+    const stateful = candidate.effects.filter((effect) =>
+        ['bow', 'ready', 'move', 'status', 'remove'].includes(effect.kind) && effect.target?.kind === 'character');
+    if(stateful.length === 0) return true;
+    return stateful.some((effect) => {
+        const effectTarget = effect.target?.kind === 'character' ? effect.target : undefined;
+        const target = effectTarget
+            ? state.characters.find((character) => character.instanceId === effectTarget.instanceId)
+            : undefined;
+        if(!target) return false;
+        if(effect.kind === 'bow') return !target.bowed && target.ready;
+        if(effect.kind === 'ready') return target.bowed || !target.ready;
+        if(effect.kind === 'move') return effect.destination === 'conflict' ? !target.participating : target.participating;
+        if(effect.kind === 'status') {
+            return effect.status === 'honored' ? !target.honored
+                : effect.status === 'dishonored' ? !target.dishonored
+                    : target.honored || target.dishonored;
+        }
+        return effect.kind === 'remove';
+    });
 }
 
 function compare(value: number, operator: string, expected: number): boolean {
@@ -124,6 +198,7 @@ function respectsHardConstraints(state: PlanningState, candidate: BotActionCandi
         player.honor < Math.max(0, candidate.costs.honor || 0)) return false;
     const hand = state.hands.find((entry) => entry.playerId === actorId);
     if((hand?.size || 0) < Math.max(0, candidate.costs.cards || 0)) return false;
+    if(!respectsProjectedUsage(state, candidate) || !hasProjectedPayoff(state, candidate)) return false;
     return (profile.constraints || []).filter((constraint) => constraint.kind === 'hard').every((constraint) => {
         const expected = Number(constraint.predicate.value) || 0;
         const fateAfter = player.fate - fateCost;
@@ -134,7 +209,9 @@ function respectsHardConstraints(state: PlanningState, candidate: BotActionCandi
             : constraint.predicate.kind.includes('honor') ? honorAfter
                 : constraint.predicate.kind.includes('defender') ? readyAfter
                     : constraint.predicate.kind.includes('conflict-opportunity')
-                        ? state.opportunities.remainingByPlayer[actorId]?.military + state.opportunities.remainingByPlayer[actorId]?.political
+                        ? state.opportunities.remainingTotalByPlayer?.[actorId] ??
+                            state.opportunities.remainingByPlayer[actorId]?.military +
+                            state.opportunities.remainingByPlayer[actorId]?.political
                         : undefined;
         return actual === undefined || compare(actual, constraint.predicate.operator, expected);
     });
@@ -191,6 +268,8 @@ export default class TacticalSearch {
         let searchedNodes = 0;
         let exhausted = false;
         const searchNodes: SearchTraceNode[] = [];
+        const candidateKeys = new Map(candidates.map((candidate) =>
+            [candidate.id, semanticCandidateOrderKey(candidate)]));
         const budgetReached = () => searchedNodes >= limits.nodeBudget ||
             (limits.elapsedMs !== undefined && Date.now() - startedAt >= limits.elapsedMs);
         const explore = (node: SearchNode): SearchNode => {
@@ -198,15 +277,20 @@ export default class TacticalSearch {
                 return { ...node, value: node.value + this.leafUtility(node.state, rootActor) * Math.pow(limits.distanceDiscount, node.ply) };
             }
             const available = node.actorId === rootActor
-                ? this.prescore(node.state, candidates.filter((candidate) => !node.used.has(candidate.id)), profile, limits)
+                ? this.prescore(node.state, candidates.filter((candidate) =>
+                    !alreadyUsed(candidate, node.used)), profile, limits)
                 : this.prescore({ ...node.state, perspectivePlayerId: node.actorId },
                     (options.responseProvider?.(node.state, node.actorId, node.ply) || [])
+                        .filter((candidate) => !alreadyUsed(candidate, node.used))
                         .filter((candidate) => respectsHardConstraints(node.state, candidate, node.actorId, profile)), profile, {
                     ...limits, beamWidth: Math.max(1, Math.floor(limits.beamWidth / 2)),
                     maxCandidates: Math.max(1, Math.floor(limits.maxCandidates / 2))
                 });
             if(available.length === 0) {
                 return { ...node, value: node.value + this.leafUtility(node.state, rootActor) * Math.pow(limits.distanceDiscount, node.ply) };
+            }
+            for(const entry of available) {
+                candidateKeys.set(entry.candidate.id, semanticCandidateOrderKey(entry.candidate));
             }
             const children: SearchNode[] = [];
             for(const entry of available) {
@@ -220,7 +304,7 @@ export default class TacticalSearch {
                 const discounted = entry.score.scalar * Math.pow(limits.distanceDiscount, node.ply) * sign -
                     entry.candidate.uncertainty * limits.uncertaintyPenalty;
                 const used = new Set(node.used);
-                used.add(entry.candidate.id);
+                usageKeys(entry.candidate).forEach((key) => used.add(key));
                 const child = explore({
                     state: projection.state,
                     actorId: opponentId(node.state, node.actorId),
@@ -253,7 +337,8 @@ export default class TacticalSearch {
                 if(exhausted) break;
             }
             if(children.length === 0) return node;
-            children.sort((left, right) => left.value - right.value || stableSerialize(left.line).localeCompare(stableSerialize(right.line)));
+            children.sort((left, right) => left.value - right.value ||
+                semanticLineOrderKey(left.line, candidateKeys).localeCompare(semanticLineOrderKey(right.line, candidateKeys)));
             return node.actorId === rootActor ? children[children.length - 1] : children[0];
         };
         const rootResults: SearchNode[] = [];
@@ -275,7 +360,7 @@ export default class TacticalSearch {
                     candidateKind: entry.candidate.kind, score: discounted,
                     stateSignature: projection.state.materialStateSignature
                 }],
-                used: new Set([entry.candidate.id]),
+                used: new Set(usageKeys(entry.candidate)),
                 consecutivePasses: entry.candidate.kind === 'pass' ? 1 : 0
             });
             rootResults.push(rootResult);
@@ -292,7 +377,8 @@ export default class TacticalSearch {
             });
             if(exhausted) break;
         }
-        rootResults.sort((left, right) => right.value - left.value || stableSerialize(left.line).localeCompare(stableSerialize(right.line)));
+        rootResults.sort((left, right) => right.value - left.value ||
+            semanticLineOrderKey(left.line, candidateKeys).localeCompare(semanticLineOrderKey(right.line, candidateKeys)));
         const best = rootResults[0];
         const firstId = best?.line[0]?.candidateId;
         const rootEvaluations = rootResults.map((result) => ({
@@ -312,6 +398,72 @@ export default class TacticalSearch {
             exhausted,
             elapsedMs: Date.now() - startedAt,
             reason: exhausted ? 'budget-exhausted' : 'complete'
+        }) as TacticalSearchResult;
+    }
+
+    /**
+     * Searches each coherent opponent hand/response package independently,
+     * then maximizes the worst result for every root action. This avoids
+     * combining mutually exclusive fair-information hypotheses into an
+     * impossible super-hand while remaining pessimistic across hypotheses.
+     */
+    searchScenarios(state: PlanningState, candidates: readonly BotActionCandidate[],
+        responseScenarios: readonly TacticalResponseScenario[], profile: UtilityProfile = {},
+        options: { readonly limits?: Partial<TacticalSearchLimits> } = {}): TacticalSearchResult {
+        const startedAt = Date.now();
+        const limits = { ...DEFAULT_LIMITS, ...profile.searchLimits, ...options.limits };
+        const scenarios = responseScenarios.length > 0
+            ? [...responseScenarios].sort((left, right) => left.id.localeCompare(right.id))
+            : [{ id: 'response:none', candidates: [] }];
+        const perScenarioLimits = {
+            ...limits,
+            nodeBudget: Math.max(64, Math.floor(limits.nodeBudget / scenarios.length)),
+            elapsedMs: limits.elapsedMs === undefined ? undefined
+                : Math.max(100, Math.floor(limits.elapsedMs / scenarios.length))
+        };
+        const results = scenarios.map((scenario) => ({
+            scenario,
+            result: this.search(state, candidates, profile, {
+                limits: perScenarioLimits,
+                responseProvider: () => scenario.candidates
+            })
+        }));
+        const candidateKey = (candidateId: string): string => {
+            const candidate = candidates.find((entry) => entry.id === candidateId);
+            return candidate ? semanticCandidateOrderKey(candidate) : candidateId;
+        };
+        const compareCandidateIds = (left: string, right: string): number =>
+            candidateKey(left).localeCompare(candidateKey(right)) || left.localeCompare(right);
+        const candidateIds = [...new Set(results.flatMap(({ result }) =>
+            result.rootEvaluations.map((entry) => entry.candidateId)))].sort(compareCandidateIds);
+        const pessimistic = candidateIds.map((candidateId) => {
+            const evaluations = results.map(({ scenario, result }) => {
+                const evaluation = result.rootEvaluations.find((entry) => entry.candidateId === candidateId);
+                return {
+                    candidateId,
+                    utility: evaluation?.utility ?? -Infinity,
+                    line: evaluation?.line || [],
+                    responseScenarioId: scenario.id
+                };
+            }).sort((left, right) => left.utility - right.utility ||
+                left.responseScenarioId.localeCompare(right.responseScenarioId));
+            return evaluations[0];
+        }).sort((left, right) => right.utility - left.utility ||
+            compareCandidateIds(left.candidateId, right.candidateId));
+        const best = pessimistic[0];
+        const exhausted = results.some(({ result }) => result.exhausted);
+        return immutable({
+            complete: !exhausted && results.every(({ result }) => result.complete),
+            firstCandidate: candidates.find((candidate) => candidate.id === best?.candidateId),
+            utility: best?.utility ?? -Infinity,
+            principalLine: best?.line || [],
+            searchNodes: results.flatMap(({ result }) => result.searchNodes),
+            rootEvaluations: pessimistic,
+            searchedNodes: results.reduce((sum, { result }) => sum + result.searchedNodes, 0),
+            prunedCandidates: Math.max(0, ...results.map(({ result }) => result.prunedCandidates)),
+            exhausted,
+            elapsedMs: Date.now() - startedAt,
+            reason: exhausted ? 'scenario-budget-exhausted' : 'complete'
         }) as TacticalSearchResult;
     }
 

@@ -16,6 +16,10 @@ export interface AttachmentProjection {
     readonly cardId?: string;
     readonly controllerId?: PlayerId;
     readonly fate: number;
+    /** Printed modifiers are public and make attachment removal projectable. */
+    readonly militaryBonus: number;
+    readonly politicalBonus: number;
+    readonly printedCost?: number;
     readonly nonStackingKeys: readonly string[];
 }
 
@@ -114,6 +118,8 @@ export interface ConflictProjection {
 
 export interface ConflictOpportunityProjection {
     readonly remainingByPlayer: Readonly<Record<PlayerId, Readonly<Record<ConflictType, number>>>>;
+    /** Authoritative total opportunities; typed entries can be alternative choices for the same opportunity. */
+    readonly remainingTotalByPlayer?: Readonly<Record<PlayerId, number>>;
     readonly totalRemaining: number;
 }
 
@@ -142,6 +148,8 @@ export interface PlanningState {
         readonly uuid?: string;
         readonly method?: string;
     }[];
+    /** Exact public attachment targets, keyed by live source-card UUID. */
+    readonly legalAttachmentTargetIdsBySource?: Readonly<Record<string, readonly string[]>>;
     readonly conflict?: ConflictProjection;
     readonly players: Readonly<Record<PlayerId, PlayerProjection>>;
     readonly characters: readonly CharacterProjection[];

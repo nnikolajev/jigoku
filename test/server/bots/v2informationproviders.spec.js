@@ -156,6 +156,29 @@ describe('V2 opponent information providers', function() {
         expect(result.responsePackages.flatMap((pkg) => pkg.cardIds)).not.toContain('expensive');
     });
 
+    it('projects hidden removal and dishonor pessimistically onto the strongest public target', function() {
+        const deck = [
+            { id: 'remove', type: 'event', fate: 0, tag: 'removal' },
+            { id: 'dishonor', type: 'event', fate: 0, tag: 'honor' }
+        ];
+        const result = new FairInformationProvider().build(state({ fate: 0, handSize: 2 }), {
+            conflictDeck: deck,
+            evidence: { searchedCardIds: ['remove', 'dishonor'] }
+        });
+        const responses = result.responsePackages.flatMap((pkg) => pkg.candidates);
+        const remove = responses.find((candidate) => candidate.source.cardId === 'remove');
+        const dishonor = responses.find((candidate) => candidate.source.cardId === 'dishonor');
+
+        expect(remove.effects).toEqual([jasmine.objectContaining({
+            kind: 'remove', confidence: 1,
+            target: jasmine.objectContaining({ instanceId: 'bot-char' })
+        })]);
+        expect(dishonor.effects).toEqual([jasmine.objectContaining({
+            kind: 'status', status: 'dishonored', confidence: 1,
+            target: jasmine.objectContaining({ instanceId: 'bot-char' })
+        })]);
+    });
+
     it('returns exact authorized hand/province hypotheses but filters illegal or unaffordable responses', function() {
         const result = new ExactInformationProvider().build(state({ mode: 'omniscient', fate: 5 }), {
             hand: [
@@ -188,5 +211,33 @@ describe('V2 opponent information providers', function() {
             provinces: []
         });
         expect(result.responsePackages.every((pkg) => pkg.cardIds.length === 1)).toBeTrue();
+    });
+
+    it('canonicalizes equivalent hypothesis responses while retaining genuine duplicate copies', function() {
+        const provider = new ExactInformationProvider();
+        const first = provider.build(state({ mode: 'omniscient', fate: 2 }), {
+            hand: [
+                { id: 'pump', type: 'event', fate: 1, militaryBonus: 2 },
+                { id: 'draw', type: 'event', fate: 0, tag: 'draw', swing: 1 },
+                { id: 'pump', type: 'event', fate: 1, militaryBonus: 2 }
+            ],
+            provinces: []
+        });
+        const second = provider.build(state({ mode: 'omniscient', fate: 2 }), {
+            hand: [
+                { id: 'pump', type: 'event', fate: 1, militaryBonus: 2 },
+                { id: 'pump', type: 'event', fate: 1, militaryBonus: 2 },
+                { id: 'draw', type: 'event', fate: 0, tag: 'draw', swing: 1 }
+            ],
+            provinces: []
+        });
+        const responseIds = (result) => [...new Set(result.responsePackages.flatMap((pkg) =>
+            pkg.candidates.filter((candidate) => candidate.source.cardId === 'pump')
+                .map((candidate) => candidate.source.instanceId)))].sort();
+        expect(responseIds(first)).toEqual([
+            'hypothesis:pump:copy:0',
+            'hypothesis:pump:copy:1'
+        ]);
+        expect(responseIds(second)).toEqual(responseIds(first));
     });
 });

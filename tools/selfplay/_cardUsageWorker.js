@@ -59,6 +59,12 @@ async function main() {
     const result = {
         subject, opponent, seed, omniscient, games: 0, wins: 0, losses: 0, other: 0,
         failed: [], clicks: {}, plays: {}, abilities: {}, reasons: {},
+        // Engine-level ground truth. A click is not evidence of use: the bot can
+        // select and deselect a card, and a "successful" command can still leave
+        // the ability unresolved. These two counters are incremented from the
+        // game's own event stream, so they only move when the card actually
+        // reached ability initiation.
+        resolvedAbilities: {}, resolvedPlays: {},
         availableGames: { hand: {}, province: {}, play: {}, selectable: {}, sourceSelectable: {} },
         semanticStages: emptySemanticStages()
     };
@@ -75,6 +81,8 @@ async function main() {
                 ? { deckA: loadSubject(), deckB: loadOpponent() }
                 : { deckA: loadOpponent(), deckB: loadSubject() };
             const available = emptyAvailability();
+            const resolvedAbilities = {};
+            const resolvedPlays = {};
             let controller;
             let controllers = [];
             const gameResult = await runGame({
@@ -89,6 +97,30 @@ async function main() {
                 onControllers: (createdControllers) => {
                     controllers = createdControllers;
                     controller = createdControllers[subjectFirst ? 0 : 1];
+                    // `onCardAbilityTriggered` / `onCardPlayed` are raised by
+                    // abilityresolver.ts when an ability reaches its initiation
+                    // window, for the subject's own cards only. Wrapping `emit`
+                    // rather than using `on` catches the `name:abilityType`
+                    // variants the event windows also publish.
+                    const emit = controller.game.emit.bind(controller.game);
+                    controller.game.emit = (name, ...args) => {
+                        if(typeof name === 'string') {
+                            // Exact name only. Event windows republish each event
+                            // as `name:abilityType` for every ability type they
+                            // offer, so matching by prefix multiplies one real
+                            // resolution into ten.
+                            const bucket = name === 'onCardAbilityTriggered'
+                                ? resolvedAbilities
+                                : name === 'onCardPlayed' ? resolvedPlays : null;
+                            const event = bucket && args[0];
+                            const cardId = event?.card?.id;
+                            const owner = event?.player?.name || event?.context?.player?.name;
+                            if(cardId && owner === subjectName && deckIds.has(cardId)) {
+                                bucket[cardId] = (bucket[cardId] || 0) + 1;
+                            }
+                        }
+                        return emit(name, ...args);
+                    };
                     const tick = controller.tick.bind(controller);
                     controller.tick = () => {
                         scanAvailability(controller.game, subjectName, deckIds, available);
@@ -179,6 +211,8 @@ async function main() {
             for(const id of available.sourceSelectable) {
                 result.semanticStages.eligible[id] = (result.semanticStages.eligible[id] || 0) + 1;
             }
+            mergeCounts(result.resolvedAbilities, resolvedAbilities);
+            mergeCounts(result.resolvedPlays, resolvedPlays);
             const usage = summarizeTrace(controller?.trace, deckIds);
             mergeCounts(result.clicks, usage.clicks);
             mergeCounts(result.plays, usage.plays);

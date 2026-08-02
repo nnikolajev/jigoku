@@ -7,6 +7,8 @@ export interface EffectBase {
     readonly duration?: EffectDuration;
     readonly conditional?: string;
     readonly confidence?: number;
+    /** True when this projected effect is a paid cost, not the beneficial result. */
+    readonly cost?: boolean;
 }
 
 export type EffectDescriptor =

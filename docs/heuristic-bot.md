@@ -169,7 +169,110 @@ Planned improvements live in `heuristic-bot-roadmap.md` (in-play abilities, scor
 
 The policy remembers which cards/rings it already clicked for the current prompt (keyed by prompt title) so rejected or toggling clicks cannot loop; when every candidate has been attempted it falls back to a button or reports the prompt as unsupported. The dedup key is *normalized* — the live conflict skill totals (`Attacker: 4 Defender: 5`) and the ring element/type in a conflict title (`Political Fire Conflict`) are stripped — because those flip on every legal-but-idle ring toggle or reversible ability, and left in they would wipe the attempted-set before the bot exhausts its options and reaches its own pass fall-back. As a last-resort backstop the controller watches for the same normalized prompt surviving several full decision budgets (whether the budget landed moves or only produced rejected ones) and then force-clicks Pass/Done (`forceProgress`), so a seat can never freeze the game in a decision loop — this replaced the old behavior of logging and giving up.
 
+## Card-shaped handler menus
+
+Deck searches, look-at-top-N plays (Kyūden Hida) and attachment searches
+(Illustrious Forge) present their choices as menu *buttons*, and
+`PlayerPromptState.setPrompt` serialises the button's card down to id, name,
+type and uuid. With no printed stats the policy had no basis to choose, so these
+fell through to `fallback-button` — which takes the first button, i.e. deck
+order. A coverage audit caught Kyūden Hida offering Kuni Ritsuko / Frontline
+Engineer / Hida Kisada and taking Kuni Ritsuko.
+
+The controller now supplies `menuCardInfo` (printed cost/military/political/
+glory, keyed by uuid) from the live card objects, and the policy ranks on it:
+printed skill first, glory as the tie-break, cheaper next, uuid last for
+determinism. It prefers cards it can pay for — some of these menus play the card
+— but falls back to the whole set rather than declining, so it never introduces
+a failure the old fallback did not already have. It runs immediately before the
+generic fallback, so it cannot pre-empt any title-specific handler, and it
+returns nothing when the controller could not price the menu.
+
+Enabled for every deck (`rankCardMenus`). The win-rate effect is +0.19pp over
+three shuffle bases (n=540 paired), inside the noise floor; it ships because
+picking the third-listed card is wrong play that a human opponent can see, not
+because it moves the number.
+
 Future strategy profiles can replace `JigokuBotPolicy` while keeping `JigokuBotController` as the command-path and trace boundary.
+
+## Live pricing for conflict events
+
+Characters and attachments reach the policy carrying printed skill, so
+`handContribution` knows what they add to a conflict. Events carry nothing: they
+report a contribution only if their playbook entry supplies a
+`conflictContribution`, and six of the sixty-one events in the bot field did.
+The other fifty-five read as "unknown", which made them invisible to
+province-break budgeting and to the `strength-already-sufficient` veto.
+
+`DeckProfile.liveEventPricing` turns on per-card models that compute what an
+event is worth against the live board. The models are written to one rule that
+is easy to get wrong: **`conflict.ts:474` drops a bowed participant's skill from
+the conflict total**, so a pump aimed at a bowed body adds nothing, and readying
+a bowed participant hands back its whole skill.
+
+Representative models:
+
+| Card | Was | Now |
+| --- | --- | --- |
+| Banzai! | flat 2 | 4 — the honor buys a second resolution and `banzai-recur-for-honor` already pays it; 2 at the honor floor |
+| Compelling Testimony | flat 4 | `min(4, target's live political)` — −4 is a ceiling, not a payout |
+| Forebearer's Echoes | unknown | printed military of the best body in the dynasty discard |
+| Captive Audience | unknown | the actual swing from flipping the axis, both sides; 0 when the flip favours the opponent |
+| Way of the Crane, Benten's Touch | unknown | the target's glory, which is what honored status adds to both skills |
+| Against the Waves, I Am Ready | unknown | the skill of the bowed *participant* they ready; unpriced when the target is at home |
+
+A model returning `null` means "does something I am not pricing" and leaves the
+card playable — the right answer for a branch whose payoff is not skill in the
+current conflict. Returning 0 instead would veto the play outright via
+`zero-contribution`. `abilityValue` cannot be used to rescue those cases,
+because it also reorders cards in `ConflictCardEconomy` and so would move the
+A/B control arm.
+
+Two data-shape bugs are worth remembering, because both priced their cards at a
+flat zero and neither was visible without a probe. Glory lives in
+`glorySummary.stat`; an in-play character has no `glory` field. And a card in
+the dynasty discard has **empty** skill summaries — the engine only fills those
+for cards in play — so recursion targets have to be priced from the controller's
+`dynastyDiscardBodies`.
+
+`Consumed by Five Fires` was not a pricing change but a dead gate: it required
+five removable fate spread across the board, which passed 4 times in 491 windows
+and never once alongside the five fate the card costs, so it was played zero
+times in 90 games. The card says "up to 5", and the point is emptying one tower
+— the character is discarded in the fate phase along with every attachment and
+the honored token on it. Re-gated on the best single body it can empty, it plays
+and is worth +2.5pp to PhoenixShugenja on its own.
+
+`liveEventPricingExclude` holds named cards at their legacy reading. Pricing a
+card is not automatically an improvement: a number activates the zero and
+strength vetoes and changes where the card sorts, so a model that is correct in
+isolation can still cost a deck games. `give-no-ground` did exactly that and is
+left unpriced — see `bot-v2-rejected-experiments.md`.
+
+### Measurement
+
+Paired arms against the `off` control on identical shuffles, three independent
+bases, n=1620 (`scratchpad/rr2.js`). A field round robin cannot measure this: it
+is zero-sum, so a change applied to both seats averages to 50% by construction.
+
+| arm | wins / 1620 | vs `off` |
+| --- | ---: | ---: |
+| `off` | 811 (50.06%) | — |
+| all 15 models | 815 (50.31%) | +0.25pp |
+| minus `give-no-ground` | 822 (50.74%) | +0.68pp |
+| minus `consumed-by-five-fires` | 811 (50.06%) | +0.00pp |
+| **shipped** (no `give-no-ground`, Banzai at 4) | **821 (50.68%)** | **+0.62pp** |
+
+Positive on all three bases (+1.11 / +0.56 / +0.19pp) but inside the ±2.5pp
+noise floor, so the win rate is not the argument for it. Per deck, the shipped
+arm moves Unicorn +2.5, Dragon +1.9, Scorpion +1.9, PhoenixShugenja +1.2,
+Lion +0.6, Phoenix −1.9, and **exactly 0.0 for every deck that runs none of
+these cards** (Crane, CraneDuels, Crab, DragonAttachments) — which is what makes
+the attribution mechanical rather than statistical.
+
+Behaviourally, event plays over a 90-game census rise 1188 → 1233, Consumed by
+Five Fires goes 0 → 6, and the `strength-already-sufficient` veto starts firing
+on events at all, which was the point of pricing them.
 
 ## Limits
 

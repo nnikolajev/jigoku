@@ -42,6 +42,17 @@ export interface ConflictPhasePlannerProfile {
     //   'defense' — exempt enemy-target cards only while defending.
     //   'always'  — exempt them on both sides of the conflict.
     enemyTargetIgnoresReadyParticipant?: 'off' | 'defense' | 'always';
+    // The other half of the same veto, and the larger one. A card that READIES
+    // one of our participants, or puts a new ready body into the conflict, is
+    // not wasted on a bowed board — it is the answer to it. Those entries carry
+    // `PlaybookEntry.worksWithoutReadyParticipant`. Measured over 90 games,
+    // the veto refuses them 173 times (Against the Waves alone 105, of which
+    // 102 while defending) against ~58 for the enemy-target slice, which is why
+    // the enemy-target arm on its own could only reach +1.30pp.
+    //   'off'     — V1's behavior, the veto applies to everything.
+    //   'defense' — exempt ready-effect cards only while defending.
+    //   'always'  — exempt them on both sides of the conflict.
+    readyEffectIgnoresReadyParticipant?: 'off' | 'defense' | 'always';
     // While DEFENDING a province that is already safe, how far behind on skill
     // we will still spend conflict cards to steal the conflict win (and the
     // ring). V1's hardcoded value is 3. These plays never prevent a break, so
@@ -170,6 +181,26 @@ export const DEFAULT_CONFLICT_PHASE_PLANNER: ConflictPhasePlannerProfile = {
     actionPlanRelaxPenalty: 30,
     useCardValueModel: false,
     vetoDeadCards: false,
+    // Both halves of the `no-ready-participant` veto, scoped to DEFENCE.
+    //
+    // The veto refuses every non-character card while none of our participants
+    // is ready. That is right for a buff — a bowed body contributes 0
+    // (`conflict.ts:474`) — wrong for a card that removes an ENEMY participant,
+    // and wrong in the opposite direction for one that READIES one of ours or
+    // puts a new ready body in: those answer a bowed board rather than being
+    // wasted on it.
+    //
+    // The enemy half alone measured +1.30pp in an earlier arm and was held below
+    // a +2pp bar. The recorded hypothesis was that its population was too small
+    // (~10 extra plays) and that adding the missing READY marker would clear it.
+    // Re-measured with the marker (n=1620 paired, 3 bases): the marker enlarges
+    // the population 3x (+116 extra card plays per 90 games against +36) and the
+    // pooled delta still lands at +1.33pp under `always` scoping. Enlarging the
+    // population did NOT rescue the lever. Scoping both halves to DEFENCE did,
+    // to +1.67pp with no base negative and 8 of 10 decks non-negative — still
+    // inside the noise floor. See `docs/bot-v2-rejected-experiments.md`.
+    enemyTargetIgnoresReadyParticipant: 'defense',
+    readyEffectIgnoresReadyParticipant: 'defense',
     // Deliberately well below 1: measured, an undiscounted defender tail makes
     // the bot concede 81% of its defenses (vs V1's 40%) because it pays for a
     // certain province loss with future offense that never materialises.

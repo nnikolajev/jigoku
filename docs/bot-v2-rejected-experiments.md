@@ -373,3 +373,197 @@ READY effect on a friendly participant (Against the Waves, I Am Ready, The
 Pursuit of Justice), which the veto also refuses today and which `PlaybookEntry`
 has no marker for. Adding that marker is the prerequisite; re-running this arm
 without it will keep landing at +1pp.
+
+> **Follow-up (2026-08-03): the marker was added and the hypothesis above is
+> WRONG.** Enlarging the population did not rescue the lever; scoping it to
+> defence did. See the next section.
+
+## Imperial Favor side selection: rejected, the accidental constant is optimal
+
+`scratchpad/coverage.js` (180 games, 75,878 decisions) found that 614 of 614
+Imperial Favor claims were answered by `fallback-button`. `player.ts:1335`
+builds the choices as `['Military', 'Political']`, so the first button is always
+Military and **no deck ever held the political favor**. The favor grants +1
+skill in every conflict of its own side where the holder has a participant
+(`conflict.ts:437`/`:455`), and 34% of the conflicts it could have helped were
+getting +0. It looked like a free correctness fix.
+
+It is not. Three estimators were implemented and each made the alignment worse.
+All four rows below are the same 180-game round robin with both seats on V2
+pass-through, so they are directly comparable (the first attempt compared a
+`v1/v1` control against `v2/v2` treatments and was confounded — the conflict
+mix drifts between engines):
+
+| rule | favor-holding conflicts that got +0 |
+| --- | --- |
+| **always Military (shipped)** | **36.0%** |
+| total board skill (`'board'`) | 40.8% |
+| the axis actually contested that round (`'contested'`) | 41.6% |
+| always Political | 60.7% |
+
+Paired cross-deck round robin agrees. `'board'` on the V2 seat, three
+independent shuffle bases, n=540, measured against the `off` arm rather than
+the V1 control (the `off` arm is not zero — Phoenix's retained `applyIntentPlan`
+entry gives it +1.1pp at base 93001):
+
+| base | off | `'board'` |
+| --- | --- | --- |
+| 91001 | 91-89 | 91-89 |
+| 92001 | 91-89 | 92-88 |
+| 93001 | 89-91 | 86-94 |
+| **pooled** | **271-269** | **269-271 (−0.37pp)** |
+
+Two reasons, both worth remembering:
+
+1. **The field is roughly 65/35 military.** A constant that sits on the majority
+   axis beats any estimator that sometimes selects the minority one.
+2. **A round holds two conflicts per player.** A per-round estimator is fitting
+   a side from two observations and then spending it on the *next* round. Board
+   totals are no better: they count courtiers whose political skill never enters
+   a conflict, which is why Phoenix — 58% political conflicts — still wasted
+   more favor under every alternative.
+
+The claim handler is retained so the decision is named rather than anonymous in
+the next coverage audit, but it returns Military unconditionally. Do not re-open
+this without a *cross-round* estimator and a deck whose political share is
+demonstrably above 60%.
+
+## Dynasty first-to-pass fate: one half inert, the other half a bad trade
+
+`GameMode.ts:69` sets `dynastyPhasePassingFate: true` for Imperial, and
+`DynastyActionWindow.#handlePassingFate` gives 1 fate to the first player to
+pass. Nothing in `server/game/bots` referenced the rule. Measured baseline
+(`scratchpad/dynpass.js`, 180 games): 1904 dynasty passes, split 956 first /
+948 second, 1098 of them leaving an affordable character in a province.
+
+**`dynastyShopAfterOpponentPassed` — no population.** Once the opponent has
+passed there is no bonus left to win, so stopping early should be pure loss. Of
+259 `fate-aware-pass-after-strong-character` exits only 43 occurred with the
+opponent already passed, and in **0** of those was another character still
+affordable — the fate had gone on the strong body. The 516 second-passes that
+do leave a body behind are `fate-aware-preserve-fate` and `duel-save-for-tower`
+reserves, which exist to fund conflict cards and have nothing to do with the
+pass bonus. Relaxing those is a different (and untested) lever; it is not what
+this rule implies.
+
+**`dynastyPassFirstForFate` — rejected on both measurement and arithmetic.**
+Skipping a *second* cheap body while the bonus is still available measured
+−1.7pp against the `off` arm at base 93001 (86-94 vs 89-91), with Scorpion at
+−33.3pp and Crab at −11.1pp. The mechanism is not noise — dynasty clicks per 90
+games with the flag on versus off:
+
+| deck | off | on | passes taken for the fate |
+| --- | --- | --- | --- |
+| Unicorn | 168 | 128 | 39 |
+| Crab | 201 | 181 | 8 |
+| Scorpion | 121 | 106 | 14 |
+
+Banking the fate costs a whole purchase. And +1 fate *is* exactly a 1-cost body,
+so there is no cost band where the trade wins: skipping a 1-cost body is a wash
+minus tempo, and skipping anything dearer is strictly worse. No threshold tuning
+can rescue it.
+
+## Give No Ground: pricing a correct number cost the deck that runs it
+
+Give No Ground grants +2 military to a *defending* character. As a model that is
+trivial and not in dispute: 2 while defending with a ready participant, 0 while
+attacking. Measured over three shuffle bases (n=1620 paired, `scratchpad/rr2.js`
+against the `off` arm), it is the **entire** loss in the live-event-pricing set.
+
+| arm | wins / 1620 | vs `off` | Crab |
+| --- | ---: | ---: | ---: |
+| `off` | 811 (50.06%) | — | 67 |
+| all 15 models | 815 (50.31%) | +0.25pp | 60 (−4.3pp) |
+| minus `give-no-ground` | 822 (50.74%) | +0.68pp | 67 (+0.0pp) |
+| minus `consumed-by-five-fires` | 811 (50.06%) | +0.00pp | 60 (−4.3pp) |
+
+Excluding it restores Crab to *exactly* its `off` win count and leaves every
+other deck untouched, so the attribution is mechanical rather than statistical.
+
+The lesson generalises, and it is the reason `liveEventPricingExclude` exists:
+**giving an event a number is not the same as improving it.** A card that
+previously read as "unknown contribution" was always playable and sorted on
+priority alone. A known positive number additionally makes it eligible for the
+`strength-already-sufficient` veto, and moves it in `ConflictCardEconomy`, whose
+filter at line 135 keeps options where `contribution === null ||
+contribution <= 0 || abilityValue` — so a null and a 2 land in different
+buckets. For a defensive wall deck whose whole plan is to be at the province
+with a big body, that reordering was worth −4.3pp even though the number itself
+was right.
+
+Not retried without a matching change to how the economy planner treats
+defensive pumps.
+
+## Cards deliberately left unpriced
+
+Skipped because their payoff is not skill in the current conflict, and inventing
+a number for them would activate the zero-contribution veto against cards that
+are doing real work:
+
+- `iron-foundations-stance`, `swell-of-seafoam`, `the-strength-of-the-mountain` —
+  protection (cannot be bowed/moved, does not bow at resolution). The value is
+  insurance against an opponent effect that may not exist, plus a body kept ready
+  for a later conflict. Pricing these needs a survival model, not a skill model.
+- `withstand-the-darkness` — a reaction to the opponent targeting a Crab
+  character; the hand-play pipeline never sees the trigger.
+- `display-of-power` — reaction only, `shouldPlay: () => false`, fired from the
+  reaction path.
+- The third and later Banzai triggers (`lose 1 honor for no effect`) are already
+  declined by `decline-no-effect-honor-loss`. They are only useful to a Scorpion
+  deliberately dropping below the opponent's honor to switch on dishonor payoffs,
+  which is a deck-specific mechanism and is not modelled.
+
+
+## The READY marker: enlarging the population did not rescue the veto, scoping it did
+
+`PlaybookEntry.worksWithoutReadyParticipant` marks the entries the
+`no-ready-participant` veto is backwards about — cards that READY one of our
+participants, or put a new ready body into the conflict. Those are the answer to
+a bowed board rather than a waste on it. Eight entries carry it: Against the
+Waves, I Am Ready, Ride On, In Service to My Lord, Forebearer's Echoes, Cavalry
+Reserves, Raise the Alarm, Right Hand of the Emperor. It is gated by
+`ConflictPhasePlannerProfile.readyEffectIgnoresReadyParticipant`, the sibling of
+the enemy-target knob.
+
+Population first (90 games, `scratchpad/readygate.js` and `readyreach.js`). The
+veto fires **1343** times; Against the Waves alone eats 105 of them, 102 while
+defending. The earlier arm died because the enemy-target slice bought only ~10
+extra card plays, so the reachability check was the gate on running anything:
+
+| mode | card plays | marked-card plays | `no-ready` denials |
+| --- | ---: | ---: | ---: |
+| off | 3004 | 68 | 1343 |
+| ready marker | 3044 (+40) | 101 (+33) | 1268 |
+| enemy target | 3040 (+36) | 68 | 999 |
+| both | 3120 (**+116**) | 107 (+39) | 901 |
+
+Three times the population, and superadditive. Then the arms (n=1620 paired,
+three bases, against an `off` control on identical shuffles). Decision rule fixed
+before the run, matching the bar the enemy-only arm was held to: ship only if
+pooled >= +2.0pp with no base negative.
+
+| arm | wins / 1620 | vs `off` | 91001 | 92001 | 93001 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `off` | 828 (51.11%) | — | — | — | — |
+| ready marker, `always` | 833 (51.45%) | +0.34pp | -4 | +8 | +1 |
+| enemy target, `always` | 840 (51.85%) | +0.74pp | +0 | +11 | +1 |
+| both, `always` | 849 (52.44%) | +1.33pp | -3 | +20 | +4 |
+| ready `defense` + enemy `always` | 852 (52.66%) | +1.55pp | -1 | +21 | +4 |
+| **both, `defense` (shipped)** | **854 (52.78%)** | **+1.67pp** | **+0** | **+20** | **+6** |
+
+**The recorded hypothesis is falsified.** Tripling the population moved the
+pooled delta from +1.30pp to +1.33pp. What actually moved it was scoping: the
+ready population is 90% defensive, and letting these cards through while
+ATTACKING with a fully bowed board is where the bad plays are.
+
+Shipped at `'defense'` for both halves: +1.67pp, no base negative, 8 of 10 decks
+non-negative (Scorpion +6.2, Phoenix +4.9, DragonAttachments +2.5, Lion +2.5,
+Crab +1.9, CraneDuels +1.2, Dragon and PhoenixShugenja flat, Crane -1.2,
+Unicorn -1.9). This is still **inside the +/-2.5pp noise floor** and below the
++2.0pp bar that was fixed before the run, so it is a weak result shipped on a
+mechanically sound argument, not a demonstrated win. Both knobs revert it
+independently.
+
+Unicorn is the marker's own loser and the one to look at first if this is
+revisited: it runs three of the eight marked cards (I Am Ready, Ride On, Cavalry
+Reserves) and the ready-only arm already cost it 3 games.

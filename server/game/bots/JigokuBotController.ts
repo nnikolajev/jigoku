@@ -2,7 +2,7 @@ import JigokuBotPolicy from './JigokuBotPolicy.js';
 import BotEngineRouter from './BotEngineRouter.js';
 import { resolveBotIdentity } from './BotConfiguration.js';
 import type { ResolvedBotIdentity } from './BotConfiguration';
-import type { BotDecision, BotEngine } from './BotEngine';
+import type { BotDecision, BotEngine, MenuCardInfo } from './BotEngine';
 import LmStudioClient from './llm/LmStudioClient.js';
 import DeckHintService from './llm/DeckHintService.js';
 import LiveConsultant from './llm/LiveConsultant.js';
@@ -409,6 +409,10 @@ class JigokuBotController {
                     provinceIdsByLocation: this.provinceIdsByLocation(player),
                     promptIdentity: promptStep?.uuid,
                     promptControls: beforePrompt?.controls || [],
+                    // Printed stats for card-shaped menu buttons, and whether
+                    // the dynasty +1-fate pass bonus is still on the table.
+                    menuCardInfo: this.menuCardInfo(beforePrompt),
+                    opponentPassedDynasty: !!(player.opponent as any)?.passedDynasty,
                     selectionReachedLimit: typeof promptStep?.selector?.hasReachedLimit === 'function'
                         ? promptStep.selector.hasReachedLimit(promptStep.selectedCards || [], promptStep.context)
                         : false,
@@ -1469,6 +1473,37 @@ class JigokuBotController {
                 glory: Math.max(0, this.parseStat(card.cardData?.glory) ?? 0),
                 abilityValue: Math.min(4, abilityCount * 0.7 + strategicTerms * 0.45),
                 honoredOnEntry: Array.isArray(statusEffects) && statusEffects.includes(CharacterStatus.Honored)
+            };
+        }
+        return Object.keys(result).length > 0 ? result : undefined;
+    }
+
+    // Printed stats for the cards a handler menu offers as buttons — deck
+    // searches, look-at-top-N plays (Kyūden Hida), attachment searches
+    // (Illustrious Forge). `PlayerPromptState.setPrompt` serialises the button's
+    // card down to its short summary (id, name, type, uuid), so the printed
+    // cost and skills are not visible to the policy and it had no basis to rank
+    // them. Keyed by uuid, which is the only stable handle the button keeps.
+    private menuCardInfo(prompt: any): Record<string, MenuCardInfo> | undefined {
+        const buttons: any[] = prompt?.buttons || [];
+        const uuids = new Set(buttons
+            .map((button) => String(button?.card?.uuid || ''))
+            .filter((uuid) => uuid.length > 0));
+        if(uuids.size === 0) {
+            return undefined;
+        }
+        const result: Record<string, MenuCardInfo> = {};
+        for(const card of ((this.game as any).allCards || []) as any[]) {
+            const uuid = String(card?.uuid || '');
+            if(!uuids.has(uuid)) {
+                continue;
+            }
+            result[uuid] = {
+                cost: Math.max(0, this.parseStat(card.printedCost ?? card.cardData?.cost) ?? 0),
+                military: Math.max(0, this.parseStat(card.cardData?.military) ?? 0),
+                political: Math.max(0, this.parseStat(card.cardData?.political) ?? 0),
+                glory: Math.max(0, this.parseStat(card.cardData?.glory) ?? 0),
+                type: String(typeof card.getType === 'function' ? card.getType() : card.type || '')
             };
         }
         return Object.keys(result).length > 0 ? result : undefined;

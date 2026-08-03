@@ -65,6 +65,12 @@ export interface PlaybookContext {
     cavalryCharacterUuids?: Record<string, true>; // live traits, including Utaku Battle Steed
     readyAfterMoveCharacterUuids?: Record<string, true>; // exact move-then-ready support
     conflictDeckConsumptionAllowed?: (amount: number) => boolean; // seed-1/3 own-deck/public-effect safety rail
+    liveEventPricing?: boolean; // DeckProfile A/B: price events against the live board (see `priced`)
+    liveEventPricingExclude?: readonly string[]; // card ids held at their legacy reading
+    // Dynasty-discard characters carrying PRINTED stats. The serialized discard
+    // pile in `dynastyDiscard` has empty skill summaries — the engine only fills
+    // those for cards in play — so recursion cards cannot be priced from it.
+    dynastyDiscardBodies?: any[];
 }
 
 export interface PlaybookEntry extends CardHint {
@@ -90,6 +96,16 @@ export interface PlaybookEntry extends CardHint {
     // the point (True Strike Kenjutsu's duel, Sashimono's no-bow) — play it
     // despite a zero stat contribution.
     abilityValue?: boolean;
+    // The intent filter refuses every non-character card while none of our
+    // participants is ready, because a bowed body contributes 0 skill
+    // (`conflict.ts:474`) so a buff on it is wasted. That premise holds for
+    // buffs and is exactly backwards for cards that ANSWER a bowed board:
+    // effects that ready one of our participants, and effects that put a new
+    // ready body into the conflict. "All my defenders are bowed" is the
+    // situation Against the Waves exists for, and the veto refused it 105 times
+    // per 90 games. Gated by
+    // `ConflictPhasePlannerProfile.readyEffectIgnoresReadyParticipant`.
+    worksWithoutReadyParticipant?: boolean;
     // Printed characters/attachments expose stats through controller hints.
     // Events do not, so pure/dynamic pumps inject their contribution here for
     // shared province-break budgeting.
@@ -193,6 +209,99 @@ const fiveFiresTarget = (card: any) => (Number(card.fate) || 0) > 0 &&
     !(card.attachments || []).some((attachment: any) =>
         attachment.id === 'pacifism' || attachment.id === 'stolen-breath');
 
+// ---- live event pricing (DeckProfile.liveEventPricing) --------------------
+//
+// Characters and attachments reach the policy with printed skill attached, so
+// `handContribution` knows what they add to a conflict. Events arrive with
+// nothing, and only six of the sixty-one events in the bot field carried a
+// `conflictContribution`, so the rest read as "unknown" and were invisible to
+// province-break budgeting.
+//
+// `priced` wraps each model in the A/B switch. `legacy` is what the entry
+// reported before — the old flat constant where there was one, null everywhere
+// else — so the control arm is bit-identical to the previous build.
+// A model returning `null` means "this card does something I am not pricing" —
+// the reading every event had before — and leaves the card playable. That is the
+// right answer for a branch whose payoff is not skill in THIS conflict: readying
+// a body at home, taking the honor instead of the pump. Returning 0 instead
+// would deny the play outright via `zero-contribution`.
+const pricingOn = (ctx: PlaybookContext, cardId: string): boolean =>
+    ctx.liveEventPricing === true && !ctx.liveEventPricingExclude?.includes(cardId);
+
+const priced = (
+    cardId: string,
+    live: (ctx: PlaybookContext) => number | null,
+    legacy: number | null | ((ctx: PlaybookContext) => number | null) = null
+) => (ctx: PlaybookContext): number | null =>
+    pricingOn(ctx, cardId)
+        ? live(ctx)
+        : (typeof legacy === 'function' ? legacy(ctx) : legacy);
+
+// The same switch for a play gate that live pricing tightens.
+const gated = (
+    cardId: string,
+    live: (ctx: PlaybookContext) => boolean,
+    legacy: (ctx: PlaybookContext) => boolean
+) => (ctx: PlaybookContext): boolean =>
+    pricingOn(ctx, cardId) ? live(ctx) : legacy(ctx);
+
+// Traits are present on every character the playbook sees (measured: 242,992 of
+// 242,992 over a 90-game round robin) and arrive lowercased.
+const hasTraitNamed = (card: any, trait: string): boolean =>
+    Array.isArray(card?.traits)
+        ? card.traits.some((value: any) => String(value).toLowerCase() === trait)
+        : typeof card?.traits === 'string' && new RegExp(`\\b${trait}\\b`, 'i').test(card.traits);
+// Glory arrives as `glorySummary.stat`, matching the live-skill summaries; the
+// bare `glory` field is not populated on an in-play character.
+const gloryOf = (card: any): number =>
+    Math.max(0, Number(card?.glorySummary?.stat ?? card?.glory) || 0);
+// A card sitting in the dynasty discard has EMPTY skill summaries — the engine
+// only fills those for cards in play — and the serialized pile carries no
+// printed skill at all, so every recursion target priced at zero. The
+// controller's `dynastyDiscardBodies` does carry printed stats; prefer it and
+// fall back to whatever the pile exposes.
+const discardBodies = (ctx: PlaybookContext): any[] =>
+    (ctx.dynastyDiscardBodies && ctx.dynastyDiscardBodies.length > 0)
+        ? ctx.dynastyDiscardBodies
+        : (ctx.dynastyDiscard || []).filter((card) => card?.type === 'character');
+const printedSkillOf = (card: any, axis: 'military' | 'political'): number => {
+    const summary = Number(axis === 'military'
+        ? card?.militarySkillSummary?.stat
+        : card?.politicalSkillSummary?.stat);
+    return Math.max(0, Number.isFinite(summary) ? summary : Number(card?.[axis]) || 0);
+};
+const isShugenja = (card: any): boolean =>
+    hasTraitNamed(card, 'shugenja') || PHOENIX_SHUGENJA.includes(card?.id);
+const isCavalry = (ctx: PlaybookContext, card: any): boolean =>
+    !!ctx.cavalryCharacterUuids?.[card?.uuid] || hasTraitNamed(card, 'cavalry');
+
+// `conflict.ts:474` drops a BOWED participant's skill from the total unless an
+// effect says otherwise. Every pump, every removal, and every "what is this
+// worth" reading below is therefore measured over ready participants only —
+// pumping a bowed body adds exactly zero.
+const totalSkill = (cards: any[], axis: 'military' | 'political'): number =>
+    readyParticipants(cards).reduce((sum, card) => sum + liveSkill(card, axis), 0);
+const bestReadyParticipantSkill = (cards: any[], axis: 'military' | 'political'): number =>
+    readyParticipants(cards).reduce((best, card) => Math.max(best, liveSkill(card, axis)), 0);
+
+// Consumed by Five Fires removes UP TO five fate, and a character that loses
+// its last fate is discarded in the fate phase. So the card is priced by the
+// single best body it can empty, counting what the opponent sank into it —
+// attachments and an honored token die with the character. The old gate
+// demanded five removable fate ACROSS the board, which measured 4 hits in 491
+// windows (and never once alongside the five own fate the card costs), because
+// the opponent's whole board rarely holds five fate at conflict time.
+// `characterValue` is skill + 3 per fate + 2 per attachment, so this threshold
+// is about "a two-fate body with real skill on it" — enough that spending the
+// card and five fate buys a body the opponent cannot simply replay.
+const FIVE_FIRES_MIN_KILL_VALUE = 8;
+const fiveFiresBestKill = (ctx: PlaybookContext): number => ctx.opponentCharacters
+    .filter((card) => fiveFiresTarget(card) && (Number(card.fate) || 0) <= 5)
+    .reduce((best, card) => Math.max(best, characterValue(card)), 0);
+const fiveFiresBoardFate = (ctx: PlaybookContext): number => ctx.opponentCharacters
+    .filter(fiveFiresTarget)
+    .reduce((total, card) => total + (Number(card.fate) || 0), 0);
+
 const PLAYBOOK: Record<string, PlaybookEntry> = {
     // +2 military to a participating character, optionally twice for 1 honor.
     'banzai': entry('banzai', {
@@ -200,7 +309,20 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
-        conflictContribution: 2,
+        // Paying 1 honor resolves the ability a SECOND time for another +2 (the
+        // engine's own spec asserts military 5 on a base-1 body), and the policy
+        // already takes that branch whenever honor is above 3 —
+        // `banzai-recur-for-honor`. So the real contribution is +4, and the flat
+        // +2 was budgeting the most-played event in the field at half its worth.
+        // The third trigger is 'lose 1 honor for no effect' and is always
+        // declined; it is only useful to a Scorpion deliberately dropping below
+        // the opponent's honor, which is not modelled here.
+        conflictContribution: priced('banzai', (ctx) => {
+            if(readyParticipants(ctx.myCharacters).length === 0) {
+                return 0;
+            }
+            return ctx.honor > 3 ? 4 : 2;
+        }, 2),
         summary: '+2 military pump on a participating character'
     }),
 
@@ -210,7 +332,11 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 7,
-        conflictContribution: 2,
+        // Needs a Bushi, and a bowed one contributes nothing to pump.
+        conflictContribution: priced('a-perfect-cut',
+            (ctx) => readyParticipants(ctx.myCharacters).some((card) => hasTraitNamed(card, 'bushi'))
+                ? 2
+                : 0, 2),
         abilityValue: true,
         summary: '+2 military on a Bushi, honors it on a win'
     }),
@@ -242,6 +368,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 10,
+        // Works with every participant bowed: puts Cavalry from the dynasty discard into the conflict.
+        worksWithoutReadyParticipant: true,
         summary: 'puts discarded Cavalry characters into the conflict',
         shouldPlay: (ctx) => ctx.dynastyDiscard.filter((card) => card.type === 'character').length >= 2
     }),
@@ -256,6 +384,19 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 6,
+        // Works with every participant bowed: readies a friendly character.
+        worksWithoutReadyParticipant: true,
+        // Readying a bowed participant restores its full skill to this conflict.
+        // The other use — readying a home body so it can fight the NEXT conflict
+        // this phase, which is how the Unicorn rush closes games — adds nothing
+        // to this total, so it stays unpriced rather than being called zero and
+        // vetoed.
+        conflictContribution: priced('i-am-ready', (ctx) => {
+            const best = ctx.myCharacters
+                .filter((card) => card.bowed && card.inConflict && (Number(card.fate) || 0) > 0)
+                .reduce((top, card) => Math.max(top, liveSkill(card, ctx.conflictType)), 0);
+            return best > 0 ? best : null;
+        }),
         summary: 'ready a friendly character by removing 1 of its fate',
         shouldPlay: (ctx) => ctx.myCharacters.some((card) =>
             card.bowed && (Number(card.fate) || 0) > (card.inConflict ? 0 : 1))
@@ -566,6 +707,15 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'captive-audience': entry('captive-audience', {
         conflictTypes: ['political'],
         priority: 8,
+        // Flipping the axis re-totals BOTH sides. The swing is how much more
+        // military than political we field, less the same figure for them, so
+        // the card is huge for a Cavalry board against courtiers and actively
+        // harmful the other way round. A flat constant could not express that.
+        conflictContribution: priced('captive-audience', (ctx) => ctx.conflictType === 'political'
+            ? Math.max(0,
+                (totalSkill(ctx.myCharacters, 'military') - totalSkill(ctx.myCharacters, 'political')) -
+                (totalSkill(ctx.opponentCharacters, 'military') - totalSkill(ctx.opponentCharacters, 'political')))
+            : 0),
         summary: 'change a political conflict to military for 1 honor',
         shouldPlay: (ctx) => ctx.amAttacker && ctx.conflictType === 'political' && ctx.honor >= 3
     }),
@@ -590,6 +740,20 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 5,
+        // Works with every participant bowed: moves a ready Cavalry body into the conflict.
+        worksWithoutReadyParticipant: true,
+        // Moving a ready Cavalry body in adds its whole skill. A bowed one only
+        // counts when something readies it after the move, which is exactly the
+        // set the gate below already tracks. The card's other mode — pulling a
+        // body OUT of a conflict we have conceded — is not skill here, so it
+        // stays unpriced.
+        conflictContribution: priced('ride-on', (ctx) => {
+            const best = ctx.myCharacters
+                .filter((card) => !card.inConflict && isCavalry(ctx, card) &&
+                    (!card.bowed || ctx.readyAfterMoveCharacterUuids?.[card.uuid]))
+                .reduce((top, card) => Math.max(top, liveSkill(card, ctx.conflictType)), 0);
+            return best > 0 ? best : null;
+        }),
         summary: 'move a home Cavalry character into the conflict',
         shouldPlay: (ctx) => ctx.myCharacters.some((card) => {
             if(card.inConflict ||
@@ -652,6 +816,13 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 7,
+        // DELIBERATELY UNPRICED. The model is trivial and correct — 2 while
+        // defending with a ready participant, 0 while attacking — and it was
+        // measured at -4.3pp on Crab, the only deck that runs the card, and the
+        // entire loss in the live-event-pricing set (n=1620 paired). A known
+        // number makes the card eligible for the strength-already-sufficient
+        // veto and moves it in `ConflictCardEconomy`, which is worth more to a
+        // wall deck than the number is. See `docs/bot-v2-rejected-experiments.md`.
         summary: '+2 military on a defender, unreducible',
         shouldPlay: (ctx) => !ctx.amAttacker
     }),
@@ -660,6 +831,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'raise-the-alarm': entry('raise-the-alarm', {
         conflictTypes: ['military'],
         priority: 8,
+        // Works with every participant bowed: puts a defender into play from the attacked province.
+        worksWithoutReadyParticipant: true,
         summary: 'reveal/put a defender into play from the attacked province',
         shouldPlay: (ctx) => !ctx.amAttacker
     }),
@@ -1004,7 +1177,11 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'enemy',
         targetPreference: 'strongest',
         priority: 8,
-        conflictContribution: 4,
+        // -4 is a ceiling, not a payout: against a 2-political defender the card
+        // removes 2. Budgeting the full 4 made the bot believe it had bought a
+        // break it had not.
+        conflictContribution: priced('compelling-testimony',
+            (ctx) => Math.min(4, bestReadyParticipantSkill(ctx.opponentCharacters, 'political')), 4),
         summary: '-4 political on an enemy participant',
         shouldPlay: (ctx) => ctx.opponentCharacters.some((card) => card.inConflict && !card.bowed)
     }),
@@ -1015,6 +1192,20 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 7,
+        // The OPPONENT chooses. They hand over the skill when it cannot change
+        // the result and pay the honor when it can, so the +2 is only bankable
+        // while we need MORE than it gives. Either way the card is never dead,
+        // which is what `abilityValue` records.
+        conflictContribution: priced('deceptive-offer', (ctx) => {
+            if(readyParticipants(ctx.myCharacters).length === 0) {
+                return 0;
+            }
+            const needed = Number(ctx.winSkillNeeded);
+            // They will pay the honor rather than hand over a swing that flips
+            // the conflict, so there is no skill to budget — but a free honor is
+            // still worth the card, which is what the null records.
+            return Number.isFinite(needed) && needed > 0 && needed <= 2 ? null : 2;
+        }),
         summary: 'opponent picks: +2/+2 for us or gives us 1 honor',
         shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.inConflict && !card.bowed)
     }),
@@ -1189,6 +1380,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
+        // Works with every participant bowed: readies a unique (bows a non-unique that may be at home).
+        worksWithoutReadyParticipant: true,
         summary: 'bow a cheap non-unique to ready a unique character',
         shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.bowed && card.isUnique) &&
             ctx.myCharacters.some((card) => !card.bowed && !card.isUnique)
@@ -1200,6 +1393,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
+        // Works with every participant bowed: readies up to 6 printed cost of Bushi.
+        worksWithoutReadyParticipant: true,
         summary: 'ready up to 6 cost worth of Bushi characters',
         shouldPlay: (ctx) => ctx.myCharacters.filter((card) => card.bowed).length >= 2
     }),
@@ -1232,6 +1427,13 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 9,
+        // Works with every participant bowed: puts a body from the dynasty discard into the conflict.
+        worksWithoutReadyParticipant: true,
+        // The body arrives IN the conflict and ready, so its whole military is
+        // added. This is the largest single number any event in the field can
+        // produce, and it read as "unknown" to break budgeting before.
+        conflictContribution: priced('forebearer-s-echoes', (ctx) => discardBodies(ctx)
+            .reduce((best, card) => Math.max(best, printedSkillOf(card, 'military')), 0)),
         summary: 'put the strongest dynasty-discard character into this conflict',
         shouldPlay: (ctx) => ctx.dynastyDiscard.some((card) => card.type === 'character')
     }),
@@ -1768,9 +1970,23 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 9,
+        // Works with every participant bowed: readies a bowed Shugenja — the answer to a bowed board.
+        worksWithoutReadyParticipant: true,
+        // Readying a bowed PARTICIPANT hands its whole skill back to the current
+        // conflict, because a bowed body contributes nothing (`conflict.ts:474`).
+        // Readying one at home is real tempo but adds nothing to this total, so
+        // it stays unpriced rather than being called zero.
+        conflictContribution: priced('against-the-waves', (ctx) => {
+            const best = ctx.myCharacters
+                .filter((card) => card.bowed && card.inConflict && isShugenja(card))
+                .reduce((top, card) => Math.max(top, liveSkill(card, ctx.conflictType)), 0);
+            return best > 0 ? best : null;
+        }),
         summary: 'ready an own bowed Shugenja',
-        shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.bowed &&
-            PHOENIX_SHUGENJA.includes(card.id))
+        shouldPlay: gated('against-the-waves',
+            (ctx) => ctx.myCharacters.some((card) => card.bowed && isShugenja(card)),
+            (ctx) => ctx.myCharacters.some((card) => card.bowed &&
+                PHOENIX_SHUGENJA.includes(card.id)))
     }),
 
     // Win an unopposed conflict by 5+ to gain 2 fate. The policy extends the
@@ -1829,9 +2045,20 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 10,
         abilityValue: true,
         summary: 'remove up to 5 fate from the opponent\'s tower',
-        shouldPlay: (ctx) => (ctx.fate ?? 0) >= 5 &&
-            ctx.opponentCharacters.filter(fiveFiresTarget)
-                .reduce((total, card) => total + (Number(card.fate) || 0), 0) >= 5
+        // The card says "up to 5", but the old gate demanded five removable fate
+        // spread across the board. Measured over 90 games: that clause passed in
+        // 4 of 491 windows and never once in the same window as the five own
+        // fate the card costs, so it was played ZERO times. The opponent's whole
+        // board rarely holds five fate — their TOWER holds three, and emptying
+        // it discards the character along with every attachment and the honored
+        // token they spent on it. It also needs a Shugenja of ours, which the
+        // old gate never checked; the role restriction is deck-building only and
+        // is correctly absent here.
+        shouldPlay: gated('consumed-by-five-fires',
+            (ctx) => (ctx.fate ?? 0) >= 5 && ctx.myCharacters.some(isShugenja) &&
+                (fiveFiresBestKill(ctx) >= FIVE_FIRES_MIN_KILL_VALUE ||
+                    fiveFiresBoardFate(ctx) >= 5),
+            (ctx) => (ctx.fate ?? 0) >= 5 && fiveFiresBoardFate(ctx) >= 5)
     }),
 
     // Bow an own home Shugenja to honor a participant.
@@ -1839,6 +2066,15 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 7,
+        // Same arithmetic as Way of the Crane: honored adds glory to both
+        // skills. The Shugenja it bows is required to be at home by the gate
+        // below, so nothing is subtracted from the live total.
+        conflictContribution: priced('benten-s-touch', (ctx) => {
+            const best = readyParticipants(ctx.myCharacters)
+                .filter((card) => !card.isHonored)
+                .reduce((top, card) => Math.max(top, gloryOf(card)), 0);
+            return best > 0 ? best : null;
+        }),
         summary: 'bow a home Shugenja: honor a participant',
         shouldPlay: (ctx) => ctx.myCharacters.some((card) => !card.bowed && !card.inConflict &&
             PHOENIX_SHUGENJA.includes(card.id)) &&
@@ -1884,11 +2120,20 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
-        conflictContribution: (ctx) => ctx.myCharacters.filter((card) =>
-            PHOENIX_SHUGENJA.includes(card.id)).length,
+        // X counts every Shugenja we CONTROL, participating or not. The old
+        // reading counted only the hand-listed Phoenix ids, so an allied or
+        // splashed Shugenja was worth nothing; the trait is the printed rule.
+        conflictContribution: priced('supernatural-storm',
+            (ctx) => readyParticipants(ctx.myCharacters).length > 0
+                ? ctx.myCharacters.filter(isShugenja).length
+                : 0,
+            (ctx) => ctx.myCharacters.filter((card) => PHOENIX_SHUGENJA.includes(card.id)).length),
         summary: '+X/+X on a participant, X = own Shugenja count',
-        shouldPlay: (ctx) => ctx.myCharacters.filter((card) =>
-            PHOENIX_SHUGENJA.includes(card.id)).length >= 2
+        shouldPlay: gated('supernatural-storm',
+            (ctx) => ctx.myCharacters.filter(isShugenja).length >= 2 &&
+                readyParticipants(ctx.myCharacters).length > 0,
+            (ctx) => ctx.myCharacters.filter((card) =>
+                PHOENIX_SHUGENJA.includes(card.id)).length >= 2)
     }),
 
     // ---- attachments ----
@@ -2265,7 +2510,10 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
-        conflictContribution: 2,
+        // No ready Monk in the conflict means the pump has nowhere to land; the
+        // card still draws, which `abilityValue` keeps playable as a cantrip.
+        conflictContribution: priced('hurricane-punch',
+            (ctx) => readyParticipants(ctx.myCharacters).some(hasMonkTrait) ? 2 : 0, 2),
         abilityValue: true,
         summary: '+2 military on a Monk, draw 1'
     }),
@@ -2755,6 +3003,13 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 9,
+        // An honored character adds its glory to BOTH skills, so the swing on
+        // the live conflict is exactly the target's glory — and only if that
+        // target is contributing. Honoring a home body is still worth doing,
+        // hence `abilityValue`.
+        conflictContribution: priced('way-of-the-crane', (ctx) => readyParticipants(ctx.myCharacters)
+            .filter((card) => !card.isHonored)
+            .reduce((best, card) => Math.max(best, gloryOf(card)), 0)),
         summary: 'honor our best unhonored Crane character',
         abilityValue: true,
         shouldPlay: (ctx) => ctx.myCharacters.some((card) => !card.isHonored)

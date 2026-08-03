@@ -5563,16 +5563,21 @@ describe('Jigoku heuristic bot', function() {
         const played = (decision) => decision && decision.command === 'cardClicked' &&
             decision.args[0] === 'assn';
 
-        it('refuses an enemy-target card with no ready participant by default', function() {
+        it('refuses an enemy-target card with no ready participant when turned off', function() {
             expect(played(new JigokuBotPolicy('bot').decide(
-                state([mine('bowed', true)], 5, 0), 'Jigoku Bot', withPlanning({})
+                state([mine('bowed', true)], 5, 0), 'Jigoku Bot',
+                withPlanning({ enemyTargetIgnoresReadyParticipant: 'off' })
             ))).toBe(false);
         });
 
         it('plays an enemy-target card with no ready participant when defending', function() {
+            // 'defense' is the shipped default, so the bare profile plays it too.
             expect(played(new JigokuBotPolicy('bot').decide(
                 state([mine('bowed', true)], 5, 0), 'Jigoku Bot',
                 withPlanning({ enemyTargetIgnoresReadyParticipant: 'defense' })
+            ))).toBe(true);
+            expect(played(new JigokuBotPolicy('bot').decide(
+                state([mine('bowed', true)], 5, 0), 'Jigoku Bot', withPlanning({})
             ))).toBe(true);
         });
 
@@ -5602,6 +5607,164 @@ describe('Jigoku heuristic bot', function() {
                 state([mine('ready', false)], 4, 3), 'Jigoku Bot',
                 withPlanning({ defenseCheapWinMaxGap: 0 })
             ))).toBe(false);
+        });
+
+        // The other half of the same veto. A card that READIES one of our
+        // participants is not wasted on a board where everything is bowed — that
+        // is the board it is for. `PlaybookEntry.worksWithoutReadyParticipant`
+        // marks those entries; `readyEffectIgnoresReadyParticipant` gates them.
+        const bowedShugenja = () => Object.assign(mine('bowedmage', true), { traits: ['shugenja'] });
+        const withWave = (characters) => {
+            const only = state(characters, 5, 0);
+            only.players['Jigoku Bot'].cardPiles.hand = [{
+                uuid: 'wave', id: 'against-the-waves', name: 'Against the Waves',
+                type: 'event', location: 'hand', isPlayableByMe: true
+            }];
+            return only;
+        };
+        const playedWave = (decision) => decision && decision.command === 'cardClicked' &&
+            decision.args[0] === 'wave';
+
+        it('refuses a ready-effect card with no ready participant when turned off', function() {
+            expect(playedWave(new JigokuBotPolicy('bot').decide(
+                withWave([bowedShugenja()]), 'Jigoku Bot',
+                withPlanning({ readyEffectIgnoresReadyParticipant: 'off' })
+            ))).toBe(false);
+        });
+
+        it('plays a ready-effect card with no ready participant when defending', function() {
+            // 'defense' is the shipped default, so the bare profile plays it too.
+            expect(playedWave(new JigokuBotPolicy('bot').decide(
+                withWave([bowedShugenja()]), 'Jigoku Bot',
+                withPlanning({ readyEffectIgnoresReadyParticipant: 'defense' })
+            ))).toBe(true);
+            expect(playedWave(new JigokuBotPolicy('bot').decide(
+                withWave([bowedShugenja()]), 'Jigoku Bot', withPlanning({})
+            ))).toBe(true);
+        });
+
+        it('does not turn the ready exemption into a blanket one', function() {
+            // Banzai carries no marker: it buffs a body that contributes 0 while
+            // bowed, so the veto's premise still holds for it.
+            const only = withWave([bowedShugenja()]);
+            only.players['Jigoku Bot'].cardPiles.hand = [{
+                uuid: 'buff', id: 'banzai', name: 'Banzai!', type: 'event',
+                location: 'hand', isPlayableByMe: true
+            }];
+            const decision = new JigokuBotPolicy('bot').decide(only, 'Jigoku Bot',
+                withPlanning({ readyEffectIgnoresReadyParticipant: 'always' }));
+            expect(decision && decision.command === 'cardClicked' &&
+                decision.args[0] === 'buff').toBe(false);
+        });
+    });
+
+    describe('choices that used to fall through to the first button', function() {
+        const withProfile = (overrides) =>
+            ({ profile: Object.assign(resolveDeckProfile([]), overrides), roundNumber: 3 });
+
+        // The favor claim is named rather than left to the fallback, but the
+        // side is the fallback's: measured, every alternative was worse. See
+        // docs/bot-v2-rejected-experiments.md.
+        it('claims the military side of the Imperial Favor', function() {
+            const decision = new JigokuBotPolicy('bot').decide({
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', id: 'BOT', phase: 'conflict',
+                        promptTitle: 'Imperial Favor',
+                        menuTitle: 'Which side of the Imperial Favor would you like to claim?',
+                        buttons: [
+                            { text: 'Military', arg: 0, uuid: 'favor' },
+                            { text: 'Political', arg: 1, uuid: 'favor' }
+                        ],
+                        provinces: { one: [], two: [], three: [], four: [] },
+                        strongholdProvince: [],
+                        cardPiles: {
+                            cardsInPlay: [{
+                                uuid: 'courtier', id: 'courtier', name: 'courtier',
+                                type: 'character', location: 'play area', bowed: false,
+                                militarySkillSummary: { stat: '0' },
+                                politicalSkillSummary: { stat: '5' }
+                            }],
+                            hand: [], conflictDiscardPile: [], dynastyDiscardPile: []
+                        },
+                        stats: { fate: 3, honor: 10, conflictsRemaining: 0 }
+                    }
+                }
+            }, 'Jigoku Bot', withProfile({}));
+            expect(decision.command).toBe('menuButton');
+            expect(decision.args[0]).toBe(0);
+            expect(decision.reason).toBe('imperial-favor-military');
+        });
+
+        const menuPrompt = (buttons, fate = 6) => ({
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', id: 'BOT', phase: 'dynasty',
+                    promptTitle: 'Kyuden Hida', menuTitle: 'Choose a character',
+                    buttons: buttons,
+                    provinces: { one: [], two: [], three: [], four: [] },
+                    strongholdProvince: [],
+                    cardPiles: {
+                        cardsInPlay: [], hand: [],
+                        conflictDiscardPile: [], dynastyDiscardPile: []
+                    },
+                    stats: { fate: fate, honor: 10, conflictsRemaining: 0 }
+                }
+            }
+        });
+        const cardButton = (id, uuid) =>
+            ({ text: id, arg: id, uuid: 'menu', card: { id: id, uuid: uuid, type: 'character' } });
+        const menuButtons = [
+            cardButton('cheap', 'u-cheap'),
+            cardButton('bomb', 'u-bomb'),
+            { text: 'Take nothing', arg: 0, uuid: 'menu' }
+        ];
+        const menuInfo = {
+            'u-cheap': { cost: 1, military: 1, political: 0, glory: 0, type: 'character' },
+            'u-bomb': { cost: 5, military: 6, political: 4, glory: 2, type: 'character' }
+        };
+
+        it('ranks card menus by printed power', function() {
+            const decision = new JigokuBotPolicy('bot').decide(
+                menuPrompt(menuButtons), 'Jigoku Bot',
+                Object.assign(withProfile({}), { menuCardInfo: menuInfo })
+            );
+            expect(decision.args[0]).toBe('bomb');
+            expect(decision.reason).toBe('menu-card-best-body');
+        });
+
+        it('takes the first card button when ranking is disabled', function() {
+            const decision = new JigokuBotPolicy('bot').decide(
+                menuPrompt(menuButtons), 'Jigoku Bot',
+                Object.assign(withProfile({ rankCardMenus: false }), { menuCardInfo: menuInfo })
+            );
+            expect(decision.args[0]).toBe('cheap');
+            expect(decision.reason).toBe('fallback-button');
+        });
+
+        // Some of these menus PLAY the card. Prefer one we can pay for, but
+        // never decline the menu over it.
+        it('prefers an affordable card when the best one costs too much', function() {
+            const decision = new JigokuBotPolicy('bot').decide(
+                menuPrompt(menuButtons, 2), 'Jigoku Bot',
+                Object.assign(withProfile({}), { menuCardInfo: menuInfo })
+            );
+            expect(decision.args[0]).toBe('cheap');
+        });
+
+        it('still ranks when nothing in the menu is affordable', function() {
+            const decision = new JigokuBotPolicy('bot').decide(
+                menuPrompt(menuButtons, 0), 'Jigoku Bot',
+                Object.assign(withProfile({}), { menuCardInfo: menuInfo })
+            );
+            expect(decision.args[0]).toBe('bomb');
+        });
+
+        it('keeps the fallback when the controller could not price the menu', function() {
+            const decision = new JigokuBotPolicy('bot').decide(
+                menuPrompt(menuButtons), 'Jigoku Bot', withProfile({})
+            );
+            expect(decision.reason).toBe('fallback-button');
         });
     });
 });

@@ -1,4 +1,5 @@
 import SeededRandom from './SeededRandom.js';
+import type { MenuCardInfo } from './BotEngine';
 import type { CardHint } from './llm/CardHints';
 import type { DeckStrategy } from './CardPlaybook';
 import type { KnownCard, Omniscient } from './DeckAnalysis';
@@ -170,6 +171,10 @@ interface DecideContext {
     // Its state summary may still mark unselected cards selectable until the
     // prompt closes; choose Done instead of issuing rejected extra clicks.
     selectionReachedLimit?: boolean;
+    // Printed stats for card-shaped handler-menu buttons, keyed by card uuid.
+    // The serialized button keeps only the card's short summary, so without
+    // this the policy cannot tell Hida Kisada from a 1-cost body.
+    menuCardInfo?: Record<string, MenuCardInfo>;
     targetHint?: TargetHint;
     playCost?: number;
     playCardId?: string;
@@ -355,6 +360,8 @@ class JigokuBotPolicy {
     // See `ConflictPhasePlannerProfile.enemyTargetIgnoresReadyParticipant`.
     // Resolved once per conflict window alongside the value-model switches.
     private currentEnemyTargetIgnoresReady: 'off' | 'defense' | 'always' = 'off';
+    // See `ConflictPhasePlannerProfile.readyEffectIgnoresReadyParticipant`.
+    private currentReadyEffectIgnoresReady: 'off' | 'defense' | 'always' = 'off';
     // Live fate cost of every conflict card we can play, by uuid. Duel synergy
     // has to know whether a follow-up is AFFORDABLE, not merely held.
     private currentConflictCosts: Record<string, number> | undefined;
@@ -459,6 +466,7 @@ class JigokuBotPolicy {
         this.currentUseCardValueModel = false;
         this.currentVetoDeadCards = false;
         this.currentEnemyTargetIgnoresReady = 'off';
+        this.currentReadyEffectIgnoresReady = 'off';
         this.currentCharacterBaseMilitary = context.characterBaseMilitary;
         this.currentParticipatingCharacterCounts = context.participatingCharacterCounts;
         this.currentCavalryCharacterUuids = context.cavalryCharacterUuids;
@@ -802,6 +810,27 @@ class JigokuBotPolicy {
                 this.closestBidButton(buttons, analysis.selectedBid),
                 `draw-bid-${this.drawBidPolicy}-${analysis.reason}`
             );
+        }
+
+        // The Imperial Favor grants +1 skill in every conflict of its own side
+        // where the holder has at least one participant (`conflict.ts:437` and
+        // `:455`). This used to fall through to `fallback-button`, which takes
+        // the first choice — and `player.ts:1335` always builds the choices as
+        // ['Military', 'Political'].
+        //
+        // That accident is measured-optimal, so the handler only exists to name
+        // the decision. Three alternatives were tried and every one raised the
+        // share of favor-holding conflicts that got +0 (control 36.0%; board
+        // skill totals 40.8%; the axis actually contested that round 41.6%;
+        // always political 60.7%). This field is roughly 65/35 military, so the
+        // constant already sits on the majority axis and any per-round
+        // estimator flips to the minority on two conflicts' worth of evidence.
+        // See `docs/bot-v2-rejected-experiments.md`.
+        if(promptTitle === 'Imperial Favor') {
+            const militaryButton = this.findButton(buttons, ['military']);
+            if(militaryButton && this.findButton(buttons, ['political'])) {
+                return this.buttonDecision(militaryButton, 'imperial-favor-military');
+            }
         }
 
         // Iaijutsu Master's post-reveal modifier menu. The reaction itself is
@@ -1446,6 +1475,20 @@ class JigokuBotPolicy {
             return cardDecision;
         }
 
+        // Handler menus whose choices are CARDS — deck searches, look-at-top-N
+        // plays (Kyūden Hida), attachment searches (Illustrious Forge) — reach
+        // here because no title-specific handler claims them, and the fallback
+        // below then takes the FIRST button, which is deck order. Measured over
+        // 180 games: 350 such decisions, including Kyūden Hida offering
+        // Kuni Ritsuko / Frontline Engineer / Hida Kisada and taking Kuni
+        // Ritsuko. Runs last so it can never pre-empt an existing handler.
+        const rankedMenuCard = profile.rankCardMenus
+            ? this.bestMenuCardButton(buttons, me, context.menuCardInfo)
+            : null;
+        if(rankedMenuCard) {
+            return this.buttonDecision(rankedMenuCard, 'menu-card-best-body');
+        }
+
         // Never spam 'Pay costs first' or 'Back' as a generic fallback — both
         // can bounce the same prompt back forever. Prefer a real resolution
         // button, then anything else (Cancel aborts cleanly), and only take
@@ -1455,6 +1498,38 @@ class JigokuBotPolicy {
             buttons.find((button) => !loopProne(button)) ||
             buttons[0];
         return this.buttonDecision(preferredButton, 'fallback-button');
+    }
+
+    // Rank the card-shaped buttons of a handler menu by printed power. Returns
+    // null unless at least two of them carry printed stats, so a menu the
+    // controller could not price keeps the untouched fallback ordering.
+    //
+    // Affordability: some of these menus PLAY the card (Kyūden Hida) and some
+    // put it into play for free (Guardians of Rokugan, Shinjo Gunsō). Prefer
+    // cards we could pay for, but fall back to the whole set rather than
+    // declining — when nothing is affordable the first button was unaffordable
+    // too, so this never introduces a failure the fallback did not already have.
+    private bestMenuCardButton(buttons: any[], me: any, info?: Record<string, MenuCardInfo>): any {
+        if(!info) {
+            return null;
+        }
+        const priced = buttons
+            .map((button) => ({ button, stats: info[String(button?.card?.uuid || '')] }))
+            .filter((entry) => !!entry.stats);
+        if(priced.length < 2) {
+            return null;
+        }
+        const fate = Number(me?.stats?.fate) || 0;
+        const affordable = priced.filter((entry) => entry.stats.cost <= fate);
+        const pool = affordable.length > 0 ? affordable : priced;
+        // Printed skill is what wins conflicts; glory breaks ties because it
+        // feeds the favor's glory count and the honor race. Cheaper wins the
+        // next tie — same board for less fate — and uuid keeps it deterministic.
+        const score = (stats: MenuCardInfo) => stats.military + stats.political + stats.glory * 0.5;
+        return pool.slice().sort((a, b) =>
+            score(b.stats) - score(a.stats) ||
+            a.stats.cost - b.stats.cost ||
+            String(a.button?.card?.uuid || '').localeCompare(String(b.button?.card?.uuid || '')))[0].button;
     }
 
     private myPlayer(playerState: any, botName?: string): any {
@@ -3385,7 +3460,9 @@ class JigokuBotPolicy {
                 conflictDiscard: me?.cardPiles?.conflictDiscardPile || [],
                 rings: Object.values(playerState?.rings || {}),
                 cardsPlayed: target,
-                opponentCardsPlayed
+                opponentCardsPlayed,
+                liveEventPricing: this.currentDeckProfile.liveEventPricing === true,
+                liveEventPricingExclude: this.currentDeckProfile.liveEventPricingExclude
             };
             return typeof hint.shouldPlay !== 'function' || hint.shouldPlay(projected);
         }).length;
@@ -3506,6 +3583,8 @@ class JigokuBotPolicy {
         this.currentVetoDeadCards = !!profile.conflictPlanning?.vetoDeadCards;
         this.currentEnemyTargetIgnoresReady =
             profile.conflictPlanning?.enemyTargetIgnoresReadyParticipant || 'off';
+        this.currentReadyEffectIgnoresReady =
+            profile.conflictPlanning?.readyEffectIgnoresReadyParticipant || 'off';
         this.currentValueContext = this.currentUseCardValueModel || this.currentVetoDeadCards
             ? this.cardValueContext(me, playCtx, opponent)
             : undefined;
@@ -4474,6 +4553,15 @@ class JigokuBotPolicy {
             return false;
         };
         const myCharacters = playCtx?.myCharacters || [];
+        // `PlaybookEntry` is a static registry with no view of the deck profile,
+        // so the live-event-pricing A/B switch travels on the context instead.
+        if(playCtx) {
+            playCtx.liveEventPricing = this.currentDeckProfile.liveEventPricing === true;
+            playCtx.liveEventPricingExclude = this.currentDeckProfile.liveEventPricingExclude;
+            // The serialized discard pile has empty skill summaries, so the
+            // recursion models need the controller's printed-stat copy.
+            playCtx.dynastyDiscardBodies = this.currentDynastyDiscardBodies;
+        }
         const hint: any = card.id && cardHint ? cardHint(card.id) : undefined;
         // V2 only: refuse a card the live value model says has no useful
         // application right now - Assassination with no legal target, Rout with
@@ -4603,7 +4691,16 @@ class JigokuBotPolicy {
         const enemyTargetExempt = this.currentEnemyTargetIgnoresReady !== 'off' &&
             hint?.targetSide === 'enemy' && hint?.attachSide !== 'self' &&
             (this.currentEnemyTargetIgnoresReady === 'always' || !playCtx?.amAttacker);
-        if(!allowWithoutReadyParticipant && !hasReadyParticipant && !enemyTargetExempt &&
+        // The other half of the same premise, and the bigger one. A card that
+        // READIES one of our participants, or puts a new ready body into the
+        // conflict, is not wasted on a bowed board — it is the answer to it.
+        // Against the Waves exists for exactly this board state and the veto
+        // refused it 105 times per 90 games, 102 of them while defending.
+        const readyEffectExempt = this.currentReadyEffectIgnoresReady !== 'off' &&
+            hint?.worksWithoutReadyParticipant === true &&
+            (this.currentReadyEffectIgnoresReady === 'always' || !playCtx?.amAttacker);
+        if(!allowWithoutReadyParticipant && !hasReadyParticipant &&
+            !enemyTargetExempt && !readyEffectExempt &&
             card.type !== 'character' &&
             card.id !== 'consumed-by-five-fires' &&
             !(attachmentTower && attachmentTower.isAttachment(card.id))) {

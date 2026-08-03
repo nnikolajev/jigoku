@@ -159,6 +159,41 @@ export interface DeckProfile {
                                 // prevent-break target — a buffer against the
                                 // opponent's post-commit pump cards
 
+    // ---- decisions that used to be answered by the first available button ----
+    // A prompt with no title-specific handler falls through to
+    // `fallback-button`, which takes the first acceptable choice. Measured over
+    // 180 games (`scratchpad/coverage.js`), that is 3.6% of all decisions, and
+    // most of it turned out to be harmless or already optimal — see
+    // `docs/bot-v2-rejected-experiments.md` for the Imperial Favor and dynasty
+    // first-to-pass negatives. This is the slice that was worth fixing.
+    //
+    // Rank handler-menu choices that are CARDS (deck searches, look-at-top-N
+    // plays, attachment searches) by printed power instead of taking the first
+    // button, which is deck order.
+    rankCardMenus?: boolean;
+
+    // ---- live pricing for conflict events ----
+    // Characters and attachments expose printed skill through controller hand
+    // stats, so the policy knows what they add. EVENTS do not: `handContribution`
+    // returns null for them unless the playbook entry carries a
+    // `conflictContribution`, and only six of the sixty-one events in the bot
+    // field carried one. Everything else was invisible to province-break
+    // budgeting and to the `strength-already-sufficient` veto.
+    //
+    // On, the playbook's event models compute what the card is worth against
+    // the live board instead of a flat constant — Banzai is +2, or +4 when we
+    // can pay the honor, or 0 with no ready participant to pump. Off restores
+    // the previous reading exactly (the old flat constant where there was one,
+    // null everywhere else), which is what the A/B control arm runs.
+    liveEventPricing?: boolean;
+    // Card ids left at their legacy reading while `liveEventPricing` is on.
+    // Pricing an event is not automatically an improvement: a number activates
+    // the `zero-contribution` and `strength-already-sufficient` vetoes and
+    // changes where the card sorts in `ConflictCardEconomy`, so a model that is
+    // individually correct can still cost a deck games. This is how a single
+    // card is ablated out of the set without rebuilding.
+    liveEventPricingExclude?: readonly string[];
+
     // ---- setup ----
     // Printed id of the province to place under the stronghold. The stronghold
     // province is only attackable after 3 others are broken, so an on-reveal
@@ -266,6 +301,25 @@ export const DEFAULT_PROFILE: DeckProfile = {
     digWithActions: false,
     digMinBoardCharacters: 0,
     aggressiveFate: false,
+    // On for every deck. Measured over three independent shuffle bases
+    // (n=540 paired), the win-rate effect is +0.19pp — inside the +/-2.5pp
+    // noise floor — but taking Hida Kisada over a 1-cost body because Kisada
+    // happened to be third in the list is simply wrong play, and this is what
+    // a human opponent sees.
+    rankCardMenus: true,
+    // On for every deck. Measured +0.62pp against the paired `off` arm over
+    // three independent shuffle bases (n=1620), positive on all three
+    // (+1.11 / +0.56 / +0.19pp) but inside the +/-2.5pp noise floor. It ships on
+    // the correctness underneath the number: Consumed by Five Fires was
+    // unplayable behind a gate that could not pass, Banzai was budgeted at half
+    // the skill the bot actually takes, and three models read a flat zero
+    // because glory and discard-pile skill are not on the fields they looked at.
+    //
+    // Switching an event from "unknown contribution" to a number activates the
+    // `zero-contribution` and `strength-already-sufficient` vetoes for it and
+    // moves it in `ConflictCardEconomy`, so a model that is right in isolation
+    // can still cost a deck games — `give-no-ground` did, at -4.3pp on Crab.
+    liveEventPricing: true,
     forceMilitaryConflict: false,
     attackCommitment: 'all-but-one',
     attackKeepHome: 1,

@@ -23,6 +23,20 @@ export interface BotDecision {
     reason: string;
 }
 
+/**
+ * Printed stats of a card offered as a handler-menu button (deck searches,
+ * look-at-top-N plays, attachment searches). `PlayerPromptState.setPrompt`
+ * serialises the button's card down to id/name/type/uuid, so the controller
+ * supplies these from the live card object and the policy ranks on them.
+ */
+export interface MenuCardInfo {
+    cost: number;
+    military: number;
+    political: number;
+    glory: number;
+    type: string;
+}
+
 export interface BotDecisionInput {
     readonly playerState: any;
     readonly botName?: string;

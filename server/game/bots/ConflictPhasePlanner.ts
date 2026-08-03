@@ -30,6 +30,24 @@ export interface ConflictPhasePlannerProfile {
     // points per public hand card it can afford, so the rollout stops
     // over-declaring marginal off-axis conflicts. 0 (default) = unchanged.
     fairDefenseBuffer?: number;
+    // The intent filter refuses every non-character card while none of our
+    // participants is ready, because a bowed body contributes 0 skill
+    // (`conflict.ts:474`) and a buff on it is wasted. That premise only holds
+    // for effects that land on OUR participant. A card that removes or
+    // weakens an ENEMY participant moves the same skill differential and asks
+    // nothing of our bowed bodies. Measured: `no-ready-participant` is 51% of
+    // all intent rejections in defense windows 1-2 skill from losing the
+    // province, and Assassination alone is 60 of them.
+    //   'off'     — V1's behavior, the veto applies to everything.
+    //   'defense' — exempt enemy-target cards only while defending.
+    //   'always'  — exempt them on both sides of the conflict.
+    enemyTargetIgnoresReadyParticipant?: 'off' | 'defense' | 'always';
+    // While DEFENDING a province that is already safe, how far behind on skill
+    // we will still spend conflict cards to steal the conflict win (and the
+    // ring). V1's hardcoded value is 3. These plays never prevent a break, so
+    // this knob prices the ring against the cards it costs. 0 = never chase a
+    // safe-province conflict win.
+    defenseCheapWinMaxGap?: number;
     // ---- deck-authored declaration options (see docs/bot-v2-deck-tuning.md) ----
     // A deck's tactics module proposes concrete declarations (axis / ring /
     // province / must-participate bodies / reserved bodies). The planner scores
@@ -173,9 +191,9 @@ export const RUSH_CONFLICT_PHASE_PLANNER: ConflictPhasePlannerProfile = {
     applyTypePlan: false,
     applyTargetPlan: true,
     applyDynastyProjection: false,
-    // On for the same measured reason as the default profile. Lion resolves to
-    // this profile and was ON in the measured configuration; Unicorn also
-    // resolves here and opts out explicitly in `unicorn-cavalry-rush`.
+    // On for the same measured reason as the default profile. Lion and Unicorn
+    // both resolve to this profile and both measured positive on the re-run
+    // (+0.5pp and +0.8pp), so neither opts out.
     applyAttackerPlan: true,
     applyIntentPlan: false,
     applyDefensePlan: false,

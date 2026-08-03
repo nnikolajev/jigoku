@@ -264,3 +264,112 @@ n=2600 re-run confirmed it was nothing.
 delta looks large.** The stored file records Crab at 31.9%; a V1 control run
 under identical conditions measures 39.1%. Using the stored number would have
 reported +14.9pp for a +7.7pp effect.
+
+## Near-miss DEFENSE conversion: the premise does not hold
+
+This section retires the recommendation recorded in `bot-v2-per-deck-plan.md`
+that "the leverage on breaks is converting near-miss windows, and defense is the
+cheaper half". Measured on the current tree, it is not.
+
+### What the bot actually does in a defense window
+
+`scratchpad/defgap.js` — every defending conflict-card window over 180 games,
+all ten decks, both seats on stock V1, bucketed by break deficit
+(`attackerSkill - provinceStrength + 1 - defenderSkill`):
+
+| bucket | windows | played a card | play rate |
+| --- | --- | --- | --- |
+| province safe | 3834 | 1478 | 38.5% |
+| **1-2 from falling** | **1210** | **676** | **55.9%** |
+| 3-4 from falling | 514 | 260 | 50.6% |
+| 5-6 from falling | 282 | 132 | 46.8% |
+| 7+ from falling | 462 | 122 | 26.4% |
+
+V1 already converts 56% of near-miss defenses. The earlier claim that two
+archetypes "never even look" is a rounding error: `spendCardsOnDefense: false`
+closes only 50 of the 534 near-miss passes (9%). 87% of them close on
+`no-card-passed-intent-filter`, with a playable card in hand 512 times.
+
+### Why the filter refuses them (and is mostly right)
+
+`scratchpad/defwhy.js` attributes every rejection in the 1-2 bucket:
+
+| deny reason | count |
+| --- | --- |
+| `no-ready-participant` | 428 |
+| `playbook-should-play` | 104 |
+| `duel-tower-target` | 90 |
+| `dragon-attachment-target` | 86 |
+| `deck-specific-target` | 50 |
+| `wrong-conflict-type` | 40 |
+| `zero-contribution` | 38 |
+
+`no-ready-participant` is 51% of the total and its premise is correct:
+`conflict.ts:474` makes a bowed participant contribute **0** skill, so buffing
+one is genuinely wasted. `duel-tower-target` and `dragon-attachment-target` are
+decks correctly refusing to misplace a tower attachment (Shukujo is
+Kuwanan-only). The filter is not leaking; it is working.
+
+The one slice that IS wrong is small: cards whose effect never touches a
+friendly body. Assassination is the most-rejected card in the game state (106,
+of which 60 are this gate) and it does not care whether our bodies are standing.
+
+### `defenseCheapWinMaxGap` — V1's hardcoded 3 is measured-optimal
+
+While defending an ALREADY-SAFE province, V1 spends conflict cards to steal the
+conflict win whenever it is within 3 skill. That is 1478 of the card plays
+above, none of which prevents a break — the obvious candidate for waste. It is
+not waste. Base 93001, n=180 paired, V1 control 87-93 in every arm:
+
+| `defenseCheapWinMaxGap` | record | vs V1's 3 | discordant |
+| --- | --- | --- | --- |
+| 0 — never chase | 78-102 | **-11 games** | 6 / 15 |
+| 1 | 88-92 | -1 | 11 / 10 |
+| **3 (shipped)** | **89-91** | — | — |
+| 6 — chase twice as far | 86-94 | -3 | 4 / 5 |
+
+Single-peaked, negative in both directions, and 0 is near-significant on its own
+(McNemar p ~ 0.08). Those ring-steals are load-bearing. The knob ships and
+defaults to 3; do not sweep it again without a new mechanism.
+
+**The general lesson.** A large population of "questionable" plays is not
+evidence of a leak. This bucket was 13x larger than the enemy-target one, which
+made it look like the bigger opportunity; it was 13x larger because V1 was
+already capturing the value there.
+
+### `enemyTargetIgnoresReadyParticipant` — consistent, sub-threshold, not shipped
+
+The one genuinely wrong slice of the `no-ready-participant` veto: it also
+refuses cards whose effect never touches a friendly body. Removing an enemy
+participant moves the same skill differential and asks nothing of our bowed
+bodies. `attachSide: 'self'` entries stay vetoed (True Strike Kenjutsu duels the
+enemy but must attach to our duelist).
+
+Decision rule fixed BEFORE the runs: ship only if all three shuffle bases are
+positive AND the pooled delta is >= +2pp.
+
+| base | `off` | `always` | delta |
+| --- | --- | --- | --- |
+| 91001 | 91-89 | 92-88 | +1 |
+| 92001 | 91-89 | 94-86 | +3 |
+| 93001 | 89-91 | 92-88 | +3 |
+| **pooled (n=540)** | **271-269 (50.2%)** | **278-262 (51.5%)** | **+7 games, +1.30pp** |
+
+3/3 bases positive (sign test p = 0.125), no base negative, and `always`
+dominated `defense` on every changed deck. But +1.30pp is below the +2pp bar and
+below the +/-2.5pp noise floor measured above. **Not shipped.** The knob is
+implemented, spec-covered, and defaults to `'off'` for every deck and both
+engines.
+
+The ceiling is mechanical, not tuning. `scratchpad/defcheck.js` measured the
+flag producing only **+10 extra card plays per 180 games**: `targetSide: 'enemy'`
+covers ~116 of the 428 gate rejections, and most of those still fail
+`playbook-should-play` downstream. Ten changed decisions cannot move a win rate
+past the noise floor no matter how the weights are set.
+
+**If this is revisited, enlarge the population, do not tune the flag.** The
+mechanically correct answer to "every one of my participants is bowed" is a
+READY effect on a friendly participant (Against the Waves, I Am Ready, The
+Pursuit of Justice), which the veto also refuses today and which `PlaybookEntry`
+has no marker for. Adding that marker is the prerequisite; re-running this arm
+without it will keep landing at +1pp.

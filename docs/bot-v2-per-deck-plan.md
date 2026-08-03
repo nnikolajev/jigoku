@@ -1,5 +1,15 @@
 # Bot V2: the per-deck tuning program
 
+> **SUPERSEDED 2026-08-02 — read `bot-v2.md` first.** V2 is measurement
+> infrastructure now, not a candidate engine, so "the per-deck tuning program"
+> is finished as a *V2* program. The **diagnostics and measured results below
+> are still valid and still the reference** for per-deck work; what changed is
+> that a proven knob now ships into V1 rather than into a V2 profile.
+>
+> One conclusion in this file has been **retired outright** — see "What actually
+> decides breaks" below and the near-miss defense section in
+> `bot-v2-rejected-experiments.md`.
+
 V1 took weeks of per-deck craft. V2 is the same kind of bot with more inputs and
 more knobs, so it needs the same treatment — deck by deck, measured, documented.
 This file is the running order and the record of decisions.
@@ -71,6 +81,33 @@ The per-deck diagnostic that follows from this, to run for each deck in turn:
 **in windows where the gap is 1-2, does the deck have an affordable play that
 crosses the threshold, and does it make it?** That is a precise question with a
 per-deck answer, unlike the generic pricing sweeps that all failed.
+
+### RETRACTION (2026-08-02): the defense half of that claim is wrong
+
+The diagnostic above was run, and it answers **yes, V1 already makes the play**.
+`scratchpad/defgap.js` over 180 games of stock V1: the bot plays a card in
+**55.9%** of near-miss defense windows (676 of 1210). The "two archetypes never
+even look" line is a rounding error — `spendCardsOnDefense: false` closes only
+**50 of 534** near-miss passes (9%). 87% close on
+`no-card-passed-intent-filter`.
+
+`scratchpad/defwhy.js` attributes those rejections, and the filter is mostly
+**right**: 51% are `no-ready-participant`, whose premise holds because
+`conflict.ts:474` makes a bowed participant contribute 0 skill, so buffing one
+is wasted. The duel/dragon target rejections are decks correctly refusing to
+misplace a tower attachment.
+
+Both levers built from this hypothesis failed. `defenseCheapWinMaxGap` is
+single-peaked at V1's hardcoded 3 (−11 games at 0, −3 at 6), and the one
+genuinely wrong slice — cards that never touch a friendly body — moves only
++1.30pp over n=540, below the noise floor. Full tables and the mechanical reason
+the ceiling is ~10 changed decisions are in
+`bot-v2-rejected-experiments.md`.
+
+**Defense is not the cheap half. Do not re-derive this.** The attacking half of
+the table was never disproved, but note that Crab's `secureReachableBreak` arm
+(topping up near-miss attacks) replicated at −9.3pp and −10.7pp, so the
+attacking reading has its own contrary evidence below.
 
 ## The measurement harnesses
 

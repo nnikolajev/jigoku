@@ -1,6 +1,10 @@
 # Bot V2 architecture
 
-Bot V2 lives under `server/game/bots/v2/`. `BotEngineRouter` owns version selection: V1 goes directly to `V1PolicyAdapter`; V2 wraps that same adapter as its deterministic fallback. `JigokuBotController` remains the sole command executor and preserves legality checks, rejection handling, progress detection, click-loop protection, and decision budgets.
+**Bot V2 is measurement infrastructure, not a player-facing engine** — see
+`bot-v2.md`. This file documents the pipeline as it exists for experiments and
+analysis; nothing here is reachable from a lobby game, which always runs V1.
+
+Bot V2 lives under `server/game/bots/v2/`. `BotEngineRouter` owns version selection: V1 goes directly to `V1PolicyAdapter`; V2 wraps that same adapter as its deterministic fallback. That wrapping is what makes V2 usable as a rig: with no injected profile it reproduces V1's decisions, so any measured difference belongs to the injected profile. `JigokuBotController` remains the sole command executor and preserves legality checks, rejection handling, progress detection, click-loop protection, and decision budgets.
 
 ## Decision pipeline
 

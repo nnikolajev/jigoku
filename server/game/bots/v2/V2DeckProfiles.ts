@@ -93,18 +93,13 @@ export const V2_DECK_OVERRIDES: Readonly<Record<string, V2DeckOverride>> = Objec
                 }
             ]
         }
-    },
-    // Unicorn is the one deck the phase-wide attacker plan hurts (-11.1pp at
-    // seed 1, the only regression beyond one-game noise). Its declaration order
-    // is already owned by the cavalry movement engine: `UnicornTactics`
-    // sequences candidates around a mover that JOINS the conflict after
-    // declaration, which the rollout cannot see, so the rollout's "smallest set
-    // that wins the phase" quietly benches the body the move engine was
-    // counting on. Deck knowledge wins here — exactly the split this file is
-    // for.
-    'unicorn-cavalry-rush': {
-        conflictPlanning: { applyAttackerPlan: false }
     }
+    // REMOVED 2026-08-02: `unicorn-cavalry-rush` used to opt out of
+    // `applyAttackerPlan` on a -11.1pp seed-1 measurement. That result did not
+    // reproduce when the flag was re-measured per deck on the current tree
+    // (Unicorn +0.8pp), and the opt-out was dropped from V1 at the same time.
+    // Leaving it here made V2's Unicorn strictly V1-minus-a-feature, which
+    // silently biased every V2-vs-V1 Unicorn row.
 });
 
 /**

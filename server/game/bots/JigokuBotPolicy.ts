@@ -352,6 +352,9 @@ class JigokuBotPolicy {
     private currentValueContext: CardValueContext | undefined;
     private currentUseCardValueModel = false;
     private currentVetoDeadCards = false;
+    // See `ConflictPhasePlannerProfile.enemyTargetIgnoresReadyParticipant`.
+    // Resolved once per conflict window alongside the value-model switches.
+    private currentEnemyTargetIgnoresReady: 'off' | 'defense' | 'always' = 'off';
     // Live fate cost of every conflict card we can play, by uuid. Duel synergy
     // has to know whether a follow-up is AFFORDABLE, not merely held.
     private currentConflictCosts: Record<string, number> | undefined;
@@ -455,6 +458,7 @@ class JigokuBotPolicy {
         this.currentValueContext = undefined;
         this.currentUseCardValueModel = false;
         this.currentVetoDeadCards = false;
+        this.currentEnemyTargetIgnoresReady = 'off';
         this.currentCharacterBaseMilitary = context.characterBaseMilitary;
         this.currentParticipatingCharacterCounts = context.participatingCharacterCounts;
         this.currentCavalryCharacterUuids = context.cavalryCharacterUuids;
@@ -3500,6 +3504,8 @@ class JigokuBotPolicy {
         // this window is priced against the same board.
         this.currentUseCardValueModel = !!profile.conflictPlanning?.useCardValueModel;
         this.currentVetoDeadCards = !!profile.conflictPlanning?.vetoDeadCards;
+        this.currentEnemyTargetIgnoresReady =
+            profile.conflictPlanning?.enemyTargetIgnoresReadyParticipant || 'off';
         this.currentValueContext = this.currentUseCardValueModel || this.currentVetoDeadCards
             ? this.cardValueContext(me, playCtx, opponent)
             : undefined;
@@ -3529,7 +3535,13 @@ class JigokuBotPolicy {
             }
             const provinceStrength = this.attackedProvinceStrength(me, 3);
             const breakDeficit = standing.attackerSkill - provinceStrength + 1 - standing.defenderSkill;
-            const cheapWin = standing.gap <= 3;
+            // The province is already safe, but we are behind on skill: spend
+            // cards anyway to steal the conflict WIN and the ring with it.
+            // Measured population (`defgap.js`, 180 games): 3834 such windows,
+            // 1478 of which produce a card play — by far the largest single
+            // consumer of defensive conflict cards, and none of them prevents a
+            // break. 0 disables the behavior entirely.
+            const cheapWin = standing.gap <= (profile.conflictPlanning?.defenseCheapWinMaxGap ?? 3);
             // At the stronghold there is no "too far gone": every buff and
             // ability is thrown at the deficit because losing it is losing.
             if(!strongholdDefense && !feedCards && !dragonPayoffReady && !shugenjaPlan && !cranePlan && !actionBeforePass && ((breakDeficit <= 0 && !cheapWin) || breakDeficit > 6)) {
@@ -4582,7 +4594,17 @@ class JigokuBotPolicy {
 
         const hasReadyParticipant = myCharacters.some((candidate: any) =>
             candidate.inConflict && !candidate.bowed);
-        if(!allowWithoutReadyParticipant && !hasReadyParticipant && card.type !== 'character' &&
+        // A card whose effect lands on the OPPONENT does not need a ready body
+        // of ours: removing an attacker lowers their skill exactly as much as
+        // buffing ours would raise it, and it still works when every one of our
+        // participants is bowed. `attachSide: 'self'` marks the attachments
+        // that only READ as enemy-facing (True Strike Kenjutsu duels the enemy
+        // but must be attached to our duelist), so they stay vetoed.
+        const enemyTargetExempt = this.currentEnemyTargetIgnoresReady !== 'off' &&
+            hint?.targetSide === 'enemy' && hint?.attachSide !== 'self' &&
+            (this.currentEnemyTargetIgnoresReady === 'always' || !playCtx?.amAttacker);
+        if(!allowWithoutReadyParticipant && !hasReadyParticipant && !enemyTargetExempt &&
+            card.type !== 'character' &&
             card.id !== 'consumed-by-five-fires' &&
             !(attachmentTower && attachmentTower.isAttachment(card.id))) {
             return deny('no-ready-participant');

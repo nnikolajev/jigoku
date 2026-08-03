@@ -1,50 +1,98 @@
-# Jigoku Bot V1 and Bot V2
+# Bot V2: measurement infrastructure
 
-The Imperial bot now has two independently selectable decision engines.
+**Bot V2 is not a player-facing opponent and is not a candidate to replace Bot
+V1.** It is the experimentation rig used to measure changes to Bot V1. This was
+decided on 2026-08-02 after the V2-as-a-better-bot program was measured to
+completion; the history and evidence are below.
 
-- **Bot V1** is the stable default. It is the previously deployed heuristic bot, preserved behind a direct execution path.
-- **Bot V2** is an opt-in experimental tactical planner. It proposes and scores semantic actions, runs the terminal solver, and uses the equivalent Bot V1 policy as its deterministic per-decision fallback. Broad tactical search currently runs in shadow/research mode only because its live runtime gate failed.
+Bot V1 is the only engine players ever get. The lobby has no engine selector,
+and `server/lobby.js` pins `engineVersion: 'v1'` regardless of what a client
+sends.
 
-Bot version is independent from the strategy seed, deck, and information mode. Seeds still choose the same strategy profiles: seed 1 is the mixed/fate-aware default, seed 2 is dynasty-focused, and seed 3 adds board-aware dynasty development. Omniscient mode remains a separate checkbox; fair mode never receives hidden identities.
+## What V2 is for
 
-V2 sends only normal Jigoku commands through the existing controller. It cannot mutate rules state directly. If its semantics are incomplete, a plan becomes stale, confidence is too low, or a retained slice reaches its budget, V2 records the reason and delegates that decision to V1. Live overrides require at least 0.90 semantic confidence, at least 3 score advantage, and a terminal or shared-safety justification; profiles may tighten but cannot relax these floors.
+V2 wraps the same `V1PolicyAdapter` that V1 runs directly, and delegates any
+decision it does not override. That property is the whole point: it makes V2 a
+**seat-scoped, profile-injectable copy of V1**, which is what the paired A/B
+method needs.
 
-V2 is currently experimental. The final retained live slice had exact paired outcome/trace equivalence and no planner errors or search-budget exhaustion, but fallback remained 100% and mean game runtime remained above V1. A 30-second self-play cap also exposed one pre-disable timeout; the broad search slice was disabled and the same paired partition then completed exactly. Therefore V1 remains default and rollback is simply selecting Bot V1. Benchmark text in the lobby is filtered by engine version, seed, deck, and fair/omniscient mode; missing V2 data is shown as missing rather than substituted with V1 data.
+- **Per-seat profile injection.** `--v2-profile` / `V2PROFILE` deep-merges into
+  `deckProfile.conflictPlanning` for one seat only, so a flag can be toggled for
+  a single deck against an otherwise untouched V1 field.
+- **Paired controls on identical shuffles.** Every arm runs against a V1 control
+  seat piloting the same deck on the same shuffle, so the control is a constant
+  and arm-vs-arm deltas are attributable to the injected profile alone.
+- **Instrumentation.** Typed card semantics, the value models, the shadow
+  engine, and the trace levels are all retained as analysis tools. `v2/cards`
+  and `v2/CardValueModel` price cards that V1 only sees as a flat constant,
+  which is how "is this card dead?" questions get answered.
 
-Benchmark percentages are noisy at small sample sizes. Use paired results, confidence intervals, deck-specific rows, victory types, fallback rate, nodes per decision, and runtime together. A short tactical win or one favorable matchup is not a release signal.
+A V2 run with no injected profile now measures **bit-identical to V1 on 9 of 10
+decks** (Phoenix differs only by its retained `applyIntentPlan` entry). That
+equivalence is the rig's calibration: if an `off` arm ever stops matching its V1
+control, the rig is broken, not the lever.
 
-## Measured status (2026-07-25 pickup)
+## How to use it
 
-With the current default proof-gated overrides live, V2 diverges from V1 on about 12% of decisions. On a seed 1 / fair / all-deck / paired alternating-seat run of 120 games (`tools/selfplay/out/v2-baseline-big-seed1-fair-rng71002.json`), V2 went 62-57-1 (51.7%) while the V1 control seat on the identical shuffles went 61-57-2 (50.8%): 19 discordant pairs split 9-8 for V2, McNemar exact two-sided p = 1.000. In other words, V2 is currently **statistically indistinguishable from V1**, not ahead of it, and well short of the 70% default-promotion gate.
+- `tools/selfplay/botRoundRobin.js --v2-decks <deck> --subject <deck>
+  --v2-profile '{"deckProfile":{"conflictPlanning":{...}}}'` — one deck piloting
+  an injected profile against the V1 field.
+- `tools/selfplay/compareBotVersions.js` — paired candidate/control comparison.
+- `tools/selfplay/auditCards.js --engine-version v1` — which cards and abilities
+  never fire.
+- `tools/selfplay/cardLab.js` — price a single card in a controlled scenario.
 
-The reason is structural. V2 plays V1's move roughly 88% of the time and only overrides where a deterministic proof (terminal, minimum-sufficient response, break-prevention set, semantic agreement) clears fixed safety floors. Those overrides are individually safe but collectively produce no measurable win-rate uplift. When V2 is instead allowed to trust its own utility policy on execution-safe single-command decisions (the research-only `highConfidenceGate.allowAutonomousPolicy`), its win rate against V1 collapses to roughly 6-8% (see `bot-v2-rejected-experiments.md`): the hand-coded linear evaluator is much weaker than V1's tuned heuristics, so widening divergence loses. Reaching a genuinely stronger V2 needs a stronger evaluator (a self-play-learned value function, or holdout-confirmed offline coefficient tuning), not more overrides. Until then V1 remains default and V2 stays opt-in and experimental.
+**Method rules that are not optional** (each was learned by getting it wrong):
 
-## Direction change (2026-07-26): V2 is tuned per-deck, like V1
+1. The harness runs **compiled JS**. Run `npx tsc`, not `tsc --noEmit`, or every
+   edit is inert and both arms measure the same stale build.
+2. `seed` selects the V1 **policy class**, not the shuffle. The shuffle is
+   `base`. To replicate, hold seed at 1 and vary `base`.
+3. The noise floor of this methodology is about **+/-2.5pp**. Fix the decision
+   rule before the run, and require replication on independent shuffle bases.
+4. Round robin is **zero-sum**: ten deck win rates average 50% and deltas sum to
+   zero. A field-wide change cannot lift every deck.
 
-The two failures above share one cause: **generic machinery without deck
-knowledge plays worse than V1's deck knowledge.** V2 is therefore treated as
-what it actually is — the same heuristic bot with more inputs and more tunable
-parameters — and it gets per-deck logic exactly the way V1 does.
+## Why the "better bot" program ended
 
-Conflict declaration is the first area converted to this model: a deck proposes
-declaration **options** (conflict type, ring, must-participate bodies, bodies
-held in reserve, confidence), and the shared `ConflictPhasePlanner` scores them
-inside the same-phase rollout and executes the best whole-phase sequence.
+Every V2-native mechanism was built, measured, and rejected. Full evidence in
+`bot-v2-rejected-experiments.md`.
 
-**See `docs/bot-v2-deck-tuning.md` for the decision, the rule surface, and how
-to add or measure a deck.**
+| mechanism | result |
+| --- | --- |
+| autonomous linear evaluator | 5-8% win rate vs V1 |
+| `liveTacticalSearch` | zero accepted corrections, 678 exhausted budgets, 2.6x runtime |
+| high-confidence override gate | 95-100% fallback; every attempt to lower it lost games |
+| live dynasty package override | 2-6 with a retained ledger |
+| exact defender-set macro | 8-12 aggregate |
+| `useCardValueModel` / `vetoDeadCards` | monotone negative, 121-59 down to 114-66 |
+| `applyActionPlan` | -17 games across independent shuffle sets |
+| `applyPassPlan` / `applyRingPlan` / `applyTypePlan` | -13pp / -5.8pp / -3.9pp |
+| **`applyAttackerPlan`** | **the one win — and it was a V1-shaped feature** |
 
-Result of the first iteration under this model: across three independent seeds
-of cross-deck round-robin (180 paired games each, every deck against the other
-nine, paired against a V1 control seat on identical shuffles), V2 went
-**57.0% vs V1's 50.2% — +6.9pp over n=540**, with 117 discordant pairs split
-77-40 for V2 (McNemar two-sided p = 0.00087). Every seed was positive
-(+5.0 / +9.4 / +6.1pp).
+The pattern is consistent: the only lever that ever paid was a flag inside V1's
+own `ConflictPhasePlanner`, tuned per deck. It was ported into V1 on 2026-07-31
+(all ten decks positive, mean +4.67pp, sign test p ~ 0.002), which left V2's
+base override a no-op and its edge over V1 exactly zero by construction.
 
-The gain came almost entirely from `applyAttackerPlan`, the declaration layer
-that had never been measured: V1 sizes each attack in isolation and over-commits
-bodies into conflicts it cannot break, while the phase rollout commits the
-smallest set that wins the whole phase. It is now the V2 baseline, with Unicorn
-opting out because its cavalry movement engine owns declaration order. This does
-**not** change the 19.14 default-promotion gate, which remains unmet; V1 is
-still default and V2 still opt-in.
+The 2026-07-26 "V2 is tuned per-deck, exactly like V1" direction was the correct
+diagnosis and is what produced that win. Its conclusion has now been taken to
+the end of the line: if V2's only viable form is "V1 with per-deck knobs", the
+knobs belong in V1, and V2 keeps the job it is genuinely good at — proving
+whether a knob is worth shipping.
+
+## What would reopen it
+
+Not more overrides, and not coefficient tuning. The measured ceiling is the
+evaluator itself: a hand-written linear evaluator is weaker than V1's tuned
+heuristics, so every increase in autonomous divergence loses games. Reopening
+this needs a **learned value function** (self-play trained, holdout confirmed),
+which is a different program from anything in this tree.
+
+## Related
+
+- `bot-v2-architecture.md` — the decision pipeline and how to add a contributor
+- `bot-v2-rejected-experiments.md` — read before proposing any bot idea
+- `bot-v2-deck-tuning.md` — the per-deck rule surface and measurement protocol
+- `bot-v2-per-deck-plan.md` — per-deck diagnostics and their results
+- `heuristic-bot.md` — Bot V1, the engine that actually ships

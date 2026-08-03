@@ -42,10 +42,26 @@ describe('Bot V2 per-deck profiles', function() {
         expect(v2.conflictIntents.rules[0].axis).toBe('political');
     });
 
-    it('lets a deck opt out of a baseline flag', function() {
+    // No deck opts out of a baseline flag today — Unicorn's historical
+    // `applyAttackerPlan: false` was removed once the -11.1pp result failed to
+    // reproduce. The merge ORDER that makes an opt-out possible is what
+    // matters, so assert it directly: the deck entry is applied after the base
+    // override and wins on any key both set.
+    it('applies deck entries after the baseline so a deck can override a flag', function() {
+        const base = clone(DEFAULT_PROFILE);
+        base.overrideNames = ['phoenix-rally-stronghold'];
+        base.conflictPlanning.applyIntentPlan = false;
+        const v2 = applyV2DeckProfile(base);
+        expect(v2.conflictPlanning.applyIntentPlan).toBe(true);
+        expect(v2.conflictPlanning.applyAttackerPlan).toBe(true);
+    });
+
+    it('leaves a deck with no V2 entry on the baseline override alone', function() {
         const base = clone(DEFAULT_PROFILE);
         base.overrideNames = ['unicorn-cavalry-rush'];
-        expect(applyV2DeckProfile(base).conflictPlanning.applyAttackerPlan).toBe(false);
+        const v2 = applyV2DeckProfile(base);
+        expect(v2.conflictPlanning.applyAttackerPlan).toBe(true);
+        expect(v2.conflictPlanning.applyIntentPlan).toBe(false);
     });
 
     it('keeps every other knob of the deck profile intact', function() {

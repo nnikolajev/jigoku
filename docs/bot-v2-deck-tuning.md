@@ -1,5 +1,18 @@
 # Bot V2 is tuned per-deck, exactly like Bot V1
 
+> **SUPERSEDED 2026-08-02 — read `bot-v2.md` first.** The decision below was
+> correct and produced the program's one win (`applyAttackerPlan`), but it has
+> been carried to its conclusion: if V2's only viable form is "V1 with per-deck
+> knobs", the knobs belong in **V1**, and V2 is now measurement infrastructure
+> rather than a bot. `applyAttackerPlan` shipped into V1 on 2026-07-31, which
+> left V2's base override a no-op.
+>
+> This file is retained because the **rule surface and the measurement protocol
+> below are still exactly how a per-deck knob gets proposed and proved** — the
+> arms just inject into a V1 that ships the winners, instead of into a V2 that
+> hoped to replace it. Deck-specific *results* here remain valid; the framing of
+> V2 as a candidate engine does not.
+
 **Decision (2026-07-26).** Bot V2 is *not* a different kind of bot. It is the same
 heuristic bot as V1 with more inputs and more tunable parameters. Therefore it
 gets the **same treatment V1 gets**: every deck may carry its own deck-specific

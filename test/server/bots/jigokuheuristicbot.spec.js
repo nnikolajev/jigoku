@@ -5502,4 +5502,106 @@ describe('Jigoku heuristic bot', function() {
             expect(decision.args && decision.args[0]).not.toBe('justice');
         });
     });
+
+    describe('defensive conflict-card gates', function() {
+        // Assassination is the single most-rejected card in near-miss defense
+        // windows (106 rejections over 180 games, 60 of them for
+        // `no-ready-participant`). It removes an ENEMY character, so it does
+        // not care whether any of our bodies is still standing.
+        const bot = (characters, hand) => ({
+            name: 'Jigoku Bot', id: 'BOT', phase: 'conflict',
+            promptTitle: 'Conflict Action Window', menuTitle: 'Choose a card to play',
+            buttons: [{ text: 'Pass', arg: 'pass', uuid: 'p' }],
+            provinces: { one: [], two: [], three: [], four: [] },
+            strongholdProvince: [],
+            cardPiles: {
+                cardsInPlay: characters, hand: hand,
+                conflictDiscardPile: [], dynastyDiscardPile: []
+            },
+            stats: { fate: 3, honor: 10, conflictsRemaining: 1 }
+        });
+        const mine = (uuid, bowed) => ({
+            uuid: uuid, id: uuid, name: uuid, type: 'character', location: 'play area',
+            bowed: bowed, inConflict: true,
+            militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '3' }
+        });
+        // Printed cost 2, so Assassination's own `shouldPlay` accepts it.
+        const victim = {
+            uuid: 'scout', id: 'cautious-scout', name: 'Cautious Scout', type: 'character',
+            location: 'play area', bowed: false, inConflict: true,
+            militarySkillSummary: { stat: '2' }, politicalSkillSummary: { stat: '0' }
+        };
+        const assassination = {
+            uuid: 'assn', id: 'assassination', name: 'Assassination', type: 'event',
+            location: 'hand', isPlayableByMe: true
+        };
+        const state = (characters, attackerSkill, defenderSkill) => ({
+            conflict: {
+                attackingPlayerId: 'HUMAN', defendingPlayerId: 'BOT', type: 'military',
+                attackerSkill: attackerSkill, defenderSkill: defenderSkill
+            },
+            players: {
+                'Jigoku Bot': bot(characters, [assassination]),
+                Human: {
+                    name: 'Human', id: 'HUMAN', stats: { fate: 3, honor: 10, conflictsRemaining: 1 },
+                    provinces: { one: [], two: [], three: [], four: [] }, strongholdProvince: [],
+                    cardPiles: {
+                        cardsInPlay: [victim], hand: [],
+                        conflictDiscardPile: [], dynastyDiscardPile: []
+                    }
+                }
+            }
+        });
+        const withPlanning = (planning) => {
+            const profile = resolveDeckProfile([]);
+            profile.conflictPlanning = Object.assign({}, profile.conflictPlanning, planning);
+            return { profile: profile, cardHint: getPlaybookEntry, roundNumber: 3 };
+        };
+        // Province strength falls back to 3 with no province in the conflict,
+        // so 5 vs 0 leaves a break deficit of 3 — inside the "spend on it"
+        // band, and every one of our bodies bowed.
+        const played = (decision) => decision && decision.command === 'cardClicked' &&
+            decision.args[0] === 'assn';
+
+        it('refuses an enemy-target card with no ready participant by default', function() {
+            expect(played(new JigokuBotPolicy('bot').decide(
+                state([mine('bowed', true)], 5, 0), 'Jigoku Bot', withPlanning({})
+            ))).toBe(false);
+        });
+
+        it('plays an enemy-target card with no ready participant when defending', function() {
+            expect(played(new JigokuBotPolicy('bot').decide(
+                state([mine('bowed', true)], 5, 0), 'Jigoku Bot',
+                withPlanning({ enemyTargetIgnoresReadyParticipant: 'defense' })
+            ))).toBe(true);
+        });
+
+        it('still refuses a self-target card with no ready participant', function() {
+            const buff = {
+                uuid: 'buff', id: 'banzai', name: 'Banzai!', type: 'event',
+                location: 'hand', isPlayableByMe: true
+            };
+            const only = state([mine('bowed', true)], 5, 0);
+            only.players['Jigoku Bot'].cardPiles.hand = [buff];
+            const decision = new JigokuBotPolicy('bot').decide(only, 'Jigoku Bot',
+                withPlanning({ enemyTargetIgnoresReadyParticipant: 'always' }));
+            expect(decision && decision.command === 'cardClicked' &&
+                decision.args[0] === 'buff').toBe(false);
+        });
+
+        // Province safe (deficit -1) but the conflict is losable by 2, which is
+        // V1's "steal the ring" band.
+        it('spends a card to steal a conflict win on an already-safe province', function() {
+            expect(played(new JigokuBotPolicy('bot').decide(
+                state([mine('ready', false)], 4, 3), 'Jigoku Bot', withPlanning({})
+            ))).toBe(true);
+        });
+
+        it('keeps the card when defenseCheapWinMaxGap turns safe-province chasing off', function() {
+            expect(played(new JigokuBotPolicy('bot').decide(
+                state([mine('ready', false)], 4, 3), 'Jigoku Bot',
+                withPlanning({ defenseCheapWinMaxGap: 0 })
+            ))).toBe(false);
+        });
+    });
 });

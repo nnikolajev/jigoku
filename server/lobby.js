@@ -301,8 +301,11 @@ class Lobby {
             playerName: botDetails.playerName || 'Jigoku Bot',
             deckId: botDetails.deckId,
             seed: botDetails.seed || 1,
-            engineVersion: botDetails.engineVersion === 'v2' ? 'v2' : 'v1',
-            v2Mode: botDetails.engineVersion === 'v2' ? 'enabled' : undefined,
+            // Lobby games always run Bot V1. V2 is measurement infrastructure
+            // for the self-play tools (see docs/bot-v2.md), not a player-facing
+            // opponent, so a client asking for it is ignored rather than
+            // honoured — the engine choice is not part of the lobby contract.
+            engineVersion: 'v1',
             difficulty: botDetails.difficulty || 'mvp',
             policy: botDetails.policy,
             omniscient: botDetails.omniscient === true,

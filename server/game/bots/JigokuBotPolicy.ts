@@ -2,9 +2,15 @@ import SeededRandom from './SeededRandom.js';
 import type { MenuCardInfo } from './BotEngine';
 import type { CardHint } from './llm/CardHints';
 import type { DeckStrategy } from './CardPlaybook';
+import { banzaiRecurAllowed, honorCostOf, honorSpendingAllowed } from './CardPlaybook.js';
 import type { KnownCard, Omniscient } from './DeckAnalysis';
 import { estimateHandThreat } from './DeckAnalysis.js';
 import { profileFromStrategy, DEFAULT_PROFILE } from './DeckProfiles.js';
+import { dynastyAbilityValueOf } from './DynastyAbilityValue.js';
+import { DefenseCommitmentPolicy, recordDefenseSizing } from './DefenseCommitmentPolicy.js';
+import type { DefenseCommitmentMode } from './DefenseCommitmentPolicy';
+import { ConflictDeclarationPolicy, recordAxisChoice } from './ConflictDeclarationPolicy.js';
+import { BotTelemetry } from './BotTelemetry.js';
 import type { DeckProfile } from './DeckProfiles';
 import type { FateAwareEconomyProfile } from './FateAwareEconomy';
 import { planConflictCards } from './ConflictCardEconomy.js';
@@ -1341,9 +1347,14 @@ class JigokuBotPolicy {
             }
             const recurForHonor = buttons.find((button) => /lose .*honor.* to resolve this ability again/i.test(String(button.text || '')));
             if(recurForHonor) {
-                const honorNow = me?.stats?.honor ?? 10;
-                return this.buttonDecision(honorNow > 3 ? recurForHonor : doneChoice,
-                    honorNow > 3 ? 'banzai-recur-for-honor' : 'banzai-decline-low-honor');
+                // The honor is optional here, so this is the spending decision
+                // — the card play itself is free and must never be vetoed for
+                // it. `honorRaceAware` off keeps the bare `honor > 3` cliff.
+                const take = banzaiRecurAllowed(
+                    this.playbookContext(playerState, me, dishonor),
+                    this.currentDeckProfile.honorRace);
+                return this.buttonDecision(take ? recurForHonor : doneChoice,
+                    take ? 'banzai-recur-for-honor' : 'banzai-decline-low-honor');
             }
         }
 
@@ -2303,7 +2314,10 @@ class JigokuBotPolicy {
                 const value = (card: any, info?: DynastyCharacterInfo) =>
                     Math.max(0, Number(info?.military) || this.skillValue(card, 'military') || 0) +
                     Math.max(0, Number(info?.political) || this.skillValue(card, 'political') || 0) +
-                    Math.max(0, Number(info?.abilityValue) || 0);
+                    Math.max(0, Number(info?.abilityValue) || 0) +
+                    // Same price list as the buy ranking, so the projection
+                    // shortlist and the buy agree on what a body is worth.
+                    dynastyAbilityValueOf(card?.id) * (Number(profile.dynastyAbilityScale) || 0);
                 return value(right, rightInfo) - value(left, leftInfo) ||
                     String(left.uuid).localeCompare(String(right.uuid));
             })
@@ -2510,7 +2524,7 @@ class JigokuBotPolicy {
                     ? lookahead.conflictType
                     : omni && profile.useOmniscientConflictAxis !== false
                         ? this.omniPreferredConflictType(me, opponent, omni, profile.forceMilitaryConflict)
-                        : this.preferredConflictType(me, profile.forceMilitaryConflict);
+                        : this.preferredConflictType(me, opponent, profile);
                 const preferredRemaining = preferredType === 'military'
                     ? Number(me?.stats?.militaryRemaining)
                     : Number(me?.stats?.politicalRemaining);
@@ -2705,6 +2719,29 @@ class JigokuBotPolicy {
                 plannedNext: !!plannedNext,
                 plannedComplete
             });
+            // Same facts on the shared telemetry sink, so a probe can measure
+            // attacker allocation without installing the legacy static hook.
+            // `applyAttackerPlan` shipped ON for V1 (both planner profiles); a
+            // run where `usePlannedAttackers` is false everywhere would mean it
+            // has silently stopped reaching, which is the failure mode that has
+            // cost this project the most time.
+            BotTelemetry.record('attack-size', () => ({
+                seat: String(me?.name || ''),
+                round: this.currentRoundNumber,
+                axis: type,
+                usePlannedAttackers: !!usePlannedAttackers,
+                plannedNext: !!plannedNext,
+                plannedComplete: plannedComplete,
+                committedCount: committed.length,
+                committedSkill: committedSkill,
+                potentialSkill: potentialSkill,
+                breakTarget: breakTarget,
+                provinceStrength: provinceStrength,
+                defenseEstimate: defenseEstimate,
+                totalEligible: totalEligible,
+                attackCommitment: profile.attackCommitment,
+                finalStrongholdPush: finalStrongholdPush
+            }));
 
             if(profile.conflictPlanning?.applyPassPlan && lookahead?.action === 'pass' && committed.length === 0) {
                 const passButton = this.findButton(buttons, ['pass conflict']);
@@ -2951,20 +2988,31 @@ class JigokuBotPolicy {
         return fateComponent + base + gloryBonus + dragonBonus + shugenjaBonus + duelBonus + attachmentBonus;
     }
 
-    // The side (military/political) where the bot's ready characters carry
-    // the most total skill — some are martial, some courtly, some balanced.
-    private preferredConflictType(me: any, aggressive = false): 'military' | 'political' {
-        const ready = this.readyCharacters(me);
-        const military = ready.reduce((total, card) => total + Math.max(this.skillValue(card, 'military') || 0, 0), 0);
-        const political = ready.reduce((total, card) => total + Math.max(this.skillValue(card, 'political') || 0, 0), 0);
-        // A military-rush deck forces every conflict military as long as it has
-        // any military skill on the board — its payoffs and pumps are all
-        // military, and staying on one axis lets Captive Audience turn the
-        // political conflict into a second military one.
-        if(aggressive && military > 0) {
-            return 'military';
-        }
-        return military >= political ? 'military' : 'political';
+    // The side (military/political) to attack on. V1's rule is "wherever my own
+    // ready characters carry the most skill"; `ConflictDeclarationPolicy` can
+    // additionally subtract what the opponent has ready to meet it, which is
+    // public information the omniscient variant below already uses.
+    // `opponentBoardWeight: 0` (the default) is exactly the old rule.
+    private preferredConflictType(me: any, opponent: any, profile: DeckProfile): 'military' | 'political' {
+        const skillTotal = (cards: any[], type: string) => cards.reduce(
+            (total: number, card: any) => total + Math.max(this.skillValue(card, type) || 0, 0), 0);
+        const theirReady = (opponent?.cardPiles?.cardsInPlay || [])
+            .filter((card: any) => card.type === 'character' && !card.bowed);
+        const input = {
+            myMilitary: skillTotal(this.readyCharacters(me), 'military'),
+            myPolitical: skillTotal(this.readyCharacters(me), 'political'),
+            theirMilitary: skillTotal(theirReady, 'military'),
+            theirPolitical: skillTotal(theirReady, 'political'),
+            forceMilitary: !!profile.forceMilitaryConflict,
+            militaryRemaining: Number(me?.stats?.militaryRemaining),
+            politicalRemaining: Number(me?.stats?.politicalRemaining)
+        };
+        const result = new ConflictDeclarationPolicy(profile.conflictDeclaration).chooseAxis(input);
+        recordAxisChoice(input, result, {
+            seat: String(me?.name || ''),
+            round: this.currentRoundNumber
+        });
+        return result.axis;
     }
 
     // Seed 3: attack on the axis where the REAL advantage is largest — my
@@ -3221,37 +3269,57 @@ class JigokuBotPolicy {
         const potential = defenderSkill + candidates.reduce((total, card) => total + skillOf(card), 0) +
             externalMoveSkill;
 
+        // The attacker acts AFTER defenders are declared, so a block sized on
+        // the skill currently on the table is a free flip for any held pump.
+        // Size a one-trick reserve from what the attacker can still pay.
+        const threatBuffer = this.defenseThreatBuffer(profile, me, opponent);
+
         const defenseCommitment = profile.preventBreakAfterBrokenProvinces > 0 &&
             this.brokenOuterProvinceCount(me) < profile.preventBreakAfterBrokenProvinces
             ? 'win-only'
             : profile.defenseCommitment;
-        let target;
-        if(defenseCommitment === 'win-only') {
-            // The rush would rather lose a province than bow bodies it needs to
-            // attack again, so it only defends when it can win the conflict
-            // outright. Attackers win ties, so the defense must reach one more
-            // skill; a tie or chump-block that merely delays a break is conceded.
-            if(potential > attackerSkill) {
-                target = attackerSkill + 1;
-            } else {
-                return this.buttonDecision(done, 'aggressive-concede-defense');
-            }
-        } else if(potential >= attackerSkill) {
-            target = attackerSkill;
-        } else if(potential > attackerSkill - provinceStrength) {
-            target = Math.min(attackerSkill - provinceStrength + 1 + profile.defenseSkillBuffer, potential);
-        } else {
-            // Hopeless — but an UNOPPOSED loss also bleeds 1 honor. Decks
-            // with chumpBlock throw their weakest body in the way: the
-            // province falls either way, the honor stays.
-            if(profile.chumpBlock) {
-                const committed = this.myCharactersInPlay(me).filter((card) => card.inConflict).length;
-                if(committed === 0 && candidates.length > 0) {
-                    return this.cardClickDecision(candidates[candidates.length - 1], 'chump-block');
-                }
+
+        // The body the sizing below would actually spend, so the policy can
+        // price the extra point instead of assuming it costs one skill.
+        const marginalCandidate = candidates.find((card) => card !== unicornMover) || candidates[0];
+        const sizingInput = {
+            mode: (defenseCommitment === 'win-only' ? 'win-only' : 'prevent-break') as DefenseCommitmentMode,
+            attackerSkill: attackerSkill,
+            defenderSkill: defenderSkill,
+            potential: potential,
+            provinceStrength: provinceStrength,
+            marginalSkill: marginalCandidate ? skillOf(marginalCandidate) : 0,
+            readyCount: this.readyCharacters(me).filter((card: any) => !card.inConflict).length,
+            conflictsRemaining: Math.max(0, Number(me?.stats?.conflictsRemaining) || 0),
+            ringElement: ringElement
+        };
+        const sizing = new DefenseCommitmentPolicy({
+            breakTie: profile.defenseBreakTie,
+            skillBuffer: profile.defenseSkillBuffer,
+            threatBuffer: threatBuffer,
+            ...(profile.defenseTuning || {})
+        }).size(sizingInput);
+        recordDefenseSizing(sizingInput, sizing, {
+            seat: String(me?.name || ''),
+            round: this.currentRoundNumber,
+            axis: type,
+            honor: Number(me?.stats?.honor) || 0
+        });
+
+        if(sizing.branch === 'concede') {
+            return this.buttonDecision(done, 'aggressive-concede-defense');
+        }
+        if(sizing.branch === 'hopeless') {
+            // An UNOPPOSED loss also bleeds 1 honor. Decks with chumpBlock
+            // throw their weakest body in the way: the province falls either
+            // way, the honor stays.
+            if(profile.chumpBlock && candidates.length > 0 &&
+                this.chumpBlockWorthIt(profile, me)) {
+                return this.cardClickDecision(candidates[candidates.length - 1], 'chump-block');
             }
             return this.buttonDecision(done, 'defense-hopeless');
         }
+        const target = sizing.target as number;
 
         const projectedMoveSkill = unicornMover && unicornMoveCtx
             ? this.currentUnicorn?.projectedMoveSwing(unicornMover, unicornMoveCtx) || 0
@@ -3266,6 +3334,39 @@ class JigokuBotPolicy {
         }
 
         return this.buttonDecision(done, 'finish-defenders');
+    }
+
+    // A chump block trades a body's readiness for 1 honor. The conflict is
+    // already lost and the province is already going to break, so the honor is
+    // the only thing on the table — but the defender bows on return home
+    // (`conflictflow.ts:950`), so the body is gone for the rest of the round.
+    //
+    // The unconditional form is what `chumpBlock` has always meant. The two
+    // limits below scope it, and both default to the unconditional reading.
+    private chumpBlockWorthIt(profile: DeckProfile, me: any): boolean {
+        // With one of ours already in the conflict it is not unopposed, so
+        // there is no honor to save and the chump buys nothing at all.
+        const inPlay = this.myCharactersInPlay(me);
+        if(inPlay.some((card: any) => card.inConflict)) {
+            return false;
+        }
+        // 1 honor is worth far more near the 0-honor loss than in the middle of
+        // the track, where the same body is worth more attacking.
+        const ceiling = profile.chumpBlockHonorCeiling;
+        if(ceiling > 0 && (Number(me?.stats?.honor) || 0) > ceiling) {
+            return false;
+        }
+        // Spend a SPARE body, not a needed one: keep enough ready characters to
+        // still open our own conflicts this round.
+        const surplus = profile.chumpBlockSurplusBodies;
+        if(surplus > 0) {
+            const ready = inPlay.filter((card: any) => !card.bowed).length;
+            const needed = Math.max(0, Number(me?.stats?.conflictsRemaining) || 0) + surplus;
+            if(ready < needed) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private brokenOuterProvinceCount(player: any): number {
@@ -3542,6 +3643,10 @@ class JigokuBotPolicy {
             // Dishonor decks stop paying honor costs at their floor; undefined
             // for every other deck (playbook gates treat undefined as payable).
             canPayHonor: dishonor ? dishonor.canPayHonor(myHonor) : undefined,
+            opponentHonor: opponent?.stats?.honor,
+            myBrokenProvinces: this.brokenOuterProvinceCount(me),
+            opponentBrokenProvinces: this.brokenOuterProvinceCount(opponent),
+            honorRaceAware: this.currentDeckProfile.honorRaceAware === true,
             myCharacters,
             opponentCharacters,
             opponentHandSize: (opponent?.cardPiles?.hand || []).length,
@@ -4360,6 +4465,12 @@ class JigokuBotPolicy {
                     if(hint.oncePerRound && this.boardAbilityIsUsed(card, dragon)) {
                         return false;
                     }
+                    // In-play Actions pay honor too (Shosuro Hametsu, Thunder
+                    // Guard Elite, Moto Eviscerator) and reach the board path,
+                    // not the hand-play intent filter.
+                    if(!this.honorSpendingAllowed(playCtx, card.id)) {
+                        return false;
+                    }
                     if(attachmentTower && card.id === 'daimyo-s-favor') {
                         return attachmentTower.shouldUseDaimyoFavor(card, playCtx);
                     }
@@ -4412,6 +4523,13 @@ class JigokuBotPolicy {
             honor: me?.stats?.honor ?? 10,
             fate: me?.stats?.fate ?? 0,
             canPayHonor: dishonor ? dishonor.canPayHonor(me?.stats?.honor ?? 10) : undefined,
+            // Both honor pools and both break counts: honor is a win condition
+            // at 0 and at 25, and how much of it a card may cost depends on the
+            // race, not on our dial alone.
+            opponentHonor: opponent?.stats?.honor,
+            myBrokenProvinces: this.brokenOuterProvinceCount(me),
+            opponentBrokenProvinces: this.brokenOuterProvinceCount(opponent),
+            honorRaceAware: this.currentDeckProfile.honorRaceAware === true,
             myCharacters: this.myCharactersInPlay(me),
             opponentCharacters: this.myCharactersInPlay(opponent),
             opponentHandSize: (opponent?.cardPiles?.hand || []).length,
@@ -4558,11 +4676,18 @@ class JigokuBotPolicy {
         if(playCtx) {
             playCtx.liveEventPricing = this.currentDeckProfile.liveEventPricing === true;
             playCtx.liveEventPricingExclude = this.currentDeckProfile.liveEventPricingExclude;
+            playCtx.honorRaceAware = this.currentDeckProfile.honorRaceAware === true;
             // The serialized discard pile has empty skill summaries, so the
             // recursion models need the controller's printed-stat copy.
             playCtx.dynastyDiscardBodies = this.currentDynastyDiscardBodies;
         }
         const hint: any = card.id && cardHint ? cardHint(card.id) : undefined;
+        // Honor costs are printed in card text, never in `conflictCosts`, so
+        // until now nothing budgeted them: Assassination sells 3 honor on a
+        // hardcoded `honor >= 6`, and 18.9% of field games end at 0 honor.
+        if(!this.honorSpendingAllowed(playCtx, card.id)) {
+            return deny('honor-race-budget');
+        }
         // V2 only: refuse a card the live value model says has no useful
         // application right now - Assassination with no legal target, Rout with
         // no participating Bushi, a duel we lose. V1 plays these on a flat
@@ -4742,6 +4867,52 @@ class JigokuBotPolicy {
             return feedCards || (!!hint && !!hint.abilityValue) ? true : deny('zero-contribution');
         }
         return contribution === null || contribution > 0 ? true : deny('no-contribution');
+    }
+
+    // Extra defensive skill to hold back for the attacker's post-declaration
+    // action window, sized from PUBLIC information only: they cannot play more
+    // cards than they hold, and cannot pay for more than their fate allows
+    // (+1 because 0-cost tricks exist). Capped, because budgeting for the
+    // opponent's whole affordable threat was measured net-negative even with
+    // exact hand knowledge — the extra bodies bow and the next conflict pays.
+    private defenseThreatBuffer(profile: DeckProfile, me: any, opponent: any): number {
+        const rate = profile.defenseThreatBufferRate;
+        const cap = profile.defenseThreatBufferCap;
+        if(!(rate > 0) || !(cap > 0)) {
+            return 0;
+        }
+        // The buffer's whole cost is bodies bowed. Field-wide it measured
+        // -1.4pp, and the loss was concentrated on the two decks that need
+        // their bodies ready for their own conflicts (Crane -7.4, Unicorn
+        // -7.4) — the same tempo price the omniscient full-threat experiment
+        // paid. When no conflict opportunity of ours remains this round those
+        // bodies have no other use, so the buffer is free.
+        if(profile.defenseThreatBufferIdleOnly &&
+            (Number(me?.stats?.conflictsRemaining) || 0) > 0) {
+            return 0;
+        }
+        const hand = (opponent?.cardPiles?.hand || []).length;
+        const fate = Math.max(0, Number(opponent?.stats?.fate) || 0);
+        const affordable = Math.max(0, Math.min(hand, fate + 1));
+        return Math.min(cap, Math.ceil(rate * affordable));
+    }
+
+    // Can this card's printed HONOR cost be paid without selling the honor
+    // race? Off by default (`honorRaceAware`), in which case the per-card
+    // constants that were there before remain the only check.
+    private honorSpendingAllowed(playCtx: any, cardId: string | undefined): boolean {
+        if(!this.currentDeckProfile.honorRaceAware || !playCtx) {
+            return true;
+        }
+        // A dishonor deck spends its own honor ON PURPOSE — dropping below the
+        // opponent is what turns its cards on — and `DishonorTactics` already
+        // owns that floor. Stacking a generic protect-your-honor budget on top
+        // fights the deck's plan; Scorpion measured -3.7pp doing exactly that.
+        if(playCtx.canPayHonor !== undefined) {
+            return playCtx.canPayHonor !== false;
+        }
+        const cost = honorCostOf(cardId);
+        return cost <= 0 || honorSpendingAllowed(playCtx, cost, this.currentDeckProfile.honorRace);
     }
 
     // null = unknown contribution (events and cards the controller sent no
@@ -5597,7 +5768,9 @@ class JigokuBotPolicy {
             infoByUuid[card.uuid] = {
                 ...baseInfo,
                 abilityValue: Math.max(0, Number(baseInfo.abilityValue) || 0) +
-                    (conflictProjectionScores[card.uuid] || 0)
+                    (conflictProjectionScores[card.uuid] || 0),
+                abilityValueExplicit: dynastyAbilityValueOf(card.id) *
+                    (Number(profile.dynastyAbilityScale) || 0)
             };
         }
         const hand: DynastyHandCard[] = (me?.cardPiles?.hand || []).map((card: any) => {
@@ -5726,6 +5899,30 @@ class JigokuBotPolicy {
             return pass ? this.buttonDecision(pass, 'fate-aware-pass-after-strong-character') : null;
         }
 
+        // Both orderings below are cost-first, then `conflictProjectionScores`,
+        // then the uuid — and the projection is only computed for three
+        // candidates, so equal-cost cards are usually separated by nothing but
+        // a string compare. The printed line never enters the sort, and the
+        // controller's ability term cannot help: measured across the field it
+        // takes three values between 3.50 and 4.00 (see `DynastyAbilityValue`).
+        // Fold the static-text price into the same tie-break, where it breaks
+        // the arbitrary ties without overriding a real projection difference.
+        // `Number(...) || 0` is load-bearing: a profile assembled without the
+        // field yields `price * undefined = NaN`, and `NaN - NaN` is falsy, so
+        // the comparator would silently skip the projection term and fall
+        // through to the uuid compare.
+        const abilityScale = Number(this.currentDeckProfile.dynastyAbilityScale) || 0;
+        const abilityPrice = (card: any): number =>
+            dynastyAbilityValueOf(card?.id) * abilityScale;
+        const projected = (card: any): number =>
+            (conflictProjectionScores[card.uuid] || 0) + abilityPrice(card);
+        // Cost ordering the SORT sees. A well-priced card sorts as though it
+        // were the better buy in whichever direction that list runs; the real
+        // `costOf` still gates affordability and every budget cap.
+        const costWeight = Number(this.currentDeckProfile.dynastyAbilityCostWeight) || 0;
+        const orderCost = (card: any, ascending: boolean): number => costOf(card) -
+            (ascending ? 1 : -1) * dynastyAbilityValueOf(card?.id) * costWeight;
+
         const persistentCharacters = this.myCharactersInPlay(me)
             .filter((card) => (Number(card.fate) || 0) > 0).length;
         const bodySpendCap = earlyRound
@@ -5753,8 +5950,8 @@ class JigokuBotPolicy {
                     (!durableIds || (!!card.id && durableIds.includes(card.id))) &&
                     cost <= fate - dynamicFateReserve && spent + cost <= durableSpendCap;
             })
-            .sort((a: any, b: any) => costOf(b) - costOf(a) ||
-                (conflictProjectionScores[b.uuid] || 0) - (conflictProjectionScores[a.uuid] || 0) ||
+            .sort((a: any, b: any) => orderCost(b, false) - orderCost(a, false) ||
+                projected(b) - projected(a) ||
                 String(a.uuid).localeCompare(String(b.uuid)));
         const durable = durableCandidates[0];
         const bodySpent = economy.bodyBudgetIncludesDurableSpend
@@ -5771,11 +5968,12 @@ class JigokuBotPolicy {
                     cost <= remainingBodyBudget;
             })
             .sort((a: any, b: any) => {
-                const costDifference = economy.bodyOrder === 'lowest-cost'
-                    ? costOf(a) - costOf(b)
-                    : costOf(b) - costOf(a);
+                const ascending = economy.bodyOrder === 'lowest-cost';
+                const costDifference = ascending
+                    ? orderCost(a, true) - orderCost(b, true)
+                    : orderCost(b, false) - orderCost(a, false);
                 return costDifference ||
-                    (conflictProjectionScores[b.uuid] || 0) - (conflictProjectionScores[a.uuid] || 0) ||
+                    projected(b) - projected(a) ||
                     String(a.uuid).localeCompare(String(b.uuid));
             });
 

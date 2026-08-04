@@ -145,7 +145,12 @@ because Air gains honor) over a percentage.
 
 ## Why a deck-authored plan bypasses the generic apply flags
 
-`applyTypePlan` / `applyRingPlan` / `applyAttackerPlan` stay **off** globally:
+> **Stale as written for `applyAttackerPlan`.** It shipped ON for V1 on
+> 2026-07-31 and is `true` in both `DEFAULT_CONFLICT_PHASE_PLANNER` and
+> `RUSH_CONFLICT_PHASE_PLANNER`. The paragraph below is still correct for
+> `applyTypePlan` and `applyRingPlan`, which remain off.
+
+`applyTypePlan` / `applyRingPlan` stay **off** globally:
 the deck-blind rollout over-declares in fair mode. But when the winning plan
 carries an `optionId`, a deck asked for that specific play and the rollout
 already ranked it against every alternative — so it executes on its own

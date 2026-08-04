@@ -567,3 +567,424 @@ independently.
 Unicorn is the marker's own loser and the one to look at first if this is
 revisited: it runs three of the eight marked cards (I Am Ready, Ride On, Cavalry
 Reserves) and the ready-only arm already cost it 3 games.
+
+## Draw-bid honor rails: already implemented, and the reordering case is empty
+
+Proposed after an audit found `PlaybookContext` had no `opponentHonor`: teach
+the draw bid that an opponent at either honor extreme will bid low, that some
+decks want cards rather than honor, and that a conquest win one break away
+should outrank an honor rail.
+
+`DrawBidTactics` already does the first two. `predictOpponentBid` returns the
+low bid whenever `opponentHonor <= lowHonorThreshold (6)` or
+`>= honorWinSetupThreshold (19)`, and `objective: 'honor' | 'dishonor' |
+'balanced'` already splits the decks that race honor from the decks that buy
+cards. `attackCommitment`-side urgency is handled by `attack-open-stronghold`.
+
+The third — invert the ordering so a live conquest win beats an honor rail — is
+**unreachable**. Bid-reason census over 90 games, 966 bids (`scratchpad
+bidrails.js`):
+
+| rail | fired | of those, their stronghold 1 break away |
+| --- | ---: | ---: |
+| `protect-low-honor` | 148 | 61 |
+| `pressure-opponent-dishonor` | 124 | 37 |
+| `attack-open-stronghold` | 34 | 34 |
+| `honor-race-opportunity` | 10 | 0 |
+| `pursue-honor-victory` | **2** | **0** |
+| `deny-opponent-honor-victory` | **0** | — |
+
+The two rails the inversion was aimed at fire twice and never in 966 bids. The
+two that do overlap the conquest signal are `protect-low-honor` and
+`pressure-opponent-dishonor`, and both are themselves win/loss conditions that
+must outrank a conquest plan: bidding high at 5 honor can simply lose the game
+on the transfer. No bid change was made.
+
+The honor work went into card play instead, where nothing was budgeted at all —
+see "The honor race" in `heuristic-bot.md`.
+
+## Defending past the exact threshold: three variants, all rejected
+
+V1 defends to exactly `attackerSkill - provinceStrength + 1 + defenseSkillBuffer`,
+and `defenseSkillBuffer` is 0 for eight of the ten deck profiles. The attacker
+acts *after* defenders are declared, so that block is a free flip for any card
+still in hand. Three knobs were built and measured; none shipped enabled.
+
+**The benefit population is real and large.** Census over 90 games: of 508
+province breaks that happened after a defense was committed, **220 (43.3%) broke
+by an excess of exactly 0** — one more point of defensive skill saves each — and
+322 (63.4%) by an excess of 2 or less. Attackers played 1.94 cards per such
+break. The field punishes a minimal block about as hard as a human would, so no
+synthetic punisher was needed.
+
+**The knobs reach that population.** Unscoped, the buffer moves defender clicks
+938 -> 1091 and defenses held 944 -> 1073 per 90 games.
+
+**And it still loses.** Paired arms, `scratchpad/rr2.js`, seed 1, n≈539 per base.
+Every arm compared to the `off` arm on the same base, never to the V1 control.
+
+| arm | 91001 | 92001 | 93001 | pooled |
+| --- | ---: | ---: | ---: | ---: |
+| `off` | 265 | 278 | 282 | — |
+| `defenseBreakTie` | −5 | **−17** | +3 | **−1.18pp** |
+| buffer (rate 0.5, cap 2) | . | . | +1 | +0.19pp (1 base) |
+| tie + buffer | . | . | **−7** | −1.30pp (1 base) |
+| tie + idle-scoped buffer | −5 | −17 | +3 | −1.18pp (inert scope) |
+
+Pre-registered before the run: ship at pooled >= +1.5pp with no base negative.
+Nothing came close.
+
+Three lessons worth keeping:
+
+1. **The single-base triage was a false positive.** `defenseBreakTie` measured
+   **+0.56pp** at base 93001 and **−1.18pp** over three, negative on two of
+   them. This is exactly what the three-base rule exists to catch; a lever that
+   looks good on one base has not been measured.
+2. **Scoping cannot rescue a lever that is not reachable under the scope.**
+   `defenseThreatBufferIdleOnly` (buffer only when no conflict opportunity of
+   ours remains) was written from the READY-marker lesson that scoping beats
+   population. It produced a **bit-identical run** — 4678 card plays, 938
+   defender clicks, 1829 defended, 944 held, all exactly the `off` numbers —
+   because a defender essentially always still has a conflict of its own coming.
+   Check reachability of the SCOPE, not just of the knob.
+3. **The trade itself is the finding.** Committing one extra body to turn a tie
+   into a win loses, even though a tie hands the attacker the conflict and the
+   ring. Combined with Crab declaration sizing, the omniscient full-threat
+   defense, and `applyPassPlan`, that is four independent experiments saying the
+   same thing: in this engine ready bodies are worth more than marginal conflict
+   wins. Do not propose another "commit more to defense" variant without a
+   mechanism that spends no extra body.
+
+## Honor-race card budget: correct, live, and worth exactly zero
+
+`PlaybookContext` exposed the bot's own `honor` but not the opponent's, so no
+card gate could read the honor race even though `DrawBidTactics`,
+`DuelBidTactics`, `BoardAwareDynastyTactics` and `DeckConflictIntents` all do.
+Added `opponentHonor` / `myBrokenProvinces` / `opponentBrokenProvinces`, plus a
+budget for printed honor costs behind `DeckProfile.honorRaceAware`.
+
+The gate is live — 380 denials over a 90-game census — but the win rate does not
+move: **282 wins against the `off` arm's 282** at base 93001 (n=539), 283 after
+the two correctness fixes below. Per deck it is noise summing to zero.
+
+The reason is population. Honor-cost cards are 196 of 4678 card plays (4%), and
+the ad-hoc per-card constants already covered the expensive one — Assassination
+plays 15 times with or without the budget, because its own `honor >= 6` gate
+fires first. `honorRaceAware` ships **off**.
+
+Two real defects were found while building it, and both are fixed:
+
+- **Banzai must not be priced as a card honor cost.** Its honor buys an
+  *optional* second resolution, so budgeting it at the play vetoed a free +2 and
+  cost 6 Banzai plays per 90 games. The budget belongs on the
+  `banzai-recur-for-honor` prompt and on the contribution (`banzaiRecurAllowed`).
+- **A generic honor floor fights the dishonor deck.** Scorpion spends honor on
+  purpose — dropping below the opponent is what turns its cards on — and
+  `DishonorTactics.canPayHonor` already owns that floor. Stacking the generic
+  budget on top measured Scorpion at −3.7pp; the policy now defers whenever
+  `canPayHonor` is defined.
+
+What survives is the plumbing, which is free and correct: every gate can now see
+both honor pools, and the printed-legality clauses on Compromised Secrets and
+Forgery ("play only if you are less honorable than an opponent") are gated on
+the real comparison instead of being clicked for the engine to refuse.
+
+## Dynasty ability pricing — right diagnosis, wrong insertion point
+
+**Rejected 2026-08-04.** Ships off (`dynastyAbilityScale`,
+`dynastyAbilityCostWeight`, both 0).
+
+The diagnosis was correct and worse than expected. `dynastyCharacterInfo` prices
+a character's ability as `min(4, abilityCount * 0.7 + strategicTerms * 0.45)`,
+and the engine registers 5-6 *framework* reactions on every character, so
+`abilityCount * 0.7` alone reaches 3.5-4.2 before any card text is read. Across
+all 117 field characters the term takes three values — 3.50 (24 cards), 3.95 (3)
+and 4.00 (90) — a spread of 0.375 after its weight, against a
+`primarySkillWeight` of 1. It is also unsigned, and its phrase list contains
+`cannot be`, so Hiruma Yojimbo scores its "cannot be declared as an attacker" as
+a bonus and Shiba Peacemaker (4 military that may never attack) is
+indistinguishable from a vanilla body.
+
+`DynastyAbilityValue.ts` fixes that with 50 signed prices over static text only.
+It reaches a large population — 47.3% of all dynasty buys (494 of 1045) — and it
+measured **+1.11pp, positive on all three bases**, which is the first lever in
+this program not to come back negative.
+
+Then three **fresh** bases returned **270-270, exactly 0.00pp**, with the null
+arm scoring 90-90 on each of them — so the rig was sound and the lever was not:
+
+| bases | record | vs 50% |
+| --- | --- | ---: |
+| 91001 / 92001 / 93001 | 276-264 | +1.11pp |
+| 94001 / 95001 / 96001 | 270-270 | 0.00pp |
+| **pooled, 1080 games** | **546-534** | **+0.56pp** (z=0.37, p=0.72) |
+
+**Three bases agreeing is a one-in-four coincidence, not a result.** This lever
+also agreed with an entirely separate measurement method on its magnitude —
+3.3% of games flipped x 78% of those won ~= +1.1pp, against the head-to-head's
++1.11pp — and was still worth nothing. Internal consistency between two methods
+is not evidence of an effect; two methods can consistently measure noise.
+
+The ceiling had already said so, which is why it is measured first now:
+`measureDecisiveness.js` shows the change leaves **91.5% of games
+bit-identical** and flips only **9 winners in 270 games (3.3%)**, capping any
+effect at 1.67pp — inside the ±2.5pp noise floor. Resolving even +1.1pp in the
+head-to-head would take ~7800 games.
+
+The cause is structural: both fate-aware orderings are cost-first, so a price
+can only separate cards of **equal cost**, which are usually interchangeable in
+effect. `dynastyAbilityCostWeight` was the obvious fix — let the price move a
+card between cost tiers — and it did not help (90.0% of games still unchanged,
++0.93pp). That closes the approach rather than leaving it open. **Do not re-tune
+these prices.** A different decision — whether to buy at all, or how much fate to
+place — would have to be the target.
+
+Kept regardless, because they are correctness and infrastructure: the price list
+and its specs, and the two measurement tools built for this
+(`headToHeadRoundRobin.js`, `measureDecisiveness.js`).
+
+### Two mechanisms that turned out to be unreachable
+
+A full measurement cycle was spent before noticing the first of these. Both have
+passing specs.
+
+- **`BoardAwareDynastyTactics.choose` is never called** by any of the ten field
+  deck profiles. The price list was wired into its `candidatePower` first and a
+  90-game census came back bit-identical to the control. Its per-deck
+  `characterValueById` override map is also empty everywhere, so that tuning
+  hook has never done anything either. The live path is
+  `fateAwareDynastyDecision`.
+- **`ConflictPhasePlanner.planDefense` never runs**, because `applyDefensePlan`
+  defaults to `false` and no deck enables it. Its honor-aware chump block
+  (`honorPressure = clamp((8 - honor) / 6, 0, 1)`) is therefore dead, and
+  `profile.chumpBlock` in `JigokuBotPolicy` is not a fallback beneath a smarter
+  planner — it is the only chump-block V1 executes.
+
+A passing spec proves a mechanism is correct, not that it is reachable.
+
+## Chump-blocking a hopeless defense — no measurable gain
+
+**Rejected 2026-08-04.** `chumpBlock` stays as it was: on for the two deck
+profiles that already set it, off elsewhere. `chumpBlockHonorCeiling` and
+`chumpBlockSurplusBodies` ship at 0, their unconditional reading.
+
+An unopposed loss costs the loser 1 honor (`conflictflow.ts:838`), and a chump
+defender prevents it for the price of one body's readiness — defenders bow on
+return home (`conflictflow.ts:950`). The population is real: 110 reachable
+windows per 90 games, and turning the flag on field-wide moves chumps from 24 to
+93.
+
+Head-to-head, changed bots against unchanged: **+0.74pp, but −1.67pp on one of
+three bases** — inconsistent where the dynasty lever was not. The scoped variant
+(chump only at low honor and only with a spare ready body) measured +0.19pp and
+brackets the question from below, since the scope also restricts the two decks
+that already chump, taking them from 24 chumps to 12.
+
+The decisiveness probe explains it: chump changes the *path* of 13.3% of games —
+by far the most of any lever tested — but flips only 6.7% of winners, and wins
+4 of those 6. It buys honor without buying wins, which is the same verdict the
+defensive-commitment experiments keep returning.
+
+## Measurement method changed as a result
+
+The single-base false positive that started this (`defenseBreakTie` reading
++0.56pp at base 93001 and −1.18pp over three) is now structurally impossible to
+repeat, because the default rig has a null arm that must score exactly 50.00%.
+See `bot-v2.md` and the `/roundrobin` skill. One finding from that null arm is
+worth repeating here: **its per-deck rows swing ±28pp at exactly 0.00pp total**,
+so per-deck breakdowns in the head-to-head are deck strength, not effect.
+
+## Retest on the head-to-head rig: two confirmed, one reversed
+
+**2026-08-04.** The defense and honor levers above were originally measured on
+the paired rig with fixed bases. Re-run as a direct challenge (changed bots
+against unchanged bots, 90 ordered cross-deck pairings, three bases, 540 games,
+null arm exactly 50.00%):
+
+| lever | paired rig | head-to-head | 91001 | 92001 | 93001 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `defenseThreatBuffer` | −1.39pp | **−1.11pp** | −1.67 | −1.11 | −0.56 |
+| `honorRaceAware` | 0.00pp | **−0.37pp** | −0.56 | 0.00 | −0.56 |
+| `defenseBreakTie` | −1.18pp | **+1.02pp** | +0.56 | +1.67 | +0.84 |
+
+**Confirmed:** the threat buffer is negative on both rigs and on all three
+bases. The honor budget is zero on both rigs. Those rejections were not seed
+artifacts and can be treated as settled.
+
+**`defenseBreakTie` is worth zero, and BOTH earlier verdicts were noise.** It
+was rejected at −1.18pp on the paired rig, then measured +1.02pp on the
+head-to-head — positive on all three of its first bases, which looked like a
+clean reversal. Three fresh bases returned −0.56pp. Pooled:
+
+| bases | record | vs 50% |
+| --- | --- | ---: |
+| 91001 / 92001 / 93001 | 275-264 | +1.02pp |
+| 94001 / 95001 / 96001 | 267-273 | −0.56pp |
+| **pooled, 1079 games** | **542-537** | **+0.23pp** (z=0.15, p=0.88) |
+
+Per base: +0.56 / +1.67 / +0.84 / **−2.22** / +0.56 / 0.00.
+
+The decisiveness probe explains the swings. This lever flips **8.3% of games**,
+the most of anything measured — 2.5x the dynasty price list — and leaves only
+81-83% of games unchanged, so its ceiling is 3.3-5.0pp and it genuinely matters.
+But it wins just **9 of 15 decided games** (sign test p=0.61). **High
+decisiveness with no direction** is the worst case for a small-sample rig: it
+produces large per-base swings that read as confident results in whichever
+direction the bases happened to fall.
+
+This is the pattern to watch for. A lever with a real mechanism and a real flip
+rate can still be worth nothing, and it will look alternately great and terrible
+until enough independent bases are pooled.
+
+**The general lesson is about the older rig, not this lever.** Any verdict in
+this file that came from the paired rig with a small per-deck n, and that was
+not replicated across bases, is weaker than it reads. The ones with large,
+consistent, multi-base effects are unaffected.
+
+## `defenseBreakTie`, settled: 4319 games, 24 bases, and the reason it is null
+
+**2026-08-04, second pass.** The six-base pooled +0.23pp above was re-run at
+scale on the parallel rig (`tools/selfplay/parallelHeadToHead.js`, 540 games in
+3.3 minutes instead of ~50), on **18 bases never used for it before**.
+
+| run | games | bases | result |
+| --- | ---: | ---: | --- |
+| first six bases | 1079 | 6 | +0.23pp, p=0.88 |
+| high-sample re-run | 3240 | 18 | **−0.43pp, z=−0.49, p=0.62** |
+| **pooled** | **4319** | **24** | **2148-2171, −0.27pp** |
+
+Every game decided — 0 draws, 0 timeouts, `stopReasons {"decided":3240}`. Per
+base: 4 positive, 9 negative, 5 exactly 90-90, extreme −2.22pp. **Resampling 3
+bases at random out of this settled null reads ≤ −1pp 17.8% of the time**, which
+is the size of the trap in a three-base rig, measured rather than asserted.
+
+Paired probes over a further 1350 games flipped **74 decided games exactly
+37-37**.
+
+### Why: the prize is not what the lever's name suggests
+
+Three engine facts, none of them in the bot code, and all three found by reading
+`conflictflow.ts` rather than by measuring:
+
+1. **The attacker takes the ring's fate at DECLARATION**, before defenders are
+   declared (`conflictflow.ts:381-400`, `takeFateFromRing` with
+   `recipient: attackingPlayer`). The fate is gone before the defense is sized.
+2. **Only the attacker resolves the ring effect** — `resolveRingEffects` is
+   wrapped in `if(this.conflict.isAttackerTheWinner())` (`conflictflow.ts:903`).
+   A defender who wins CLAIMS the ring but does not resolve it. Cards exist
+   specifically to grant that (Defend the Wall, Staunch Hida, Guardian Kami,
+   Akodo Toturi), which is the confirmation.
+3. Every defender bows on return home.
+
+So the extra point buys **one denied ring effect and a claimed ring** — not a
+ring. Telemetry over 1080 paired games priced the other side: the marginal body
+is worth **2.55 skill** on average (43% cost 3 or more, one cost 10), 93% of
+firings still have a conflict of our own to open, and **49% spend the LAST ready
+body**.
+
+**The bot's own value model prices this trade at 8:1 in favour and is wrong.**
+`ConflictPhasePlanner.scoreDefense:664` credits a defensive conflict win with
+the full symmetric `conflictWinValue` (2.5) plus `claimedRingValue` (0.6)
+against `readySkillValue` 0.12/point. The comment one line above even says *"the
+defender claims the contested ring without resolving it"* — the rule was known
+and the value was left symmetric anyway. Split that term before ever enabling
+`applyDefensePlan`.
+
+### The scoped arm: mechanically right, still not shippable
+
+Cross-tabbing the decided games by the state at each firing found the loss in
+exactly one bucket, and not the one the cost hypothesis predicted:
+
+| ready bodies at the firing | flips to / away |
+| --- | --- |
+| **1 (the last body)** | **13 / 22** |
+| 2 or more | 11 / 7 |
+
+Marginal *skill* does not separate them and neither does conflicts-remaining.
+The cost is the last BODY, not its size — which is
+`DefenseCommitmentPolicy.breakTieMinReadyCount`.
+
+Re-measured on **12 bases never used to find the cut** (the search bases are
+burned), decision rule fixed in advance at "≥30 decided games and ≥2:1":
+
+| arm | flip rate | decided | net | implied |
+| --- | ---: | --- | ---: | ---: |
+| unscoped | 5.2% | 26 to / 30 away | −4 | −0.37pp |
+| **`breakTieMinReadyCount: 2`** | **2.8%** | **17 to / 13 away** | **+4** | **+0.37pp** |
+
+The scope does what the telemetry said: it declines 1692 windows, keeps 124 of
+265, and flips the sign. It is still **rejected** — 17/30 is p=0.29, the
+surviving effect is +0.37pp against a ceiling of 1.39pp, and resolving it would
+take roughly 70,000 head-to-head games for a quarter of a point. Ships **off**,
+documented, so the next person does not re-derive it.
+
+Per-deck rows from that run (Crab +4, Lion +4, Scorpion −3) are 3-8 decided
+games each and are **not** a basis for per-deck enablement.
+
+## Opponent-aware conflict axis: NOT rejected — this one shipped
+
+**2026-08-04.** Listed here because the road to it runs through two measurement
+traps that belong in this file even though the lever survived them.
+
+V1's fair `preferredConflictType` compared only its OWN ready board. The
+omniscient variant beside it subtracts the opponent's board and their affordable
+hand tricks, and **only the hand term is genuinely hidden** — the opponent's
+ready board is public, and the fair `ringScore` a few lines away already reads
+it. `ConflictDeclarationPolicy.opponentBoardWeight: 1` closes that and is now ON
+in `DEFAULT_PROFILE`: **+1.58pp over 6468 head-to-head games on 36 independent
+bases, z=2.54, p=0.011**, positive on all three base sets and 26 of 36 bases.
+
+### Trap 1: a paired probe reads the same lever 2.7x larger on one seat
+
+| measurement | bases | result |
+| --- | --- | ---: |
+| probe, change on **seat 0** | 91001-96001 | 45 flips to / 23 away, **+4.07pp** (p=0.0055) |
+| probe, change on **seat 1** | 91001-96001 | 34 to / 26 away, **+1.48pp** |
+| probe, seat-averaged | 91001-96001 | **+2.78pp** |
+| head-to-head, SAME bases | 91001-96001 | **+2.78pp** |
+
+`probePaired.js` treats ONE seat and never swaps it, so a first-player
+interaction survives in it and cancels in the head-to-head by construction.
+Seat-averaged the two rigs agree **to the decimal**. Always run `SEAT=0` and
+`SEAT=1`.
+
+### Trap 2: base SETS differ by more than the noise floor within a set
+
+With seats averaged, everything left was which bases were used: 91001-96001 are
+worth **+2.78pp** to this lever and 120001-131001 **+0.46pp**. A three-base or
+even twelve-base run on the wrong set reads this as nothing. The answer is to
+POOL base sets, not to pick one — 36 bases gave +1.58pp at p=0.011.
+
+**Both traps pointed in opposite directions on the same lever**, and either one
+alone could have shipped a false positive or buried a real gain.
+
+### Why it works, mechanically
+
+Over 3798 axis decisions the policy moves 715 (18.3%). **602 of them are
+military -> political (84%)**: V1 over-declares military because its tie-break is
+`military >= political` and most boards carry more military skill. Each switch
+gives up **1.90** own skill to dodge **5.40** opposing skill, a net **+3.51**
+differential, and **71% of switches leave an axis we were already losing on raw
+skill**. It flips 12.6% of games — the highest decisiveness measured here.
+
+Per deck, causal, both seats pooled: **eight of eight non-rush decks positive,
+none negative**. Lion and Unicorn record *exactly zero flips* because
+`forceMilitaryConflict` returns before the policy is consulted.
+
+The response is **flat in the weight** (0.5 -> +0.51pp, 1.0 -> +0.46pp,
+1.5 -> +0.56pp on a shared six bases), so do not try to optimise the constant.
+
+### Verified after enabling, in both directions
+
+"The flag is set" has failed to mean "the mechanism runs" twice in this project,
+so the ship was checked end to end:
+
+| check | result |
+| --- | --- |
+| `refactorIdentity.js` SHA | `04bb672a3543db31` -> `fdac489933f41c64` (V1 really changed) |
+| inject the NEW default (weight 1) — must be a no-op | **exactly 50.00%** (269-269) |
+| inject weight 0 — OLD V1 against shipped V1 | **−2.09pp** (1032-1122 of 2154, p=0.052), 12 unused bases |
+
+The reverse arm replicates the forward effect at the expected size on bases
+never used for it. **~10,200 games total on this lever**, two null arms at
+exactly 50.00%.

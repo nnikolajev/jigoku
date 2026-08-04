@@ -151,6 +151,13 @@ export interface DynastyCharacterInfo {
     glory: number;
     abilityValue: number;
     honoredOnEntry: boolean;
+    // Signed skill-equivalent for the card's STATIC printed text, already
+    // scaled by `DeckProfile.dynastyAbilityScale`. `abilityValue` above is a
+    // saturated constant across the whole field (3.50-4.00 over 117
+    // characters) and cannot separate an army-wide aura from a body that may
+    // never attack; see `DynastyAbilityValue.ts`. Absent or 0 leaves the
+    // legacy ranking untouched.
+    abilityValueExplicit?: number;
 }
 
 export interface DynastyHandCard {
@@ -238,6 +245,9 @@ export class BoardAwareDynastyTactics {
             secondary * this.profile.secondarySkillWeight +
             info.abilityValue * this.profile.abilityValueWeight + honored +
             (preferred ? this.profile.preferredCharacterBonus : 0) +
+            // Weight 1.0, the same tier as the per-deck override below it: both
+            // are already stated in points of primary skill.
+            number(info.abilityValueExplicit) +
             (this.profile.characterValueById[card?.id] || 0);
     }
 

@@ -16,7 +16,10 @@
 // genuinely underperforms with the generic knobs, and gate them so no other
 // deck is affected.
 
-import type { DeckStrategy } from './CardPlaybook';
+import type { DeckStrategy, HonorRaceLimits } from './CardPlaybook';
+import type { DefenseCommitmentConfig } from './DefenseCommitmentPolicy';
+import type { ConflictDeclarationConfig } from './ConflictDeclarationPolicy';
+import { DEFAULT_HONOR_RACE_LIMITS } from './CardPlaybook.js';
 import { DISHONOR_DEFAULTS } from './DishonorTactics.js';
 import type { DishonorProfile } from './DishonorTactics';
 import { LION_DEFAULTS } from './LionTactics.js';
@@ -155,9 +158,69 @@ export interface DeckProfile {
                          // defender instead of conceding: an unopposed loss
                          // costs 1 honor, and honor attrition is how slow
                          // decks lose the long game
+    // The chump costs a body's readiness for the rest of the round — defenders
+    // bow on return home (`conflictflow.ts:950`) — to save 1 honor. These scope
+    // that trade instead of always taking it. Zero/false is the unscoped
+    // behavior the flag has always had.
+    chumpBlockHonorCeiling: number; // only chump at or below this own honor
+    chumpBlockSurplusBodies: number; // require this many spare ready bodies
     defenseSkillBuffer: number; // extra skill committed past the minimal
                                 // prevent-break target — a buffer against the
                                 // opponent's post-commit pump cards
+
+    // A defense sized on visible skill alone is a free flip for any held pump:
+    // the attacker acts after the defenders are declared, so one card beats the
+    // exact-threshold block every time. A human defender never blocks to the
+    // exact number for that reason. These size a buffer from PUBLIC signals —
+    // the attacker's hand count and fate — instead of the flat constant above,
+    // which cannot tell a dumped hand from a full one.
+    //
+    // A rate of 0 disables the whole mechanism (legacy behavior). The cap is
+    // what keeps this away from the measured-negative omniscient experiment at
+    // `JigokuBotPolicy` "sizing the whole defense against effectiveAttack":
+    // budgeting for the opponent's ENTIRE affordable threat bows bodies the
+    // next conflict needed. Budgeting for one trick does not.
+    defenseThreatBufferRate: number; // buffer skill per affordable opposing card
+    defenseThreatBufferCap: number; // hard ceiling on the derived buffer
+    // Restrict the buffer to conflicts after which we have no conflict
+    // opportunity of our own left this round, so the extra bodies it bows have
+    // no alternative use. Unscoped, the buffer measured -1.4pp with the entire
+    // loss on Crane and Unicorn, both of which spend those bodies attacking.
+    defenseThreatBufferIdleOnly: boolean;
+    // Attackers win ties (`conflict.ts:517`), so a defense that lands exactly on
+    // the attacker's skill LOSES the conflict while still saving the province.
+    // The win-only path already adds this 1; the shared prevent-break path
+    // never did.
+    defenseBreakTie: boolean;
+    // Scoping for the tie-break above, owned by `DefenseCommitmentPolicy`. The
+    // flag pays whatever the next body costs; these price it. Empty = the flat
+    // reading of `defenseBreakTie`, so this is additive and injectable per deck.
+    defenseTuning: Partial<DefenseCommitmentConfig>;
+    // Which conflict to declare, owned by `ConflictDeclarationPolicy`. V1 picks
+    // the axis its own board is strongest on and never looks at what the
+    // opponent has ready to meet it, although that board is public. Empty = the
+    // old own-board rule.
+    conflictDeclaration: Partial<ConflictDeclarationConfig>;
+
+    // Honor is a win condition on both ends — 0 loses, 25 wins — and the bot
+    // pays honor costs (Assassination is 3) with no budget at all outside the
+    // dishonor decks. Off keeps the per-card constants that were there before.
+    honorRaceAware: boolean;
+    honorRace: HonorRaceLimits;
+
+    // Scale applied to `DYNASTY_ABILITY_VALUE`, the signed price list for
+    // static printed text on dynasty characters. The live ability term is a
+    // saturated constant (3.50-4.00 across all 117 field characters, 0.375
+    // after its weight) and orders nothing; this restores a signed spread.
+    // Zero disables the whole mechanism — every character contributes 0, which
+    // is exactly what the ranking did before the list existed.
+    dynastyAbilityScale: number;
+    // The scale above only reaches a TIE-BREAK, and a tie-break is decided by
+    // sign, not magnitude — scaling it by any positive constant produces a
+    // bit-identical run. This weight lets the price move a card between cost
+    // tiers instead, by shifting the cost the ORDERING sees. Affordability and
+    // every budget check keep using the real printed cost. Zero disables it.
+    dynastyAbilityCostWeight: number;
 
     // ---- decisions that used to be answered by the first available button ----
     // A prompt with no title-specific handler falls through to
@@ -333,7 +396,35 @@ export const DEFAULT_PROFILE: DeckProfile = {
     spendCardsOnDefense: true,
     preventBreakAfterBrokenProvinces: 0,
     chumpBlock: false,
-    defenseSkillBuffer: 0
+    defenseSkillBuffer: 0,
+    defenseThreatBufferRate: 0,
+    defenseThreatBufferCap: 0,
+    defenseThreatBufferIdleOnly: false,
+    defenseBreakTie: false,
+    defenseTuning: {},
+    // SHIPPED ON. V1 used to choose the conflict axis from its own ready board
+    // alone, ignoring the opponent's board even though that board is public and
+    // the fair `ringScore` already reads it. Weight 1 subtracts the opponent's
+    // ready skill on each axis, which is the model the omniscient variant uses
+    // minus its one genuinely hidden term (their hand).
+    //
+    // Measured head-to-head, changed bots against unchanged bots, 90 ordered
+    // cross-deck pairings per base: **+1.58pp over 6468 games on 36 independent
+    // bases (z=2.54, p=0.011)**, positive on all three base SETS (+2.78 / +0.46
+    // / +1.92pp) and on 26 of 36 individual bases. Null arm exactly 50.00%.
+    // Flat in the weight (0.5 -> +0.51pp, 1.5 -> +0.56pp on a shared 6 bases),
+    // so this is not a tuned constant.
+    //
+    // Per deck, causal (paired probe, both seats pooled): eight of eight
+    // non-rush decks positive, none negative. Lion and Unicorn record exactly
+    // zero flips because `forceMilitaryConflict` returns before the policy runs.
+    conflictDeclaration: { opponentBoardWeight: 1 },
+    honorRaceAware: false,
+    honorRace: { ...DEFAULT_HONOR_RACE_LIMITS },
+    chumpBlockHonorCeiling: 0,
+    chumpBlockSurplusBodies: 0,
+    dynastyAbilityScale: 0,
+    dynastyAbilityCostWeight: 0
 };
 
 // Exact reproduction of the old flag-driven behavior. Start from the generic
@@ -344,6 +435,10 @@ export const DEFAULT_PROFILE: DeckProfile = {
 export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
     const profile: DeckProfile = {
         ...DEFAULT_PROFILE,
+        // Cloned like every other nested profile: a bare spread would hand
+        // every deck the SAME object, so one override would leak to all ten.
+        defenseTuning: { ...DEFAULT_PROFILE.defenseTuning },
+        conflictDeclaration: { ...DEFAULT_PROFILE.conflictDeclaration },
         fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },
         boardAwareDynasty: {
             ...DEFAULT_PROFILE.boardAwareDynasty,

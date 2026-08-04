@@ -37,10 +37,54 @@ control, the rig is broken, not the lever.
 - `tools/selfplay/botRoundRobin.js --v2-decks <deck> --subject <deck>
   --v2-profile '{"deckProfile":{"conflictPlanning":{...}}}'` — one deck piloting
   an injected profile against the V1 field.
+- `tools/selfplay/headToHeadRoundRobin.js` — **changed bots vs unchanged bots**,
+  every ordered cross-deck pairing, both orientations per shuffle, several
+  bases. Use this for "is the changed bot stronger". Always run its null arm
+  first.
+- `tools/selfplay/measureDecisiveness.js` — how often the change decides a game
+  at all, which caps the largest win-rate effect it could ever produce. Run this
+  BEFORE a long comparison, not after.
 - `tools/selfplay/compareBotVersions.js` — paired candidate/control comparison.
 - `tools/selfplay/auditCards.js --engine-version v1` — which cards and abilities
   never fire.
 - `tools/selfplay/cardLab.js` — price a single card in a controlled scenario.
+
+### Two rigs, two different questions
+
+The paired A/B above asks *"does this change move the subject deck's win rate
+against an unchanged field?"* It is the right tool for tuning one deck, and it
+is the only one of the two that isolates a per-deck effect.
+
+It is **not** the right tool for "is the changed bot a harder opponent?", and a
+field round robin cannot answer that either — a change applied to every seat is
+zero-sum, so ten deck win rates still average 50% and the deltas still sum to
+zero no matter how good the change is. That measurement can only report game
+*shape* (round counts, win reasons).
+
+The direct challenge answers it by putting the two populations across the table
+from each other — `tools/selfplay/headToHeadRoundRobin.js`, with
+`tools/selfplay/measureDecisiveness.js` for the ceiling. The full method is the
+`/roundrobin` skill (`.claude/skills/roundrobin/SKILL.md`), which should be
+loaded before running or interpreting any bot win-rate comparison:
+
+- Every **ordered cross-deck pairing**, mirrors excluded (90 of them for ten
+  decks). A mirror is uninformative — both sides are the same deck AND the same
+  bot on one side of the change, so it measures the change against itself.
+- Each pairing is played **twice on the same shuffle**, once with the change on
+  deck A and once on deck B, so each side pilots every deck and occupies each
+  seat equally often. Deck strength and first-player cancel by construction
+  rather than by assumption.
+- **Both seats run the same engine path** (V2 pass-through, i.e. V1 logic), so
+  the only difference between them is the injected profile and any pass-through
+  quirk applies to both sides.
+- The baseline is a hard **50%**, not another arm's number.
+
+Its built-in calibration is a **null arm**: inject a knob set to its own default
+(`{"deckProfile":{"dynastyAbilityScale":0}}`), which exercises the whole
+injection path while changing no behavior. Both seats then play identically, so
+the same shuffle produces the same game in both orientations and the changed
+side must score **exactly 50.00%** — and each deck block exactly `n/2`. Any
+other number means the rig is broken, not the lever.
 
 **Method rules that are not optional** (each was learned by getting it wrong):
 
@@ -51,7 +95,15 @@ control, the rig is broken, not the lever.
 3. The noise floor of this methodology is about **+/-2.5pp**. Fix the decision
    rule before the run, and require replication on independent shuffle bases.
 4. Round robin is **zero-sum**: ten deck win rates average 50% and deltas sum to
-   zero. A field-wide change cannot lift every deck.
+   zero. A field-wide change cannot lift every deck. Use the direct challenge
+   above when the question is whether the changed bot is stronger overall.
+5. **Check that the mechanism is reachable before improving it.** Two
+   sophisticated ones are inert for V1 and a passing spec hid both:
+   `BoardAwareDynastyTactics.choose` is never called by any field deck profile,
+   and `ConflictPhasePlanner.planDefense` never runs because `applyDefensePlan`
+   defaults to `false`. A price list wired into the first measured
+   bit-identical to its control across 90 games. Instrument the call site, or
+   confirm the arm's census differs from `off`, before spending games on it.
 
 ## Why the "better bot" program ended
 

@@ -67,6 +67,19 @@ export interface PlaybookContext {
     conflictDeckConsumptionAllowed?: (amount: number) => boolean; // seed-1/3 own-deck/public-effect safety rail
     liveEventPricing?: boolean; // DeckProfile A/B: price events against the live board (see `priced`)
     liveEventPricingExclude?: readonly string[]; // card ids held at their legacy reading
+    // The honor RACE. `honor` alone cannot answer "can I afford this cost?" —
+    // reaching 0 loses immediately and reaching 25 wins immediately, and how
+    // much honor is safe to burn depends on where the opponent sits and on how
+    // close the conquest win is. Cards that compare the two pools ("while you
+    // are less honorable than an opponent") cannot be gated at all without it.
+    opponentHonor?: number;
+    myBrokenProvinces?: number; // own broken outer provinces (4 = stronghold exposed)
+    opponentBrokenProvinces?: number; // their broken outer provinces (conquest proximity)
+    // DeckProfile A/B switch, carried on the context the same way
+    // `liveEventPricing` is: `PlaybookEntry` is a static registry with no view
+    // of the profile. Off holds every honor-race gate at its legacy reading so
+    // a control arm stays bit-identical.
+    honorRaceAware?: boolean;
     // Dynasty-discard characters carrying PRINTED stats. The serialized discard
     // pile in `dynastyDiscard` has empty skill summaries — the engine only fills
     // those for cards in play — so recursion cards cannot be priced from it.
@@ -302,6 +315,101 @@ const fiveFiresBoardFate = (ctx: PlaybookContext): number => ctx.opponentCharact
     .filter(fiveFiresTarget)
     .reduce((total, card) => total + (Number(card.fate) || 0), 0);
 
+// Printed HONOR costs. Fate costs arrive from the engine as `conflictCosts`,
+// but honor costs exist only in card text, so the bot has never been able to
+// price them. Reaching 0 honor loses the game outright, so an unbudgeted honor
+// cost is a real way to lose: 18.9% of field games end by dishonor.
+//
+// Only costs the bot pays VOLUNTARILY belong here. Forced losses (Marauding
+// Oni's declaration cost) are handled by `declareCostsHonor`.
+// Only MANDATORY costs belong here. Banzai is deliberately absent: its honor
+// goes to an OPTIONAL second resolution, so vetoing the card would refuse a
+// free +2. Its budget is applied where the choice is actually made — the
+// `banzai-recur-for-honor` prompt — and reflected in its contribution below.
+const HONOR_COST: Record<string, number> = {
+    'assassination': 3,
+    'captive-audience': 1,
+    'moto-eviscerator': 1,
+    'shosuro-hametsu': 1,
+    'thunder-guard-elite': 1
+};
+
+export function honorCostOf(cardId: string | undefined): number {
+    return cardId ? (HONOR_COST[cardId] || 0) : 0;
+}
+
+// How much honor a card play may take us down to. Own honor alone is not the
+// answer: the same 4 honor is unspendable while an opponent grinds us toward 0
+// and nearly free the round we can break their stronghold.
+export interface HonorRaceLimits {
+    dishonorFloor: number; // never end a voluntary payment at or below this
+    honorWinGuard: number; // at or above this own honor, stop selling the win
+    conquestCloseBroken: number; // their broken outer provinces that cheapen honor
+    conquestFloor: number; // relaxed floor while that conquest win is live
+    behindRaceMargin: number; // opponent honor lead that signals honor pressure
+    behindFloorBonus: number; // extra floor while under that pressure
+}
+
+export const DEFAULT_HONOR_RACE_LIMITS: HonorRaceLimits = {
+    dishonorFloor: 3,
+    honorWinGuard: 22,
+    conquestCloseBroken: 3,
+    conquestFloor: 1,
+    behindRaceMargin: 5,
+    behindFloorBonus: 2
+};
+
+// True when paying `cost` honor is affordable in the RACE, not just on the
+// dial. Undefined opponent honor (older callers) degrades to the own-honor
+// floor, which is still stricter than the previous no-check-at-all behavior.
+export function honorSpendingAllowed(
+    ctx: PlaybookContext,
+    cost: number,
+    limits: HonorRaceLimits = DEFAULT_HONOR_RACE_LIMITS
+): boolean {
+    if(cost <= 0) {
+        return true;
+    }
+    const honor = Number(ctx.honor) || 0;
+    // Three honor from the win, a 1-honor cost is a third of the remaining
+    // distance. Nothing a conflict card buys is worth selling that.
+    if(honor >= limits.honorWinGuard) {
+        return false;
+    }
+    let floor = limits.dishonorFloor;
+    if((ctx.opponentBrokenProvinces ?? 0) >= limits.conquestCloseBroken) {
+        // Their stronghold is one or two conflicts away. Honor stops being a
+        // resource we need to still have at the end of the game.
+        floor = limits.conquestFloor;
+    } else if(typeof ctx.opponentHonor === 'number' &&
+        ctx.opponentHonor - honor >= limits.behindRaceMargin) {
+        // Losing the honor race is the public signature of an opponent who is
+        // actively draining us. Keep a bigger reserve against their next hit.
+        floor += limits.behindFloorBonus;
+    }
+    return honor - cost > floor;
+}
+
+// Banzai's second +2 costs 1 honor and is optional, so it is a spending
+// decision rather than a play decision. The legacy reading is the bare
+// `honor > 3` cliff the policy has always used.
+export function banzaiRecurAllowed(
+    ctx: PlaybookContext,
+    limits: HonorRaceLimits = DEFAULT_HONOR_RACE_LIMITS
+): boolean {
+    const honor = Number(ctx.honor) || 0;
+    return ctx.honorRaceAware === true
+        ? honorSpendingAllowed(ctx, 1, limits)
+        : honor > 3;
+}
+
+// Cards that read "while you are less honorable than an opponent" are dead
+// text until the bot can see both pools. Unknown opponent honor keeps the old
+// permissive behavior rather than silently benching the card.
+const lessHonorableThanOpponent = (ctx: PlaybookContext): boolean =>
+    ctx.honorRaceAware !== true || typeof ctx.opponentHonor !== 'number' ||
+    (Number(ctx.honor) || 0) < ctx.opponentHonor;
+
 const PLAYBOOK: Record<string, PlaybookEntry> = {
     // +2 military to a participating character, optionally twice for 1 honor.
     'banzai': entry('banzai', {
@@ -321,7 +429,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
             if(readyParticipants(ctx.myCharacters).length === 0) {
                 return 0;
             }
-            return ctx.honor > 3 ? 4 : 2;
+            return banzaiRecurAllowed(ctx) ? 4 : 2;
         }, 2),
         summary: '+2 military pump on a participating character'
     }),
@@ -1156,7 +1264,11 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'strongest',
         priority: 6,
         summary: 'enemy pays us 1 honor to use the bearer\'s abilities',
-        abilityValue: true
+        abilityValue: true,
+        // "Play only if you are less honorable than an opponent" is a printed
+        // legality condition, not advice. Without both honor pools the bot
+        // could only click and let the engine refuse.
+        shouldPlay: lessHonorableThanOpponent
     }),
 
     // ---- conflict events ----
@@ -1231,7 +1343,9 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // less honorable, and canceling their trick mid-conflict is a swing.
     'forgery': entry('forgery', {
         priority: 7,
-        summary: 'cancel an enemy event while less honorable'
+        summary: 'cancel an enemy event while less honorable',
+        // Same printed condition as Compromised Secrets.
+        shouldPlay: lessHonorableThanOpponent
     }),
 
     // Cancel the effect that would take our LAST honor, then gain 1. The

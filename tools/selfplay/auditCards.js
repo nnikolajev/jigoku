@@ -21,6 +21,7 @@ const ALIASES = Object.freeze({
     crane: 'Crane', 'crane-baseline': 'Crane', craneduel: 'CraneDuels', 'crane-duels': 'CraneDuels',
     crab: 'Crab', dragon: 'Dragon', 'dragon-attachments': 'DragonAttachments', dragonattachments: 'DragonAttachments',
     lion: 'Lion', phoenix: 'Phoenix', 'phoenix-shugenja': 'PhoenixShugenja', phoenixshugenja: 'PhoenixShugenja',
+    'phoenix-phoenix': 'PhoenixPhoenix', phoenixphoenix: 'PhoenixPhoenix',
     scorpion: 'Scorpion', unicorn: 'Unicorn'
 });
 

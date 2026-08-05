@@ -9,6 +9,7 @@ const {
     validateCoefficients
 } = require('../../../tools/selfplay/tuneBotV2.js');
 const { allPairs, loadPartitions, validatePartitions } = require('../../../tools/selfplay/v2BenchmarkPartitions.js');
+const { DECK_LABELS } = require('../../../tools/selfplay/deckRegistry.js');
 
 function report(rngSeed, overrides = {}) {
     const rates = overrides.rates || [0.75, 0.7, 0.8];
@@ -33,7 +34,9 @@ describe('Bot V2 benchmark partitions and offline tuning', function() {
     it('keeps full-league training and holdout RNG streams disjoint', function() {
         const partitions = loadPartitions();
         expect(validatePartitions(partitions)).toEqual({ valid: true, errors: [] });
-        expect(allPairs(partitions.training.decks).length).toBe(45);
+        // Derived, not a constant: the league grows whenever a deck is added
+        // to the registry, and a magic number here just rots.
+        expect(allPairs(partitions.training.decks).length).toBe(allPairs(DECK_LABELS).length);
         expect(partitions.training.rngSeeds.some((seed) => partitions.holdout.rngSeeds.includes(seed))).toBe(false);
     });
 

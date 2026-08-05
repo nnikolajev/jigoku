@@ -25,6 +25,7 @@ import type { DuelBidContext, DuelBidProfile } from './DuelBidTactics';
 import { DrawBidTactics, LegacyDrawBidTactics } from './DrawBidTactics.js';
 import type { DrawBidContext, DrawBidPolicyVariant } from './DrawBidTactics';
 import { ShugenjaTactics } from './ShugenjaTactics.js';
+import { RebirthTactics } from './RebirthTactics.js';
 import { DragonAttachmentTactics } from './DragonAttachmentTactics.js';
 import { StrongholdDefenseTactics } from './StrongholdDefenseTactics.js';
 import type { StrongholdDefenseCharacter, StrongholdDefensePlan } from './StrongholdDefenseTactics';
@@ -384,6 +385,15 @@ class JigokuBotPolicy {
     private currentCavalryCharacterUuids: Record<string, true> | undefined;
     private currentReadyAfterMoveCharacterUuids: Record<string, true> | undefined;
     private currentUnicorn: UnicornTactics | null = null;
+    // Fushicho-rotation tactics for the current decision, so helpers reached
+    // below `decideForPrompt` do not each need the profile threaded through.
+    private currentRebirth: RebirthTactics | null = null;
+    // A Season of War ends the dynasty phase and starts a fresh one, and the
+    // refilled provinces can turn up another copy. Capped per game.
+    private seasonOfWarUses = 0;
+    // Way of the Phoenix is max one per phase; a second click is rejected by
+    // the engine and re-offered, which is a click loop.
+    private wayOfPhoenixUsedThisPhase = false;
     private currentDuelBidProfile: DuelBidProfile = DEFAULT_PROFILE.duelBidding;
     private currentDeckProfile: DeckProfile = DEFAULT_PROFILE;
     // Experimental fate-aware copy state. Generic policy never enters these
@@ -526,6 +536,9 @@ class JigokuBotPolicy {
             this.pendingDaimyoBearerUuid = null;
             this.clarityConflictKey = '';
             this.clarityProtectedUuids.clear();
+            // Way of the Phoenix is max one per PHASE and there is one conflict
+            // phase per round, so the round boundary is the right reset.
+            this.wayOfPhoenixUsedThisPhase = false;
         }
 
         const decision = this.decideForPrompt(playerState, me, context);
@@ -538,6 +551,9 @@ class JigokuBotPolicy {
         }
         if(decision?.reason === 'tadaka-disguise-base') {
             this.tadakaDisguiseAttempted = true;
+        }
+        if(decision?.command === 'cardClicked' && (decision as any).cardId === 'a-season-of-war') {
+            this.seasonOfWarUses++;
         }
         if(context.targetHint?.sourceCardId === 'clarity-of-purpose' &&
             decision?.command === 'cardClicked' && decision.args?.[0]) {
@@ -741,6 +757,11 @@ class JigokuBotPolicy {
             : new DrawBidTactics(profile.drawBidding);
         // Phoenix spell/ring-control deck; null for every other profile.
         const shugenja = profile.shugenja ? new ShugenjaTactics(profile.shugenja) : null;
+        // Phoenix Fushicho rotation. It layers ON TOP of `shugenja` — the same
+        // deck runs Kyuden Isawa — so every rebirth branch is checked before
+        // the shugenja one where the two would disagree.
+        const rebirth = profile.rebirth ? new RebirthTactics(profile.rebirth) : null;
+        this.currentRebirth = rebirth;
         // Iron Mountain Castle attachment tower; separate from the High House
         // monk/card-count Dragon profile.
         const attachmentTower = profile.attachmentTower
@@ -1177,6 +1198,26 @@ class JigokuBotPolicy {
                     return this.buttonDecision(numeric[0].button, 'five-fires-max-fate');
                 }
             }
+            // Isawa Tsuke's variable honor cost. Each point strips one fate, and
+            // the follow-up selector then demands EXACTLY that many PARTICIPATING
+            // targets — bid past the number of enemy bodies worth hitting and the
+            // prompt forces us to strip our own. The budget also has to respect
+            // the honor race: reaching zero loses the game outright.
+            const isTsukeAmount = promptTitle.trim().toLowerCase() === 'isawa tsuke' ||
+                context.targetHint?.sourceCardId === 'isawa-tsuke-2';
+            if(rebirth && isTsukeAmount) {
+                const theirParticipants = this.myCharactersInPlay(opponent)
+                    .filter((card) => card.inConflict);
+                const spend = rebirth.tsukeHonorSpend(
+                    theirParticipants,
+                    Number(me?.stats?.honor) || 0,
+                    (card) => Math.max(this.skillValue(card, 'military') || 0,
+                        this.skillValue(card, 'political') || 0)
+                );
+                if(spend > 0) {
+                    return this.buttonDecision(this.closestBidButton(buttons, spend), 'rebirth-tsuke-honor-budget');
+                }
+            }
             return this.buttonDecision(buttons[0], 'minimal-cost');
         }
 
@@ -1260,6 +1301,17 @@ class JigokuBotPolicy {
             if(diplomatHonor && diplomatDishonor) {
                 const pick = this.diplomatChoice === 'dishonor' ? diplomatDishonor : diplomatHonor;
                 return this.buttonDecision(pick, `glory-diplomat-${this.diplomatChoice}`);
+            }
+        }
+
+        if(rebirth) {
+            // Kuroi Mori: switching the contested RING moves the conflict onto
+            // whichever element this board exploits (Kudaka's air, Solemn
+            // Scholar's earth, Azunami's water), which is worth more than
+            // flipping military/political on the same ring.
+            const ringSwitch = buttons.find((button) => String(button.text || '') === 'Switch the contested ring');
+            if(ringSwitch) {
+                return this.buttonDecision(ringSwitch, 'rebirth-kuroi-mori-ring');
             }
         }
 
@@ -1407,7 +1459,7 @@ class JigokuBotPolicy {
                     return { command: 'ringClicked', args: [worst.element], target: worst.element, reason: 'dragon-worst-ring-for-attacker' };
                 }
             }
-            const ringDecision = this.ringDecision(playerState, me, title, dishonor, glory, dragon, shugenja, attachmentTower);
+            const ringDecision = this.ringDecision(playerState, me, title, dishonor, glory, dragon, shugenja, attachmentTower, buttons, context.targetHint?.sourceCardId);
             if(ringDecision) {
                 return ringDecision;
             }
@@ -1956,6 +2008,13 @@ class JigokuBotPolicy {
         const dishonorFate = dishonor?.desiredAdditionalFate(context.playCardId) ?? null;
         if(dishonorFate !== null) {
             return { desired: dishonorFate, reason: 'scorpion-important-character-fate' };
+        }
+        // The rotation buys every body at zero: it is meant to reach the
+        // dynasty discard at the end of the round, where the recursion cards
+        // read it. Ahead of the shugenja branch, which banks fate for Tadaka.
+        const rebirthFate = this.currentRebirth?.desiredAdditionalFate(context.playCardId) ?? null;
+        if(rebirthFate !== null) {
+            return { desired: rebirthFate, reason: 'rebirth-zero-fate-rotation' };
         }
         if(lion) {
             return { desired: lion.desiredAdditionalFate(context.playCardId), reason: 'lion-character-fate' };
@@ -2984,8 +3043,22 @@ class JigokuBotPolicy {
                 me?.cardPiles?.conflictDiscardPile || []
             )
             : 0;
+        // Fushicho rotation. Read off `this.currentRebirth` rather than threaded
+        // in, because every caller of `ringScore` already resolved the profile
+        // for this decision. Kudaka wants air CLAIMED, Solemn Scholar wants
+        // earth claimed, Asako Azunami and a Feral Ningyo in hand want water
+        // contested — and Isawa Tsuke wants fire left UNCLAIMED, which is the
+        // one payoff that steers AWAY from a ring.
+        const rebirthBonus = this.currentRebirth
+            ? this.currentRebirth.ringBonus(
+                String(ring.element || ''),
+                this.myCharactersInPlay(me),
+                me?.cardPiles?.hand || []
+            )
+            : 0;
 
-        return fateComponent + base + gloryBonus + dragonBonus + shugenjaBonus + duelBonus + attachmentBonus;
+        return fateComponent + base + gloryBonus + dragonBonus + shugenjaBonus + duelBonus +
+            attachmentBonus + rebirthBonus;
     }
 
     // The side (military/political) to attack on. V1's rule is "wherever my own
@@ -5003,6 +5076,74 @@ class JigokuBotPolicy {
             }
         }
 
+        // Fushicho rotation. Three cards whose whole value sits OUTSIDE a
+        // running conflict, all reached through this window ('Initiate an
+        // action') rather than the in-conflict one.
+        if(this.currentRebirth) {
+            const rebirthHand = (me?.cardPiles?.hand || []).filter((card: any) =>
+                card?.uuid && card?.id && card.isPlayableByMe &&
+                this.isDirectCardLegal(card, legalDirectCardUuids) &&
+                !this.isAttempted('cardClicked', [card.uuid]) &&
+                !this.failedPlayCards.has(card.uuid) &&
+                !this.isCancelVetoed(card.id));
+            const opponentPlayer = this.opponentPlayer(playerState, me);
+
+            if(me?.phase === 'conflict' && !playerState?.conflict?.attackingPlayerId) {
+                // Way of the Phoenix locks the opponent out of one element for
+                // the rest of the phase, so it has to land before their first
+                // declaration; once their conflicts are spent it does nothing.
+                const wayOfPhoenix = rebirthHand.find((card: any) => card.id === 'way-of-the-phoenix');
+                if(wayOfPhoenix && !this.wayOfPhoenixUsedThisPhase &&
+                    this.currentRebirth.shouldPlayWayOfThePhoenix(
+                        Object.values(playerState?.rings || {}),
+                        this.myCharactersInPlay(opponentPlayer),
+                        (ring: any) => this.ringScore(ring, opponentPlayer, me, null, null, null, null),
+                        Number(opponentPlayer?.stats?.conflictsRemaining) || 0
+                    )) {
+                    this.wayOfPhoenixUsedThisPhase = true;
+                    return this.cardClickDecision(wayOfPhoenix, 'rebirth-play-way-of-phoenix');
+                }
+
+                // Walking the Way digs the top three of the dynasty deck for
+                // Fushicho and swaps it into a province; the province card it
+                // throws away lands in the discard as recursion fuel. Keep a
+                // fate behind — the dig is setup for the NEXT dynasty phase,
+                // never an answer to the conflict in front of us.
+                const walking = rebirthHand.find((card: any) => card.id === 'walking-the-way');
+                const walkingCost = walking && conflictCosts &&
+                    Object.prototype.hasOwnProperty.call(conflictCosts, walking.uuid)
+                    ? Math.max(0, Number(conflictCosts[walking.uuid]) || 0)
+                    : 1;
+                if(walking && (me?.stats?.fate ?? 0) - walkingCost >= 1) {
+                    return this.cardClickDecision(walking, 'rebirth-play-walking-the-way');
+                }
+            }
+
+            // A Season of War resets EVERY province faceup and grants a second
+            // dynasty phase. Its job here is to find Fushicho, so it only fires
+            // when no copy is already showing in our provinces. The per-game cap
+            // is in the `playable` filter: the extra phase can reveal another
+            // copy, and riding that loop empties the dynasty deck.
+            if(me?.phase === 'dynasty') {
+                const provinceCards = PROVINCE_KEYS.flatMap((key) => me?.provinces?.[key] || []);
+                const fushichoShowing = provinceCards.some((card: any) =>
+                    card?.id === 'fushicho' && !card.facedown);
+                const season = provinceCards.find((card: any) =>
+                    card?.id === 'a-season-of-war' && !card.facedown && card.uuid &&
+                    this.isDirectCardLegal(card, legalDirectCardUuids) &&
+                    !this.isAttempted('cardClicked', [card.uuid]));
+                const seasonCost = season && dynastyCosts &&
+                    Object.prototype.hasOwnProperty.call(dynastyCosts, season.uuid)
+                    ? Math.max(0, Number(dynastyCosts[season.uuid]) || 0)
+                    : 1;
+                if(season && !fushichoShowing &&
+                    this.seasonOfWarUses < this.currentRebirth.profile.seasonOfWarMaxPerGame &&
+                    (me?.stats?.fate ?? 0) >= seasonCost) {
+                    return this.cardClickDecision(season, 'rebirth-play-season-of-war');
+                }
+            }
+        }
+
         // Board Actions that belong in the conflict-phase action window even
         // without an active conflict (Adept's phase-long Water Covert and
         // Mediator's post-two-conflicts economy theft).
@@ -5359,8 +5500,31 @@ class JigokuBotPolicy {
                     this.isDirectCardLegal(card, legalDirectCardUuids) &&
                     card.uuid &&
                     !this.isAttempted('cardClicked', [card.uuid]))
-                .filter((card: any) => !shugenja || card.id !== 'fushicho' ||
-                    shugenja.shouldPlayFushicho(me?.cardPiles?.dynastyDiscardPile || []));
+                // Fushicho's printed 6 is a whole turn of income. The rotation
+                // deck's gate is "is there anything for the interrupt to bring
+                // back", which OVERRIDES the Shugenja list's narrower
+                // five-cost-target gate — both profiles are derived for this
+                // deck and they disagree about what Fushicho is for.
+                .filter((card: any) => {
+                    if(card.id !== 'fushicho') {
+                        return true;
+                    }
+                    if(this.currentRebirth) {
+                        return this.currentRebirth.shouldPlayFushicho({
+                            roundNumber: this.currentRoundNumber,
+                            dynastyDiscardBodies: (this.currentDynastyDiscardBodies || []) as any[],
+                            myCharacters: this.myCharactersInPlay(me)
+                        });
+                    }
+                    return !shugenja || shugenja.shouldPlayFushicho(me?.cardPiles?.dynastyDiscardPile || []);
+                })
+                // A Season of War discards every province card, refills them
+                // faceup and starts ANOTHER dynasty phase — from which a fresh
+                // copy can be revealed and played again. Cap it per game so the
+                // engine cannot ride that loop until a deck runs out.
+                .filter((card: any) => card.id !== 'a-season-of-war' ||
+                    !this.currentRebirth ||
+                    this.seasonOfWarUses < this.currentRebirth.profile.seasonOfWarMaxPerGame);
 
             const dynamicFateReserve = shugenja
                 ? shugenja.desiredFateReserve(me, this.opponentPlayer(playerState, me))
@@ -5634,6 +5798,25 @@ class JigokuBotPolicy {
                     terminal: false
                 };
             }
+        }
+        // Checked BEFORE the Tadaka setup below: both are Phoenix branches, but
+        // the rotation deck must not bank two fate on a disguise base it is
+        // deliberately buying at zero.
+        if(this.currentRebirth) {
+            const pick = this.currentRebirth.pickDynastyCard(
+                playable,
+                costs,
+                fate,
+                board,
+                (this.currentDynastyDiscardBodies || []) as any[],
+                this.currentRoundNumber
+            );
+            return {
+                card: pick || undefined,
+                playReason: 'rebirth-play-dynasty-body',
+                passReason: 'rebirth-hold-fate-for-recursion',
+                terminal: true
+            };
         }
         if(shugenja && dynamicFateReserve <= 1) {
             const setup = shugenja.pickTadakaSetupCharacter(
@@ -6105,7 +6288,7 @@ class JigokuBotPolicy {
         return this.buttonDecision(this.findButton(buttons, ['done']), 'finish-dynasty-discard');
     }
 
-    private ringDecision(playerState: any, me: any, title: string, dishonor: DishonorTactics | null = null, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): BotDecision | null {
+    private ringDecision(playerState: any, me: any, title: string, dishonor: DishonorTactics | null = null, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, buttons: any[] = [], sourceCardId?: string): BotDecision | null {
         const rings = Object.values(playerState?.rings || {}).filter((ring: any) =>
             ring && ring.unselectable !== true && !this.isAttempted('ringClicked', [ring.element]));
         if(rings.length === 0) {
@@ -6115,6 +6298,53 @@ class JigokuBotPolicy {
         // Same value ordering as conflict declaration — a random pick here
         // hands weak rings (air) to card abilities that ask for a ring.
         const opponent = this.opponentPlayer(playerState, me);
+        const rebirth = this.currentRebirth;
+        if(rebirth) {
+            // Way of the Phoenix denies the OPPONENT an element for the phase,
+            // so it is scored from their side of the table, not ours.
+            if(sourceCardId === 'way-of-the-phoenix') {
+                const blocked = rebirth.pickBlockedRing(
+                    rings,
+                    this.myCharactersInPlay(opponent),
+                    (ring: any) => this.ringScore(ring, opponent, me, null, null, null, null)
+                ) || rings.slice().sort((a: any, b: any) => (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
+                    RING_ORDER.indexOf(a.element) - RING_ORDER.indexOf(b.element))[0];
+                return {
+                    command: 'ringClicked',
+                    args: [blocked.element],
+                    target: blocked.element,
+                    reason: 'rebirth-way-of-phoenix-block'
+                };
+            }
+            // Ancestral Shrine returns rings one at a time and re-prompts until
+            // the claimed pool is empty. Return only what the plan wants —
+            // freeing fire re-arms Isawa Tsuke, but earth must STAY claimed
+            // while Solemn Scholar is in play — then take Done.
+            if(title.includes('ring to return')) {
+                const wanted = rebirth.shrineReturnRings(
+                    rings,
+                    this.myCharactersInPlay(me),
+                    Number(me?.stats?.honor) || 0
+                );
+                const next = wanted.find((ring: any) => !this.isAttempted('ringClicked', [ring.element]));
+                if(next) {
+                    return {
+                        command: 'ringClicked',
+                        args: [next.element],
+                        target: next.element,
+                        reason: 'rebirth-shrine-return-ring'
+                    };
+                }
+                const done = this.findButton(buttons, ['done']);
+                if(done) {
+                    return this.buttonDecision(done, 'rebirth-shrine-return-enough');
+                }
+                const cancelReturn = this.findButton(buttons, ['cancel']);
+                if(cancelReturn) {
+                    return this.buttonDecision(cancelReturn, 'rebirth-shrine-nothing-to-return');
+                }
+            }
+        }
         if(shugenja && title.includes('claim and resolve')) {
             const mine = this.myCharactersInPlay(me);
             const theirs = this.myCharactersInPlay(opponent);
@@ -6357,7 +6587,15 @@ class JigokuBotPolicy {
         const kyudenSpellPrompt = sourceId === 'kyuden-isawa' && prompt.includes('spell event');
         // Older state adapters can omit `location` on cards in a Kyuden
         // selector. The source identifies that selector unambiguously.
-        const discardCards = kyudenSpellPrompt ? cards : visibleDiscardCards;
+        //
+        // The `failedPlayCards` filter must survive that substitution. Without
+        // it the forced fallback below re-picks a card whose own targeting just
+        // cancelled, and because cancelling reopens this very selector the two
+        // prompts ping-pong: measured at 121 clicks in an 8-game sample before
+        // the no-progress backstop fired (Kyuden Isawa replaying Supernatural
+        // Storm with no participant of ours to pump).
+        const discardCards = (kyudenSpellPrompt ? cards : visibleDiscardCards)
+            .filter((card) => !this.failedPlayCards.has(card.uuid));
         if(discardCards.length === 0) {
             return null;
         }
@@ -6904,6 +7142,223 @@ class JigokuBotPolicy {
             }
             if(cancel) {
                 return this.buttonDecision(cancel, 'lion-kenjutsu-no-singleton-target');
+            }
+        }
+
+        // ---- Phoenix Fushicho rotation ----
+        // Placed ahead of the shugenja branches below because the same deck
+        // derives BOTH profiles and the two disagree about Fushicho: the
+        // Shugenja list treats it as a 6/6 tower, this one treats it as fuel.
+        const rebirth = this.currentRebirth;
+        if(rebirth) {
+            const axis: 'military' | 'political' = skillType === 'political' ? 'political' : 'military';
+            const prompt = `${me?.promptTitle || ''} ${me?.menuTitle || ''}`.toLowerCase();
+            const opponentPlayer = this.opponentPlayer(playerState, me);
+            const myBoard = this.myCharactersInPlay(me);
+            const theirBoard = this.myCharactersInPlay(opponentPlayer);
+            const myParticipants = myBoard.filter((card) => card.inConflict);
+            const theirParticipants = theirBoard.filter((card) => card.inConflict);
+            const liveSkillOf = (card: any, type: 'military' | 'political') =>
+                this.skillValue(card, type) || 0;
+            // A selector's card summaries are thinner than the board's — glory
+            // in particular arrives as `glorySummary.stat` only on an in-play
+            // card. Every honor target below is chosen BY glory, so rank the
+            // richer board copy and click it by the uuid the selector offered.
+            const legalOwn = (offered: any[]) => {
+                const uuids = new Set((offered || []).map((card) => String(card.uuid)));
+                const rich = myBoard.filter((card) => uuids.has(String(card.uuid)));
+                return rich.length === offered.length ? rich : offered;
+            };
+
+            // Fushicho's leaves-play interrupt. Legality is `isFaction('phoenix')`
+            // over the DYNASTY DISCARD, so Kudaka and Miya Mystic are excluded
+            // even though they are Shugenja in this deck.
+            if(targetHint.sourceCardId === 'fushicho' && actionNames.includes('putIntoPlay')) {
+                const resurrect = rebirth.pickRecursionTarget(mine, myBoard);
+                if(resurrect) {
+                    return this.cardClickDecision(resurrect, 'rebirth-fushicho-resurrect');
+                }
+            }
+
+            // Forebearer's Echoes rents a body into THIS military conflict, so
+            // it ranks on the contested axis. Fushicho wins on 6 military and
+            // re-fires its own interrupt when the rental returns to the deck.
+            if(targetHint.sourceCardId === 'forebearer-s-echoes' && mine.length > 0) {
+                const body = rebirth.pickConflictBody(mine, axis, myBoard);
+                if(body) {
+                    return this.cardClickDecision(body, 'rebirth-echoes-best-body');
+                }
+            }
+
+            // My Ancestor's Strength resolves in two dependent prompts. The
+            // gain belongs to the PAIR, so the plan is recomputed at each stage
+            // from the same live board and the same discard, and each stage
+            // clicks its own half.
+            if(targetHint.sourceCardId === 'my-ancestor-s-strength') {
+                const ancestorStage = prompt.includes('copy from') ||
+                    mine.some((card) => /discard/.test(String(card.location || '')));
+                const plan = ancestorStage
+                    ? rebirth.ancestorPlan(myParticipants, mine, axis)
+                    : rebirth.ancestorPlan(mine, (this.currentDynastyDiscardBodies || []) as any[], axis);
+                if(plan) {
+                    return this.cardClickDecision(
+                        ancestorStage ? plan.ancestor : plan.shugenja,
+                        ancestorStage ? 'rebirth-ancestor-copy-source' : 'rebirth-ancestor-target'
+                    );
+                }
+                if(cancel) {
+                    return this.buttonDecision(cancel, 'rebirth-ancestor-no-gain');
+                }
+            }
+
+            // Isawa Heiko switches ONE character's base skills for the phase.
+            // Symmetric: it can hand our 0/5 the military axis or take the
+            // contested axis away from an enemy participant.
+            if(targetHint.sourceCardId === 'isawa-heiko') {
+                const swap = rebirth.heikoSwapTarget(
+                    myParticipants.length > 0 ? myParticipants : myBoard,
+                    theirParticipants,
+                    axis,
+                    liveSkillOf
+                );
+                const legal = swap && cards.find((card) => card.uuid === swap.card.uuid);
+                if(legal) {
+                    return this.cardClickDecision(legal, swap.own
+                        ? 'rebirth-heiko-swap-own-axis'
+                        : 'rebirth-heiko-swap-enemy-away');
+                }
+                if(cancel) {
+                    return this.buttonDecision(cancel, 'rebirth-heiko-no-gain');
+                }
+            }
+
+            // Isawa Tsuke strips one fate per honor paid. The selector demands
+            // EXACTLY as many targets as honor was bid, so this must keep
+            // producing enemy bodies until the count is met — never our own.
+            if(targetHint.sourceCardId === 'isawa-tsuke-2' && actionNames.includes('removeFate')) {
+                const ranked = rebirth.tsukeTargets(theirs, (card) =>
+                    Math.max(liveSkillOf(card, 'military'), liveSkillOf(card, 'political')));
+                const next = ranked.find((card) => !card.selected &&
+                    !this.isAttempted('cardClicked', [card.uuid]));
+                if(next) {
+                    return this.cardClickDecision(next, 'rebirth-tsuke-strip-fate');
+                }
+                const done = this.findButton(buttons, ['done']);
+                if(done) {
+                    return this.buttonDecision(done, 'rebirth-tsuke-targets-done');
+                }
+                if(cancel) {
+                    return this.buttonDecision(cancel, 'rebirth-tsuke-no-target');
+                }
+            }
+
+            // Inferno Guard Invoker honors a participant (+glory to both
+            // skills). Attacking, that body is sacrificed if a province breaks,
+            // which for this deck means it lands in the discard as fuel.
+            if(targetHint.sourceCardId === 'inferno-guard-invoker' && actionNames.includes('honor')) {
+                const standing = this.conflictStanding(playerState, me);
+                const target = rebirth.pickInfernoTarget(
+                    legalOwn(mine).filter((card: any) => card.inConflict),
+                    !!standing?.amAttacker
+                );
+                if(target) {
+                    return this.cardClickDecision(target, 'rebirth-inferno-honor-high-glory');
+                }
+                if(cancel) {
+                    return this.buttonDecision(cancel, 'rebirth-inferno-no-target');
+                }
+            }
+
+            // Shiba Pureheart's reaction honors any character; take our own
+            // highest-glory unhonored body.
+            if(targetHint.sourceCardId === 'shiba-pureheart' && actionNames.includes('honor')) {
+                const target = rebirth.pickBentenHonorTarget(legalOwn(mine));
+                if(target) {
+                    return this.cardClickDecision(target, 'rebirth-pureheart-honor-high-glory');
+                }
+            }
+
+            // Benten's Touch: bow a PHOENIX Shugenja as the cost, then honor a
+            // participant. Both halves arrive as separate prompts under the
+            // same source id, told apart by the game action.
+            if(targetHint.sourceCardId === 'benten-s-touch') {
+                if(actionNames.includes('bow')) {
+                    const bow = rebirth.pickBentenBow(mine);
+                    if(bow) {
+                        return this.cardClickDecision(bow, 'rebirth-benten-bow-cheapest');
+                    }
+                    if(cancel) {
+                        return this.buttonDecision(cancel, 'rebirth-benten-no-bow-target');
+                    }
+                }
+                if(actionNames.includes('honor')) {
+                    const target = rebirth.pickBentenHonorTarget(legalOwn(mine));
+                    if(target) {
+                        return this.cardClickDecision(target, 'rebirth-benten-honor-high-glory');
+                    }
+                    if(cancel) {
+                        return this.buttonDecision(cancel, 'rebirth-benten-no-honor-target');
+                    }
+                }
+            }
+
+            // Emperor's Summons searches the dynasty DECK for a character, then
+            // asks which province receives it (discarding what is there). Both
+            // stages are card selects under the same source.
+            if(targetHint.sourceCardId === 'emperor-s-summons') {
+                const provinces = mine.filter((card) => card.isProvince || card.type === 'province');
+                if(provinces.length > 0) {
+                    const pick = provinces.slice().sort((a, b) =>
+                        (Number(a?.strengthSummary?.stat) || 0) - (Number(b?.strengthSummary?.stat) || 0) ||
+                        String(a.uuid).localeCompare(String(b.uuid)))[0];
+                    return this.cardClickDecision(pick, 'rebirth-summons-weakest-province');
+                }
+                const search = rebirth.pickSearchTarget(mine);
+                if(search) {
+                    return this.cardClickDecision(search, 'rebirth-summons-search-fushicho');
+                }
+            }
+
+            // Walking the Way looks at the top three and swaps one into a
+            // province. The province stage offers the cards ALREADY there, so
+            // it throws away the least valuable non-holding.
+            if(targetHint.sourceCardId === 'walking-the-way') {
+                const replaceStage = prompt.includes('replace') ||
+                    mine.some((card) => /^province [1-4]|stronghold province/.test(String(card.location || '')));
+                const pick = replaceStage
+                    ? rebirth.pickProvinceDiscard(mine)
+                    : rebirth.pickSearchTarget(mine);
+                if(pick) {
+                    return this.cardClickDecision(pick, replaceStage
+                        ? 'rebirth-walking-discard-worst-province-card'
+                        : 'rebirth-walking-take-best');
+                }
+            }
+
+            // Asako Azunami replaces the water ring effect with bow-one AND
+            // ready-one. Bow their best ready participant; ready our best bowed
+            // body. Both selects are optional, so cancel is a legal answer.
+            if(targetHint.sourceCardId === 'asako-azunami') {
+                if(actionNames.includes('bow')) {
+                    const targets = theirs.filter((card) => !card.bowed);
+                    if(targets.length > 0) {
+                        return this.cardClickDecision(this.sortBySkillDesc(targets, skillType)[0],
+                            'rebirth-azunami-bow-enemy');
+                    }
+                    if(cancel) {
+                        return this.buttonDecision(cancel, 'rebirth-azunami-no-bow-target');
+                    }
+                }
+                if(actionNames.includes('ready')) {
+                    const bowed = mine.filter((card) => card.bowed);
+                    if(bowed.length > 0) {
+                        return this.cardClickDecision(this.sortBySkillDesc(bowed, skillType)[0],
+                            'rebirth-azunami-ready-own');
+                    }
+                    if(cancel) {
+                        return this.buttonDecision(cancel, 'rebirth-azunami-no-ready-target');
+                    }
+                }
             }
         }
 

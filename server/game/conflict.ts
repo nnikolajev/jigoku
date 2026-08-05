@@ -255,6 +255,31 @@ export class Conflict extends GameObject {
                 illegal.length > 1 ? 'are' : 'is'
             );
             this.game.applyGameAction(null, { sendHome: illegal, bow: illegal });
+            // Sending home and bowing is not always ENOUGH to resolve the
+            // illegality, and this check re-runs on every game-state
+            // recalculation — so when it is not, the game hangs.
+            //
+            // Reproduced (Unicorn vs Phoenix Phoenix): Pacifism lands on Iuchi
+            // Soulweaver during a POLITICAL conflict, where it is inert. The
+            // Unicorn then plays Captive Audience and switches the conflict to
+            // military, at which point Pacifism forbids Soulweaver from
+            // participating. Soulweaver cannot be sent home (`allowGameAction
+            // ('sendHome')` is false) and after the first pass it is already
+            // bowed, so neither correction changes anything and this method is
+            // called forever — a SYNCHRONOUS loop, which the harness'
+            // wall-clock backstop cannot interrupt and which would freeze a
+            // live server. Kuroi Mori's "switch the conflict type" reaches the
+            // same state.
+            //
+            // Removing the participant is what "cannot participate any more"
+            // means, and it is the only correction guaranteed to terminate.
+            // Restricted to cards that cannot be sent home, so every board the
+            // engine already resolved keeps its exact previous behaviour.
+            for(const card of illegal) {
+                if(!card.allowGameAction('sendHome')) {
+                    this.removeFromConflict(card);
+                }
+            }
         }
     }
 

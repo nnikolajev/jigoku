@@ -16,7 +16,8 @@ describe('self-play win-rate deck selection', function() {
     it('runs every registered deck except the Crane baseline', function() {
         expect(DECKS).toEqual(DECK_LABELS.filter((label) => label !== 'Crane'));
         expect(DECKS).toContain('DragonAttachments');
-        expect(DECKS.length).toBe(9);
+        // Derived: adding a deck to the registry must not need a spec edit.
+        expect(DECKS.length).toBe(DECK_LABELS.length - 1);
     });
 
     it('accepts the renumbered seed modes and defaults to fate-aware seed 1', function() {

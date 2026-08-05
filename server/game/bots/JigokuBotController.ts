@@ -677,6 +677,25 @@ class JigokuBotController {
                 ...(perDeck.conflictPlanning || {})
             };
         }
+        // Same treatment for the deck tactics sub-profiles, so a tuning arm can
+        // name ONE knob instead of restating the whole object. A shallow spread
+        // would silently drop every field the arm did not mention — for
+        // `rebirth` that includes the printed-skill table and the Phoenix
+        // faction list, which are load-bearing legality data, not preferences.
+        // Inert until an arm sets one: no shipped override does.
+        // One level deep, which is all a tuning arm needs: arms set scalars.
+        for(const key of ['rebirth', 'shugenja', 'fateAwareEconomy', 'strongholdDefense',
+            'defenseTuning', 'conflictDeclaration', 'conflictCardEconomy',
+            'drawBidding', 'duelBidding', 'personalHonor', 'boardAwareDynasty',
+            'mulligan', 'honorRace'] as const) {
+            if(sharedTop?.[key] || perDeck[key]) {
+                merged[key] = {
+                    ...(baseAny[key] || {}),
+                    ...(sharedTop?.[key] || {}),
+                    ...(perDeck[key] || {})
+                };
+            }
+        }
         return merged as DeckProfile;
     }
 

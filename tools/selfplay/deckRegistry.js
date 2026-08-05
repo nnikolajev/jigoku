@@ -10,6 +10,7 @@ const {
     loadDragonDeck,
     loadLionDeck,
     loadPhoenixDeck,
+    loadPhoenixPhoenixDeck,
     loadPhoenixShugenjaDeck,
     loadScorpionDeck,
     loadUnicornDeck
@@ -23,6 +24,7 @@ const DECK_LOADERS = Object.freeze({
     DragonAttachments: loadDragonAttachmentsDeck,
     Lion: loadLionDeck,
     Phoenix: loadPhoenixDeck,
+    PhoenixPhoenix: loadPhoenixPhoenixDeck,
     PhoenixShugenja: loadPhoenixShugenjaDeck,
     Scorpion: loadScorpionDeck,
     Unicorn: loadUnicornDeck

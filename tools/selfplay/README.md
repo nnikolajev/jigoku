@@ -1,8 +1,13 @@
 # Jigoku self-play tools
 
 These scripts run real headless Jigoku games with normal game commands. They
-are for policy comparison, regression diagnosis, benchmark publication, and
-click-cycle detection. No external model service is needed.
+are for measuring a bot change, policy comparison, regression diagnosis,
+benchmark publication, and click-cycle detection. No external model service is
+needed.
+
+If the question is **"is the changed bot better?"**, skip to
+[Measuring a bot change](#measuring-a-bot-change-the-current-method) — that
+rig, not the round robins below, is the one that answers it.
 
 ## Supported bot seeds
 
@@ -79,6 +84,182 @@ node tools/selfplay/auditConflictBehavior.js --seed 3
 node tools/selfplay/analyzeDuelBids.js
 node tools/selfplay/drawBidMatrix.js
 ```
+
+## Measuring a bot change (the current method)
+
+These are the scripts to reach for when the question is **"is the changed bot
+better?"**. The full method, including the traps each rule was learned from, is
+the `/roundrobin` skill (`.claude/skills/roundrobin/SKILL.md`); load it before
+running or interpreting any bot win-rate comparison.
+
+All of them inject the change as a **V2 profile on one seat** while both seats
+run V2 pass-through (= V1 logic), so the only difference between the two
+populations is the injected `deckProfile` knob. An arm is a JSON string, never a
+source edit. They are configured by environment variable, not by flags.
+
+The harness runs **compiled JS**: run `npx tsc` (not `--noEmit`) before any of
+them or both arms measure the same stale build.
+
+```powershell
+# 0. prove a "behaviour-preserving" refactor preserved behaviour
+node tools/selfplay/refactorIdentity.js > before.txt   # then refactor
+node tools/selfplay/refactorIdentity.js > after.txt    # SHA lines must match
+
+# 1. ceiling first: how often does the change decide a game at all? (180 games)
+$env:CHANGE='{"deckProfile":{"someKnob":1}}'; node tools/selfplay/measureDecisiveness.js
+
+# 1b. what did the bot DO differently, and which scope wants the lever?
+$env:CHANGE='{"deckProfile":{"defenseBreakTie":true}}'; $env:KINDS='defense-size'
+$env:BASES='91001,92001'; $env:OUT='probe.json'; node tools/selfplay/probePaired.js
+node tools/selfplay/crossTabFlips.js probe.json readyCount marginalSkill ringElement
+
+# 2. null arm (REQUIRED): inject the knob at its own default; must be exactly 50.00%
+$env:LABEL='null'; $env:CHANGE='{"deckProfile":{"someKnob":0}}'
+node tools/selfplay/parallelHeadToHead.js
+
+# 3. the head-to-head itself, three bases to reject / six or more to accept
+$env:LABEL='change'; $env:CHANGE='{"deckProfile":{"someKnob":1}}'
+$env:BASES='91001,92001,93001'; node tools/selfplay/parallelHeadToHead.js
+```
+
+### `parallelHeadToHead.js` — the answer
+
+Changed bots play unchanged bots across every ordered cross-deck pairing
+(mirrors excluded), each pairing twice on the same shuffle with the change on
+opposite sides, replayed across several independent bases. Deck strength and
+first player cancel by construction and the baseline is a hard **50%**.
+
+Same experiment as the serial `headToHeadRoundRobin.js`, sharded across worker
+processes: **540 games in ~3.3 minutes instead of ~50**. A shard is a contiguous
+slice of the same `(base, deckA, deckB)` list, so sharding cannot change which
+games are played or their shuffles — the null arm still scores exactly 50.00%.
+
+| var | meaning |
+|---|---|
+| `CHANGE` | treated seat's injected V2 profile (JSON) |
+| `CONTROL` | untreated seat's profile; hold a second knob on both sides while A/B-ing a third |
+| `BASES` | csv of independent shuffle bases (default `91001,92001,93001`) |
+| `GPB` | extra games per pair per base; each unit adds 2 games |
+| `WORKERS` | forked processes, default `cores - 4` |
+| `LABEL` | name printed in the header |
+| `OUT` | also write per-game rows as JSON |
+
+Leave cores free. The harness has a wall-clock per-game backstop
+(`HARNESS_MAX_GAME_MS`, defaulted to 180000 here), so oversubscribing turns slow
+games into non-results. The report adds a binomial z/p on the total and a
+`stopReason` census — a run containing timeouts is reporting fewer games than it
+played, and those are not missing at random.
+
+**Read the total, never the per-deck rows.** A validated null arm still swings
+±28pp per deck at exactly 0.00pp overall; a deck row measures that deck's
+strength against the field. `headToHeadRoundRobin.js` is kept as the serial
+reference implementation and takes the same `CHANGE`/`BASES`/`GPB`/`LABEL`.
+
+### `measureDecisiveness.js` — the ceiling
+
+Replays each shuffle with and without the change and counts how often the
+**winner** differs. That flip rate caps the largest win-rate effect the lever
+could ever have: flipping 4% of games caps it at 2pp. If the ceiling is under
+the ±2.5pp noise floor, stop — no head-to-head can resolve the lever, and tuning
+its *values* will not help because the insertion point is wrong, not the
+numbers. `CHANGE`, `BASE`, `LABEL`.
+
+### `probePaired.js` — what the bot actually did
+
+Plays every pairing twice on one shuffle (control, then the change on one seat)
+with `BotTelemetry` attached, and dumps every decision event next to both
+outcomes. Yields the decisiveness ceiling for free.
+
+| var | meaning |
+|---|---|
+| `CHANGE` | injected profile |
+| `KINDS` | csv of telemetry kinds to keep — empty keeps all, and there are thousands per game |
+| `ARMS` | `treated` (default), `control`, or `both` |
+| `SEAT` | `0` or `1` — which seat carries the change |
+| `BASES`, `WORKERS`, `OUT` | as above; `OUT` writes `{games, events}` for the analysis scripts |
+
+Two things only this rig gives: a **causal per-deck number** (only one seat is
+treated, so a flip is that deck's effect — head-to-head per-deck rows cannot be
+read that way), and the **scope** a lever wants.
+
+**Its win-rate number is not a result.** It treats one seat and never swaps it,
+so a seat / first-player interaction survives in it and cancels in the
+head-to-head by construction. Measured: the same lever read **+4.07pp on
+`SEAT=0`** and **+1.48pp on `SEAT=1`**; seat-averaged it matched the
+head-to-head on the same bases to the decimal. Always run both seats.
+
+### `crossTabFlips.js` — find the scope
+
+```powershell
+node tools/selfplay/crossTabFlips.js probe.json readyCount marginalSkill ringElement
+```
+
+Buckets the decided games from a `probePaired.js` dump by an attribute of the
+windows that fired in them, and prints the flip direction per bucket plus a
+cumulative `<= k` / `>= k` view — the number a capped knob would produce on
+those bases. Numeric fields are reduced per game (min for `readyCount` and
+`conflictsRemaining`, max otherwise); categorical fields bucket per window.
+It reads seat 0 only, so dump with `SEAT=0`.
+
+Slicing ~70 decided games several ways will always surface a good-looking
+bucket. That bucket is a **hypothesis**; the bases it was found on are burned
+and the scoped arm has to win its own head-to-head on fresh ones.
+
+### `refactorIdentity.js` — identity check
+
+Runs a fixed slate of games and prints a SHA of every outcome. A null arm
+**cannot** catch a refactor that changed V1, because both seats moved together
+and it still scores exactly 50.00%. Capture the hash before pulling a decision
+into a class or renaming a knob, and again after. `BASE`, `ENGINE` (`v1`/`v2`).
+An intentional behaviour change is expected to move the hash — that is also how
+a shipped default is proven live.
+
+### Telemetry and the per-lever analysers
+
+`server/game/bots/BotTelemetry.ts` is a static opt-in decision sink: disabled
+and free by default, `attach(sink)` in a worker to collect. Kinds currently
+emitted:
+
+| kind | emitted by | decision |
+|---|---|---|
+| `axis-choice` | `ConflictDeclarationPolicy` | military vs political declaration |
+| `defense-size` | `DefenseCommitmentPolicy` | how much skill to commit on defense |
+| `attack-size` | `JigokuBotPolicy` | attacker allocation / `applyAttackerPlan` reach |
+
+Each analyser reads a `probePaired.js` dump:
+
+```powershell
+node tools/selfplay/analyzeDefenseTie.js probe.json    # KINDS=defense-size
+node tools/selfplay/analyzeAxisChoice.js probe.json    # KINDS=axis-choice
+node tools/selfplay/analyzeAttackSize.js probe.json    # KINDS=attack-size
+```
+
+- `analyzeDefenseTie.js` — where defense decisions land, what the tie-break
+  spends (the marginal body, not one skill) and what it buys.
+- `analyzeAxisChoice.js` — whether the decision is reached, at what
+  `opponentBoardWeight` it diverges from V1, and which decks short-circuit
+  before it. Replays the comparison offline at other weights from one dump.
+- `analyzeAttackSize.js` — reachability: how many declaration decisions actually
+  consult the attacker plan, per deck. "Enabled" is not "reaching"; two
+  mechanisms here are inert for V1 with passing specs.
+
+**Check reachability before improving a mechanism.** `BoardAwareDynastyTactics.choose`
+and `ConflictPhasePlanner.planDefense` are both inert for V1 and passing specs
+hid it — a full measurement cycle was spent on the first before that was noticed.
+
+### `cardLab.js` — price one card
+
+```powershell
+node tools/selfplay/cardLab.js <scenario.js> [repeats]
+```
+
+Full self-play cannot answer "how much is THIS card worth" — a card appearing in
+a fifth of games is buried under shuffle noise. This fixes the board, varies one
+thing, and replays the same situation many times, with both seats driven by the
+real bot so abilities fire through the bot's own logic instead of being
+scripted. A scenario module exports `{ name, phase, rounds, player1, player2,
+variants, seats, measure }`; `variants` are deep-merged over the base board.
+Nothing in the script knows about any particular deck or card.
 
 ## Bot V2 evaluation
 
@@ -247,8 +428,49 @@ with frozen legacy logic.
 loads cached EmeraldDB fixtures. `reward.js` observes game events and terminal
 state. `standardBenchmark.js` validates and writes standardized client results.
 
+Every game carries a **wall-clock backstop** so one game cannot hang a batch:
+`options.maxGameMs`, else `HARNESS_MAX_GAME_MS`, else 90000. Because it is wall
+clock it also fires on games that are merely SLOW, so any script forking workers
+must raise it — the parallel rigs default it to 180000. A run whose `stopReason`
+census contains `timeout` is reporting fewer games than it played, and those are
+not missing at random. Loops are caught by `stalled`/`maxSteps` well inside the
+budget, so a longer backstop costs nothing.
+
+The parallel rigs (`parallelHeadToHead.js`, `probePaired.js`) fork
+`_h2hWorker.js` / `_probeWorker.js`, which return their payload on a single
+`@@RESULT@@`-prefixed stdout line. Loop-guard logs land on stdout too, so the
+driver looks for that marker rather than parsing the whole stream — a worker
+change that prints before the marker is fine; one that breaks the marker line is
+not.
+
 ## Output hygiene
 
 Named reports belong in `tools/selfplay/out/`. These are diagnostics, not source
 fixtures. Preserve useful reports with an explicit `--out` prefix; the default
 `latest` reports may be overwritten.
+
+## One deck against the fixed field
+
+`deckFieldWinRate.js` measures a SINGLE deck's strength against the other ten,
+held fixed. It exists because `headToHeadRoundRobin.js` compares a changed bot
+to an unchanged one — there is no unchanged counterpart for a new deck — and a
+field round robin that moves every seat is zero-sum. The number is NOT centred
+on 50%.
+
+```powershell
+$env:SUBJECT="PhoenixPhoenix"; $env:BASES="91001,92001,93001"; $env:GPB="3"
+node tools/selfplay/deckFieldWinRate.js
+```
+
+`SUBJECT_PROFILE` injects a V2 pass-through profile into the subject seat only,
+so a deck-tuning arm is a JSON string rather than an edit:
+
+```powershell
+$env:SUBJECT_PROFILE='{"deckProfile":{"rebirth":{"zeroFateAdditionalFate":1}}}'
+node tools/selfplay/deckFieldWinRate.js
+```
+
+Every rule from `.claude/skills/roundrobin/SKILL.md` still applies: validate the
+rig with an arm injected at its own default, use several independent bases, and
+read the TOTAL rather than the per-opponent rows.
+

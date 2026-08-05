@@ -37,17 +37,41 @@ control, the rig is broken, not the lever.
 - `tools/selfplay/botRoundRobin.js --v2-decks <deck> --subject <deck>
   --v2-profile '{"deckProfile":{"conflictPlanning":{...}}}'` — one deck piloting
   an injected profile against the V1 field.
-- `tools/selfplay/headToHeadRoundRobin.js` — **changed bots vs unchanged bots**,
+- `tools/selfplay/parallelHeadToHead.js` — **changed bots vs unchanged bots**,
   every ordered cross-deck pairing, both orientations per shuffle, several
   bases. Use this for "is the changed bot stronger". Always run its null arm
-  first.
+  first. Sharded across workers: 540 games in ~3.3 minutes instead of ~50, and
+  the sharding cannot change which games are played, so the null arm still
+  scores exactly 50.00%. `headToHeadRoundRobin.js` is the serial reference
+  implementation of the same experiment.
 - `tools/selfplay/measureDecisiveness.js` — how often the change decides a game
   at all, which caps the largest win-rate effect it could ever produce. Run this
   BEFORE a long comparison, not after.
+- `tools/selfplay/probePaired.js` — the same pairing played twice on one shuffle
+  with `BotTelemetry` attached, dumping every decision event next to both
+  outcomes. The only rig that yields a **causal per-deck** number, because just
+  one seat is treated. Its win-rate number is a hypothesis about size, not the
+  answer: it does not cancel a seat interaction, so run `SEAT=0` and `SEAT=1`.
+- `tools/selfplay/crossTabFlips.js` — buckets the decided games from that dump
+  by an attribute of the windows that fired, to find the SCOPE a lever wants.
+  Hypothesis generation only; the scoped arm must win on fresh bases.
+- `tools/selfplay/refactorIdentity.js` — hashes a fixed slate of outcomes to
+  prove a behaviour-preserving refactor preserved behaviour. A null arm cannot
+  do this: it moves both seats together and still reads exactly 50.00%.
+- `tools/selfplay/analyzeAxisChoice.js`, `analyzeDefenseTie.js`,
+  `analyzeAttackSize.js` — per-lever readers of a `probePaired.js` dump
+  (`axis-choice`, `defense-size`, `attack-size` telemetry kinds). Use
+  `analyzeAttackSize.js` to confirm a mechanism is REACHED, not merely enabled.
 - `tools/selfplay/compareBotVersions.js` — paired candidate/control comparison.
 - `tools/selfplay/auditCards.js --engine-version v1` — which cards and abilities
   never fire.
 - `tools/selfplay/cardLab.js` — price a single card in a controlled scenario.
+
+Decision knobs live in **injectable policy classes** (`DefenseCommitmentPolicy`,
+`ConflictDeclarationPolicy`) configured from a `DeckProfile` field, so an arm is
+a JSON string and never a source edit. Every class default reproduces V1.
+`server/game/bots/BotTelemetry.ts` is the matching decision sink: static, opt-in,
+free when detached.
 
 ### Two rigs, two different questions
 
@@ -62,8 +86,9 @@ zero no matter how good the change is. That measurement can only report game
 *shape* (round counts, win reasons).
 
 The direct challenge answers it by putting the two populations across the table
-from each other — `tools/selfplay/headToHeadRoundRobin.js`, with
-`tools/selfplay/measureDecisiveness.js` for the ceiling. The full method is the
+from each other — `tools/selfplay/parallelHeadToHead.js` (or its serial twin
+`headToHeadRoundRobin.js`), with `tools/selfplay/measureDecisiveness.js` for the
+ceiling and `probePaired.js` for what the bot did. The full method is the
 `/roundrobin` skill (`.claude/skills/roundrobin/SKILL.md`), which should be
 loaded before running or interpreting any bot win-rate comparison:
 

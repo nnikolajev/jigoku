@@ -183,6 +183,11 @@ export interface DeckStrategy {
     // Dragon attachment tower: Iron Mountain Castle, three Restricted slots,
     // deep-fate towers, attachment search, and Niten/Yokuni ready loops.
     attachmentTower: boolean;
+    // Phoenix Fushicho rotation: buy big Phoenix bodies at ZERO fate, let them
+    // die in the fate phase, and recur them out of the dynasty discard with
+    // Fushicho's interrupt, Forebearer's Echoes and My Ancestor's Strength.
+    // Combines with `shugenja` — the deck runs Kyuden Isawa as well.
+    rebirth: boolean;
 }
 
 const entry = (cardId: string, overrides: Partial<PlaybookEntry>): PlaybookEntry => Object.assign({
@@ -1901,6 +1906,33 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: 'phase start: +2/+2 while the chosen ring is contested'
     }),
 
+    // Reaction after the opponent declares their SECOND conflict this phase:
+    // honor a character. Honored adds the character's glory to BOTH skills, so
+    // the policy aims it at our highest-glory unhonored body.
+    'shiba-pureheart': entry('shiba-pureheart', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        summary: 'their second conflict: honor an own high-glory character'
+    }),
+
+    // Reaction after WE play a Water card: switch one character's base
+    // military and political skill for the phase. Symmetric and free — it can
+    // hand our lopsided body (Isawa Heiko is a 0/5) the contested axis, or take
+    // that axis away from an enemy participant. Target chosen by the policy.
+    'isawa-heiko': entry('isawa-heiko', {
+        priority: 8,
+        summary: 'after a Water card: switch a character\'s base skills'
+    }),
+
+    // Interrupt that REPLACES the water ring effect with "bow any character and
+    // ready a different one". The printed effect does one of those, so this is
+    // strictly better whenever either half has a target.
+    'asako-azunami': entry('asako-azunami', {
+        priority: 9,
+        summary: 'water ring: bow one character and ready another instead'
+    }),
+
     // Restricted +1/+1. Its on-enter ready is the point: attach only when a
     // bowed printed-cost-2-or-lower Lion body is available.
     'elegant-tessen': entry('elegant-tessen', {
@@ -1980,6 +2012,66 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         inPlayAction: true,
         shouldUseAction: (ctx) => !ctx.amAttacker &&
             participating(ctx.opponentCharacters).some((card) => !card.bowed)
+    }),
+
+    // Military-conflict Action: honor a participant we control, adding its
+    // glory to BOTH skills. The honored body is sacrificed if a province breaks
+    // this conflict — a real cost for most decks, and the Fushicho rotation's
+    // engine, because a sacrificed body lands in the dynasty discard where the
+    // recursion cards read it. Target side is chosen in the policy (defence
+    // takes the biggest glory, attack takes a body cheap enough to lose).
+    'inferno-guard-invoker': entry('inferno-guard-invoker', {
+        conflictTypes: ['military'],
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        inPlayAction: true,
+        // Honoring adds glory to both skills, so the swing is the target's
+        // glory — the same arithmetic as Way of the Crane and Benten's Touch.
+        conflictContribution: priced('inferno-guard-invoker', (ctx) => {
+            const best = readyParticipants(ctx.myCharacters)
+                .filter((card) => !card.isHonored)
+                .reduce((top, card) => Math.max(top, gloryOf(card)), 0);
+            return best > 0 ? best : null;
+        }),
+        summary: 'military: honor a participant (+glory to both skills)',
+        shouldUseAction: (ctx) => ctx.conflictType === 'military' &&
+            readyParticipants(ctx.myCharacters).some((card) => !card.isHonored && gloryOf(card) > 0)
+    }),
+
+    // Action while FIRE sits in the unclaimed pool: lose N honor, strip 1 fate
+    // from each of N participating characters. A body that loses its last fate
+    // is discarded in the fate phase, so this answers a tower the deck has no
+    // other removal for.
+    //
+    // The honor budget itself lives in `RebirthTactics.tsukeHonorSpend`, which
+    // owns the floor and the cap; this static gate only avoids a wasted click.
+    // The selector demands EXACTLY as many targets as honor paid, so the policy
+    // must never bid past the number of enemy bodies worth hitting.
+    'isawa-tsuke-2': entry('isawa-tsuke-2', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        abilityValue: true,
+        inPlayAction: true,
+        summary: 'fire unclaimed: pay honor to strip fate from enemy participants',
+        shouldUseAction: (ctx) => (ctx.honor ?? 10) > 6 &&
+            (!ctx.rings || ctx.rings.some((ring: any) =>
+                ring?.element === 'fire' && !ring?.claimed)) &&
+            participating(ctx.opponentCharacters).some((card) => (Number(card.fate) || 0) > 0)
+    }),
+
+    // Holding Action: return one or more rings from our claimed pool to the
+    // unclaimed pool, gaining 1 honor each. Freeing FIRE re-arms Isawa Tsuke,
+    // which is worth more than the honor. Capped to one activation per round
+    // because the ability is unlimited and reverses its own precondition.
+    'ancestral-shrine': entry('ancestral-shrine', {
+        priority: 6,
+        inPlayAction: true,
+        conflictPhaseAction: true,
+        oncePerRound: true,
+        abilityValue: true,
+        summary: 'return claimed rings for 1 honor each'
     }),
 
     // Ready itself while the water ring is claimed.
@@ -2248,6 +2340,56 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
                 readyParticipants(ctx.myCharacters).length > 0,
             (ctx) => ctx.myCharacters.filter((card) =>
                 PHOENIX_SHUGENJA.includes(card.id)).length >= 2)
+    }),
+
+    // Set a participating Shugenja's BASE skills to a dynasty-discard
+    // character's printed skills. With Fushicho (6/6) in the discard this turns
+    // a 1/1 Ethereal Dreamer into the biggest body on the table for one
+    // conflict, which is the whole reason the deck feeds its discard.
+    //
+    // The controller's discard copy flattens a printed DASH to zero, so the
+    // number below can only UNDER-state the swing. The real pair is chosen by
+    // `RebirthTactics.ancestorPlan`, which has the dash-aware printed table and
+    // refuses an ancestor that would copy a dash onto a live participant.
+    'my-ancestor-s-strength': entry('my-ancestor-s-strength', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 9,
+        conflictContribution: priced('my-ancestor-s-strength', (ctx) => {
+            const best = discardBodies(ctx)
+                .reduce((top, card) => Math.max(top, printedSkillOf(card, ctx.conflictType)), 0);
+            if(best <= 0) {
+                return null;
+            }
+            const gain = readyParticipants(ctx.myCharacters)
+                .filter(isShugenja)
+                .reduce((top, card) => Math.max(top, best - liveSkill(card, ctx.conflictType)), 0);
+            return gain > 0 ? gain : null;
+        }),
+        summary: 'copy a discarded character\'s printed skills onto a participating Shugenja',
+        shouldPlay: (ctx) => discardBodies(ctx).length > 0 &&
+            readyParticipants(ctx.myCharacters).some(isShugenja)
+    }),
+
+    // Dig the top three dynasty cards for Fushicho and swap one into a
+    // province, discarding what was there — which is itself recursion fuel.
+    // It adds nothing to a running conflict, so the policy plays it from a
+    // conflict-phase window with no conflict active rather than mid-fight.
+    'walking-the-way': entry('walking-the-way', {
+        priority: 7,
+        abilityValue: true,
+        summary: 'dig the top three dynasty cards into a province',
+        shouldPlay: () => false
+    }),
+
+    // Lock the opponent out of one ring's element for the rest of the phase.
+    // Free, max one per phase, and worth nothing once their conflicts are
+    // spent — so the policy fires it before their first declaration.
+    'way-of-the-phoenix': entry('way-of-the-phoenix', {
+        priority: 7,
+        abilityValue: true,
+        summary: 'phase: the opponent cannot declare conflicts with one element',
+        shouldPlay: () => false
     }),
 
     // ---- attachments ----
@@ -3358,6 +3500,17 @@ const MONK_MARKERS = [
     'teacher-of-empty-thought'
 ];
 
+// Cards that mark the Fushicho rotation deck: the recursion engine itself
+// plus the fateless-body payoffs it feeds. Fushicho alone is not enough (the
+// Phoenix Shugenja list runs two copies as a plain 6/6 tower) and Forebearer's
+// Echoes alone is not either (the Lion Swarm list runs three). The PAIR is
+// unique to this deck, and a five-marker count is the fallback for a variant.
+const REBIRTH_MARKERS = [
+    'fushicho', 'forebearer-s-echoes', 'my-ancestor-s-strength', 'walking-the-way',
+    'retire-to-the-brotherhood', 'asako-azunami', 'isawa-tsuke-2', 'isawa-heiko',
+    'way-of-the-phoenix', 'inferno-guard-invoker', 'shiba-pureheart'
+];
+
 // Derive the deck's strategy flags from the printed card ids it contains.
 // A deck with none of a group's markers gets that flag false and thus the
 // unchanged generic behavior; the flags are mutually independent.
@@ -3369,6 +3522,7 @@ export function deriveDeckStrategy(cardIds: Iterable<string>): DeckStrategy {
     const dishonorCount = DISHONOR_MARKERS.filter((id) => ids.has(id)).length;
     const gloryCount = GLORY_MARKERS.filter((id) => ids.has(id)).length;
     const monkCount = MONK_MARKERS.filter((id) => ids.has(id)).length;
+    const rebirthCount = REBIRTH_MARKERS.filter((id) => ids.has(id)).length;
     return {
         holdingEngine: ids.has('kyuden-hida') || wallCount >= 2,
         defensive: defenderCount >= 3,
@@ -3384,7 +3538,8 @@ export function deriveDeckStrategy(cardIds: Iterable<string>): DeckStrategy {
         shugenja: ids.has('kyuden-isawa'),
         // Iron Mountain Castle uniquely identifies the attachment-tower list
         // without changing the separate High House monk deck.
-        attachmentTower: ids.has('iron-mountain-castle')
+        attachmentTower: ids.has('iron-mountain-castle'),
+        rebirth: (ids.has('fushicho') && ids.has('forebearer-s-echoes')) || rebirthCount >= 5
     };
 }
 

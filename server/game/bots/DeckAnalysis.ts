@@ -131,6 +131,17 @@ const ANALYSIS: CardModel[] = [
     { id: 'against-the-waves', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'body' },
     { id: 'supernatural-storm', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'buff' },
 
+    // Phoenix "Phoenix" (Fushicho rotation). `walking-the-way` and
+    // `way-of-the-phoenix` swing nothing INSIDE a conflict — both are played
+    // from a window with no conflict running — so their swing is 0 and the
+    // in-conflict value they carry is their ability, not skill.
+    { id: 'walking-the-way', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'way-of-the-phoenix', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    // Copies a dynasty-discard body's printed skills onto a participating
+    // Shugenja. With Fushicho (6/6) in the discard this is the largest pump in
+    // the deck; 4 is the swing against a typical 1-2 skill Shugenja base.
+    { id: 'my-ancestor-s-strength', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'buff' },
+
     { id: 'kirei-ko', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
     { id: 'oracle-of-stone', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'draw' },
     { id: 'the-path-of-man', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },

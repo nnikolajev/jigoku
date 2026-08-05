@@ -34,7 +34,8 @@ describe('self-play bot round-robin options', function() {
     it('only publishes a complete 40-game full-deck round robin', function() {
         const options = parseArgs(['--seed', '2']);
         const completeReport = {
-            matchups: Array.from({ length: 45 }, () => ({ played: 40, failedJobs: [] }))
+            matchups: Array.from({ length: DECK_LABELS.length * (DECK_LABELS.length - 1) / 2 },
+                () => ({ played: 40, failedJobs: [] }))
         };
         expect(isStandardBenchmarkRun(options, completeReport)).toBe(true);
         expect(isStandardBenchmarkRun(parseArgs(['--seed', '2', '--games', '100']), completeReport)).toBe(false);
@@ -70,7 +71,8 @@ describe('self-play bot round-robin options', function() {
         // V1 baseline, so it must never be able to overwrite it.
         it('never publishes a V2-piloted or subject-filtered run as the V1 benchmark', function() {
             const completeReport = {
-                matchups: Array.from({ length: 45 }, () => ({ played: 40, failedJobs: [] }))
+                matchups: Array.from({ length: DECK_LABELS.length * (DECK_LABELS.length - 1) / 2 },
+                () => ({ played: 40, failedJobs: [] }))
             };
             expect(isStandardBenchmarkRun(parseArgs(['--seed', '2']), completeReport)).toBe(true);
             expect(isStandardBenchmarkRun(
@@ -92,8 +94,9 @@ describe('self-play bot round-robin options', function() {
                 .toThrowError(/--subject has unknown deck\(s\): Turtle/);
         });
 
-        // One deck against the full field is 9 matchups, not 45. The other 36
-        // are V1-vs-V1 games that cost an hour and answer nothing.
+        // One deck against the full field is DECK_LABELS.length - 1 matchups,
+        // not the whole league. The rest are V1-vs-V1 games that cost an hour
+        // and answer nothing. Sizes are DERIVED so adding a deck cannot rot them.
         it('schedules only the subject deck\'s matchups', function() {
             const options = parseArgs(['--subject', 'Crab', '--games', '100']);
             const jobs = buildJobs(options.decks, options.games, options.chunkSize, options.subjects);

@@ -1,0 +1,1897 @@
+[
+  {
+    "id": "a-season-of-war",
+    "name": "A Season of War",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "dynasty",
+    "type": "event",
+    "is_unique": false,
+    "text": "Rally. <i>(After this card is revealed in a province, add the top card of your dynasty deck to the province, faceup.)</i>\n<b>Action:</b> Discard each card in each province, refilling each province faceup. End the dynasty phase. Then there is an additional dynasty phase, during which players do not collect fate.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "a-season-of-war",
+        "pack_id": "rokugan-at-war",
+        "flavor": "",
+        "illustrator": "Lin Hsiang",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C29_14.jpg",
+        "position": "14",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "against-the-waves",
+    "name": "Against the Waves",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> Choose a <em>Shugenja</em> character you control – bow or ready that character.\n<i>Errata from the Imperial Law (2020-01-06)</i>",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "spell",
+      "water"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 1,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "against-the-waves",
+        "pack_id": "core",
+        "flavor": "Water is ever changing. A gentle wave one moment and a torrent of force the next.",
+        "illustrator": "Calvin Chua",
+        "image_url": "https://gamepedia.cursecdn.com/l5r_gamepedia_en/7/7c/Against_the_Waves.png",
+        "position": "177",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "ancestral-shrine",
+    "name": "Ancestral Shrine",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "dynasty",
+    "type": "holding",
+    "is_unique": false,
+    "text": "<b>Action:</b> Return 1 or more rings from your claimed ring pool to the unclaimed ring pool - you gain 1 honor for each ring returned this way.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "shrine"
+    ],
+    "cost": null,
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": "+1",
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "ancestral-shrine",
+        "pack_id": "children-of-the-empire",
+        "flavor": "The lights shine through the Yomi in the hopes of finding those they once knew.",
+        "illustrator": "John Donahue",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_30.jpg",
+        "position": "30",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "asako-azunami",
+    "name": "Asako Azunami",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "<b>Interrupt:</b> When you would resolve the [element-water] ring – instead of the normal ring effect, you may choose and bow any character and you may choose and ready a different character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "shugenja",
+      "water",
+      "elemental-master"
+    ],
+    "cost": "5",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 3,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "4",
+    "political": "4",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "asako-azunami",
+        "pack_id": "the-ebb-and-flow",
+        "flavor": "",
+        "illustrator": "Asep Ariyanto",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C12_66.jpg",
+        "position": "66",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "assassination",
+    "name": "Assassination",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Conflict Action:</b> Lose 3 honor. Choose a character with printed cost 2 or lower – discard that character. (Max 1 per round.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "assassination",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Greg Lambrakis",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_203.jpg",
+        "position": "203",
+        "quantity": 2,
+        "rotated": true
+      },
+      {
+        "card_id": "assassination",
+        "pack_id": "emerald-core-set",
+        "flavor": "Steel whispered through silk and flesh. In the morning, they would find the body and speak of shadows and dishonor — but tonight, the deed was done.",
+        "illustrator": "Valentine",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs242.jpg",
+        "position": "242",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "banzai",
+    "name": "Banzai!",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, choose a participating character – that character gets +2[conflict-military] until the end of the conflict. You may lose 1 honor to resolve this ability twice. (Max 1 per conflict.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "banzai",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "Troy Graham",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_204.jpg",
+        "position": "204",
+        "quantity": 2,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "benten-s-touch",
+    "name": "Benten's Touch",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, bow a <i>(friendly)</i> [clan-phoenix] <em>Shugenja</em> character. Choose a participating character you control – honor that character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "spell",
+      "air"
+    ],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 1,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "benten-s-touch",
+        "pack_id": "into-the-forbidden-city",
+        "flavor": "\"Blessed Benten, Lady of Love and Beauty, shine your radiance upon me. Let my hands work your beauty in the mortal realm and my words spread your grace to all.\"",
+        "illustrator": "Eli Ring",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C04_55.jpg",
+        "position": "55",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "city-of-the-rich-frog",
+    "name": "City of the Rich Frog",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "province",
+    "type": "province",
+    "is_unique": true,
+    "text": "Eminent. <i>(This province starts the game faceup and cannot be turned facedown. It cannot be a stronghold province.)</i>\nAfter setup, fill this province to 3 cards. When you would refill this province, refill it to 3 cards instead of 1.",
+    "restricted_in": [],
+    "banned_in": [
+      "jade-edict",
+      "emerald"
+    ],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "city"
+    ],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "earth",
+      "void"
+    ],
+    "strength": "3",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "city-of-the-rich-frog",
+        "pack_id": "rokugan-at-war",
+        "flavor": "",
+        "illustrator": "Nele Diel",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C29_6.jpg",
+        "position": "6",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "clarity-of-purpose",
+    "name": "Clarity of Purpose",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, choose a character you control – until the end of that conflict, opponents' card effects cannot bow that character and it does not bow as a result of conflict resolution during [conflict-political] conflicts.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "spell",
+      "water"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 3,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "clarity-of-purpose",
+        "pack_id": "disciples-of-the-void",
+        "flavor": "",
+        "illustrator": "Kevin Zamie Goeke",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C08_23.jpg",
+        "position": "23",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "court-games",
+    "name": "Court Games",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>[conflict-political] Conflict Action:</b> Select one - either choose and honor a participating character you control, or your opponent chooses and dishonors a participating character they control. (Max 1 per conflict.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "court-games",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Shen Fei",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_206.jpg",
+        "position": "206",
+        "quantity": 2,
+        "rotated": true
+      },
+      {
+        "card_id": "court-games",
+        "pack_id": "emerald-core-set",
+        "flavor": "“We play today, so we can meet and play tomorrow.”",
+        "illustrator": "Ana Gabriela David",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs244.jpg",
+        "position": "244",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "display-of-power",
+    "name": "Display of Power",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After you lose an unopposed conflict – cancel the ring effect of that conflict. Then, you resolve that ring effect as if you had won the conflict as the attacking player. Claim that ring.",
+    "restricted_in": [
+      "standard"
+    ],
+    "banned_in": [
+      "jade-edict"
+    ],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "spell",
+      "fire"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": 3,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "display-of-power",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Shen Fei",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_179.jpg",
+        "position": "179",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "emperor-s-summons",
+    "name": "Emperor's Summons",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "<em>Seeker</em> role only.\n<b>Reaction:</b> After this province is revealed - search your dynasty deck for a character card and put it faceup into a non-stronghold province you control, discarding each other card in that province. Shuffle.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "air"
+    ],
+    "strength": "5",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [
+      "seeker"
+    ],
+    "versions": [
+      {
+        "card_id": "emperor-s-summons",
+        "pack_id": "the-children-of-heaven",
+        "flavor": "",
+        "illustrator": "Joyce Maureira",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C22_68.jpg",
+        "position": "68",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "ethereal-dreamer",
+    "name": "Ethereal Dreamer",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After the conflict phase begins, choose a ring – until the end of this phase, this character gets +2[conflict-military] and +2[conflict-political] while that ring is being contested.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "shugenja",
+      "void"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "ethereal-dreamer",
+        "pack_id": "all-and-nothing",
+        "flavor": "",
+        "illustrator": "Christine Mitzuk",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C13_89.jpg",
+        "position": "89",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "feral-ningyo",
+    "name": "Feral Ningyo",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "conflict",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a [element-water] conflict – put this character into play from your hand in the conflict. At the end of the conflict, shuffle it into your conflict deck.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "creature"
+    ],
+    "cost": "3",
+    "deck_limit": 3,
+    "influence_cost": 3,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "3",
+    "political": "2",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "feral-ningyo",
+        "pack_id": "tainted-lands",
+        "flavor": "The sea's embrace is cold and sharp.",
+        "illustrator": "Antonio Jose Manzanedo",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C10_36.jpg",
+        "position": "36",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "forebearer-s-echoes",
+    "name": "Forebearer's Echoes",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Air</b> Role only.\n<b>Action:</b> During a [conflict-military] conflict, choose a character in your dynasty discard pile - put that character into play in the conflict. If that character is still in play at the end of the conflict, put it on the bottom of your dynasty deck.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "spell",
+      "air"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": 1,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [
+      "air"
+    ],
+    "versions": [
+      {
+        "card_id": "forebearer-s-echoes",
+        "pack_id": "bonds-of-blood",
+        "flavor": "",
+        "illustrator": "Pavel Kolomeyets",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C20_39.jpg",
+        "position": "39",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "forgotten-library",
+    "name": "Forgotten Library",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "dynasty",
+    "type": "holding",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After the draw phase begins – draw 1 card.",
+    "restricted_in": [
+      "jade-edict"
+    ],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "library",
+      "shrine"
+    ],
+    "cost": null,
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": "+0",
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "forgotten-library",
+        "pack_id": "core",
+        "flavor": "Truth cannot be lost, only forgotten.",
+        "illustrator": "Lino Drieghe",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_94.jpg",
+        "position": "94",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "fushicho",
+    "name": "Fushichō",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "No attachments.\n<b>Interrupt:</b> When this character leaves play, choose a [clan-phoenix] character in your dynasty pile – put that character into play with 1 fate on it.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "creature",
+      "fire",
+      "mythic",
+      "spirit"
+    ],
+    "cost": "6",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "6",
+    "political": "6",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "fushicho",
+        "pack_id": "disciples-of-the-void",
+        "flavor": "",
+        "illustrator": "IFS",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C08_11.jpg",
+        "position": "11",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "inferno-guard-invoker",
+    "name": "Inferno Guard Invoker",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a [conflict-military] conflict, choose a participating character you control - honor that character. If a province is broken during this conflict, sacrifice that character at the end of the conflict.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "shugenja",
+      "fire"
+    ],
+    "cost": "4",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 4,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "3",
+    "political": "2",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "inferno-guard-invoker",
+        "pack_id": "shoju-s-duty",
+        "flavor": "",
+        "illustrator": "Pavel Kolomeyets",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C24_119.jpg",
+        "position": "119",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "isawa-heiko",
+    "name": "Isawa Heiko",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "<b>Reaction:</b> After you play a <em>Water</em> card, choose a character - switch that character's base [conflict-military] and [conflict-political] skill until the end of the phase.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "shugenja",
+      "water"
+    ],
+    "cost": "4",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 2,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "0",
+    "political": "5",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "isawa-heiko",
+        "pack_id": "justice-for-satsume",
+        "flavor": "\"How can you not find beauty in water's frozen crystal?\"",
+        "illustrator": "Lin Hsiang",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C21_56.jpg",
+        "position": "56",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "isawa-tadaka-2",
+    "name": "Isawa Tadaka",
+    "name_extra": "(2)",
+    "faction": "phoenix",
+    "side": "conflict",
+    "type": "character",
+    "is_unique": true,
+    "text": "[clan-crab] and [clan-phoenix] only.\nDisguised <em>Shugenja</em>.\n<b>Action:</b> During a conflict, remove one or more characters in your dynasty discard pile from the game - look at that many random cards from your opponent's hand. Choose and discard one of those cards.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "phoenix"
+    ],
+    "traits": [
+      "shugenja",
+      "earth",
+      "elemental-master"
+    ],
+    "cost": "5",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": 2,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "5",
+    "political": "3",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "isawa-tadaka-2",
+        "pack_id": "bonds-of-blood",
+        "flavor": "",
+        "illustrator": "Pius Pranoto",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C20_40.jpg",
+        "position": "40",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "isawa-tsuke-2",
+    "name": "Isawa Tsuke",
+    "name_extra": "(2)",
+    "faction": "phoenix",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "Pride.\n<b>Action:</b> During a conflict, if the [element-fire] ring is in the unclaimed ring pool, lose 1 or more honor. Choose an equals number of participating characters - remove 1 fate from each of those characters.",
+    "restricted_in": [
+      "emerald"
+    ],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "shugenja",
+      "fire",
+      "elemental-master"
+    ],
+    "cost": "5",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 3,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "5",
+    "political": "4",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "isawa-tsuke-2",
+        "pack_id": "campaigns-of-conquest",
+        "flavor": "",
+        "illustrator": "Calvin Chua",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C32_80.jpg",
+        "position": "80",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "kakudaira",
+    "name": "Kakudaira",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "province",
+    "type": "province",
+    "is_unique": true,
+    "text": "Eminent. <i>(This province starts the game faceup and cannot be turned facedown. It cannot be a stronghold province.)</i>\nAfter each phase begins, reveal each facedown card in this province.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "city"
+    ],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "air",
+      "void"
+    ],
+    "strength": "5",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "kakudaira",
+        "pack_id": "rokugan-at-war",
+        "flavor": "",
+        "illustrator": "Nele Diel",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C29_5.jpg",
+        "position": "5",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "kudaka",
+    "name": "Kudaka",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "<b>Reaction:</b> After you claim the [element-air] ring – gain 1 fate and draw 1 card. (Limit twice per round.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "shugenja",
+      "air",
+      "mantis-clan"
+    ],
+    "cost": "4",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "3",
+    "political": "4",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "kudaka",
+        "pack_id": "breath-of-the-kami",
+        "flavor": "\"It's tradition, this, just askin' the kami for their aid.\"",
+        "illustrator": "Le Vuong",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C09_13.jpg",
+        "position": "13",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "kuroi-mori",
+    "name": "Kuroi Mori",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "Cannot be a stronghold province.\n<b>Action:</b> During a conflict at this province, select one – switch the contested ring with an unclaimed ring <i>(the conflict retains its type)</i>, or switch the conflict type <i>(the conflict retains its element)</i>.\n<i>Errata from Imperial Law (2020-04-06).</i>",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "void"
+    ],
+    "strength": "4",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "kuroi-mori",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "Oliver Specht",
+        "image_url": "https://images-cdn.fantasyflightgames.com/filer_public/04/36/04363de6-60b2-442c-83c1-185d4c6d5b01/l5c01_kuroi-mori.png",
+        "position": "12",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "kyuden-isawa",
+    "name": "Kyūden Isawa",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "province",
+    "type": "stronghold",
+    "is_unique": true,
+    "text": "<b>Action:</b> During a conflict, bow this stronghold and discard a <em>Spell</em> event from your hand – play a <em>Spell</em> event from your conflict discard pile as if it were in your hand. Remove that event from the game.\n<i>Errata from the Imperial Law (2020-01-06)</i>",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "library",
+      "palace"
+    ],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": 7,
+    "honor": 11,
+    "influence_pool": 10,
+    "strength_bonus": "+1",
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "kyuden-isawa",
+        "pack_id": "disciples-of-the-void",
+        "flavor": "",
+        "illustrator": "Nele Diel",
+        "image_url": "https://images-cdn.fantasyflightgames.com/filer_public/38/17/38175254-627f-43a4-b130-d1700e88856b/l5c01_errata_card_kyuden-isawa.png",
+        "position": "1",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "miya-mystic",
+    "name": "Miya Mystic",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Action:</b> During the conflict phase, sacrifice this character. Choose an attachment – discard that attachment.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "shugenja",
+      "earth",
+      "imperial"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "miya-mystic",
+        "pack_id": "core",
+        "flavor": "\"Most of my family speak to the citizens of the Empire. I speak to the kami of the land itself.\"",
+        "illustrator": "Mike Capprotti",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_125.jpg",
+        "position": "125",
+        "quantity": 3,
+        "rotated": true
+      },
+      {
+        "card_id": "miya-mystic",
+        "pack_id": "emerald-core-set",
+        "flavor": "“The Miya motto speaks truth — there are no Miya heroes, only servants of balance. Today, I serve by returning chaos to order.”",
+        "illustrator": "Rob Smith",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs236.jpg",
+        "position": "236",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "my-ancestor-s-strength",
+    "name": "My Ancestor's Strength",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, choose a participating <em>Shugenja</em> character you control and a character in your dynasty discard pile – until the end of the conflict, set the participating character's base [conflict-military] and [conflict-political] skill equal to the printed [conflict-military] and [conflict-political] skill of the other character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "spell",
+      "water"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "my-ancestor-s-strength",
+        "pack_id": "the-ebb-and-flow",
+        "flavor": "",
+        "illustrator": "Pavel Kolomeyets",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C12_77.jpg",
+        "position": "77",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "pacifism",
+    "name": "Pacifism",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "Peaceful. <i>(This card cannot be played during a conflict.)</i>\n\nAttached character cannot participate in [conflict-military] conflicts.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "condition"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+0",
+    "political_bonus": "+0",
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "pacifism",
+        "pack_id": "core",
+        "flavor": "A peaceful environment leads to a peaceful mind.",
+        "illustrator": "Carlos Palma Cruchaga",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_174.jpg",
+        "position": "174",
+        "quantity": 1,
+        "rotated": true
+      },
+      {
+        "card_id": "pacifism",
+        "pack_id": "emerald-core-set",
+        "flavor": "In Crane courts and Phoenix temples alike, the gentle path is honored above all.",
+        "illustrator": "Brian Ricks",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs148.jpg",
+        "position": "148",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "retire-to-the-brotherhood",
+    "name": "Retire to the Brotherhood",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After this province is revealed - each player discards each character they control with no fate, reveals cards from the top of their dynasty deck until an equal number of characters are revealed, and puts those characters into play. Shuffle.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "water"
+    ],
+    "strength": "4",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "retire-to-the-brotherhood",
+        "pack_id": "spreading-shadows",
+        "flavor": "",
+        "illustrator": "Lukas Banas",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C30_28.jpg",
+        "position": "28",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "seeker-of-air",
+    "name": "Seeker of Air",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "role",
+    "type": "role",
+    "is_unique": false,
+    "text": "You may replace 1 province of any element with an additional [element-air] province while deckbuilding.\n<b>Reaction:</b> After an [element-air] province you control is revealed – gain 1 fate.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "seeker",
+      "air"
+    ],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "seeker-of-air",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "–",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs266.jpg",
+        "position": "214B",
+        "quantity": 1,
+        "rotated": true
+      },
+      {
+        "card_id": "seeker-of-air",
+        "pack_id": "emerald-core-set",
+        "flavor": "",
+        "illustrator": "",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs266.jpg",
+        "position": "266",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "shiba-pureheart",
+    "name": "Shiba Pureheart",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "Rally. <i>(After this card is revealed in a province, add the top card of your dynasty deck to the province, faceup.)</i>\n<b>Reaction:</b> After an opponent declares their second conflict against you this phase, choose a character - honor that character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "bushi",
+      "yojimbo"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 2,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "2",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "shiba-pureheart",
+        "pack_id": "atonement",
+        "flavor": "",
+        "illustrator": "Guillaume Ducos",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C34_123.jpg",
+        "position": "123",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "solemn-scholar",
+    "name": "Solemn Scholar",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Conflict Action:</b> Even from home, if the [element-earth] ring is in your claimed ring pool, choose an attacking character – bow that character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "shugenja",
+      "earth",
+      "scholar"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "solemn-scholar",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Aaron Miller",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_83.jpg",
+        "position": "83",
+        "quantity": 1,
+        "rotated": true
+      },
+      {
+        "card_id": "solemn-scholar",
+        "pack_id": "emerald-core-set",
+        "flavor": "“The Isawa have mastered the elements for a thousand years. I am but one student, yet through me flows the wisdom of countless generations.”",
+        "illustrator": "Thulsa Doom",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs136.jpg",
+        "position": "136",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "supernatural-storm",
+    "name": "Supernatural Storm",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> Choose a participating character – that character gets +X[conflict-military] and +X[conflict-political] until the end of the conflict. X is equal to the number of <em>Shugenja</em> characters you control.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "spell",
+      "water"
+    ],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 1,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "supernatural-storm",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Stephanie Law",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_175.jpg",
+        "position": "175",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "walking-the-way",
+    "name": "Walking the Way",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "If you control a <em>Shugenja</em> character, reduce the cost to play this card by 1.\n<b>Action:</b> Look at the top 3 cards of your dynasty deck. Discard a card from a province you control, and put one of the looked at cards into that province faceup. Shuffle.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "spell",
+      "air"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "walking-the-way",
+        "pack_id": "disciples-of-the-void",
+        "flavor": "",
+        "illustrator": "Oscar Romer",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C08_28.jpg",
+        "position": "28",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "way-of-the-phoenix",
+    "name": "Way of the Phoenix",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> Choose a ring and an opponent – that player cannot declare conflicts of that ring's element this phase. (Max 1 per phase.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "philosophy"
+    ],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "way-of-the-phoenix",
+        "pack_id": "core",
+        "flavor": "Master the elements and be reborn.",
+        "illustrator": "Scott Wade",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_176.jpg",
+        "position": "176",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "young-philosopher",
+    "name": "Young Philosopher",
+    "name_extra": null,
+    "faction": "phoenix",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "phoenix"
+    ],
+    "traits": [
+      "shugenja",
+      "air",
+      "scholar"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 2,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": "4",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "young-philosopher",
+        "pack_id": "the-temptation-of-the-scorpion",
+        "flavor": "\"Does the child not have a right to define the future they wish to see?\"",
+        "illustrator": "Isuardi Therianto",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C39_72.jpg",
+        "position": "72",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  }
+]

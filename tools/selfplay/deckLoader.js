@@ -146,6 +146,19 @@ function loadPhoenixShugenjaDeck() {
     return buildDeck(decklist, cardsById);
 }
 
+// Phoenix "Phoenix" (EmeraldDB 2c127136) — the Fushicho rebirth deck. Zero-fate
+// bodies cycle through the dynasty discard and come back off Fushicho's
+// leaves-play interrupt, Forebearer's Echoes and My Ancestor's Strength.
+function loadPhoenixPhoenixDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'phoenix-phoenix-decklist.json'), 'utf8'));
+    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'phoenix-phoenix-cards.json'), 'utf8'));
+    const cardsById = {};
+    for(const card of cardsArray) {
+        cardsById[card.id] = card;
+    }
+    return buildDeck(decklist, cardsById);
+}
+
 function loadDragonDeck() {
     const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-decklist.json'), 'utf8'));
     const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-cards.json'), 'utf8'));
@@ -176,4 +189,4 @@ function loadCraneDuelDeck() {
     ]));
 }
 
-module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadCraneDeck, loadCrabDeck, loadScorpionDeck, loadLionDeck, loadPhoenixDeck, loadPhoenixShugenjaDeck, loadDragonDeck, loadDragonAttachmentsDeck, loadCraneDuelDeck, FIXTURES };
+module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadCraneDeck, loadCrabDeck, loadScorpionDeck, loadLionDeck, loadPhoenixDeck, loadPhoenixShugenjaDeck, loadPhoenixPhoenixDeck, loadDragonDeck, loadDragonAttachmentsDeck, loadCraneDuelDeck, FIXTURES };

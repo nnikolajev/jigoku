@@ -21,20 +21,15 @@ export interface ShugenjaProfile {
     disguiseTargets: Record<string, number>;
     spellPriority: string[];
     protectedDiscardIds: string[];
+    // Spell events this deck can pay Kyuden Isawa's hand-discard cost with.
+    // Card summaries carry no printed traits, so the Spell keyword has to be
+    // named by id. A deck that runs different spells extends this list.
+    kyudenSpellIds: string[];
+    // Printed fate cost of each spell that is worth REPLAYING out of the
+    // conflict discard. Membership is the gate: a spell absent from this map is
+    // never chosen as Kyuden's replay target.
+    kyudenActionCosts: Record<string, number>;
 }
-
-const KYUDEN_SPELL_IDS = new Set([
-    'against-the-waves', 'clarity-of-purpose', 'consumed-by-five-fires',
-    'display-of-power', 'earth-becomes-sky', 'oracle-of-stone', 'supernatural-storm'
-]);
-
-const KYUDEN_ACTION_COSTS: Record<string, number> = {
-    'against-the-waves': 1,
-    'clarity-of-purpose': 1,
-    'consumed-by-five-fires': 5,
-    'oracle-of-stone': 0,
-    'supernatural-storm': 0
-};
 
 // Card summaries intentionally omit printed cost. These values keep Oracle,
 // Kyuden's discard cost, Tadaka, and forced Ujina fallbacks deterministic and
@@ -108,7 +103,18 @@ export const SHUGENJA_DEFAULTS: ShugenjaProfile = {
     ],
     // Kyuden Isawa must discard a spell from hand as its cost. Keep the two
     // build-arounds and the fate payoff when a lower-value spell is available.
-    protectedDiscardIds: ['display-of-power', 'consumed-by-five-fires', 'the-path-of-man', 'isawa-tadaka-2']
+    protectedDiscardIds: ['display-of-power', 'consumed-by-five-fires', 'the-path-of-man', 'isawa-tadaka-2'],
+    kyudenSpellIds: [
+        'against-the-waves', 'clarity-of-purpose', 'consumed-by-five-fires',
+        'display-of-power', 'earth-becomes-sky', 'oracle-of-stone', 'supernatural-storm'
+    ],
+    kyudenActionCosts: {
+        'against-the-waves': 1,
+        'clarity-of-purpose': 1,
+        'consumed-by-five-fires': 5,
+        'oracle-of-stone': 0,
+        'supernatural-storm': 0
+    }
 };
 
 export class ShugenjaTactics {
@@ -369,13 +375,13 @@ export class ShugenjaTactics {
         const fate = Number(playCtx?.fate) || 0;
         const sharedPlayIntent = playCtx?.canPlayConflictCard;
         return this.pickSpell((cards || []).filter((card) => {
-            if(!card || card.type !== 'event' || KYUDEN_ACTION_COSTS[card.id] === undefined) {
+            if(!card || card.type !== 'event' || this.profile.kyudenActionCosts[card.id] === undefined) {
                 return false;
             }
             const hintedCost = card.uuid && playCtx?.conflictCosts &&
                 Object.prototype.hasOwnProperty.call(playCtx.conflictCosts, card.uuid)
                 ? Number(playCtx.conflictCosts[card.uuid])
-                : KYUDEN_ACTION_COSTS[card.id];
+                : this.profile.kyudenActionCosts[card.id];
             return fate >= hintedCost &&
                 (typeof sharedPlayIntent !== 'function' || sharedPlayIntent(card));
         }));
@@ -441,7 +447,7 @@ export class ShugenjaTactics {
         const discard = playCtx?.conflictDiscard || [];
         // Public bot state deliberately omits printed traits/costs, so identify
         // this deck's Spell events by stable card id.
-        if(!hand.some((card: any) => card.type === 'event' && KYUDEN_SPELL_IDS.has(card.id))) {
+        if(!hand.some((card: any) => card.type === 'event' && this.profile.kyudenSpellIds.includes(card.id))) {
             return false;
         }
         return !!this.pickKyudenSpell(discard, playCtx);
@@ -479,7 +485,7 @@ export class ShugenjaTactics {
             .some((card: any) => card.id === 'consumed-by-five-fires');
         const readyKyuden = (me?.strongholdProvince || [])
             .some((card: any) => card.id === 'kyuden-isawa' && !card.bowed);
-        const hasSpellCost = hand.some((card: any) => card.type === 'event' && KYUDEN_SPELL_IDS.has(card.id));
+        const hasSpellCost = hand.some((card: any) => card.type === 'event' && this.profile.kyudenSpellIds.includes(card.id));
         const fiveFiresReserve = discardHasFires && readyKyuden && hasSpellCost ? 5 : 1;
         return Math.max(tadakaReserve, fiveFiresReserve);
     }

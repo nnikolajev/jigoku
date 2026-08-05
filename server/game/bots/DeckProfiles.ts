@@ -50,6 +50,8 @@ import {
 import type { DrawBidProfile, LegacyDrawBidProfile } from './DrawBidTactics';
 import { SHUGENJA_DEFAULTS } from './ShugenjaTactics.js';
 import type { ShugenjaProfile } from './ShugenjaTactics';
+import { REBIRTH_DEFAULTS } from './RebirthTactics.js';
+import type { RebirthProfile } from './RebirthTactics';
 import { DRAGON_ATTACHMENT_DEFAULTS } from './DragonAttachmentTactics.js';
 import type { DragonAttachmentProfile } from './DragonAttachmentTactics';
 import { STRONGHOLD_DEFENSE_DEFAULTS } from './StrongholdDefenseTactics.js';
@@ -300,6 +302,14 @@ export interface DeckProfile {
     // Display-of-Power province trades, spell recursion, and practical-tower
     // targets without changing the older Phoenix glory deck.
     shugenja?: ShugenjaProfile;
+
+    // ---- Fushicho rotation playstyle (Phoenix "Phoenix") ----
+    // Present only for decks whose strategy derives `rebirth`. It layers the
+    // zero-fate body rotation and dynasty-discard recursion on top of the
+    // Kyuden Isawa spell package, which the same deck also runs — every
+    // rebirth branch in the policy is gated on this being present, so the
+    // older Phoenix Shugenja list is untouched. Knobs in RebirthTactics.
+    rebirth?: RebirthProfile;
 
     // ---- Dragon attachment-tower playstyle (Iron Mountain Castle) ----
     // Deep-fate tower buying, a three-slot Restricted cap, attachment search,
@@ -621,6 +631,51 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         };
         profile.omniscientAttackResponseBuffer = 1;
     }
+    if(strategy.rebirth) {
+        // Applied AFTER the shugenja overlay above, because the Fushicho deck
+        // runs Kyuden Isawa too and needs the spell package with different
+        // economics on top: no fate banked on bodies, and no Tadaka tower to
+        // save up for.
+        profile.rebirth = {
+            ...REBIRTH_DEFAULTS,
+            recursionValueById: { ...REBIRTH_DEFAULTS.recursionValueById },
+            phoenixCharacterIds: [...REBIRTH_DEFAULTS.phoenixCharacterIds],
+            uniqueCharacterIds: [...REBIRTH_DEFAULTS.uniqueCharacterIds],
+            persistentCharacterIds: [...REBIRTH_DEFAULTS.persistentCharacterIds],
+            ringPayoffsByElement: { ...REBIRTH_DEFAULTS.ringPayoffsByElement },
+            ringHandPayoffsByElement: { ...REBIRTH_DEFAULTS.ringHandPayoffsByElement },
+            unclaimedGuardsByElement: { ...REBIRTH_DEFAULTS.unclaimedGuardsByElement },
+            printedSkillsById: { ...REBIRTH_DEFAULTS.printedSkillsById },
+            bentenBowPriority: [...REBIRTH_DEFAULTS.bentenBowPriority],
+            searchValueById: { ...REBIRTH_DEFAULTS.searchValueById }
+        };
+        // Every body is meant to die at the end of the round, so banking fate on
+        // one is the opposite of the plan; the rotation wants the fate spent on
+        // the NEXT body instead. `preferDeckAdditionalFate` keeps the shared
+        // economy asking the deck tactics for the amount, which RebirthTactics
+        // answers with zero.
+        profile.fateAwareEconomy = {
+            ...profile.fateAwareEconomy,
+            preferDeckCharacters: true,
+            preferDeckAdditionalFate: true,
+            // The default passes the window after one 4+ cost purchase, which
+            // suits a deck saving up for a tower. This one has no tower: every
+            // spare fate should become another zero-fate body, because a body
+            // that reaches the discard is worth as much there as in play.
+            passAfterDurable: false,
+            // Fushicho's printed 6 must fit inside the early-round durable cap.
+            durableSpendCapEarly: 9,
+            // Nothing is ever decorated with fate, so the additional-fate caps
+            // only exist to bound what RebirthTactics asks for (zero).
+            durableAdditionalFateEarly: 0,
+            durableAdditionalFateLate: 0,
+            bodyAdditionalFateForCostThree: 0
+        };
+        // The engine burns through the dynasty deck rather than the conflict
+        // deck, and Kyuden Isawa/Forebearer's Echoes both replay from discards,
+        // so raw card volume is worth less here than honor is.
+        profile.drawBidding = { ...CARD_ENGINE_DRAW_BID_PROFILE };
+    }
     if(strategy.attachmentTower) {
         profile.attachmentTower = {
             ...DRAGON_ATTACHMENT_DEFAULTS,
@@ -777,6 +832,127 @@ const OVERRIDES: ProfileOverride[] = [
                     'isawa-ujina',
                     'shiba-tsukune'
                 ],
+                endHoldingLimit: { weak: 1, developing: 2, strong: 2 }
+            }
+        }
+    },
+    {
+        // Phoenix "Phoenix" (EmeraldDB 7b7f54b8): the Fushicho rotation. It runs
+        // Kyuden Isawa too, so the shugenja overlay above already applied and
+        // this retunes it for a deck whose bodies are meant to die:
+        //
+        //  * Retire to the Brotherhood goes under the stronghold. It is the one
+        //    province here that is both legal there (Kakudaira, City of the Rich
+        //    Frog and Kuroi Mori all forbid it) and a genuine punisher: its
+        //    on-reveal wipes every FATELESS character on both boards. Ours are
+        //    fateless on purpose and are replaced free from the top of the deck;
+        //    the opponent's final all-in is usually paid for and is not.
+        //  * The Tadaka disguise reserve is dropped to nothing. Banking two or
+        //    three fate on a base contradicts the rotation, and the shared
+        //    economy asks the deck tactics for the number.
+        //  * Shugenja ring steering is switched off (`ringCardBonus: 0`) so the
+        //    element preference has exactly one owner, RebirthTactics.ringBonus.
+        //    The ring lists stay populated because `immediateRingScore` — which
+        //    gates Display of Power — reads them through a different knob.
+        name: 'phoenix-phoenix-fushicho-rotation',
+        match: (ids, strategy) => strategy.rebirth && ids.has('retire-to-the-brotherhood'),
+        apply: {
+            strongholdProvinceId: 'retire-to-the-brotherhood',
+            // Bodies rotate every round, so there is never a tower to preserve
+            // and holding one back only shrinks the attack. Keep one home
+            // defender; the recursion refills the board next round anyway.
+            attackCommitment: 'all-but-one',
+            attackKeepHome: 1,
+            // MEASURED, and the opposite of what every other deck here wants.
+            // `prevent-break` bows bodies to save a province; this deck would
+            // rather keep them ready, because its bodies are disposable and its
+            // only route back into a game is winning conflicts of its own.
+            //
+            // +3.93pp over 1437 games (20.86% -> 24.79%), positive on BOTH
+            // independent base sets (+2.50pp on 91001-96001, +5.35pp on
+            // 120001-125001), z=1.78. It concedes more unopposed conflicts and
+            // therefore bleeds MORE honor — dishonor is 18.4% of its losses —
+            // and still wins, because the conquest gain is larger.
+            defenseCommitment: 'win-only',
+            spendCardsOnDefense: true,
+            // `chumpBlock` is deliberately absent: it lives on the prevent-break
+            // path, so under win-only it measured bit-identical (718 games).
+            // Same for `attackCommitment: 'breakable-or-pressure'`,
+            // `attackKeepHome: 2` and `preventBreakAfterBrokenProvinces: 2`.
+            boardAwareDynasty: {
+                // The generic catch-up planner decorates its pick with
+                // persistence (extra fate), which is exactly what the rotation
+                // does not want.
+                persistenceDecoratorEnabled: false,
+                fullPlannerAtUrgent: false,
+                secondPlayerDeficitPlanner: false
+            },
+            shugenja: {
+                ...SHUGENJA_DEFAULTS,
+                ringCardBonus: 0,
+                towerIds: ['fushicho', 'isawa-tsuke-2', 'asako-azunami', 'isawa-tadaka-2', 'kudaka'],
+                shugenjaIds: [
+                    'asako-azunami', 'ethereal-dreamer', 'inferno-guard-invoker',
+                    'isawa-heiko', 'isawa-tadaka-2', 'isawa-tsuke-2', 'kudaka',
+                    'miya-mystic', 'solemn-scholar', 'young-philosopher'
+                ],
+                waterIds: ['asako-azunami', 'feral-ningyo'],
+                airIds: ['kudaka'],
+                voidIds: [],
+                // Only these two remain legal Disguise bases here (non-unique
+                // Shugenja). Adept/Prodigy of the Waves are not in this list.
+                disguiseTargets: {
+                    'young-philosopher': 2,
+                    'ethereal-dreamer': 1,
+                    'solemn-scholar': 1,
+                    'miya-mystic': 2,
+                    'inferno-guard-invoker': 4
+                },
+                spellPriority: [
+                    'display-of-power', 'forebearer-s-echoes', 'my-ancestor-s-strength',
+                    'walking-the-way', 'clarity-of-purpose', 'against-the-waves',
+                    'supernatural-storm', 'benten-s-touch', 'assassination', 'banzai'
+                ],
+                // Kyuden's cost is a Spell discarded from HAND. Protect the two
+                // recursion engines and the province trade; everything else is
+                // cheap enough to throw.
+                protectedDiscardIds: [
+                    'display-of-power', 'forebearer-s-echoes', 'my-ancestor-s-strength'
+                ],
+                kyudenSpellIds: [
+                    'against-the-waves', 'benten-s-touch', 'clarity-of-purpose',
+                    'display-of-power', 'forebearer-s-echoes', 'my-ancestor-s-strength',
+                    'supernatural-storm', 'walking-the-way'
+                ],
+                // Replay targets out of the conflict discard, priced at printed
+                // cost. Walking the Way is absent on purpose: replaying a
+                // province dig mid-conflict wins nothing.
+                kyudenActionCosts: {
+                    'against-the-waves': 1,
+                    'benten-s-touch': 0,
+                    'clarity-of-purpose': 1,
+                    'forebearer-s-echoes': 2,
+                    'my-ancestor-s-strength': 1,
+                    'supernatural-storm': 0
+                }
+            },
+            mulligan: {
+                openingHoldingLimit: 1,
+                openingKeepHoldingIds: ['forgotten-library', 'ancestral-shrine'],
+                keepHoldingIds: ['forgotten-library', 'ancestral-shrine'],
+                openingKeepConflictIds: [
+                    'forebearer-s-echoes', 'my-ancestor-s-strength',
+                    'walking-the-way', 'display-of-power'
+                ],
+                preferredCharacterIds: [
+                    'fushicho',
+                    'isawa-tsuke-2',
+                    'asako-azunami',
+                    'inferno-guard-invoker',
+                    'kudaka',
+                    'isawa-heiko'
+                ],
+                keepDynastyCardIds: ['a-season-of-war'],
                 endHoldingLimit: { weak: 1, developing: 2, strong: 2 }
             }
         }
@@ -1373,6 +1549,34 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
             }
             if(override.apply.personalHonor) {
                 apply.personalHonor = { ...override.apply.personalHonor };
+            }
+            if(override.apply.shugenja) {
+                apply.shugenja = {
+                    ...override.apply.shugenja,
+                    towerIds: [...override.apply.shugenja.towerIds],
+                    shugenjaIds: [...override.apply.shugenja.shugenjaIds],
+                    waterIds: [...override.apply.shugenja.waterIds],
+                    airIds: [...override.apply.shugenja.airIds],
+                    voidIds: [...override.apply.shugenja.voidIds],
+                    disguiseTargets: { ...override.apply.shugenja.disguiseTargets },
+                    spellPriority: [...override.apply.shugenja.spellPriority],
+                    protectedDiscardIds: [...override.apply.shugenja.protectedDiscardIds]
+                };
+            }
+            if(override.apply.rebirth) {
+                apply.rebirth = {
+                    ...override.apply.rebirth,
+                    recursionValueById: { ...override.apply.rebirth.recursionValueById },
+                    phoenixCharacterIds: [...override.apply.rebirth.phoenixCharacterIds],
+                    uniqueCharacterIds: [...override.apply.rebirth.uniqueCharacterIds],
+                    persistentCharacterIds: [...override.apply.rebirth.persistentCharacterIds],
+                    ringPayoffsByElement: { ...override.apply.rebirth.ringPayoffsByElement },
+                    ringHandPayoffsByElement: { ...override.apply.rebirth.ringHandPayoffsByElement },
+                    unclaimedGuardsByElement: { ...override.apply.rebirth.unclaimedGuardsByElement },
+                    printedSkillsById: { ...override.apply.rebirth.printedSkillsById },
+                    bentenBowPriority: [...override.apply.rebirth.bentenBowPriority],
+                    searchValueById: { ...override.apply.rebirth.searchValueById }
+                };
             }
             if(override.apply.craneBaseline) {
                 apply.craneBaseline = {

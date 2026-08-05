@@ -24,6 +24,87 @@ npm run typecheck
 npm test
 ```
 
+## Measuring a bot change
+
+The rig for "is the changed bot better?". Full method and the traps behind each
+rule: `.claude/skills/roundrobin/SKILL.md` — load it before running or reading
+any bot win-rate comparison. These scripts are configured by ENVIRONMENT
+VARIABLE, not flags, and inject the change as a V2 profile on one seat while
+both seats run V2 pass-through (= V1 logic), so an arm is a JSON string and
+never a source edit.
+
+Run `npx tsc` (not `--noEmit`) first. The harness runs compiled JS, so an
+uncompiled edit makes both arms measure the same stale build.
+
+```powershell
+# 0. a refactor that should change nothing: hashes must match
+node tools/selfplay/refactorIdentity.js > before.txt
+node tools/selfplay/refactorIdentity.js > after.txt
+
+# 1. ceiling: how often does the change decide a game at all? (180 games)
+$env:CHANGE='{"deckProfile":{"someKnob":1}}'; node tools/selfplay/measureDecisiveness.js
+
+# 1b. what the bot did, and which scope wants the lever
+$env:KINDS='defense-size'; $env:BASES='91001,92001'; $env:OUT='probe.json'
+node tools/selfplay/probePaired.js
+node tools/selfplay/crossTabFlips.js probe.json readyCount marginalSkill
+
+# 2. null arm (REQUIRED): the knob at its own default must score exactly 50.00%
+$env:LABEL='null'; $env:CHANGE='{"deckProfile":{"someKnob":0}}'
+node tools/selfplay/parallelHeadToHead.js
+
+# 3. head-to-head: 3 bases to reject a lever, 6+ to accept one
+$env:LABEL='change'; $env:CHANGE='{"deckProfile":{"someKnob":1}}'
+$env:BASES='91001,92001,93001'; node tools/selfplay/parallelHeadToHead.js
+```
+
+```text
+parallelHeadToHead.js   CHANGE CONTROL BASES GPB WORKERS LABEL OUT
+headToHeadRoundRobin.js CHANGE BASES GPB LABEL          (serial reference impl)
+measureDecisiveness.js  CHANGE BASE LABEL
+probePaired.js          CHANGE BASES KINDS ARMS SEAT WORKERS OUT
+refactorIdentity.js     BASE ENGINE
+crossTabFlips.js        <probe.json> <field> [field ...]      (argv, not env)
+analyze{AxisChoice,DefenseTie,AttackSize}.js  <probe.json>    (argv, not env)
+```
+
+Rules that are not optional:
+
+- **Read the TOTAL, never the per-deck rows.** A validated null arm still swings
+  ±28pp per deck at exactly 0.00pp overall; a deck row is deck strength.
+- `parallelHeadToHead.js` shards the identical experiment across workers — 540
+  games in ~3.3 minutes instead of ~50 — and the sharding cannot change which
+  games are played, so the null arm still reads exactly 50.00%. Leave cores free
+  (`WORKERS` defaults to `cores - 4`); the harness wall-clock backstop turns
+  oversubscribed slow games into `timeout` non-results.
+- `probePaired.js` treats ONE seat and does not cancel a seat/first-player
+  interaction. Run `SEAT=0` and `SEAT=1`; one seat over-read a real lever by
+  1.3pp. Its win-rate number is a hypothesis about size, not the answer — but it
+  is the only rig that gives a causal PER-DECK number.
+- `seed` selects the V1 policy class, not the shuffle. The shuffle is `base`.
+- Base SETS differ by more than the noise floor within a set. Pool them; never
+  pick one.
+
+Telemetry kinds for `KINDS=` are `axis-choice` (`ConflictDeclarationPolicy`),
+`defense-size` (`DefenseCommitmentPolicy`), and `attack-size`
+(`JigokuBotPolicy` attacker allocation). Empty keeps all, which is thousands of
+events per game. `analyzeAttackSize.js` exists to prove a mechanism is REACHED
+rather than merely enabled — two mechanisms here are inert for V1 with passing
+specs.
+
+## Card evaluation lab
+
+```powershell
+node tools/selfplay/cardLab.js <scenario.js> [repeats]
+```
+
+Fixes a board, varies one thing, and replays the same situation many times, with
+both seats driven by the real bot so abilities fire through the bot's own logic
+instead of being scripted. Answers "how much is THIS card worth", which full
+self-play cannot because a card seen in a fifth of games is buried under shuffle
+noise. A scenario module exports `{ name, phase, rounds, player1, player2,
+variants, seats, measure }`; `variants` deep-merge over the base board.
+
 ## Standard benchmarks
 
 ```powershell
@@ -165,11 +246,36 @@ node tools/selfplay/auditConflictBehavior.js --games 10 --seed 3
 Use `--help` where supported for the full option list. Generated diagnostics
 belong under `tools/selfplay/out/`.
 
+## One deck against the fixed field
+
+`deckFieldWinRate.js` measures a SINGLE deck's strength against the other ten,
+held fixed. It exists because `headToHeadRoundRobin.js` compares a changed bot
+to an unchanged one — there is no unchanged counterpart for a new deck — and a
+field round robin that moves every seat is zero-sum. The number is NOT centred
+on 50%.
+
+```powershell
+$env:SUBJECT="PhoenixPhoenix"; $env:BASES="91001,92001,93001"; $env:GPB="3"
+node tools/selfplay/deckFieldWinRate.js
+```
+
+`SUBJECT_PROFILE` injects a V2 pass-through profile into the subject seat only,
+so a deck-tuning arm is a JSON string rather than an edit:
+
+```powershell
+$env:SUBJECT_PROFILE='{"deckProfile":{"rebirth":{"zeroFateAdditionalFate":1}}}'
+node tools/selfplay/deckFieldWinRate.js
+```
+
+Every rule from `.claude/skills/roundrobin/SKILL.md` still applies: validate the
+rig with an arm injected at its own default, use several independent bases, and
+read the TOTAL rather than the per-opponent rows.
+
 ## Focused deck matches
 
 `matchCraneDuel.js`, `matchDragon.js`, `matchLion.js`,
-`matchPhoenix.js`, `matchPhoenixShugenja.js`, `matchScorpion.js`, and
-`matchUnicorn.js` use:
+`matchPhoenix.js`, `matchPhoenixShugenja.js`, `matchPhoenixPhoenix.js`,
+`matchScorpion.js`, and `matchUnicorn.js` use:
 
 ```text
 node tools/selfplay/<script>.js [games] [challengerSeed] [--trace]
@@ -188,5 +294,14 @@ node tools/selfplay/matchPhoenixShugenja.js 40 3 --trace
 - `deckRegistry.js` owns registered deck labels.
 - `standardBenchmark.js` validates and writes standard client results.
 - `interactionAudit.js` implements click-cycle detection.
-- `_deckWorker.js` and `_roundRobinWorker.js` are child workers; invoke
-  their parent commands instead.
+- `harness.js` also honours `options.maxGameMs`, else `HARNESS_MAX_GAME_MS`,
+  else 90000, as a wall-clock per-game backstop. It fires on games that are
+  merely SLOW, so parallel callers must raise it; the parallel rigs default it
+  to 180000.
+- `_deckWorker.js`, `_roundRobinWorker.js`, `_seedRoundRobinWorker.js`,
+  `_omniscientRoundRobinWorker.js`, `_cardUsageWorker.js`, `_h2hWorker.js`, and
+  `_probeWorker.js` are child workers; invoke their parent commands instead.
+  `_h2hWorker.js` and `_probeWorker.js` return their payload on a single
+  `@@RESULT@@`-prefixed stdout line because loop-guard logs share stdout.
+- `server/game/bots/BotTelemetry.ts` is the decision sink the probe attaches to:
+  static, opt-in, and free when detached.

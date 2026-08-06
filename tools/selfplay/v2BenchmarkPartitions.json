@@ -26,6 +26,10 @@
       "swarm",
       "ready"
     ],
+    "LionDuelist": [
+      "honor-switch",
+      "duel"
+    ],
     "Phoenix": [
       "glory",
       "control"
@@ -42,9 +46,17 @@
       "dishonor",
       "control"
     ],
+    "ScorpionBidWar": [
+      "bid-war",
+      "honor-dial"
+    ],
     "Unicorn": [
       "movement",
       "tempo"
+    ],
+    "UnicornReveal": [
+      "province-reveal",
+      "fate-economy"
     ]
   },
   "training": {
@@ -56,11 +68,14 @@
       "Dragon",
       "DragonAttachments",
       "Lion",
+      "LionDuelist",
       "Phoenix",
       "PhoenixPhoenix",
       "PhoenixShugenja",
       "Scorpion",
-      "Unicorn"
+      "ScorpionBidWar",
+      "Unicorn",
+      "UnicornReveal"
     ],
     "matchups": "all-pairs",
     "rngSeeds": [
@@ -87,11 +102,14 @@
       "Dragon",
       "DragonAttachments",
       "Lion",
+      "LionDuelist",
       "Phoenix",
       "PhoenixPhoenix",
       "PhoenixShugenja",
       "Scorpion",
-      "Unicorn"
+      "ScorpionBidWar",
+      "Unicorn",
+      "UnicornReveal"
     ],
     "matchups": "all-pairs",
     "rngSeeds": [

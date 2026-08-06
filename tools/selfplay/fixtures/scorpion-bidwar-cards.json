@@ -1,0 +1,2010 @@
+[
+  {
+    "id": "a-season-of-war",
+    "name": "A Season of War",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "dynasty",
+    "type": "event",
+    "is_unique": false,
+    "text": "Rally. <i>(After this card is revealed in a province, add the top card of your dynasty deck to the province, faceup.)</i>\n<b>Action:</b> Discard each card in each province, refilling each province faceup. End the dynasty phase. Then there is an additional dynasty phase, during which players do not collect fate.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "a-season-of-war",
+        "pack_id": "rokugan-at-war",
+        "flavor": "",
+        "illustrator": "Lin Hsiang",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C29_14.jpg",
+        "position": "14",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "acclaimed-geisha-house",
+    "name": "Acclaimed Geisha House",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "holding",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, dishonor a <i>(friendly)</i> participating character and choose an unclaimed ring - switch the contested ring with the chosen ring. <i>(The conflict retains its type.)</i>",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": "+1",
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "acclaimed-geisha-house",
+        "pack_id": "clan-war",
+        "flavor": "",
+        "illustrator": "Ruwen Liu",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C28_54.jpg",
+        "position": "54",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "alibi-artist",
+    "name": "Alibi Artist",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Action:</b> If you have 6 or fewer honor – look at the top 2 cards of your conflict deck. Put 1 of those cards into your hand and the other on the bottom of your conflict deck.",
+    "restricted_in": [
+      "jade-edict"
+    ],
+    "banned_in": [
+      "skirmish"
+    ],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "courtier",
+      "shinobi"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": "2",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "alibi-artist",
+        "pack_id": "underhand-of-the-emperor",
+        "flavor": "\"No, noble Kitsuki-sama. I was having tea with the daimyō’s son at that time.\"",
+        "illustrator": "Jake Murray",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C15_4.jpg",
+        "position": "4",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "assassination",
+    "name": "Assassination",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Conflict Action:</b> Lose 3 honor. Choose a character with printed cost 2 or lower – discard that character. (Max 1 per round.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "assassination",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Greg Lambrakis",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_203.jpg",
+        "position": "203",
+        "quantity": 2,
+        "rotated": true
+      },
+      {
+        "card_id": "assassination",
+        "pack_id": "emerald-core-set",
+        "flavor": "Steel whispered through silk and flesh. In the morning, they would find the body and speak of shadows and dishonor — but tonight, the deed was done.",
+        "illustrator": "Valentine",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs242.jpg",
+        "position": "242",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "banzai",
+    "name": "Banzai!",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, choose a participating character – that character gets +2[conflict-military] until the end of the conflict. You may lose 1 honor to resolve this ability twice. (Max 1 per conflict.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "banzai",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "Troy Graham",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_204.jpg",
+        "position": "204",
+        "quantity": 2,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "bayushi-kachiko",
+    "name": "Bayushi Kachiko",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "conflict",
+    "type": "character",
+    "is_unique": true,
+    "text": "<b>Action:</b> While this character is participating in a [conflict-political] conflict, choose a participating character with lower [conflict-political] than this character – move the chosen character home. Then, you may bow it.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "courtier",
+      "imperial"
+    ],
+    "cost": "5",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 3,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "3",
+    "political": "6",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "bayushi-kachiko",
+        "pack_id": "into-the-forbidden-city",
+        "flavor": "\"Which of us would bid this game to end? We are nearly perfectly matched, but there can be only one victor.\"",
+        "illustrator": "Polar Engine",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C04_56.jpg",
+        "position": "56",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "bayushi-kachiko-2",
+    "name": "Bayushi Kachiko",
+    "name_extra": "(2)",
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "During [conflict-political] conflicts in which this character is participating, you may play each event in your opponent's discard pile as if it were in your hand. After you play a card in this way, remove if from the game. You cannot play more than 3 cards per round this way.",
+    "restricted_in": [
+      "standard"
+    ],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "courtier",
+      "imperial"
+    ],
+    "cost": "5",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 3,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "3",
+    "political": "6",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "bayushi-kachiko-2",
+        "pack_id": "atonement",
+        "flavor": "",
+        "illustrator": "Drazenka Kimpel",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C34_124.jpg",
+        "position": "124",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "bayushi-manipulator",
+    "name": "Bayushi Manipulator",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After honor dials are revealed – increase the value of your bid by 1.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "courtier"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "bayushi-manipulator",
+        "pack_id": "core",
+        "flavor": "\"Victory does not always go to the strongest of two opponents.\" - Bayushi's Lies",
+        "illustrator": "Polar Engine",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_96.jpg",
+        "position": "96",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "beautiful-entertainer",
+    "name": "Beautiful Entertainer",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "Rally. <i>(After this card is revealed in a province, add the top card of your dynasty deck to the province, faceup.)</i>\n<b>Interrupt:</b> When this character leaves play, if you are less honorable than an opponent - gain 2 honor.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "geisha"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "0",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "beautiful-entertainer",
+        "pack_id": "as-honor-demands",
+        "flavor": "",
+        "illustrator": "Drazenka Kimpel",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C33_104.jpg",
+        "position": "104",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "blackmail-artist",
+    "name": "Blackmail Artist",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After this character wins a [conflict-political] conflict – take 1 honor from your opponent.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "courtier"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "2",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "blackmail-artist",
+        "pack_id": "core",
+        "flavor": "\"The real art lies in convincing your mark that you are bound, by duty and honor, to expose him. At which point, buying you off becomes his idea.\"",
+        "illustrator": "Erich Schreiner",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_98.jpg",
+        "position": "98",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "calling-in-favors",
+    "name": "Calling in Favors",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> Dishonor a <i>(friendly)</i> character. Choose an opponent's attachment – take control of that attachment and attach it to that character, if able. Otherwise, discard the attachment.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "calling-in-favors",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Carlos Palma Cruchaga",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_186.jpg",
+        "position": "186",
+        "quantity": 1,
+        "rotated": true
+      },
+      {
+        "card_id": "calling-in-favors",
+        "pack_id": "emerald-core-set",
+        "flavor": "“A secret kept is a debt forever unpaid, Kakita-sama.”",
+        "illustrator": "Steve Argyle",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs172.jpg",
+        "position": "172",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "censure",
+    "name": "Censure",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "Play only if you have the Imperial Favor.\n<b>Interrupt:</b> When the effects of an event would initiate – cancel those effects.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "imperial"
+    ],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "censure",
+        "pack_id": "into-the-forbidden-city",
+        "flavor": "\"I bring word from the Imperial Chancellor.\"",
+        "illustrator": "Ancor Gil Hernandez",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C04_60.jpg",
+        "position": "60",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "court-games",
+    "name": "Court Games",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>[conflict-political] Conflict Action:</b> Select one - either choose and honor a participating character you control, or your opponent chooses and dishonors a participating character they control. (Max 1 per conflict.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "court-games",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Shen Fei",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_206.jpg",
+        "position": "206",
+        "quantity": 2,
+        "rotated": true
+      },
+      {
+        "card_id": "court-games",
+        "pack_id": "emerald-core-set",
+        "flavor": "“We play today, so we can meet and play tomorrow.”",
+        "illustrator": "Ana Gabriela David",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs244.jpg",
+        "position": "244",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "court-mask",
+    "name": "Court Mask",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "Attach to a character you control.\n<b>Action:</b> Return this attachment to your hand and dishonor attached character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "item",
+      "mask"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 1,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+1",
+    "political_bonus": "+2",
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "court-mask",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "Diego Gisbert Llorens",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_182.jpg",
+        "position": "182",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "court-novice",
+    "name": "Court Novice",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "This character gets +2[conflict-political] while you have claimed the [element-air] or [element-water] ring.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "courtier"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "court-novice",
+        "pack_id": "tainted-lands",
+        "flavor": "\"Each detail you reveal is another tool your opponent will use against you.\" – Sensei Nagori",
+        "illustrator": "Felipe Gaona",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C10_29.jpg",
+        "position": "29",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "cursecatcher",
+    "name": "Cursecatcher",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<em>Seeker</em> role only.\n<b>Interrupt:</b> When the effects of a province's triggered ability would initiate, if that province has any facedown cards in it - cancel those effects.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "shugenja",
+      "air"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "2",
+    "political": "2",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [
+      "seeker"
+    ],
+    "versions": [
+      {
+        "card_id": "cursecatcher",
+        "pack_id": "in-pursuit-of-truth",
+        "flavor": "\"If you leave now, I cannot protect you.\"",
+        "illustrator": "Le Vuong",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C31_59.jpg",
+        "position": "59",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "dispatch-to-nowhere",
+    "name": "Dispatch to Nowhere",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> Choose a character with no fate - discard that character.",
+    "restricted_in": [
+      "emerald"
+    ],
+    "banned_in": [
+      "jade-edict"
+    ],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "dispatch-to-nowhere",
+        "pack_id": "spreading-shadows",
+        "flavor": "\"Your loyalty has been recognized, and you may take up your new assignment in Kinbō Province at once.\" – Soshi Shiori",
+        "illustrator": "Leanna Crossan",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C30_38.jpg",
+        "position": "38",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "duty",
+    "name": "Duty",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "Limit 1 per deck.\n<b>Interrupt:</b> When the effect of a card ability, ring effect, or framework step would cause you to lose your last honor – cancel that effect, then gain 1 honor.",
+    "restricted_in": [
+      "standard"
+    ],
+    "banned_in": [
+      "jade-edict",
+      "obsidian"
+    ],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "philosophy"
+    ],
+    "cost": "0",
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "duty",
+        "pack_id": "underhand-of-the-emperor",
+        "flavor": "\"I will be your villain, Hantei.\" - Bayushi",
+        "illustrator": "B.D. Judkins",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C15_22.jpg",
+        "position": "22",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "effective-deception",
+    "name": "Effective Deception",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "<b>Interrupt:</b> When the effects of a triggered ability would initiate during a conflict at this province - cancel those effects.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "earth"
+    ],
+    "strength": "4",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "effective-deception",
+        "pack_id": "justice-for-satsume",
+        "flavor": "If would only be a matter of time before Kuwanan came searching for his sister's seal. It was Sadako's duty that he find it.",
+        "illustrator": "Pavel Kolomeyets",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C21_46.jpg",
+        "position": "46",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "elegant-tessen",
+    "name": "Elegant Tessen",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "Restricted. <i>(No more than two restricted attachments per character.)</i>\n<b>Reaction:</b> After this attachments enters play, if it is on a character with printed cost 2 or less - ready attached character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "weapon"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+1",
+    "political_bonus": "+1",
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "elegant-tessen",
+        "pack_id": "seekers-of-wisdom",
+        "flavor": "",
+        "illustrator": "Isuardi Therianto",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C25_27.jpg",
+        "position": "27",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "for-shame",
+    "name": "For Shame!",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Conflict Action:</b> If you control a participating <em>Courtier</em> character, choose a participating character controlled by your opponent. Your opponent must select one – dishonor the chosen character or bow it.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "for-shame",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "Shen Fei",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_207.jpg",
+        "position": "207",
+        "quantity": 2,
+        "rotated": true
+      },
+      {
+        "card_id": "for-shame",
+        "pack_id": "emerald-core-set",
+        "flavor": "",
+        "illustrator": "Ana Gabriela David",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs248.jpg",
+        "position": "248",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "forgery",
+    "name": "Forgery",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Interrupt:</b> When the effects of an event would initiate, if you are less honorable than the player initiating those effects – cancel those effects.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 3,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "forgery",
+        "pack_id": "campaigns-of-conquest",
+        "flavor": "\"Who could refuse an order from the most honorable Elemental Masters?\" - Shosuro Hametsu",
+        "illustrator": "Carlos Palma Cruchaga",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C32_91.jpg",
+        "position": "91",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "honor-s-reward",
+    "name": "Honor's Reward",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict at an [element-fire] province, choose a participating character - that character gets +3 glory until the end of the conflict.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "fire"
+    ],
+    "strength": "5",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "honor-s-reward",
+        "pack_id": "as-honor-demands",
+        "flavor": "",
+        "illustrator": "John Anthony De Giovanni",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C33_95.jpg",
+        "position": "95",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "i-can-swim",
+    "name": "I Can Swim",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Conflict Action:</b> If the bid on your honor dial is higher than an opponent's, choose a dishonored character on their side – discard that character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "philosophy"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": 1,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "i-can-swim",
+        "pack_id": "core",
+        "flavor": "\"But scorpion! Now we will both die!\"",
+        "illustrator": "Scott Wade",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_187.jpg",
+        "position": "187",
+        "quantity": 1,
+        "rotated": true
+      },
+      {
+        "card_id": "i-can-swim",
+        "pack_id": "emerald-core-set",
+        "flavor": "“If I should sting you, why would we not both drown?”",
+        "illustrator": "Thulsa Doom",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs174.jpg",
+        "position": "174",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "imperial-storehouse",
+    "name": "Imperial Storehouse",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "dynasty",
+    "type": "holding",
+    "is_unique": false,
+    "text": "<b>Action:</b> Sacrifice this holding – draw 1 card.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "imperial"
+    ],
+    "cost": null,
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": "+1",
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "imperial-storehouse",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "Charles Urbach",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_129.jpg",
+        "position": "129",
+        "quantity": 2,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "kyuden-bayushi",
+    "name": "Kyūden Bayushi",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "province",
+    "type": "stronghold",
+    "is_unique": true,
+    "text": "<b>Action:</b> Bow this stronghold and choose a dishonored character you control – ready that character. If you have 6 or fewer honor, that character gets +1[conflict-military] and +1[conflict-political] until the end of the phase.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "palace"
+    ],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": 7,
+    "honor": 9,
+    "influence_pool": 9,
+    "strength_bonus": "+2",
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "kyuden-bayushi",
+        "pack_id": "underhand-of-the-emperor",
+        "flavor": "",
+        "illustrator": "Chris Ostrowski",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C15_1.jpg",
+        "position": "1",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "loyal-challenger",
+    "name": "Loyal Challenger",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "After this character wins a conflict, gain 1 honor. After this character loses a conflict, lose 1 honor.\n<b>Action:</b> During a conflict, initiate a [conflict-political] duel - resolve the duel. Treat the printed text box of the duel's loser as if it were blank (except for <em>Traits</em>) until the end of the conflict.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "courtier",
+      "duelist"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "3",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "loyal-challenger",
+        "pack_id": "children-of-the-empire",
+        "flavor": "",
+        "illustrator": "Joyce Maureira",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_31.jpg",
+        "position": "31",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "make-an-opening",
+    "name": "Make an Opening",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict in which you control a participating character, choose a participating character controlled by your opponent – that character gets –X[conflict-military] and –X[conflict-political] until the end of the conflict, where X is the difference between the bid on your honor dial and that of your opponent.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "make-an-opening",
+        "pack_id": "underhand-of-the-emperor",
+        "flavor": "",
+        "illustrator": "Adam Schumpert",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C15_24.jpg",
+        "position": "24",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "regal-bearing",
+    "name": "Regal Bearing",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a [conflict-political] conflict in which you control a participating <em>Courtier</em> character - set the bid on your honor dial to 1 and draw cards equal to the difference between your honor bid and that of your opponent. (Max 1 per conflict.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 3,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "regal-bearing",
+        "pack_id": "the-children-of-heaven",
+        "flavor": "",
+        "illustrator": "Joshua Cairos",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C22_84.jpg",
+        "position": "84",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "secret-cache",
+    "name": "Secret Cache",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After a conflict is declared against this province – search the top 5 cards of your conflict deck for a card and add it to your hand. Shuffle.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "air"
+    ],
+    "strength": "4",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "secret-cache",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "Carlos Palma Cruchaga",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_13.jpg",
+        "position": "13",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "seeker-of-earth",
+    "name": "Seeker of Earth",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "role",
+    "type": "role",
+    "is_unique": false,
+    "text": "You may replace 1 province of any element with an additional [element-earth] province while deckbuilding.\n<b>Reaction:</b> After an [element-earth] province you control is revealed – gain 1 fate.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "seeker",
+      "earth"
+    ],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "seeker-of-earth",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "–",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs267.jpg",
+        "position": "215B",
+        "quantity": 1,
+        "rotated": true
+      },
+      {
+        "card_id": "seeker-of-earth",
+        "pack_id": "emerald-core-set",
+        "flavor": "",
+        "illustrator": "",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs267.jpg",
+        "position": "267",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "shadow-stalker",
+    "name": "Shadow Stalker",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "Rally. <i>(After this card is revealed in a province, add the top card of your dynasty deck to the province, faceup.)</i>\nWhile you have 6 or fewer honor, this character gets +2[conflict-military] and +2[conflict-political].",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "bushi",
+      "shadow",
+      "shinobi"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "2",
+    "political": "0",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "shadow-stalker",
+        "pack_id": "campaigns-of-conquest",
+        "flavor": "",
+        "illustrator": "Apterus",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C32_82.jpg",
+        "position": "82",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "shameful-display",
+    "name": "Shameful Display",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict at this province, choose 2 participating characters – honor one of those characters and dishonor the other.",
+    "restricted_in": [],
+    "banned_in": [
+      "jade-edict"
+    ],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "void"
+    ],
+    "strength": "3",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "shameful-display",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "Polar Engine",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_24.jpg",
+        "position": "24",
+        "quantity": 2,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "shosuro-sadako",
+    "name": "Shosuro Sadako",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "conflict",
+    "type": "character",
+    "is_unique": true,
+    "text": "While this character is dishonored, add its glory to its [conflict-military] and [conflict-political] instead of substracting it.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "bushi",
+      "shadow",
+      "shinobi"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": 3,
+    "elements": [],
+    "strength": null,
+    "glory": 3,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "shosuro-sadako",
+        "pack_id": "all-and-nothing",
+        "flavor": "",
+        "illustrator": "Pavel Kolomeyets",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C13_96.jpg",
+        "position": "96",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "slovenly-scavenger",
+    "name": "Slovenly Scavenger",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After this character wins a conflict, sacrifice it. Choose a discard pile – shuffle that discard pile into its owner's corresponding deck.",
+    "restricted_in": [
+      "jade-edict"
+    ],
+    "banned_in": [
+      "obsidian",
+      "emerald"
+    ],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "goblin",
+      "shadowlands"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "slovenly-scavenger",
+        "pack_id": "defenders-of-rokugan",
+        "flavor": "\"No wonder they're always so weak and scrawny.\" - Hiruma Izumi",
+        "illustrator": "Luis Nunez de Castro Torres",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C26_32.jpg",
+        "position": "32",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "social-puppeteer",
+    "name": "Social Puppeteer",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "Composure - This character must be chosen as a target of an opponent's event, if able.  <i>(You have composure if your honor bid is lower than an opponent's.)</i>\n<b>Action: </b>During a conflict in which this character is participating - switch honor dials with your opponent until your next honor bid.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "courtier"
+    ],
+    "cost": "3",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "3",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "social-puppeteer",
+        "pack_id": "children-of-the-empire",
+        "flavor": "",
+        "illustrator": "Wenjuinn",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_34.jpg",
+        "position": "34",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "upholding-authority",
+    "name": "Upholding Authority",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "This province gets +2 strength while you have an <em>Earth</em> role.\n<b>Interrupt:</b> When this province is broken – the attacking player reveals his or her hand. Choose a card in their hand and discard any number of copies of that card from their hand.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "earth"
+    ],
+    "strength": "3",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "upholding-authority",
+        "pack_id": "tainted-lands",
+        "flavor": "",
+        "illustrator": "Joyce Maureira",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C10_23.jpg",
+        "position": "23",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "way-of-the-scorpion",
+    "name": "Way of the Scorpion",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, choose a participating non-[clan-scorpion] character – dishonor that character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "philosophy"
+    ],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "way-of-the-scorpion",
+        "pack_id": "core",
+        "flavor": "To combat the liars, the thieves, and the traitors within the Great Clans, Bayushi's followers would have to lie, steal, and cheat in turn.",
+        "illustrator": "Scott Wade",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_185.jpg",
+        "position": "185",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "yogo-asami",
+    "name": "Yogo Asami",
+    "name_extra": null,
+    "faction": "scorpion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "Bayushi Kachiko cannot be chosen as the target of abilities triggered by an opponent.\n<b>Action:</b> During a conflict in which this character is participating, bow it and choose a participating character – That character gets -2[conflict-military] until the end of the conflict.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "scorpion"
+    ],
+    "traits": [
+      "courtier"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 2,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "0",
+    "political": "3",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "yogo-asami",
+        "pack_id": "defenders-of-rokugan",
+        "flavor": "",
+        "illustrator": "Joyce Maureira",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C26_21.jpg",
+        "position": "21",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  }
+]

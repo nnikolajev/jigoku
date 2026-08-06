@@ -29,6 +29,13 @@ export interface MulliganProfile {
     holdingCopyLimitById: Record<string, number>;
     keepHoldingIds: string[];
     keepDynastyCardIds: string[];
+    // Printed ids to ALWAYS discard in the fate phase, whatever the keep rules
+    // decide. Some cards are worth more in the dynasty discard pile than in a
+    // province: Keeper Initiate's reaction puts it into play from the discard
+    // WITH a free fate every time we claim a matching ring, and a copy sitting
+    // face-up in a province just blocks that province instead. Empty for every
+    // other deck, so this is inert unless a profile opts in.
+    endPhaseDiscardCardIds: string[];
     discardCheapOnDevelopingBoard: boolean;
     discardCheapOnStrongBoard: boolean;
     tsumaProvinceId: string;
@@ -58,6 +65,7 @@ export const DEFAULT_MULLIGAN_PROFILE: MulliganProfile = {
     holdingCopyLimitById: {},
     keepHoldingIds: ['the-imperial-palace'],
     keepDynastyCardIds: [],
+    endPhaseDiscardCardIds: [],
     discardCheapOnDevelopingBoard: true,
     discardCheapOnStrongBoard: true,
     tsumaProvinceId: 'tsuma',
@@ -258,7 +266,7 @@ class MulliganTactics {
             for(const card of characters) {
                 keep.add(String(card.uuid));
             }
-            return keep;
+            return this.applyForcedDiscards(cards, keep);
         }
 
         const desirable = characters.filter((card) => {
@@ -280,6 +288,20 @@ class MulliganTactics {
         // affordable fallback body even when it is cheap and normally churned.
         if(!characters.some((card) => keep.has(String(card.uuid))) && characters[0]) {
             keep.add(String(characters[0].uuid));
+        }
+        return this.applyForcedDiscards(cards, keep);
+    }
+
+    // Applied last so an opted-in id beats every keep rule above it, including
+    // the holdings-only fallback. No-op while the list is empty.
+    private applyForcedDiscards(cards: any[], keep: Set<string>): Set<string> {
+        if(this.profile.endPhaseDiscardCardIds.length === 0) {
+            return keep;
+        }
+        for(const card of cards) {
+            if(this.profile.endPhaseDiscardCardIds.includes(String(card.id || ''))) {
+                keep.delete(String(card.uuid));
+            }
         }
         return keep;
     }

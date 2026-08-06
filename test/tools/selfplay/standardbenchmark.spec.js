@@ -20,7 +20,7 @@ const {
 
 describe('standard self-play benchmark config', function() {
     it('uses 100-game win rates and a 40-game round robin', function() {
-        expect(BENCHMARK_VERSION).toBe(6);
+        expect(BENCHMARK_VERSION).toBe(8);
         expect(STANDARD_WIN_RATE_GAMES).toBe(100);
         expect(STANDARD_ROUND_ROBIN_GAMES).toBe(40);
         expect(STANDARD_OMNISCIENT_GAMES).toBe(20);

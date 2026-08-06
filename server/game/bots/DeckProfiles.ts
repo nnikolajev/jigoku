@@ -22,8 +22,12 @@ import type { ConflictDeclarationConfig } from './ConflictDeclarationPolicy';
 import { DEFAULT_HONOR_RACE_LIMITS } from './CardPlaybook.js';
 import { DISHONOR_DEFAULTS } from './DishonorTactics.js';
 import type { DishonorProfile } from './DishonorTactics';
+import { BID_WAR_DEFAULTS } from './BidWarTactics.js';
+import type { BidWarProfile } from './BidWarTactics';
 import { LION_DEFAULTS } from './LionTactics.js';
 import type { LionProfile } from './LionTactics';
+import { LION_DUELIST_DEFAULTS } from './LionDuelistTactics.js';
+import type { LionDuelistProfile } from './LionDuelistTactics';
 import { DEFAULT_FATE_AWARE_ECONOMY, SWARM_FATE_AWARE_ECONOMY } from './FateAwareEconomy.js';
 import type { FateAwareEconomyProfile } from './FateAwareEconomy';
 import { DEFAULT_CONFLICT_CARD_ECONOMY, SWARM_CONFLICT_CARD_ECONOMY } from './ConflictCardEconomy.js';
@@ -38,6 +42,7 @@ import { DEFAULT_DUEL_BID_PROFILE } from './DuelBidTactics.js';
 import type { DuelBidProfile } from './DuelBidTactics';
 import {
     CARD_ENGINE_DRAW_BID_PROFILE,
+    FATE_ECONOMY_DRAW_BID_PROFILE,
     DEFAULT_DRAW_BID_PROFILE,
     DEFAULT_LEGACY_DRAW_BID_PROFILE,
     DISHONOR_DRAW_BID_PROFILE,
@@ -66,6 +71,14 @@ import { PROVINCE_TARGETING_DEFAULTS } from './ProvinceTargeting.js';
 import type { ProvinceTargetingProfile } from './ProvinceTargeting';
 import { UNICORN_DEFAULTS } from './UnicornTactics.js';
 import type { UnicornProfile } from './UnicornTactics';
+import {
+    PROVINCE_REVEAL_RESPONSE_DEFAULTS,
+    UNICORN_REVEAL_DEFAULTS
+} from './UnicornRevealTactics.js';
+import type {
+    ProvinceRevealResponseProfile,
+    UnicornRevealProfile
+} from './UnicornRevealTactics';
 import { DEFAULT_MULLIGAN_PROFILE, RUSH_MULLIGAN_PROFILE } from './MulliganTactics.js';
 import type { MulliganProfile } from './MulliganTactics';
 import {
@@ -119,6 +132,7 @@ export interface DeckProfile {
     mulligan: MulliganProfile; // shared opening hand/province mulligan and fate-phase refresh policy
     strongholdDefense: StrongholdDefenseProfile; // shared injectable last-province reserve planner for every seed
     provinceTargeting: ProvinceTargetingProfile; // shared injectable Eminent/strength/ability target priority for every seed
+    provinceRevealResponse: ProvinceRevealResponseProfile; // generic Aranat reveal/deny valuation for every opponent deck
     attachmentControl: AttachmentControlProfile; // shared Let Go / attachment-removal value policy
     personalHonor: PersonalHonorProfile; // shared glory-aware honor/dishonor target policy
     duelBidding: DuelBidProfile; // shared skill/honor/round/Iaijutsu bid matrix for every deck and seed
@@ -210,6 +224,12 @@ export interface DeckProfile {
     honorRaceAware: boolean;
     honorRace: HonorRaceLimits;
 
+    // Turns on the live honor-DIAL readings in shared playbook entries (Make
+    // an Opening's X is the absolute dial difference, so the card is dead on a
+    // tie). Off holds those entries at their legacy reading, which is what
+    // every non-bid-war deck keeps.
+    bidWarAware: boolean;
+
     // Scale applied to `DYNASTY_ABILITY_VALUE`, the signed price list for
     // static printed text on dynasty characters. The live ability term is a
     // saturated constant (3.50-4.00 across all 117 field characters, 0.375
@@ -259,6 +279,18 @@ export interface DeckProfile {
     // card is ablated out of the set without rebuilding.
     liveEventPricingExclude?: readonly string[];
 
+    // Own provinces whose printed text PAYS when they break (The Art of War
+    // draws 3), and the number of already-broken own provinces past which that
+    // trade stops being worth it. Conceding one is a real play for a deck that
+    // races: it buys three cards for a province it was going to lose anyway.
+    // It is a disaster for a deck that wants LONG games, because every conceded
+    // province walks the opponent one step closer to conquest — and this is a
+    // per-deck judgement, not a property of the card.
+    //
+    // `['the-art-of-war']` / 1 is exactly the behaviour this was before the
+    // knob existed. An empty list never concedes.
+    provinceConcede: { cardIds: readonly string[]; maxOwnBrokenProvinces: number };
+
     // ---- setup ----
     // Printed id of the province to place under the stronghold. The stronghold
     // province is only attackable after 3 others are broken, so an on-reveal
@@ -266,11 +298,33 @@ export interface DeckProfile {
     // Unset = keep the generic placement (bot picks arbitrarily).
     strongholdProvinceId?: string;
 
+    // Which side of the setup flip to take when we win it. Going first buys
+    // tempo (first conflict, first province break); going SECOND buys the last
+    // word in every conflict phase and, for a reactive/cancel deck, the chance
+    // to see what the opponent commits before answering it. 'first' is the
+    // behavior every deck had before this knob existed.
+    firstPlayerChoice: 'first' | 'second';
+
+    // Which side of the Imperial Favor to claim. The constant 'military' is
+    // measured-optimal ACROSS THE FIELD (three per-round estimators all raised
+    // the share of favor-holding conflicts that got +0), but the field is
+    // roughly 65/35 military and a deck whose entire board is courtiers is on
+    // the other side of that split. Injectable so a single-axis deck can say so
+    // without moving the field default.
+    imperialFavorChoice: 'military' | 'political';
+
     // ---- dishonor / mill playstyle (Scorpion Poison Mill) ----
     // Present only for decks whose strategy derives `dishonor`; every policy
     // branch that reads it is gated on its presence, so all other decks keep
     // the unchanged generic behavior. Knobs live in DishonorTactics.
     dishonor?: DishonorProfile;
+
+    // ---- honor-dial playstyle (Scorpion "Bid War", Kyuden Bayushi) ----
+    // Present only for decks whose strategy derives `bidWar`; every policy
+    // branch that reads it is gated on its presence, so all other decks — the
+    // separate Scorpion Poison Mill dishonor list included — keep the
+    // unchanged generic behavior. Knobs live in BidWarTactics.
+    bidWar?: BidWarProfile;
 
     // ---- bushi-swarm playstyle (Lion precon) ----
     // Present only via the lion-bushi-swarm override; every policy branch
@@ -320,6 +374,17 @@ export interface DeckProfile {
     // Exact participation, move-in sequencing and movement attachment targets.
     unicorn?: UnicornProfile;
 
+    // ---- Lion Duelist honor-switch playstyle (Kyuden Ikoma) ----
+    // Present only for decks whose strategy derives `lionDuelist`; every policy
+    // branch that reads it is gated on its presence, so the older Lion bushi
+    // swarm list (Hayaken no Shiro) is untouched. Knobs in LionDuelistTactics.
+    lionDuelist?: LionDuelistProfile;
+
+    // ---- Unicorn Shiro Shinjo province-reveal/economy playstyle ----
+    // Reveal-first attacks, Scouted Terrain finisher, faceup-province scaling,
+    // and card-specific target/fate choices. Exact-list override only.
+    unicornReveal?: UnicornRevealProfile;
+
     // Names of the per-deck overrides that matched, in application order. This
     // is the deck's identity for layers that tune per deck without re-deriving
     // it from the card list (Bot V2's conflict intents).
@@ -360,6 +425,11 @@ export const DEFAULT_PROFILE: DeckProfile = {
         abilityPriority: { ...PROVINCE_TARGETING_DEFAULTS.abilityPriority },
         effectiveStrengthById: { ...PROVINCE_TARGETING_DEFAULTS.effectiveStrengthById },
         priorityTierById: { ...PROVINCE_TARGETING_DEFAULTS.priorityTierById }
+    },
+    provinceRevealResponse: {
+        ...PROVINCE_REVEAL_RESPONSE_DEFAULTS,
+        onRevealValueById: { ...PROVINCE_REVEAL_RESPONSE_DEFAULTS.onRevealValueById },
+        fallbackValueByAbility: { ...PROVINCE_REVEAL_RESPONSE_DEFAULTS.fallbackValueByAbility }
     },
     attachmentControl: {
         ...ATTACHMENT_CONTROL_DEFAULTS,
@@ -431,10 +501,14 @@ export const DEFAULT_PROFILE: DeckProfile = {
     conflictDeclaration: { opponentBoardWeight: 1 },
     honorRaceAware: false,
     honorRace: { ...DEFAULT_HONOR_RACE_LIMITS },
+    bidWarAware: false,
+    firstPlayerChoice: 'first',
+    imperialFavorChoice: 'military',
     chumpBlockHonorCeiling: 0,
     chumpBlockSurplusBodies: 0,
     dynastyAbilityScale: 0,
-    dynastyAbilityCostWeight: 0
+    dynastyAbilityCostWeight: 0,
+    provinceConcede: { cardIds: ['the-art-of-war'], maxOwnBrokenProvinces: 1 }
 };
 
 // Exact reproduction of the old flag-driven behavior. Start from the generic
@@ -485,6 +559,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             abilityPriority: { ...DEFAULT_PROFILE.provinceTargeting.abilityPriority },
             effectiveStrengthById: { ...DEFAULT_PROFILE.provinceTargeting.effectiveStrengthById },
             priorityTierById: { ...DEFAULT_PROFILE.provinceTargeting.priorityTierById }
+        },
+        provinceRevealResponse: {
+            ...DEFAULT_PROFILE.provinceRevealResponse,
+            onRevealValueById: { ...DEFAULT_PROFILE.provinceRevealResponse.onRevealValueById },
+            fallbackValueByAbility: { ...DEFAULT_PROFILE.provinceRevealResponse.fallbackValueByAbility }
         },
         attachmentControl: {
             ...DEFAULT_PROFILE.attachmentControl,
@@ -722,6 +801,61 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             preferDeckAdditionalFate: true
         };
     }
+    if(strategy.bidWar) {
+        // Honor-dial deck: it BUYS its own honor loss. Bidding high pays the
+        // opponent honor, and that is the point — 6 or fewer honor is where
+        // Shadow Stalker, Alibi Artist and the Kyuden Bayushi ready bonus turn
+        // on, and being less honorable is what switches on Forgery and
+        // Beautiful Entertainer. Every knob that would "protect" honor
+        // therefore has to be relaxed, not tightened.
+        profile.bidWar = {
+            ...BID_WAR_DEFAULTS,
+            kachikoImportantCharacterIds: [...BID_WAR_DEFAULTS.kachikoImportantCharacterIds],
+            reverseHonorCardIds: [...BID_WAR_DEFAULTS.reverseHonorCardIds]
+        };
+        // Cards are the resource this deck converts its honor into.
+        profile.drawBidding = {
+            ...CARD_ENGINE_DRAW_BID_PROFILE,
+            // The generic rails bid 1 the moment honor drops under 6, which is
+            // exactly the band this deck is trying to reach. Only genuine
+            // lethal range should force the low bid; BidWarTactics.adjustDrawBid
+            // owns everything above it.
+            lowHonorThreshold: BID_WAR_DEFAULTS.lethalHonorFloor,
+            // Chasing an honor victory is not this deck's plan and low-bidding
+            // for it turns off half the card pool.
+            honorWinSetupThreshold: 24
+        };
+        // Shosuro Sadako inverts the honor-status modifier, so a forced (or
+        // deliberately paid) own-dishonor should land on her before anyone.
+        profile.personalHonor = {
+            ...profile.personalHonor,
+            reverseHonorCardIds: [...BID_WAR_DEFAULTS.reverseHonorCardIds],
+            // Both of these pay a friendly dishonor as their COST; the shared
+            // enemy-first dishonor rule cancelled them otherwise.
+            ownDishonorCostSourceIds: ['calling-in-favors', 'acclaimed-geisha-house']
+        };
+        // Turns on the live-dial readings in the shared playbook entries
+        // (Make an Opening). Off for every other deck, so those entries keep
+        // their legacy reading bit-identical.
+        profile.bidWarAware = true;
+        profile.honorRaceAware = true;
+        // Duels move honor, and this deck starts them on purpose (Loyal
+        // Challenger's Action, and Duty makes an opposing duel bid survivable).
+        // Valuing the honor swing and the opponent's low honor instead of the
+        // duel outcome alone measured +1.97pp and +1.05pp against its own null
+        // on two independent six-base sets (1726 games per arm, +1.51pp
+        // pooled), and dishonor is 46% of this deck's losses.
+        profile.duelBidding = {
+            ...profile.duelBidding,
+            objective: 'dishonor',
+            opponentLowHonorUtility: 2
+        };
+        profile.fateAwareEconomy = {
+            ...profile.fateAwareEconomy,
+            preferDeckCharacters: true,
+            preferDeckAdditionalFate: true
+        };
+    }
     return profile;
 }
 
@@ -771,6 +905,99 @@ interface ProfileOverride {
 }
 
 const OVERRIDES: ProfileOverride[] = [
+    {
+        // Unicorn Reveal (EmeraldDB 6057d28e): reveal all four outer
+        // provinces (and the hidden stronghold province when an effect can),
+        // turn those flips into Shiro Shinjo income, then either buy durable
+        // military bodies or spend four on the Scouted Terrain surprise.
+        name: 'unicorn-reveal-shiro-shinjo',
+        match: (ids) => ids.has('shiro-shinjo') && ids.has('scouted-terrain') && ids.has('aranat'),
+        apply: {
+            strongholdProvinceId: 'massing-at-twilight',
+            forceMilitaryConflict: true,
+            attackCommitment: 'all-but-one',
+            attackKeepHome: 1,
+            reserveDynastyFate: true,
+            provinceTargeting: {
+                preferFacedown: true,
+                // Printed/effective values used by defense/break planning. The
+                // attack sorter still puts facedown targets first for this deck.
+                effectiveStrengthById: {
+                    // This profile forces military declarations, so use its
+                    // printed 5 here; the live engine reports 10 only during a
+                    // political conflict.
+                    'ancestral-lands': 5,
+                    'appealing-to-the-fortunes': 5,
+                    'border-fortress': 4,
+                    'khan-s-ordu': 4,
+                    'massing-at-twilight': 8
+                }
+            },
+            fateAwareEconomy: {
+                ...DEFAULT_FATE_AWARE_ECONOMY,
+                preferDeckCharacters: true,
+                preferDeckAdditionalFate: true,
+                durableCharacterIds: [
+                    'aranat', 'yoritomo', 'moto-chagatai', 'higashi-kaze-company',
+                    'moto-horde', 'white-horde-vanguard', 'kudaka',
+                    'iuchi-daiyu', 'khanbulak-benefactor'
+                ],
+                passAfterDurable: false,
+                durableSpendCapEarly: 10,
+                bodySpendCapEarly: 7,
+                bodySpendCapLate: 7,
+                bodySpendCapWithPersistent: 6,
+                bodyMaxCost: 6,
+                bodyAdditionalFateForCostThree: 1,
+                bodyFateReserve: 1
+            },
+            boardAwareDynasty: {
+                characterValueById: {
+                    aranat: 8,
+                    yoritomo: 7,
+                    'higashi-kaze-company': 7,
+                    'moto-chagatai': 7,
+                    'khanbulak-benefactor': 7,
+                    'iuchi-daiyu': 6,
+                    kudaka: 6,
+                    'white-horde-vanguard': 6,
+                    'moto-horde': 6,
+                    'iuchi-farseer': 5,
+                    'way-station-trader': 4,
+                    'shinjo-trailblazer': 4,
+                    'ganzu-warrior': 4
+                }
+            },
+            // Shiro Shinjo pays this deck in FATE, not cards, so the card-engine
+            // bid was buying draw it did not need at 1-2 honor per round.
+            drawBidding: { ...FATE_ECONOMY_DRAW_BID_PROFILE },
+            mulligan: {
+                openingHoldingLimit: 1,
+                openingKeepHoldingIds: ['audience-chamber'],
+                keepHoldingIds: ['audience-chamber'],
+                holdingCopyLimitById: { 'audience-chamber': 1 },
+                preferredCharacterIds: [
+                    'iuchi-farseer', 'shinjo-trailblazer', 'way-station-trader',
+                    'ganzu-warrior', 'khanbulak-benefactor', 'iuchi-daiyu',
+                    'white-horde-vanguard', 'yoritomo', 'aranat'
+                ],
+                openingKeepConflictIds: ['good-omen', 'scouted-terrain', 'i-am-ready'],
+                openingPaidConflictKeepLimit: 1,
+                endHoldingLimit: { weak: 1, developing: 1, strong: 1 },
+                discardCheapOnDevelopingBoard: false,
+                discardCheapOnStrongBoard: false
+            },
+            unicornReveal: {
+                ...UNICORN_REVEAL_DEFAULTS,
+                revealSourceIds: [...UNICORN_REVEAL_DEFAULTS.revealSourceIds],
+                redirectSourceIds: [...UNICORN_REVEAL_DEFAULTS.redirectSourceIds],
+                firstConflictCharacterIds: [...UNICORN_REVEAL_DEFAULTS.firstConflictCharacterIds],
+                unrevealedProvinceAttackerIds: [...UNICORN_REVEAL_DEFAULTS.unrevealedProvinceAttackerIds],
+                additionalFateByCharacterId: { ...UNICORN_REVEAL_DEFAULTS.additionalFateByCharacterId },
+                provinceTextPriorityById: { ...UNICORN_REVEAL_DEFAULTS.provinceTextPriorityById }
+            }
+        }
+    },
     {
         // Dragon Arsenal (EmeraldDB 46aaa220): the political +5 province is
         // the hardest final target; the rest of the playstyle is data-gated
@@ -1260,6 +1487,113 @@ const OVERRIDES: ProfileOverride[] = [
         }
     },
     {
+        // Lion Duelist (EmeraldDB a2058c37, Kyuden Ikoma). Honor is the SWITCH:
+        // Matsu Tsuko's free break, Matsu Agetoki's conflict move, Matsu
+        // Mitsuko's move-in and Blade of 10,000 Battles all require "more
+        // honorable than your opponent", and the stronghold starts at 13 honor
+        // to make that the default state. So the deck bids into the honor lead
+        // rather than for cards (which also fires Tactician's Apprentice) and
+        // buys its cards back with Regal Bearing, Setting the Standard, Blade,
+        // Imperial Storehouse, Proving Ground and The Art of War.
+        name: 'lion-duelist-kyuden-ikoma',
+        match: (ids, strategy) => strategy.lionDuelist && ids.has('kyuden-ikoma'),
+        apply: {
+            // Deck-guide directive: Frostbitten Crossing sits under the
+            // stronghold. Its 4 strength makes the game-deciding province the
+            // joint-hardest to break, and its Action is a conflict-only effect
+            // that a defended stronghold conflict can still cash in.
+            strongholdProvinceId: 'frostbitten-crossing',
+            // "Go first in all cases" — the deck wants the first break and the
+            // first Regal Bearing.
+            firstPlayerChoice: 'first',
+            reserveDynastyFate: true,
+            attackCommitment: 'all-but-one',
+            attackKeepHome: 1,
+            defenseCommitment: 'prevent-break',
+            spendCardsOnDefense: true,
+            // Honor is a live resource here in both directions: it turns five
+            // cards on, and 25 is a real second win condition for a deck that
+            // gains honor from every low dial and every Ikoma Prodigy.
+            honorRaceAware: true,
+            fateAwareEconomy: {
+                ...DEFAULT_FATE_AWARE_ECONOMY,
+                preferDeckCharacters: true,
+                preferDeckAdditionalFate: true,
+                passAfterDurable: false,
+                durableCharacterIds: [...LION_DUELIST_DEFAULTS.towerCharacters],
+                durableAdditionalFateEarly: 2,
+                bodySpendCapEarly: 6,
+                bodySpendCapLate: 5,
+                bodySpendCapWithPersistent: 4,
+                bodyMaxCost: 5,
+                // Ikoma Prodigy is bought WITH a fate on purpose (its reaction
+                // pays 1 honor for it), which this generic knob already covers
+                // for cost-3 bodies; the per-id amounts live in the tactics
+                // module and win through `preferDeckAdditionalFate`.
+                bodyAdditionalFateForCostThree: 1,
+                bodyOrder: 'highest-cost',
+                bodyFateReserve: 1
+            },
+            boardAwareDynasty: {
+                characterValueById: {
+                    'matsu-tsuko-2': 9,
+                    'akodo-toturi': 9,
+                    'matsu-mitsuko': 7,
+                    'matsu-agetoki': 7,
+                    'kitsu-motso': 6,
+                    'akodo-zentaro': 6,
+                    'kitsu-spiritcaller': 5,
+                    'keeper-initiate': 4,
+                    'miya-mystic': 4,
+                    'ikoma-prodigy': 3,
+                    'tactician-s-apprentice': 3
+                }
+            },
+            // Bid 5 in the opening round (the deck needs a hand), then live low:
+            // a low dial gains honor from the higher bidder, fires Tactician's
+            // Apprentice, and keeps the "more honorable" switch on.
+            drawBidding: {
+                ...HONOR_DRAW_BID_PROFILE,
+                openingBid: 5,
+                forceLowAfterOpening: true,
+                lowBid: 1,
+                minimumRoutineBid: 1,
+                honorPlanSelfThreshold: 15
+            },
+            // Duels here are a bowing tool (Duelist Training, True Strike), not
+            // an honor engine — the loser bows whatever the bid was, and honor
+            // flows to the LOWER bidder, which is where this deck wants to be.
+            duelBidding: {
+                objective: 'honor',
+                duelWinUtility: 5,
+                honorRaceUtility: 1.5
+            },
+            mulligan: {
+                openingHoldingLimit: 1,
+                openingKeepHoldingIds: ['imperial-storehouse', 'proving-ground'],
+                keepHoldingIds: ['imperial-storehouse', 'proving-ground'],
+                keepDynastyCardIds: ['honored-veterans', 'a-season-of-war'],
+                preferredCharacterIds: [
+                    'ikoma-prodigy', 'matsu-agetoki', 'matsu-mitsuko',
+                    'kitsu-motso', 'akodo-toturi', 'matsu-tsuko-2',
+                    'tactician-s-apprentice'
+                ],
+                openingKeepConflictIds: [
+                    'regal-bearing', 'fan-of-command', 'in-service-to-my-lord',
+                    'even-the-odds', 'blade-of-10-000-battles'
+                ],
+                openingPaidConflictKeepLimit: 1,
+                endHoldingLimit: { weak: 0, developing: 1, strong: 2 },
+                // Keeper Initiate is worth strictly more in the dynasty discard
+                // than in a province: its reaction puts it into play from there
+                // with a free fate every time we claim the air ring, and the
+                // Keeper of Air role makes that a routine event.
+                endPhaseDiscardCardIds: ['keeper-initiate']
+            },
+            lionDuelist: { ...LION_DUELIST_DEFAULTS }
+        }
+    },
+    {
         // Crane Baseline (EmeraldDB 4736f7c0): mixed duels/honor/control. Tsuma
         // activates the shared duel package; these additional knobs cover the
         // cards that distinguish this exact list. Meditations strips fate from
@@ -1345,6 +1679,59 @@ const OVERRIDES: ProfileOverride[] = [
         // stronghold province is only attackable after 3 others break, so the
         // opponent's final all-in push reveals it and discards X cards from
         // their hand (X = attackers) — exactly when they commit everything.
+        // Scorpion "Bid War" (EmeraldDB 2bf73f61). Kyuden Bayushi identifies
+        // the list uniquely; the strategy flag already installed the honor-dial
+        // package, so this only carries the setup/mulligan facts that are
+        // specific to these 40 cards.
+        name: 'scorpion-bid-war',
+        match: (ids, strategy) => strategy.bidWar && ids.has('kyuden-bayushi'),
+        apply: {
+            // Honor's Reward is the deck's strongest province (5 strength with
+            // the Earth role's +2 landing on Upholding Authority instead) and
+            // its Action needs a FIRE province, which it supplies itself. Under
+            // the stronghold it is the last thing an opponent has to break.
+            strongholdProvinceId: 'honor-s-reward',
+            mulligan: {
+                // Two holdings are real engines here (Imperial Storehouse
+                // sacrifices for a card, Acclaimed Geisha House switches the
+                // contested ring), but a turn-one hand wants COURTIERS: every
+                // dial payoff in the deck needs one participating.
+                openingHoldingLimit: 1,
+                openingKeepHoldingIds: ['imperial-storehouse', 'acclaimed-geisha-house'],
+                keepHoldingIds: ['imperial-storehouse', 'acclaimed-geisha-house'],
+                holdingCopyLimitById: { 'imperial-storehouse': 1, 'acclaimed-geisha-house': 1 },
+                preferredCharacterIds: [
+                    'bayushi-manipulator', 'loyal-challenger', 'court-novice',
+                    'alibi-artist', 'beautiful-entertainer', 'blackmail-artist',
+                    'social-puppeteer', 'yogo-asami', 'bayushi-kachiko-2'
+                ],
+                // Regal Bearing is the card-advantage engine and Elegant Tessen
+                // readies a cheap courtier for a second conflict; Forgery is the
+                // cancel this deck almost always has turned on.
+                openingKeepConflictIds: [
+                    'regal-bearing', 'elegant-tessen', 'forgery', 'shosuro-sadako'
+                ],
+                openingPaidConflictKeepLimit: 2,
+                endHoldingLimit: { weak: 1, developing: 1, strong: 2 }
+            },
+            boardAwareDynasty: {
+                characterValueById: {
+                    'bayushi-kachiko-2': 9,
+                    'social-puppeteer': 7,
+                    'loyal-challenger': 6,
+                    'blackmail-artist': 6,
+                    'yogo-asami': 6,
+                    'shadow-stalker': 5,
+                    cursecatcher: 5,
+                    'bayushi-manipulator': 5,
+                    'alibi-artist': 4,
+                    'beautiful-entertainer': 4,
+                    'court-novice': 3
+                }
+            }
+        }
+    },
+    {
         name: 'scorpion-poison-mill',
         match: (ids, strategy) => strategy.dishonor && ids.has('night-raid'),
         apply: {
@@ -1403,6 +1790,13 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                         : {})
                 };
             }
+            if(override.apply.bidWar) {
+                apply.bidWar = {
+                    ...override.apply.bidWar,
+                    kachikoImportantCharacterIds: [...override.apply.bidWar.kachikoImportantCharacterIds],
+                    reverseHonorCardIds: [...override.apply.bidWar.reverseHonorCardIds]
+                };
+            }
             if(override.apply.lion) {
                 apply.lion = {
                     ...override.apply.lion,
@@ -1421,6 +1815,38 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     movementCardIds: [...override.apply.unicorn.movementCardIds],
                     gaijinCardIds: [...override.apply.unicorn.gaijinCardIds],
                     singletonAttachments: [...override.apply.unicorn.singletonAttachments]
+                };
+            }
+            if(override.apply.unicornReveal) {
+                apply.unicornReveal = {
+                    ...override.apply.unicornReveal,
+                    revealSourceIds: [...override.apply.unicornReveal.revealSourceIds],
+                    redirectSourceIds: [...override.apply.unicornReveal.redirectSourceIds],
+                    firstConflictCharacterIds: [...override.apply.unicornReveal.firstConflictCharacterIds],
+                    unrevealedProvinceAttackerIds: [...override.apply.unicornReveal.unrevealedProvinceAttackerIds],
+                    additionalFateByCharacterId: {
+                        ...override.apply.unicornReveal.additionalFateByCharacterId
+                    },
+                    provinceTextPriorityById: {
+                        ...override.apply.unicornReveal.provinceTextPriorityById
+                    }
+                };
+            }
+            if(override.apply.lionDuelist) {
+                apply.lionDuelist = {
+                    ...override.apply.lionDuelist,
+                    towerCharacters: [...override.apply.lionDuelist.towerCharacters],
+                    commanderCharacters: [...override.apply.lionDuelist.commanderCharacters],
+                    championCharacters: [...override.apply.lionDuelist.championCharacters],
+                    bushiCharacters: [...override.apply.lionDuelist.bushiCharacters],
+                    winIsBreakCharacterIds: [...override.apply.lionDuelist.winIsBreakCharacterIds],
+                    attachmentRanking: [...override.apply.lionDuelist.attachmentRanking],
+                    keyCharacters: [...override.apply.lionDuelist.keyCharacters],
+                    additionalFateByCharacterId: {
+                        ...override.apply.lionDuelist.additionalFateByCharacterId
+                    },
+                    holdingValueById: { ...override.apply.lionDuelist.holdingValueById },
+                    duelAxes: { ...override.apply.lionDuelist.duelAxes }
                 };
             }
             if(strongholdDefense) {

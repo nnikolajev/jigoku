@@ -149,6 +149,39 @@ describe('ConflictDeclarationPolicy', function() {
         });
     });
 
+    describe('card-payoff axis bonus', function() {
+        // A deck whose CARD ENGINE lives on one axis never declares there once
+        // its board leans the other way. Regal Bearing fired zero times in six
+        // Lion Duelist games behind a military-leaning board.
+        const board = { myMilitary: 10, myPolitical: 6, theirMilitary: 0, theirPolitical: 0, forceMilitary: false };
+
+        it('is inert when absent, which is every deck without the knob', function() {
+            expect(new ConflictDeclarationPolicy({ opponentBoardWeight: 1 })
+                .chooseAxis(board).axis).toBe('military');
+        });
+
+        it('flips the axis once the payoff outweighs the board gap', function() {
+            const result = new ConflictDeclarationPolicy({ opponentBoardWeight: 1 })
+                .chooseAxis(Object.assign({}, board, { axisBonusPolitical: 6 }));
+            expect(result.axis).toBe('political');
+        });
+
+        it('does not flip on a payoff smaller than the gap', function() {
+            const result = new ConflictDeclarationPolicy({ opponentBoardWeight: 1 })
+                .chooseAxis(Object.assign({}, board, { axisBonusPolitical: 2 }));
+            expect(result.axis).toBe('military');
+        });
+
+        it('can never steer onto an axis with no board at all', function() {
+            // The zero-skill guards read the RAW board, so a bonus cannot
+            // manufacture a political attack out of a political-less board.
+            const result = new ConflictDeclarationPolicy({ opponentBoardWeight: 1 })
+                .chooseAxis(Object.assign({}, board, { myPolitical: 0, axisBonusPolitical: 99 }));
+            expect(result.axis).toBe('military');
+            expect(result.reason).toBe('only-military');
+        });
+    });
+
     it('the CLASS default reproduces V1, so an unconfigured policy is inert', function() {
         expect(DEFAULT_CONFLICT_DECLARATION.opponentBoardWeight).toBe(0);
         expect(DEFAULT_CONFLICT_DECLARATION.switchMargin).toBe(0);

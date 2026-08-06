@@ -9,11 +9,14 @@ const {
     loadDragonAttachmentsDeck,
     loadDragonDeck,
     loadLionDeck,
+    loadLionDuelistDeck,
     loadPhoenixDeck,
     loadPhoenixPhoenixDeck,
     loadPhoenixShugenjaDeck,
+    loadScorpionBidWarDeck,
     loadScorpionDeck,
-    loadUnicornDeck
+    loadUnicornDeck,
+    loadUnicornRevealDeck
 } = require('./deckLoader.js');
 
 const DECK_LOADERS = Object.freeze({
@@ -23,11 +26,14 @@ const DECK_LOADERS = Object.freeze({
     Dragon: loadDragonDeck,
     DragonAttachments: loadDragonAttachmentsDeck,
     Lion: loadLionDeck,
+    LionDuelist: loadLionDuelistDeck,
     Phoenix: loadPhoenixDeck,
     PhoenixPhoenix: loadPhoenixPhoenixDeck,
     PhoenixShugenja: loadPhoenixShugenjaDeck,
     Scorpion: loadScorpionDeck,
-    Unicorn: loadUnicornDeck
+    ScorpionBidWar: loadScorpionBidWarDeck,
+    Unicorn: loadUnicornDeck,
+    UnicornReveal: loadUnicornRevealDeck
 });
 
 const DECK_LABELS = Object.freeze(Object.keys(DECK_LOADERS));

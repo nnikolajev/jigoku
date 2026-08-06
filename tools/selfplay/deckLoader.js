@@ -68,6 +68,13 @@ function loadUnicornDeck() {
     return buildDeck(loadDecklist(), loadCards());
 }
 
+// Unicorn Reveal (EmeraldDB 6057d28e) -- Shiro Shinjo economy, province
+// reveal/redirect effects, and a late Scouted Terrain stronghold attack.
+function loadUnicornRevealDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'unicorn-reveal-decklist.json'), 'utf8'));
+    return buildDeck(decklist, indexFixtureCards(['unicorn-reveal-cards.json']));
+}
+
 // Crane Baseline (EmeraldDB 4736f7c0) — the standard win-rate opponent and
 // a playable bot deck. Card fixtures are raw arrays, so index them by id.
 function indexFixtureCards(fileNames) {
@@ -111,6 +118,30 @@ function loadScorpionDeck() {
         cardsById[card.id] = card;
     }
     return buildDeck(decklist, cardsById);
+}
+
+// Scorpion "Bid War" (EmeraldDB 2bf73f61) — Kyuden Bayushi honor-dial control.
+// Wins by bidding into the low-honor band (<=6) where Shadow Stalker, Alibi
+// Artist and the stronghold's ready bonus all turn on, then converting the dial
+// gap into cards (Regal Bearing), removal (I Can Swim) and debuffs (Make an
+// Opening). Duty is the safety net that lets it live down there.
+function loadScorpionBidWarDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'scorpion-bidwar-decklist.json'), 'utf8'));
+    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'scorpion-bidwar-cards.json'), 'utf8'));
+    const cardsById = {};
+    for(const card of cardsArray) {
+        cardsById[card.id] = card;
+    }
+    return buildDeck(decklist, cardsById);
+}
+
+// Lion Duelist (EmeraldDB a2058c37) — Kyuden Ikoma honor-switch Lion. Bids low
+// to hold the honor lead that turns on Matsu Tsuko's free province break, Matsu
+// Agetoki's conflict move, Matsu Mitsuko's move-in and Blade of 10,000 Battles,
+// then converts every conflict win into cards and bowed enemies.
+function loadLionDuelistDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'lion-duelist-decklist.json'), 'utf8'));
+    return buildDeck(decklist, indexFixtureCards(['lion-duelist-cards.json']));
 }
 
 // Lion Swarm v0.3 (EmeraldDB 27a913d1) — cheap-body province-trading rush.
@@ -189,4 +220,4 @@ function loadCraneDuelDeck() {
     ]));
 }
 
-module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadCraneDeck, loadCrabDeck, loadScorpionDeck, loadLionDeck, loadPhoenixDeck, loadPhoenixShugenjaDeck, loadPhoenixPhoenixDeck, loadDragonDeck, loadDragonAttachmentsDeck, loadCraneDuelDeck, FIXTURES };
+module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadUnicornRevealDeck, loadCraneDeck, loadCrabDeck, loadScorpionDeck, loadScorpionBidWarDeck, loadLionDeck, loadLionDuelistDeck, loadPhoenixDeck, loadPhoenixShugenjaDeck, loadPhoenixPhoenixDeck, loadDragonDeck, loadDragonAttachmentsDeck, loadCraneDuelDeck, FIXTURES };

@@ -12,10 +12,10 @@ const STANDARD_ROUND_ROBIN_GAMES = 40;
 const STANDARD_OMNISCIENT_GAMES = 20;
 // Backward-compatible win-rate name used by winRates.js.
 const STANDARD_GAMES = STANDARD_WIN_RATE_GAMES;
-const BENCHMARK_VERSION = 6;
+const BENCHMARK_VERSION = 8;
 // Changing the standard opponent or the round-robin deck roster invalidates
 // previously recorded numbers. The client only displays matching sections.
-const STANDARD_SUITE_ID = 'crane-baseline-4736f7c0';
+const STANDARD_SUITE_ID = 'crane-baseline-4736f7c0-unicorn-reveal-6057d28e-lion-duelist-a2058c37';
 const DEFAULT_RESULTS_PATH = path.resolve(
     __dirname,
     '..',

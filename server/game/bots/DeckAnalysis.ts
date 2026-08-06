@@ -125,6 +125,16 @@ const ANALYSIS: CardModel[] = [
     { id: 'ujiaki-s-offer', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility', conflictTypes: ['political'] },
     { id: 'forebearer-s-echoes', type: 'event', side: 'conflict', fate: 2, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'body', conflictTypes: ['military'] },
 
+    // Lion Duelist (Kyuden Ikoma). Way of the Lion doubles a BASE military
+    // skill, which on the deck's five-cost Champions is the largest single
+    // pump either Lion list owns; Even the Odds moves a body in and honors a
+    // Commander; Prepare for War strips a debuff and honors a Commander;
+    // Called to War banks a fate rather than adding skill now.
+    { id: 'way-of-the-lion', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 5, tag: 'buff', conflictTypes: ['military'] },
+    { id: 'even-the-odds', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'body' },
+    { id: 'prepare-for-war', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
+    { id: 'called-to-war', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+
     { id: 'rout', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
     { id: 'censure', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
     { id: 'benten-s-touch', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'honor' },
@@ -163,7 +173,66 @@ const ANALYSIS: CardModel[] = [
     { id: 'flank-the-enemy', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
     { id: 'captive-audience', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility', conflictTypes: ['political'] },
     { id: 'cavalry-reserves', type: 'event', side: 'conflict', fate: 3, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 6, tag: 'body', conflictTypes: ['military'] },
-    { id: 'challenge-on-the-fields', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'duel', conflictTypes: ['military'] }
+    { id: 'challenge-on-the-fields', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'duel', conflictTypes: ['military'] },
+
+    // Unicorn Reveal. Province redirects/economy effects are modeled at zero
+    // current-conflict skill unless they directly change who can participate.
+    { id: 'overrun', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'outflank', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
+    { id: 'good-omen', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'chasing-the-sun', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'scouted-terrain', type: 'event', side: 'conflict', fate: 4, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'diversionary-maneuver', type: 'event', side: 'conflict', fate: 2, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'utility', conflictTypes: ['military'] },
+    { id: 'speak-to-the-heart', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'buff', conflictTypes: ['political'] },
+
+    // Scorpion "Bid War" (Kyuden Bayushi). Two consumers need these beyond the
+    // omniscient hand-threat estimate: Upholding Authority ranks the ATTACKER's
+    // revealed hand by these values, and Bayushi Kachiko ranks the opponent's
+    // discarded events before replaying one. Both look at cards the bot does
+    // not own, so live card objects cannot supply the answer.
+    { id: 'for-shame', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'debuff' },
+    // Dishonor removes the target's glory from both skills; 2 is the field
+    // average glory on a participant worth targeting.
+    { id: 'way-of-the-scorpion', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'debuff' },
+    // No skill of its own, but a 2-4 card refill is the single biggest tempo
+    // card in the list, which is what the hand-strip and replay rankings need
+    // to see. `estimateHandThreat` caps at one body plus one trick, so this
+    // cannot inflate a whole-hand estimate.
+    { id: 'regal-bearing', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'draw', conflictTypes: ['political'] },
+    { id: 'calling-in-favors', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'removal' },
+    { id: 'i-can-swim', type: 'event', side: 'conflict', fate: 2, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 5, tag: 'removal' },
+    { id: 'dispatch-to-nowhere', type: 'event', side: 'dynasty', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
+    { id: 'a-season-of-war', type: 'event', side: 'dynasty', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+
+    { id: 'court-mask', type: 'attachment', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 1, polBonus: 2, swing: 0, tag: 'buff' },
+    { id: 'elegant-tessen', type: 'attachment', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 1, polBonus: 1, swing: 0, tag: 'buff' },
+
+    { id: 'slovenly-scavenger', type: 'character', side: 'conflict', fate: 1, mil: 1, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'shosuro-sadako', type: 'character', side: 'conflict', fate: 2, mil: 1, pol: 1, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'bayushi-kachiko', type: 'character', side: 'conflict', fate: 5, mil: 3, pol: 6, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+
+    { id: 'alibi-artist', type: 'character', side: 'dynasty', fate: 1, mil: 0, pol: 2, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'court-novice', type: 'character', side: 'dynasty', fate: 1, mil: 1, pol: 1, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'bayushi-manipulator', type: 'character', side: 'dynasty', fate: 1, mil: 1, pol: 1, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'beautiful-entertainer', type: 'character', side: 'dynasty', fate: 1, mil: 0, pol: 1, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'yogo-asami', type: 'character', side: 'dynasty', fate: 2, mil: 0, pol: 3, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'cursecatcher', type: 'character', side: 'dynasty', fate: 2, mil: 2, pol: 2, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'shadow-stalker', type: 'character', side: 'dynasty', fate: 2, mil: 2, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'blackmail-artist', type: 'character', side: 'dynasty', fate: 2, mil: 1, pol: 2, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'loyal-challenger', type: 'character', side: 'dynasty', fate: 2, mil: 1, pol: 3, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'social-puppeteer', type: 'character', side: 'dynasty', fate: 3, mil: 1, pol: 3, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'bayushi-kachiko-2', type: 'character', side: 'dynasty', fate: 5, mil: 3, pol: 6, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+
+    { id: 'imperial-storehouse', type: 'holding', side: 'dynasty', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'draw' },
+    { id: 'acclaimed-geisha-house', type: 'holding', side: 'dynasty', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+
+    { id: 'kyuden-bayushi', type: 'stronghold', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'seeker-of-earth', type: 'role', side: 'role', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'secret-cache', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'honor-s-reward', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'shameful-display', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'effective-deception', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'upholding-authority', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' }
 ];
 
 const BY_ID = new Map<string, CardModel>(ANALYSIS.map((card) => [card.id, card]));

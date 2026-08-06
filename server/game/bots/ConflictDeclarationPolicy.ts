@@ -82,6 +82,21 @@ export interface AxisChoiceInput {
     /** Conflicts of each type we may still declare this round. */
     militaryRemaining?: number;
     politicalRemaining?: number;
+    /**
+     * Skill-equivalent value of a card payoff that only turns on for one axis,
+     * added to that axis before the comparison. The axis choice is otherwise a
+     * pure board reading, so a deck whose CARD ENGINE lives on one axis never
+     * declares there once its board leans the other way — measured on the Lion
+     * Duelist list, whose Regal Bearing needs a political conflict with a
+     * participating Courtier and fired **zero times in six games** behind a
+     * military-leaning board.
+     *
+     * The zero-skill guards above run on the RAW board, so a bonus can never
+     * steer onto an axis we cannot legally attack on. Zero (the default) is
+     * bit-identical to not having the field.
+     */
+    axisBonusMilitary?: number;
+    axisBonusPolitical?: number;
 }
 
 export type ConflictAxisChoice = 'military' | 'political';
@@ -107,8 +122,12 @@ export class ConflictDeclarationPolicy {
     }
 
     public chooseAxis(input: AxisChoiceInput): AxisChoiceResult {
+        // Card-payoff bonuses ride along with our own skill from here on. The
+        // legality guards below deliberately keep reading the RAW board.
+        const myMilitary = input.myMilitary + (Number(input.axisBonusMilitary) || 0);
+        const myPolitical = input.myPolitical + (Number(input.axisBonusPolitical) || 0);
         const baseline: ConflictAxisChoice =
-            input.myMilitary >= input.myPolitical ? 'military' : 'political';
+            myMilitary >= myPolitical ? 'military' : 'political';
 
         // A military-rush deck forces every conflict military as long as it has
         // any military skill: its payoffs and pumps are all military, and
@@ -145,8 +164,8 @@ export class ConflictDeclarationPolicy {
                 return { axis: 'military', baseline: baseline, reason: 'axis-exhausted' };
             }
         }
-        const military = input.myMilitary - weight * input.theirMilitary;
-        const political = input.myPolitical - weight * input.theirPolitical;
+        const military = myMilitary - weight * input.theirMilitary;
+        const political = myPolitical - weight * input.theirPolitical;
         const preferred: ConflictAxisChoice = military >= political ? 'military' : 'political';
         if(preferred === baseline) {
             return { axis: baseline, baseline: baseline, reason: 'own-board' };

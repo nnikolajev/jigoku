@@ -16,6 +16,10 @@ import type { DrawBidContext } from './DrawBidTactics';
 import type { DynastyCharacterInfo } from './BoardAwareDynastyTactics';
 import type { KnownCard } from './DeckAnalysis';
 import type { ConflictAxis, ConflictPlannerCharacter } from './ConflictPhasePlanner';
+import type {
+    ProvinceKnowledge,
+    ProvinceKnowledgeSnapshot
+} from './UnicornRevealTactics';
 import OmniscientBotCapability from './OmniscientBotCapability.js';
 import { logger } from '../../logger.js';
 import type Game from '../game';
@@ -407,6 +411,11 @@ class JigokuBotController {
                         ? (player as any).getTotalIncome()
                         : 7,
                     provinceIdsByLocation: this.provinceIdsByLocation(player),
+                    provinceKnowledge: this.provinceKnowledgeSnapshot(player),
+                    completedConflictsThisRound: ((this.game as any).conflictRecord || [])
+                        .filter((record: any) => record?.completed).length,
+                    opponentCompletedConflictsThisRound: ((this.game as any).conflictRecord || [])
+                        .filter((record: any) => record?.completed && record?.attackingPlayer === player.opponent).length,
                     promptIdentity: promptStep?.uuid,
                     promptControls: beforePrompt?.controls || [],
                     // Printed stats for card-shaped menu buttons, and whether
@@ -447,6 +456,7 @@ class JigokuBotController {
                     // Effective post-reveal margin, including bid modifiers.
                     duelMargin: this.currentDuelMargin(player),
                     interruptedEventIsMine: this.currentInterruptedEventIsMine(player),
+                    interruptedAbilityIsMine: this.currentInterruptedAbilityIsMine(player),
                     displayOfPowerActive: this.displayOfPowerActiveThisConflict(),
                     legalDirectCardUuids: this.currentLegalDirectCardUuids(player),
                     legalAttachmentTargetUuidsBySource: this.legalAttachmentTargetUuidsBySource(player),
@@ -635,11 +645,36 @@ class JigokuBotController {
         }
         return profile.lion ? 'lion'
             : profile.unicorn ? 'unicorn'
-                : profile.dishonor ? 'dishonor'
-                    : profile.glory ? 'glory'
-                        : profile.shugenja ? 'shugenja'
-                            : profile.dragon ? 'dragon'
-                                : 'standard';
+                : profile.bidWar ? 'bid-war'
+                    : profile.dishonor ? 'dishonor'
+                        : profile.glory ? 'glory'
+                            : profile.shugenja ? 'shugenja'
+                                : profile.dragon ? 'dragon'
+                                    : 'standard';
+    }
+
+    // Merge base -> shared -> per-deck for one tactics sub-profile. Scalars and
+    // arrays are replaced by the last layer that names them (an arm naming a
+    // list means that list). Plain-object fields are merged one level deeper so
+    // an arm can retune ONE entry of a lookup table — `additionalFateByCharacterId`,
+    // `provinceTextPriorityById`, `onRevealValueById` — without silently zeroing
+    // every entry it did not restate.
+    private static mergeTacticsProfile(...layers: any[]): any {
+        const merged: any = {};
+        for(const layer of layers) {
+            if(!layer) {
+                continue;
+            }
+            for(const [field, value] of Object.entries(layer)) {
+                const isRecord = value && typeof value === 'object' && !Array.isArray(value);
+                const existing = merged[field];
+                const existingIsRecord = existing && typeof existing === 'object' && !Array.isArray(existing);
+                merged[field] = isRecord && existingIsRecord
+                    ? { ...existing, ...value }
+                    : isRecord ? { ...value } : value;
+            }
+        }
+        return merged;
     }
 
     private decisionProfile(player: Player): DeckProfile | undefined {
@@ -687,13 +722,12 @@ class JigokuBotController {
         for(const key of ['rebirth', 'shugenja', 'fateAwareEconomy', 'strongholdDefense',
             'defenseTuning', 'conflictDeclaration', 'conflictCardEconomy',
             'drawBidding', 'duelBidding', 'personalHonor', 'boardAwareDynasty',
-            'mulligan', 'honorRace'] as const) {
+            'mulligan', 'honorRace', 'unicornReveal', 'provinceRevealResponse',
+            'bidWar', 'lionDuelist'] as const) {
             if(sharedTop?.[key] || perDeck[key]) {
-                merged[key] = {
-                    ...(baseAny[key] || {}),
-                    ...(sharedTop?.[key] || {}),
-                    ...(perDeck[key] || {})
-                };
+                merged[key] = JigokuBotController.mergeTacticsProfile(
+                    baseAny[key], sharedTop?.[key], perDeck[key]
+                );
             }
         }
         return merged as DeckProfile;
@@ -1337,6 +1371,23 @@ class JigokuBotController {
         return eventPlayer?.name ? eventPlayer.name === player.name : undefined;
     }
 
+    // Whether the ability whose effects are about to initiate belongs to US,
+    // for any source type. `currentInterruptedEventIsMine` deliberately only
+    // looks at event CARDS (Voice of Honor cancels events); a cancel that fires
+    // on province abilities — Cursecatcher, Effective Deception — needs to know
+    // whose province is talking, or it cancels our own reactions.
+    private currentInterruptedAbilityIsMine(player: Player): boolean | undefined {
+        const step = this.currentPromptStep(player);
+        const events: any[] = step?.events || step?.window?.events || [];
+        const event = events.find((candidate: any) => candidate?.name === 'onInitiateAbilityEffects');
+        if(!event) {
+            return undefined;
+        }
+        const abilityPlayer = event?.context?.player ||
+            (event?.card || event?.context?.source)?.controller;
+        return abilityPlayer?.name ? abilityPlayer.name === player.name : undefined;
+    }
+
     private recordDisplayOfPowerInitiated(event: any): void {
         const source = event?.card || event?.context?.source;
         const eventPlayer = event?.context?.player || event?.player || source?.controller;
@@ -1541,6 +1592,64 @@ class JigokuBotController {
             }
         }
         return Object.keys(ids).length > 0 ? ids : undefined;
+    }
+
+    // Public province state used by reveal/economy tactics. Own facedown ids
+    // are known to their controller; opponent facedown ids stay hidden. This
+    // exposes counts, live strength, stronghold attackability, and the special
+    // Massing-at-Twilight skill rule without granting fair bots secret data.
+    private provinceKnowledgeSnapshot(player: Player): ProvinceKnowledgeSnapshot {
+        const describe = (owner: Player | undefined, revealHiddenIds: boolean): ProvinceKnowledge[] => {
+            const provinces: any[] = typeof (owner as any)?.getProvinces === 'function'
+                ? (owner as any).getProvinces()
+                : [];
+            return provinces.map((province: any) => {
+                const faceup = province?.facedown !== true;
+                const text = String(province?.cardData?.text || province?.text || '').toLowerCase();
+                const abilityClass = !faceup && !revealHiddenIds
+                    ? 'unknown'
+                    : /after .*revealed|when .*revealed/.test(text)
+                        ? 'reveal'
+                        : /<b>reaction:|\breaction:/.test(text)
+                            ? 'reaction'
+                            : /<b>action:|\baction:/.test(text)
+                                ? 'action'
+                                : 'none';
+                const id = faceup || revealHiddenIds
+                    ? String(province?.id || province?.cardData?.id || '') || undefined
+                    : undefined;
+                return {
+                    id,
+                    location: String(province?.location || ''),
+                    owner: String((owner as any)?.name || ''),
+                    faceup,
+                    broken: !!province?.isBroken,
+                    stronghold: province?.location === 'stronghold province',
+                    strength: faceup || revealHiddenIds ? this.liveProvinceStrength(province) : undefined,
+                    abilityClass
+                } as ProvinceKnowledge;
+            });
+        };
+        const opponent = player.opponent;
+        const opponentProvinces: any[] = typeof (opponent as any)?.getProvinces === 'function'
+            ? (opponent as any).getProvinces()
+            : [];
+        const opponentStronghold = opponentProvinces.find((province: any) =>
+            province?.location === 'stronghold province');
+        const conflict: any = (this.game as any).currentConflict;
+        const conflictProvinces: any[] = typeof conflict?.getConflictProvinces === 'function'
+            ? conflict.getConflictProvinces() || []
+            : [];
+        return {
+            self: describe(player, true),
+            opponent: describe(opponent, false),
+            opponentStrongholdAttackable: !!opponentStronghold &&
+                (typeof opponentStronghold.canBeAttacked === 'function'
+                    ? opponentStronghold.canBeAttacked()
+                    : false),
+            combinedConflictSkills: conflictProvinces.some((province: any) =>
+                (province?.id || province?.cardData?.id) === 'massing-at-twilight')
+        };
     }
 
     private conflictCostsHint(player: Player): Record<string, number> | undefined {

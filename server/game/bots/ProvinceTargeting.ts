@@ -7,6 +7,9 @@ export type ProvinceAbilityClass = 'none' | 'reveal' | 'reaction' | 'action' | '
 export interface ProvinceTargetingProfile {
     // Eminent provinces start faceup and are normally deliberately weaker.
     preferEminent: boolean;
+    // Reveal-engine decks prefer a still-hidden province even when it is
+    // stronger: flipping it grows Shiro Shinjo and enables Scouted Terrain.
+    preferFacedown: boolean;
     // Fair bots use this only for still-hidden provinces. Seed 3 supplies the
     // exact value through KnownProvinceTarget.
     unknownStrength: number;
@@ -30,6 +33,7 @@ export interface ProvinceTargetingProfile {
 
 export const PROVINCE_TARGETING_DEFAULTS: ProvinceTargetingProfile = {
     preferEminent: true,
+    preferFacedown: false,
     unknownStrength: 4,
     abilityPriority: {
         none: 0,
@@ -64,6 +68,7 @@ interface RankedProvinceList {
     index: number;
     tier: number;
     eminent: number;
+    facedown: number;
     strength: number;
     ability: number;
 }
@@ -77,6 +82,7 @@ export class ProvinceTargetingTactics {
             .map((list, index) => this.describe(list, index, known))
             .sort((left, right) =>
                 (left.tier - right.tier) ||
+                (left.facedown - right.facedown) ||
                 (left.eminent - right.eminent) ||
                 (left.strength - right.strength) ||
                 (left.ability - right.ability) ||
@@ -106,11 +112,13 @@ export class ProvinceTargetingTactics {
         const abilityClass = exact?.abilityClass || card?.provinceAbilityClass || 'unknown';
         const ability = Number(this.profile.abilityPriority[abilityClass]);
         const eminent = !!(exact?.eminent ?? card?.eminent);
+        const facedown = !!(exact?.facedown ?? card?.facedown);
 
         return {
             list,
             index,
             tier: Number(this.profile.priorityTierById[id]) || 0,
+            facedown: this.profile.preferFacedown && facedown ? 0 : 1,
             eminent: this.profile.preferEminent && eminent ? 0 : 1,
             strength,
             ability: Number.isFinite(ability) ? ability : this.profile.abilityPriority.unknown

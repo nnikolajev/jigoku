@@ -85,4 +85,18 @@ describe('ProvinceTargetingTactics', function() {
 
         expect(ids(ranked)).toEqual(['must-break-first', 'ordinary', 'leave-for-last']);
     });
+
+    it('lets reveal decks prefer unknown provinces over easier exposed provinces', function() {
+        const profile = {
+            ...PROVINCE_TARGETING_DEFAULTS,
+            preferFacedown: true,
+            abilityPriority: { ...PROVINCE_TARGETING_DEFAULTS.abilityPriority },
+            effectiveStrengthById: { ...PROVINCE_TARGETING_DEFAULTS.effectiveStrengthById },
+            priorityTierById: { ...PROVINCE_TARGETING_DEFAULTS.priorityTierById }
+        };
+        const hidden = [{ facedown: true, location: 'province 1' }];
+        const exposed = list('exposed', 'province 2', 1, 'none');
+
+        expect(new ProvinceTargetingTactics(profile).rank([exposed, hidden])[0]).toBe(hidden);
+    });
 });

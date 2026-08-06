@@ -100,9 +100,12 @@ tower deck, and `craneBaseline?: CraneBaselineProfile`
 (`CraneBaselineTactics.ts`, doc `crane-baseline-bot.md`) for the mixed
 duel/honor/control baseline, and `unicorn?: UnicornProfile`
 (`UnicornTactics.ts`, doc `unicorn-bot.md`) for Cavalry movement, effective
-participants, and movement-trigger setup. Same gating rule:
-the sub-profile exists only for decks whose strategy/override derives it, and
-every policy hook checks its presence.
+participants, and movement-trigger setup, and `lionDuelist?: LionDuelistProfile`
+(`LionDuelistTactics.ts`, doc `bot-lion-duelist.md`) for the Kyuden Ikoma
+honor-switch Lion — the "more honorable than your opponent" payoffs, Matsu
+Tsuko's win-is-break planning, the move/ready package, and a card-payoff term
+for the conflict AXIS. Same gating rule: the sub-profile exists only for decks
+whose strategy/override derives it, and every policy hook checks its presence.
 
 `personalHonor: PersonalHonorProfile` is different: every deck receives this
 generic injectable profile. `PersonalHonorTactics.ts` centralizes high-glory

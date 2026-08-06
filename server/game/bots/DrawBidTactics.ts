@@ -158,6 +158,24 @@ export const CARD_ENGINE_DRAW_BID_PROFILE: DrawBidProfile = {
     dominantBoardPenalty: 1
 };
 
+// A deck whose economy is FATE (a stronghold that pays per revealed province)
+// rather than cards. The card-engine profile bids >= 4 every round, and against
+// a field that routinely bids 2-3 that hands over 1-2 honor per round — enough
+// to end games at 0-6 honor even in wins, and to make 22% of all losses
+// dishonor. Bidding low instead reverses the transfer: honor becomes income,
+// and the deck buys its cards with the fate it already has.
+// Measured +4.58pp over 16 bases / 5760 games per arm (p = 1.6e-9), driven by
+// Scorpion +20.8pp, Crab +14.2pp and Dragon +12.7pp.
+export const FATE_ECONOMY_DRAW_BID_PROFILE: DrawBidProfile = {
+    ...DEFAULT_DRAW_BID_PROFILE,
+    objective: 'balanced',
+    minimumRoutineBid: 1,
+    // Above the honor track's practical ceiling, so the low bid is effectively
+    // unconditional. Measured as a monotone sweep: 6 -> +0.99pp, 9 -> +1.84pp,
+    // 12 -> +3.65pp, 15 -> +4.31pp, 20 -> +4.58pp.
+    lowHonorThreshold: 20
+};
+
 export const HONOR_DRAW_BID_PROFILE: DrawBidProfile = {
     ...DEFAULT_DRAW_BID_PROFILE,
     objective: 'honor',

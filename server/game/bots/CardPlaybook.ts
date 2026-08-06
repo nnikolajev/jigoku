@@ -84,6 +84,37 @@ export interface PlaybookContext {
     // pile in `dynastyDiscard` has empty skill summaries — the engine only fills
     // those for cards in play — so recursion cards cannot be priced from it.
     dynastyDiscardBodies?: any[];
+    opponentFaceupNonStrongholdProvinces?: number;
+    opponentFacedownNonStrongholdProvinces?: number;
+    opponentStrongholdAttackable?: boolean;
+    combinedConflictSkills?: boolean;
+    // The VISIBLE honor dials (`player.showBid`), both sides. A whole deck
+    // family reads the difference between them — I Can Swim needs ours
+    // strictly higher, Make an Opening scales with |difference|, Regal Bearing
+    // draws |1 - theirs| — and none of it was reachable from the playbook
+    // before. Zero/undefined means "no dial shown yet" and every gate below
+    // treats that as "do not spend the card".
+    myBid?: number;
+    opponentBid?: number;
+    // The opponent's conflict discard pile. Bayushi Kachiko (Atonement) makes
+    // the EVENTS in it playable as if they were in our hand during a political
+    // conflict she participates in.
+    opponentConflictDiscard?: any[];
+    // Deck-profile switch, carried the same way `honorRaceAware` is: on for
+    // the Kyuden Bayushi list, off (and therefore inert) everywhere else, so a
+    // shared entry can gate a bid-war reading without touching other decks.
+    bidWarAware?: boolean;
+    // A conflict is live. Board Actions are offered in dynasty and draw
+    // windows too, where "participating" gates cannot hold.
+    activeConflict?: boolean;
+    // Elements of the rings WE currently hold claimed. The serialized ring
+    // carries `claimedBy` as a player NAME, which a playbook gate cannot
+    // resolve, so the policy folds the comparison down to this list. Ikoma
+    // Reservist is +2 military while we hold fire or water.
+    myClaimedRingElements?: string[];
+    // Whether an eligible unbroken province other than the contested one is
+    // still available (Matsu Agetoki has somewhere to move the conflict TO).
+    alternateProvincesAvailable?: number;
 }
 
 export interface PlaybookEntry extends CardHint {
@@ -188,6 +219,20 @@ export interface DeckStrategy {
     // Fushicho's interrupt, Forebearer's Echoes and My Ancestor's Strength.
     // Combines with `shugenja` — the deck runs Kyuden Isawa as well.
     rebirth: boolean;
+    // Kyuden Bayushi honor-dial control: bid into the low-honor band where the
+    // deck's cards turn on, then convert the dial GAP into cards (Regal
+    // Bearing), removal (I Can Swim) and debuffs (Make an Opening). Distinct
+    // from `dishonor`, which drains the OPPONENT's honor; this deck spends its
+    // own and lives on Duty.
+    bidWar: boolean;
+    // Kyuden Ikoma Lion: honor as a SWITCH. Five of its best effects read "if
+    // you are more honorable than your opponent", so it bids low to accumulate
+    // the lead, then converts conflict wins into free province breaks (Matsu
+    // Tsuko), bowed enemies (the stronghold and two duel grants) and cards
+    // (Blade of 10,000 Battles, Setting the Standard). Distinct from `duelist`,
+    // which is the Crane Tsuma package, and from `aggressive`, which this deck
+    // deliberately is not.
+    lionDuelist: boolean;
 }
 
 const entry = (cardId: string, overrides: Partial<PlaybookEntry>): PlaybookEntry => Object.assign({
@@ -414,6 +459,73 @@ export function banzaiRecurAllowed(
 const lessHonorableThanOpponent = (ctx: PlaybookContext): boolean =>
     ctx.honorRaceAware !== true || typeof ctx.opponentHonor !== 'number' ||
     (Number(ctx.honor) || 0) < ctx.opponentHonor;
+
+// ---- honor-dial readings (Scorpion "Bid War") -----------------------------
+//
+// `myBid`/`opponentBid` are the VISIBLE dials. Both are 0/undefined before the
+// draw-phase reveal and in every prompt that never plumbed them, and each
+// reading below treats that as "no gap", which closes the gate rather than
+// spending a card into a cancel.
+
+// The absolute difference — Make an Opening's X, and always a MINUS on the
+// enemy participant regardless of which side bid higher.
+const dialGap = (ctx: PlaybookContext): number => {
+    const mine = Number(ctx.myBid);
+    const theirs = Number(ctx.opponentBid);
+    if(!Number.isFinite(mine) || !Number.isFinite(theirs) || mine <= 0 || theirs <= 0) {
+        return 0;
+    }
+    return Math.abs(mine - theirs);
+};
+
+// Regal Bearing sets OUR dial to 1 and draws |1 - theirs|, so only the
+// opponent's visible dial matters.
+const regalBearingDraw = (ctx: PlaybookContext): number => {
+    const theirs = Number(ctx.opponentBid);
+    return Number.isFinite(theirs) && theirs > 0 ? Math.abs(1 - theirs) : 0;
+};
+
+// I Can Swim needs BOTH a strictly higher visible dial and a dishonored enemy
+// participant. Returns the body it would remove so the card can be priced by
+// what it actually takes off the table.
+const canSwimTarget = (ctx: PlaybookContext): any | null => {
+    const mine = Number(ctx.myBid);
+    const theirs = Number(ctx.opponentBid);
+    if(!Number.isFinite(mine) || !Number.isFinite(theirs) || theirs <= 0 || mine <= theirs) {
+        return null;
+    }
+    return participating(ctx.opponentCharacters)
+        .filter((card) => card.isDishonored)
+        .sort((a, b) => liveSkill(b, ctx.conflictType) - liveSkill(a, ctx.conflictType))[0] || null;
+};
+
+// "If you are more honorable than your opponent" is the printed condition on
+// Matsu Tsuko, Matsu Agetoki, Matsu Mitsuko and Blade of 10,000 Battles. The
+// engine refuses the ability outright when it is false, so every gate below
+// checks it rather than paying for a click the engine will reject.
+const moreHonorable = (ctx: PlaybookContext): boolean =>
+    Number(ctx.honor ?? 10) > Number(ctx.opponentHonor ?? 10);
+
+// Bodies that are ready and NOT already in the conflict — the pool every
+// move-in effect in the Lion Duelist list draws from, and the only pool the
+// stronghold's bow can actually cost the opponent anything from.
+const readyAtHome = (cards: any[]): any[] =>
+    (cards || []).filter((card) => card && !card.bowed && !card.inConflict);
+
+const holdsRing = (ctx: PlaybookContext, elements: string[]): boolean =>
+    (ctx.myClaimedRingElements || []).some((element) => elements.includes(String(element)));
+
+// Total attachment weight the Frostbitten Crossing strip would remove from one
+// body. Ours only counts KNOWN debuffs (shedding our own weapon is never the
+// play); theirs counts everything, because every attachment they paid for is
+// something we would rather they did not have.
+const stripWeight = (card: any, mine: boolean): number =>
+    (card?.attachments || []).reduce((total: number, attachment: any) => {
+        if(mine) {
+            return total + (isNegativeAttachmentId(attachment?.id) ? 1 : 0);
+        }
+        return total + 1;
+    }, 0);
 
 const PLAYBOOK: Record<string, PlaybookEntry> = {
     // +2 military to a participating character, optionally twice for 1 honor.
@@ -749,6 +861,159 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     'seeker-of-void': entry('seeker-of-void', {
         priority: 8,
         summary: 'gain 1 fate when an own void province is revealed'
+    }),
+
+    // ---- Shiro Shinjo province-reveal / fate-economy deck ----
+
+    'shiro-shinjo': entry('shiro-shinjo', {
+        priority: 10,
+        summary: 'bow after collection: gain fate for each faceup opposing outer province'
+    }),
+    'appealing-to-the-fortunes': entry('appealing-to-the-fortunes', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 10,
+        summary: 'Void-role strength 5; on break put the strongest available character into play'
+    }),
+    'border-fortress': entry('border-fortress', {
+        targetSide: 'enemy',
+        priority: 9,
+        inPlayAction: true,
+        actionBeforePass: true,
+        summary: 'during its conflict reveal another facedown province'
+    }),
+    'khan-s-ordu': entry('khan-s-ordu', {
+        priority: 10,
+        summary: 'on reveal switch political to military and make later declarations military'
+    }),
+    'massing-at-twilight': entry('massing-at-twilight', {
+        priority: 9,
+        summary: 'strength 8; participating characters count combined military and political'
+    }),
+    'ganzu-warrior': entry('ganzu-warrior', {
+        priority: 10,
+        summary: 'after a conflict reveal resolve a matching normal ring effect'
+    }),
+    'shinjo-trailblazer': entry('shinjo-trailblazer', {
+        priority: 9,
+        summary: 'gains +2/+2 after an opposing province is revealed during a conflict'
+    }),
+    'way-station-trader': entry('way-station-trader', {
+        priority: 9,
+        summary: 'after a participating reveal take 1 fate from an opponent'
+    }),
+    'iuchi-farseer': entry('iuchi-farseer', {
+        targetSide: 'enemy',
+        priority: 10,
+        summary: 'on entry reveal an opposing facedown province'
+    }),
+    'iuchi-daiyu': entry('iuchi-daiyu', {
+        conflictTypes: ['military'],
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 9,
+        inPlayAction: true,
+        actionBeforePass: true,
+        summary: '+1 military per faceup opposing outer province',
+        shouldUseAction: (ctx) => ctx.conflictType === 'military' &&
+            (ctx.opponentFaceupNonStrongholdProvinces || 0) > 0 &&
+            readyParticipants(ctx.myCharacters).length > 0
+    }),
+    'khanbulak-benefactor': entry('khanbulak-benefactor', {
+        priority: 10,
+        summary: 'enter with no fate for Dire hand discounts; always draw 2 on entry'
+    }),
+    'moto-horde': entry('moto-horde', {
+        conflictTypes: ['military'],
+        priority: 6,
+        summary: 'efficient 6-military body'
+    }),
+    'white-horde-vanguard': entry('white-horde-vanguard', {
+        conflictTypes: ['military'],
+        priority: 8,
+        summary: 'first-conflict protection from opposing bow and move effects'
+    }),
+    'moto-chagatai': entry('moto-chagatai', {
+        conflictTypes: ['military'],
+        priority: 8,
+        summary: 'does not bow after a conflict that breaks an opposing province'
+    }),
+    'yoritomo': entry('yoritomo', {
+        priority: 8,
+        summary: 'gets +X/+X where X is the controller fate pool'
+    }),
+    'aranat': entry('aranat', {
+        priority: 10,
+        summary: 'on play gains fate for each opposing province left facedown'
+    }),
+    'audience-chamber': entry('audience-chamber', {
+        priority: 10,
+        summary: 'after a printed cost 4+ character is played place 1 fate on it'
+    }),
+    'good-omen': entry('good-omen', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 8,
+        abilityValue: true,
+        summary: 'with composure place 1 fate on a printed cost 3+ character',
+        shouldPlay: (ctx) => ctx.myCharacters.some((card) =>
+            (Number(ctx.characterPrintedCosts?.[card.uuid]) || 0) >= 3)
+    }),
+    'outflank': entry('outflank', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 10,
+        abilityValue: true,
+        summary: 'reveal reaction: strongest ready non-unique cannot defend',
+        shouldPlay: () => false
+    }),
+    'speak-to-the-heart': entry('speak-to-the-heart', {
+        conflictTypes: ['political'],
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        conflictContribution: (ctx) => ctx.opponentFaceupNonStrongholdProvinces || 0,
+        summary: '+1 political per faceup opposing outer province'
+    }),
+    'chasing-the-sun': entry('chasing-the-sun', {
+        targetSide: 'enemy',
+        priority: 9,
+        abilityValue: true,
+        actionBeforePass: true,
+        summary: 'move an attack to another province and reveal it',
+        shouldPlay: (ctx) => ctx.amAttacker &&
+            (ctx.opponentFacedownNonStrongholdProvinces || 0) > 0
+    }),
+    'overrun': entry('overrun', {
+        targetSide: 'enemy',
+        priority: 10,
+        abilityValue: true,
+        summary: 'after a break reveal and blank another opposing province',
+        shouldPlay: () => false
+    }),
+    'diversionary-maneuver': entry('diversionary-maneuver', {
+        conflictTypes: ['military'],
+        targetSide: 'enemy',
+        priority: 9,
+        abilityValue: true,
+        actionBeforePass: true,
+        summary: 'reset participants, move the military conflict, and reveal its new province',
+        shouldPlay: (ctx) => ctx.amAttacker && ctx.conflictType === 'military' &&
+            (ctx.opponentFacedownNonStrongholdProvinces || 0) > 0
+    }),
+    'scouted-terrain': entry('scouted-terrain', {
+        targetSide: 'enemy',
+        priority: 10,
+        abilityValue: true,
+        summary: 'with four faceup provinces enable a surprise stronghold attack this phase',
+        shouldPlay: () => false
+    }),
+    'fine-katana': entry('fine-katana', {
+        conflictTypes: ['military'],
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 7,
+        summary: 'free Restricted +2 military attachment'
     }),
 
     // Province Conflict Action: strip 1 fate from an attacker — take it from
@@ -1285,7 +1550,15 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'strongest',
         priority: 7,
         summary: '-X/-X on an enemy participant, X = honor dial difference',
-        shouldPlay: (ctx) => ctx.opponentCharacters.some((card) => card.inConflict && !card.bowed)
+        // X is the ABSOLUTE dial difference, so the card is dead on a tie and
+        // worth 1 skill on a gap of 1 — the old reading spent it whenever any
+        // enemy participant stood there. Bid-war decks read the live dials;
+        // every other deck keeps the legacy gate bit-identical.
+        conflictContribution: (ctx) => ctx.bidWarAware === true
+            ? Math.min(dialGap(ctx), bestReadyParticipantSkill(ctx.opponentCharacters, ctx.conflictType))
+            : null,
+        shouldPlay: (ctx) => ctx.opponentCharacters.some((card) => card.inConflict && !card.bowed) &&
+            (ctx.bidWarAware !== true || dialGap(ctx) >= 2)
     }),
 
     // -4 political on a participant during a political conflict.
@@ -1467,6 +1740,18 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 9,
+        // Doubling BASE military adds exactly the base value again, so the card
+        // is worth the largest base military among our ready participants — the
+        // biggest single pump either Lion list owns, and it read as "unknown
+        // contribution" to province-break budgeting before.
+        // `characterBaseMilitary` is the exact live map; the summary stat is the
+        // fallback for synthetic callers.
+        conflictContribution: priced('way-of-the-lion', (ctx) => ctx.conflictType !== 'military'
+            ? 0
+            : readyParticipants(ctx.myCharacters).reduce((best: number, card: any) => {
+                const base = Number(ctx.characterBaseMilitary?.[card?.uuid] ?? liveSkill(card, 'military'));
+                return Math.max(best, Number.isFinite(base) ? Math.max(0, base) : 0);
+            }, 0)),
         summary: 'double a Lion character\'s base military'
     }),
 
@@ -3420,6 +3705,523 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'strongest',
         priority: 8,
         summary: 'stronghold: honor our duelist after a duel'
+    }),
+
+    // ---- Scorpion "Bid War" (Kyuden Bayushi, EmeraldDB 2bf73f61) ----------
+    //
+    // Every gate below reads the VISIBLE dials (`myBid`/`opponentBid`,
+    // i.e. `player.showBid`). An unknown dial reads as 0 and closes the gate,
+    // which keeps the card in hand instead of burning it on a cancel.
+
+    // Bow the stronghold, ready a dishonored friendly character, and at 6 or
+    // fewer honor give it +1/+1 for the phase. Gated in the policy through
+    // BidWarTactics so the deck knobs stay injectable; the entry only names it.
+    'kyuden-bayushi': entry('kyuden-bayushi', {
+        targetSide: 'self',
+        targetPreference: 'strongest-bowed',
+        priority: 8,
+        summary: 'stronghold: ready a dishonored friendly character (+1/+1 at 6 or fewer honor)'
+    }),
+
+    // Reaction after the honor dials are shown: +1 to our BID MODIFIER. That
+    // buys one more card and moves one more honor across the table without
+    // touching the visible dial the difference cards read. Both halves are
+    // wanted here — the honor is what puts the deck in its band.
+    'bayushi-manipulator': entry('bayushi-manipulator', {
+        priority: 7,
+        optionalDrawCards: 1,
+        summary: 'after dials revealed: increase our bid by 1 (one more card, one more honor paid)'
+    }),
+
+    // Action at 6 or fewer honor: look at the top 2, keep 1, bottom the other.
+    // Pure card selection with no cost, so it is worth firing every round the
+    // band is live and the hand is not already saturated.
+    'alibi-artist': entry('alibi-artist', {
+        priority: 7,
+        inPlayAction: true,
+        conflictPhaseAction: true,
+        actionBeforePass: true,
+        optionalDrawCards: 1,
+        abilityValue: true,
+        summary: 'at 6 or fewer honor: dig 2, keep the better one',
+        shouldUseAction: (ctx) => (Number(ctx.honor) || 0) <= 6 && (ctx.hand || []).length <= 9
+    }),
+
+    // Interrupt: cancel a PROVINCE's triggered ability while that province
+    // still holds a facedown dynasty card. It reads both sides' provinces, so
+    // the policy restricts it to the opponent's — cancelling our own province
+    // reaction is a pure loss.
+    'cursecatcher': entry('cursecatcher', {
+        priority: 8,
+        summary: 'cancel an opposing province ability (province must hold a facedown card)'
+    }),
+
+    // Action: bow this character, give a participating character -2 military.
+    // She is 0 military, so bowing her in a MILITARY conflict costs nothing;
+    // in a political one it throws away 3 political skill.
+    'yogo-asami': entry('yogo-asami', {
+        conflictTypes: ['military'],
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 7,
+        abilityValue: true,
+        inPlayAction: true,
+        requiresPreferredTarget: true,
+        conflictContribution: 2,
+        summary: 'bow her (0 military) to take 2 military off an enemy participant',
+        shouldUseAction: (ctx) => ctx.conflictType === 'military' &&
+            ctx.myCharacters.some((card) => card.id === 'yogo-asami' && card.inConflict && !card.bowed) &&
+            readyParticipants(ctx.opponentCharacters).some((card) => liveSkill(card, 'military') > 0)
+    }),
+
+    // Action: initiate a political duel and BLANK the loser for the conflict.
+    // Two payoffs beyond the duel itself — it strips an opposing ability, and
+    // the duel forces another honor bid, which is where this deck lives.
+    'loyal-challenger': entry('loyal-challenger', {
+        conflictTypes: ['political'],
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 7,
+        abilityValue: true,
+        inPlayAction: true,
+        summary: 'political duel; the loser is blanked for the conflict',
+        shouldUseAction: (ctx) => ctx.conflictType === 'political' &&
+            ctx.myCharacters.some((card) => card.id === 'loyal-challenger' && card.inConflict && !card.bowed) &&
+            readyParticipants(ctx.opponentCharacters).length > 0
+    }),
+
+    // Action while participating: swap honor dials with the opponent for the
+    // rest of the round. Gated in the policy through BidWarTactics because the
+    // decision is entirely about which dial payoff the swap turns on.
+    'social-puppeteer': entry('social-puppeteer', {
+        priority: 7,
+        abilityValue: true,
+        inPlayAction: true,
+        actionBeforePass: true,
+        summary: 'swap honor dials with the opponent (composure, or turn on I Can Swim)'
+    }),
+
+    // Action during a political conflict: send a lower-political participant
+    // home, then optionally bow it. Removing a defender outright is a bigger
+    // swing than any pump this deck holds.
+    'bayushi-kachiko': entry('bayushi-kachiko', {
+        conflictTypes: ['political'],
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 9,
+        inPlayAction: true,
+        requiresPreferredTarget: true,
+        summary: 'political: send a weaker participant home and bow it',
+        shouldUseAction: (ctx) => ctx.conflictType === 'political' &&
+            ctx.myCharacters.some((card) => card.id === 'bayushi-kachiko' && card.inConflict) &&
+            readyParticipants(ctx.opponentCharacters).length > 0
+    }),
+
+    // The Atonement Kachiko. Her text is a PERSISTENT effect, not a click: in
+    // a political conflict she participates in, the opponent's discarded
+    // EVENTS become playable from our side, three per round. Everything about
+    // her is "buy her, put her in political conflicts".
+    'bayushi-kachiko-2': entry('bayushi-kachiko-2', {
+        conflictTypes: ['political'],
+        priority: 9,
+        summary: 'political: play up to 3 events out of the opponent\'s conflict discard'
+    }),
+
+    // She adds glory instead of subtracting it while DISHONORED, so every
+    // dishonor cost this deck pays wants to land on her and she is 4/4 the
+    // moment it does.
+    'shosuro-sadako': entry('shosuro-sadako', {
+        priority: 8,
+        summary: 'wants to be dishonored: adds glory instead of subtracting it'
+    }),
+
+    // Action, no cost: discard any character with no fate. The deck's only
+    // unconditional removal, and every zero-fate body is a legal target.
+    'dispatch-to-nowhere': entry('dispatch-to-nowhere', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        requiresPreferredTarget: true,
+        summary: 'discard a character with no fate',
+        shouldPlay: (ctx) => ctx.opponentCharacters.some((card) => (Number(card.fate) || 0) === 0)
+    }),
+
+    // Holding Action: dishonor a friendly participant to switch the contested
+    // ring with an unclaimed one. Denies the opponent the ring they declared
+    // for; the dishonor is nearly free with Shosuro Sadako on the board.
+    'acclaimed-geisha-house': entry('acclaimed-geisha-house', {
+        priority: 7,
+        abilityValue: true,
+        inPlayAction: true,
+        actionBeforePass: true,
+        summary: 'dishonor a friendly participant to switch the contested ring'
+    }),
+
+    // Attachment Action: return it to hand and dishonor the bearer. Only worth
+    // it on a character that WANTS to be dishonored — Sadako nets +2/+1 and
+    // the attachment comes back for reuse.
+    'court-mask': entry('court-mask', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 6,
+        inPlayAction: true,
+        actionBeforePass: true,
+        summary: '+1/+2; return it to hand to dishonor its bearer'
+    }),
+
+    // Cost: dishonor one of our characters. Effect: TAKE an opposing
+    // attachment and move it onto that character — removal and a buff at once.
+    'calling-in-favors': entry('calling-in-favors', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        // NOT `requiresPreferredTarget`: the FIRST prompt is the cost, which
+        // must select one of OUR characters to dishonor, and an enemy-side
+        // legality filter rejects every option there.
+        summary: 'dishonor a friendly character to steal an opposing attachment',
+        shouldPlay: (ctx) => ctx.myCharacters.length > 0 &&
+            ctx.opponentCharacters.some((card) => (card.attachments || []).length > 0)
+    }),
+
+    // Action in a political conflict with a participating Courtier: set OUR
+    // dial to 1 and draw the difference. It pays against a HIGH opposing bid
+    // and is dead against a low one, so it is priced off their visible dial.
+    'regal-bearing': entry('regal-bearing', {
+        conflictTypes: ['political'],
+        priority: 9,
+        optionalDrawCards: 4,
+        abilityValue: true,
+        worksWithoutReadyParticipant: true,
+        summary: 'political: set our dial to 1 and draw the dial difference',
+        shouldPlay: (ctx) => ctx.conflictType === 'political' &&
+            regalBearingDraw(ctx) >= 2 &&
+            participating(ctx.myCharacters).some((card) => hasTraitNamed(card, 'courtier'))
+    }),
+
+    // Action while our dial is strictly HIGHER: discard a dishonored enemy
+    // participant outright. The deck's answer to a tower the opponent has sunk
+    // fate and attachments into, and the reason it bids high.
+    'i-can-swim': entry('i-can-swim', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 10,
+        requiresPreferredTarget: true,
+        conflictContribution: (ctx) => canSwimTarget(ctx)
+            ? Math.max(liveSkill(canSwimTarget(ctx), ctx.conflictType), 1)
+            : 0,
+        summary: 'our dial higher: discard a dishonored enemy participant',
+        shouldPlay: (ctx) => !!canSwimTarget(ctx)
+    }),
+
+    // Action: -X/-X on an enemy participant where X is the dial difference.
+    // Always a MINUS regardless of which side bid higher, and dead on a tie —
+    // the generic entry above priced it as if X were always worth having.
+    'way-of-the-scorpion': entry('way-of-the-scorpion', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        requiresPreferredTarget: true,
+        // A dishonored character loses its glory from both skills, so the
+        // swing is the target's glory — capped by the skill it actually has.
+        conflictContribution: (ctx) => {
+            const target = readyParticipants(ctx.opponentCharacters)
+                .filter((card) => !card.isDishonored)
+                .sort((a, b) => gloryOf(b) - gloryOf(a))[0];
+            return target ? Math.min(gloryOf(target), liveSkill(target, ctx.conflictType)) : 0;
+        },
+        summary: 'dishonor a participating non-Scorpion character',
+        shouldPlay: (ctx) => readyParticipants(ctx.opponentCharacters)
+            .some((card) => !card.isDishonored)
+    }),
+
+    // Province Action at a FIRE province: +3 glory on a participant. On a
+    // DISHONORED character that is -3/-3, which is how this deck uses it; on
+    // our own honored body it is +3/+3. The policy picks the side.
+    'honor-s-reward': entry('honor-s-reward', {
+        targetSide: 'either',
+        targetPreference: 'strongest',
+        priority: 8,
+        summary: 'fire province: +3 glory (i.e. -3/-3 on a dishonored character)'
+    }),
+
+    // Interrupt on the break: look at the attacking player's hand and discard
+    // EVERY copy of one card. Ranked in the policy through BidWarTactics —
+    // two copies of a medium card can beat one copy of a strong one.
+    'upholding-authority': entry('upholding-authority', {
+        priority: 8,
+        summary: 'on break: strip every copy of one card from the attacker\'s hand'
+    }),
+
+    // Reaction: after this character wins a conflict, sacrifice it to shuffle a
+    // discard pile back into its deck. Against a deck with no discard payoff it
+    // is a 1-cost body, so the sacrifice only fires to refill OUR conflict deck.
+    'slovenly-scavenger': entry('slovenly-scavenger', {
+        priority: 4,
+        summary: 'sacrifice after a win to shuffle a discard pile into its deck'
+    }),
+
+    // ---- Lion Duelist (Kyuden Ikoma) -------------------------------------
+    //
+    // Five of these read "if you are more honorable than your opponent", which
+    // is why the deck bids into the honor lead rather than for cards.
+
+    // Stronghold reaction: after a character we control LOSES a conflict it
+    // attacked, bow the stronghold to bow a non-Champion character. Free — the
+    // stronghold has no other ability to spend its ready state on — but only
+    // worth a click against a body that is ready and NOT in the conflict, since
+    // participants bow on their own when they return home.
+    'kyuden-ikoma': entry('kyuden-ikoma', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 9,
+        summary: 'lost attack reaction: bow a non-Champion enemy character'
+    }),
+
+    // Province Action during a conflict at this province: discard EVERY
+    // attachment on one participant. Attachment control that costs no card.
+    'frostbitten-crossing': entry('frostbitten-crossing', {
+        targetSide: 'either',
+        targetPreference: 'strongest',
+        priority: 8,
+        inPlayAction: true,
+        actionBeforePass: true,
+        summary: 'strip every attachment off one participating character',
+        shouldUseAction: (ctx) => participating(ctx.opponentCharacters)
+            .some((card) => stripWeight(card, false) > 0) ||
+            participating(ctx.myCharacters).some((card) => stripWeight(card, true) > 0)
+    }),
+
+    // Interrupt when this province breaks: draw 3. Losing the province is
+    // already priced in by then, so the draw is pure profit.
+    'the-art-of-war': entry('the-art-of-war', {
+        priority: 9,
+        optionalDrawCards: 3,
+        summary: 'on break: draw 3 cards'
+    }),
+
+    // Reaction after 1+ fate is placed on it (including entering play with
+    // fate): gain 1 honor. The deck buys it with exactly one fate — see
+    // `LionDuelistProfile.additionalFateByCharacterId`.
+    'ikoma-prodigy': entry('ikoma-prodigy', {
+        priority: 8,
+        summary: 'fate placed: gain 1 honor'
+    }),
+
+    // Action while participating and behind on cards: move an OPPONENT
+    // character into the conflict. It bows when it returns home, so this is
+    // tempo denial — but it also hands them its skill right now, so the gate is
+    // "the conflict's outcome can no longer change". Steered by
+    // LionDuelistTactics.shouldDragOpponentIn.
+    'kitsu-motso': entry('kitsu-motso', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 7,
+        inPlayAction: true,
+        requiresPreferredTarget: true,
+        summary: 'drag a ready enemy body into a decided conflict so it bows',
+        shouldUseAction: (ctx) => ctx.activeConflict !== false &&
+            (ctx.hand?.length ?? 0) < (ctx.opponentHandSize ?? 0) &&
+            readyAtHome(ctx.opponentCharacters).length > 0 &&
+            // Out of reach, or so far ahead their extra body cannot matter.
+            ((ctx.winSkillNeeded ?? 0) > 4 || (ctx.amAttacker && !ctx.losing))
+    }),
+
+    // Action while attacking: steal a non-unique holding out of the attacked
+    // province. Denies an engine piece permanently and is the reason the deck
+    // wants this body against holding decks.
+    'akodo-zentaro': entry('akodo-zentaro', {
+        priority: 8,
+        inPlayAction: true,
+        actionBeforePass: true,
+        summary: 'attacking: take control of a non-unique holding in the province',
+        shouldUseAction: (ctx) => ctx.amAttacker && ctx.activeConflict !== false
+    }),
+
+    // Action: bow this character to put ANY character from either discard pile
+    // into the conflict, ready. The largest single skill swing the deck has,
+    // and it works with every participant bowed.
+    'kitsu-spiritcaller': entry('kitsu-spiritcaller', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 9,
+        inPlayAction: true,
+        worksWithoutReadyParticipant: true,
+        summary: 'bow: put the best discard-pile character into the conflict',
+        shouldUseAction: (ctx) => ctx.activeConflict !== false &&
+            (discardBodies(ctx).length > 0 ||
+                (ctx.conflictDiscard || []).some((card) => card?.type === 'character')) &&
+            ((ctx.winSkillNeeded ?? 0) > 0 || (ctx.strengthNeeded ?? 0) > 0)
+    }),
+
+    // Action while attacking and more honorable: move the contested ring to a
+    // different province and reveal it. The escape hatch for an attack that
+    // cannot break what it is pointed at.
+    'matsu-agetoki': entry('matsu-agetoki', {
+        priority: 7,
+        inPlayAction: true,
+        actionBeforePass: true,
+        summary: 'attacking: move the conflict to a weaker province',
+        shouldUseAction: (ctx) => ctx.amAttacker && moreHonorable(ctx) &&
+            ctx.activeConflict !== false && !ctx.strongholdConflict &&
+            (ctx.alternateProvincesAvailable ?? 0) > 0 &&
+            // Only when the break is genuinely out of reach where we are now.
+            // `strengthNeeded` is positive at declaration for nearly every
+            // attack, so a bare "> 0" spends the Action before the deck has
+            // played anything. The threshold lives in the tactics profile;
+            // this constant mirrors its default.
+            (ctx.strengthNeeded ?? 0) >= 3
+    }),
+
+    // Action during a military conflict while more honorable: move one of OUR
+    // characters into the conflict. Pure added skill when a ready body is home.
+    'matsu-mitsuko': entry('matsu-mitsuko', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        inPlayAction: true,
+        worksWithoutReadyParticipant: true,
+        summary: 'military: move a ready character at home into the conflict',
+        shouldUseAction: (ctx) => ctx.conflictType === 'military' && moreHonorable(ctx) &&
+            ctx.activeConflict !== false && readyAtHome(ctx.myCharacters).length > 0 &&
+            ((ctx.winSkillNeeded ?? 0) > 0 || (ctx.strengthNeeded ?? 0) > 0)
+    }),
+
+    // Reaction after winning a conflict it attacked, while more honorable:
+    // BREAK the attacked province regardless of strength. This is why the
+    // deck's attacks are sized to win rather than to out-strength the province
+    // — see `LionDuelistProfile.winIsBreakCharacterIds`.
+    'matsu-tsuko-2': entry('matsu-tsuko-2', {
+        priority: 10,
+        summary: 'win as attacker while more honorable: break the province outright'
+    }),
+
+    // Conflict character, +2 military while WE hold the fire or water ring.
+    // Printed 1/1, so the ring state doubles or triples what it is worth.
+    'ikoma-reservist': entry('ikoma-reservist', {
+        conflictTypes: ['military'],
+        priority: 6,
+        summary: 'body: 1 military, 3 while we hold fire or water',
+        conflictContribution: priced('ikoma-reservist',
+            (ctx) => ctx.conflictType === 'military'
+                ? 1 + (holdsRing(ctx, ['fire', 'water']) ? 2 : 0)
+                : 1)
+    }),
+
+    // Action: put 1 fate on one of our Bushi; the opponent MAY pay us 1 honor
+    // to put 1 fate on one of theirs. Keeps a body that would otherwise die in
+    // the fate phase. Worthless with no Bushi that needs the fate.
+    'called-to-war': entry('called-to-war', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 6,
+        // No skill this conflict: the payoff is one more round of life.
+        conflictContribution: () => null,
+        worksWithoutReadyParticipant: true,
+        summary: 'place 1 fate on a Bushi (opponent may buy in for 1 honor)',
+        shouldPlay: (ctx) => ctx.myCharacters.some((card) =>
+            hasTraitNamed(card, 'bushi') && (Number(card.fate) || 0) <= 1)
+    }),
+
+    // Action while outnumbered in the conflict: move one of our characters in;
+    // honor it if it is a Commander. Both halves are real value, so it is worth
+    // playing for the honor alone on a Commander already at home.
+    'even-the-odds': entry('even-the-odds', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        worksWithoutReadyParticipant: true,
+        conflictContribution: priced('even-the-odds', (ctx) => {
+            const best = readyAtHome(ctx.myCharacters)
+                .reduce((top, card) => Math.max(top, liveSkill(card, ctx.conflictType)), 0);
+            return best > 0 ? best : null;
+        }),
+        summary: 'outnumbered: move a character in, honor it if a Commander',
+        shouldPlay: (ctx) => {
+            const counts = ctx.participatingCharacterCounts;
+            if(counts && counts.self >= counts.opponent) {
+                return false;
+            }
+            return readyAtHome(ctx.myCharacters).length > 0;
+        }
+    }),
+
+    // Action: discard any number of attachments and/or status tokens from one
+    // of our characters, then honor it if it is a Commander. Three separate
+    // payoffs — debuff removal, dishonor removal, and a free honor token.
+    'prepare-for-war': entry('prepare-for-war', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        worksWithoutReadyParticipant: true,
+        // The gain is glory-scaled (honor) or a removed debuff, neither of
+        // which is a flat skill number; leave it unpriced so the play is legal.
+        conflictContribution: () => null,
+        summary: 'strip debuffs/dishonor from a character and honor a Commander',
+        shouldPlay: (ctx) => ctx.myCharacters.some((card) =>
+            card.isDishonored ||
+            (card.attachments || []).some((attachment: any) => isNegativeAttachmentId(attachment?.id)) ||
+            (hasTraitNamed(card, 'commander') && !card.isHonored && gloryOf(card) > 0))
+    }),
+
+    // Attachment (glory 2+ bearer). Action during a political conflict: move
+    // the bearer into it. Zero printed stats, so it needs `abilityValue`.
+    'formal-invitation': entry('formal-invitation', {
+        conflictTypes: ['political'],
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 7,
+        abilityValue: true,
+        maxCopiesPerTarget: 1,
+        inPlayAction: true,
+        worksWithoutReadyParticipant: true,
+        summary: 'political: move the attached character into the conflict',
+        shouldUseAction: (ctx) => ctx.conflictType === 'political' &&
+            ctx.activeConflict !== false &&
+            ctx.myCharacters.some((card) => !card.bowed && !card.inConflict &&
+                (card.attachments || []).some((attachment: any) => attachment?.id === 'formal-invitation'))
+    }),
+
+    // Attachment. Action while the bearer participates: ready a participating
+    // Bushi — usually the bearer's own bowed neighbour, restoring its skill.
+    'fan-of-command': entry('fan-of-command', {
+        targetSide: 'self',
+        targetPreference: 'strongest-bowed',
+        priority: 8,
+        abilityValue: true,
+        maxCopiesPerTarget: 1,
+        inPlayAction: true,
+        worksWithoutReadyParticipant: true,
+        summary: 'ready a participating Bushi',
+        shouldUseAction: (ctx) => ctx.activeConflict !== false &&
+            ctx.myCharacters.some((card) => card.inConflict &&
+                (card.attachments || []).some((attachment: any) => attachment?.id === 'fan-of-command')) &&
+            participating(ctx.myCharacters).some((card) => card.bowed && hasTraitNamed(card, 'bushi'))
+    }),
+
+    // Attachment. Reaction on every conflict the bearer wins: draw 2, discard
+    // 1. Card advantage that does not cost the honor dial anything, which is
+    // exactly what a deck that bids 1 needs.
+    'setting-the-standard': entry('setting-the-standard', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        abilityValue: true,
+        maxCopiesPerTarget: 1,
+        optionalDrawCards: 2,
+        summary: 'bearer wins a conflict: draw 2, discard 1'
+    }),
+
+    // Attachment (unique bearer, Restricted). Reaction on a win while more
+    // honorable: return any card from our conflict discard to hand. Recurs
+    // Regal Bearing and the free events indefinitely.
+    'blade-of-10-000-battles': entry('blade-of-10-000-battles', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 9,
+        abilityValue: true,
+        maxCopiesPerTarget: 1,
+        summary: 'bearer wins while more honorable: recur a conflict discard card',
+        shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.isUnique)
     })
 };
 
@@ -3511,6 +4313,21 @@ const REBIRTH_MARKERS = [
     'way-of-the-phoenix', 'inferno-guard-invoker', 'shiba-pureheart'
 ];
 
+// Cards that mark the Kyuden Bayushi "Bid War" list: honor-dial payoffs, the
+// low-honor band enablers, and the attachment/ring control package that hangs
+// off deliberately dishonoring our own characters. The stronghold alone
+// identifies the deck; the count threshold is the fallback for a variant and
+// is deliberately high because the separate Scorpion Poison Mill list shares
+// five of these (make-an-opening, duty, forgery, shadow-stalker,
+// blackmail-artist) and must keep its own dishonor profile.
+const BID_WAR_MARKERS = [
+    'kyuden-bayushi', 'regal-bearing', 'make-an-opening', 'i-can-swim',
+    'social-puppeteer', 'bayushi-manipulator', 'duty', 'forgery',
+    'loyal-challenger', 'alibi-artist', 'shosuro-sadako', 'calling-in-favors',
+    'court-mask', 'acclaimed-geisha-house', 'bayushi-kachiko-2',
+    'way-of-the-scorpion', 'shadow-stalker', 'blackmail-artist'
+];
+
 // Derive the deck's strategy flags from the printed card ids it contains.
 // A deck with none of a group's markers gets that flag false and thus the
 // unchanged generic behavior; the flags are mutually independent.
@@ -3523,6 +4340,7 @@ export function deriveDeckStrategy(cardIds: Iterable<string>): DeckStrategy {
     const gloryCount = GLORY_MARKERS.filter((id) => ids.has(id)).length;
     const monkCount = MONK_MARKERS.filter((id) => ids.has(id)).length;
     const rebirthCount = REBIRTH_MARKERS.filter((id) => ids.has(id)).length;
+    const bidWarCount = BID_WAR_MARKERS.filter((id) => ids.has(id)).length;
     return {
         holdingEngine: ids.has('kyuden-hida') || wallCount >= 2,
         defensive: defenderCount >= 3,
@@ -3539,7 +4357,13 @@ export function deriveDeckStrategy(cardIds: Iterable<string>): DeckStrategy {
         // Iron Mountain Castle uniquely identifies the attachment-tower list
         // without changing the separate High House monk deck.
         attachmentTower: ids.has('iron-mountain-castle'),
-        rebirth: (ids.has('fushicho') && ids.has('forebearer-s-echoes')) || rebirthCount >= 5
+        rebirth: (ids.has('fushicho') && ids.has('forebearer-s-echoes')) || rebirthCount >= 5,
+        // Kyuden Bayushi uniquely identifies the bid-war list. The Poison Mill
+        // list scores 5 markers, so the fallback threshold sits well above it.
+        bidWar: ids.has('kyuden-bayushi') || bidWarCount >= 8,
+        // Kyuden Ikoma uniquely identifies the Lion Duelist list; the older Lion
+        // swarm precon runs Hayaken no Shiro / Manicured Garden and is untouched.
+        lionDuelist: ids.has('kyuden-ikoma')
     };
 }
 

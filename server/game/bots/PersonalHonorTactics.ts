@@ -10,6 +10,43 @@ export interface PersonalHonorProfile {
     prioritizeConflictOutcome: boolean;
     preferHomeWhenConflictUnaffected: boolean;
     persistentCharacterFate: number;
+    // Characters that REVERSE the honor-status modifier: Shosuro Sadako adds
+    // her glory to both skills while dishonored instead of subtracting it. A
+    // dishonor that has to land somewhere on our side belongs on one of these
+    // — it is not a cost there, it is a pump. Empty for every other deck, so
+    // the ordering is bit-identical without it.
+    reverseHonorCardIds: readonly string[];
+    // Sources whose dishonor prompt is a COST paid on our OWN side (Calling in
+    // Favors, Acclaimed Geisha House). The shared rule reads `dishonor` as a
+    // harmful action and aims it at the opponent, so with only our own
+    // characters legal it cancelled the whole ability — measured at 21 cancels
+    // in 6 games. Empty for every other deck, which keeps the old ordering.
+    ownDishonorCostSourceIds: readonly string[];
+    // Called to War asks the DEFENDING player "give an honor to your opponent?"
+    // in exchange for a fate on one of our own Bushi. Whoever is holding this
+    // profile is the one being asked, so this is field-wide policy, not a Lion
+    // knob: a bot that always says yes hands a Lion Duelist deck a free honor
+    // every copy, and honor is that deck's whole switch (five of its cards read
+    // "if you are more honorable"). These price the trade instead.
+    honorGiftResponse: HonorGiftResponseProfile;
+}
+
+export interface HonorGiftResponseProfile {
+    // Master switch. Off = always decline, which is the behaviour every deck
+    // had before Called to War existed in the field.
+    enabled: boolean;
+    // Never pay from at or below this own honor. Reaching 0 loses the game
+    // outright, and the honor also feeds the asker's "more honorable" gates.
+    minimumOwnHonorAfterGift: number;
+    // Never pay once the ASKER's honor would reach this. 25 wins the game, and
+    // the deck asking is the one that wants to get there.
+    maximumOpponentHonorAfterGift: number;
+    // Never pay while we are not (still) more honorable afterwards — losing the
+    // honor LEAD is worth more than one fate to any deck that has gates on it.
+    requireHonorLeadAfterGift: boolean;
+    // Only pay when a body we control actually banks the fate: a character with
+    // at most this much fate already, so the extra fate buys it a round.
+    maximumRecipientFate: number;
 }
 
 export interface PersonalHonorConflict {
@@ -23,7 +60,16 @@ export interface PersonalHonorConflict {
 export const PERSONAL_HONOR_DEFAULTS: PersonalHonorProfile = {
     prioritizeConflictOutcome: true,
     preferHomeWhenConflictUnaffected: true,
-    persistentCharacterFate: 2
+    persistentCharacterFate: 2,
+    reverseHonorCardIds: [],
+    ownDishonorCostSourceIds: [],
+    honorGiftResponse: {
+        enabled: true,
+        minimumOwnHonorAfterGift: 8,
+        maximumOpponentHonorAfterGift: 15,
+        requireHonorLeadAfterGift: false,
+        maximumRecipientFate: 1
+    }
 };
 
 export class PersonalHonorTactics {
@@ -50,7 +96,55 @@ export class PersonalHonorTactics {
         )[0] || null;
     }
 
+    // A character that reverses the modifier GAINS skill from a dishonor, so
+    // it outranks every "cheapest" consideration below.
+    prefersDishonor(card: any): boolean {
+        return !!card?.id && this.profile.reverseHonorCardIds.includes(card.id);
+    }
+
+    // Is this source's dishonor prompt a cost we pay on our own board?
+    isOwnDishonorCost(sourceCardId?: string): boolean {
+        return !!sourceCardId && this.profile.ownDishonorCostSourceIds.includes(sourceCardId);
+    }
+
+    // "Give an honor to your opponent?" — pay 1 honor to put 1 fate on one of
+    // OUR Bushi. Answered by whichever bot is being asked, so the gates below
+    // protect the honor race first and only then look at the payoff.
+    shouldGiveHonorForFate(input: {
+        ownHonor: number;
+        opponentHonor: number;
+        ownCharacters: any[];
+        isBushi: (card: any) => boolean;
+    }): boolean {
+        const rules = this.profile.honorGiftResponse;
+        if(!rules.enabled) {
+            return false;
+        }
+        const ownAfter = Number(input.ownHonor) - 1;
+        const opponentAfter = Number(input.opponentHonor) + 1;
+        if(!Number.isFinite(ownAfter) || !Number.isFinite(opponentAfter)) {
+            return false;
+        }
+        if(ownAfter < rules.minimumOwnHonorAfterGift ||
+            opponentAfter >= rules.maximumOpponentHonorAfterGift) {
+            return false;
+        }
+        if(rules.requireHonorLeadAfterGift && ownAfter <= opponentAfter) {
+            return false;
+        }
+        return (input.ownCharacters || []).some((card) => input.isBushi(card) &&
+            (Number(card?.fate) || 0) <= rules.maximumRecipientFate);
+    }
+
     pickForcedOwnDishonor(cards: any[]): any | null {
+        const reversed = cards.filter((card) => this.prefersDishonor(card) && !card?.isDishonored);
+        if(reversed.length > 0) {
+            // Among the reversers, the highest glory gains the most.
+            return reversed.slice().sort((a, b) =>
+                this.gloryValue(b) - this.gloryValue(a) ||
+                this.booleanDiff(!!b.inConflict, !!a.inConflict) ||
+                this.uuid(a).localeCompare(this.uuid(b)))[0];
+        }
         return cards.slice().sort((a, b) =>
             this.gloryValue(a) - this.gloryValue(b) ||
             this.booleanDiff(!!a.inConflict, !!b.inConflict) ||

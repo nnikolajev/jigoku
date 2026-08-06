@@ -127,6 +127,28 @@ describe('DeckProfiles', function() {
         expect(second.conflictCardEconomy.priorityWeight).toBe(DEFAULT_PROFILE.conflictCardEconomy.priorityWeight);
     });
 
+    it('matches and isolates the Unicorn Reveal profile', function() {
+        const ids = ['shiro-shinjo', 'scouted-terrain', 'aranat'];
+        const first = resolveDeckProfile(ids, GENERIC);
+        const second = resolveDeckProfile(ids, GENERIC);
+
+        expect(first.overrideNames).toContain('unicorn-reveal-shiro-shinjo');
+        expect(first.strongholdProvinceId).toBe('massing-at-twilight');
+        expect(first.forceMilitaryConflict).toBe(true);
+        expect(first.provinceTargeting.preferFacedown).toBe(true);
+        expect(first.provinceTargeting.effectiveStrengthById['ancestral-lands']).toBe(5);
+        expect(first.provinceTargeting.effectiveStrengthById['appealing-to-the-fortunes']).toBe(5);
+        expect(first.provinceTargeting.effectiveStrengthById['massing-at-twilight']).toBe(8);
+        expect(first.unicornReveal.additionalFateByCharacterId['khanbulak-benefactor']).toBe(0);
+
+        first.unicornReveal.additionalFateByCharacterId['moto-horde'] = 99;
+        first.unicornReveal.unrevealedProvinceAttackerIds.push('mutated');
+        first.provinceRevealResponse.onRevealValueById['khan-s-ordu'] = 99;
+        expect(second.unicornReveal.additionalFateByCharacterId['moto-horde']).toBe(2);
+        expect(second.unicornReveal.unrevealedProvinceAttackerIds).not.toContain('mutated');
+        expect(second.provinceRevealResponse.onRevealValueById['khan-s-ordu']).toBe(5);
+    });
+
     it('clones Lion attachment tactics per resolved profile', function() {
         const first = resolveDeckProfile(['hayaken-no-shiro', 'way-of-the-lion'], AGGRO);
         const second = resolveDeckProfile(['hayaken-no-shiro', 'way-of-the-lion'], AGGRO);

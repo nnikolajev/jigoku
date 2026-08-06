@@ -1,0 +1,2049 @@
+[
+  {
+    "id": "a-perfect-cut",
+    "name": "A Perfect Cut",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a [conflict-military] conflict, choose a participating <em>Bushi</em> character - that character gets +2[conflict-military] until the end of the conflict. If it wins the conflict, honor it.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "a-perfect-cut",
+        "pack_id": "for-the-empire",
+        "flavor": "\"The quality of a warrior's skill can be measured in a single stroke\" - Book of Sun Tao",
+        "illustrator": "David Horn",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C19_22.jpg",
+        "position": "22",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "a-season-of-war",
+    "name": "A Season of War",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "dynasty",
+    "type": "event",
+    "is_unique": false,
+    "text": "Rally. <i>(After this card is revealed in a province, add the top card of your dynasty deck to the province, faceup.)</i>\n<b>Action:</b> Discard each card in each province, refilling each province faceup. End the dynasty phase. Then there is an additional dynasty phase, during which players do not collect fate.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "a-season-of-war",
+        "pack_id": "rokugan-at-war",
+        "flavor": "",
+        "illustrator": "Lin Hsiang",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C29_14.jpg",
+        "position": "14",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "akodo-toturi",
+    "name": "Akodo Toturi",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "<b>Reaction:</b> After you claim a ring during a [conflict-military] conflict in which this character is participating – resolve that ring's effect.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [
+      "bushi",
+      "champion"
+    ],
+    "cost": "5",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 3,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "6",
+    "political": "3",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "akodo-toturi",
+        "pack_id": "core",
+        "flavor": "A lion is more than his roar, his mane, his teeth, his heart. A lion is all of these.",
+        "illustrator": "Shawn Ignatius Tan",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_79.jpg",
+        "position": "79",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "akodo-zentaro",
+    "name": "Akodo Zentarō",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "Disguised <em>Bushi</em>.\n<b>Action:</b> During a conflict in which this character is attacking, choose a non-unique holding in the attacked province - gain control of that holding and move it to one of your unbroken provinces, if able, discarding each other card in the province. Otherwise, discard it.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [
+      "bushi",
+      "commander"
+    ],
+    "cost": "3",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 2,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "3",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "akodo-zentaro",
+        "pack_id": "for-the-empire",
+        "flavor": "",
+        "illustrator": "Pavel Kolomeyets",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C19_9.jpg",
+        "position": "9",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "blade-of-10-000-battles",
+    "name": "Blade of 10,000 Battles",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "Attach to a unique character you control. Limited. Restricted.\n<b>Reaction:</b> After attached character wins a conflict, if you are more honorable than your opponent, choose a card in your conflict discard pile - add that card to your hand.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "weapon"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+3",
+    "political_bonus": "+1",
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "blade-of-10-000-battles",
+        "pack_id": "for-the-empire",
+        "flavor": "",
+        "illustrator": "Jason Juta",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C19_17.jpg",
+        "position": "17",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "called-to-war",
+    "name": "Called to War",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> Choose a <em>Bushi</em> character. Each opponent may give you 1 honor and choose a <em>Bushi</em> character - place 1 fate on each chosen character.",
+    "restricted_in": [
+      "jade-edict"
+    ],
+    "banned_in": [
+      "emerald"
+    ],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 3,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "called-to-war",
+        "pack_id": "clan-war",
+        "flavor": "",
+        "illustrator": "Reiko Murakami",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C28_77.jpg",
+        "position": "77",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "city-of-the-rich-frog",
+    "name": "City of the Rich Frog",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "province",
+    "type": "province",
+    "is_unique": true,
+    "text": "Eminent. <i>(This province starts the game faceup and cannot be turned facedown. It cannot be a stronghold province.)</i>\nAfter setup, fill this province to 3 cards. When you would refill this province, refill it to 3 cards instead of 1.",
+    "restricted_in": [],
+    "banned_in": [
+      "jade-edict",
+      "emerald"
+    ],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "city"
+    ],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "earth",
+      "void"
+    ],
+    "strength": "3",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "city-of-the-rich-frog",
+        "pack_id": "rokugan-at-war",
+        "flavor": "",
+        "illustrator": "Nele Diel",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C29_6.jpg",
+        "position": "6",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "defend-your-honor",
+    "name": "Defend Your Honor",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<em>Keeper</em> role only.\n<b>Interrupt:</b> When the effects of an opponent's event would initiate during a conflict, initate a [conflict-military] duel against a character your opponent controls of his or her choice - resolve the duel. If your character is the duel's winner, cancel those effects.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [
+      "keeper"
+    ],
+    "versions": [
+      {
+        "card_id": "defend-your-honor",
+        "pack_id": "children-of-the-empire",
+        "flavor": "",
+        "illustrator": "Borja Pindado",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_79.jpg",
+        "position": "79",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "duelist-training",
+    "name": "Duelist Training",
+    "name_extra": null,
+    "faction": "crane",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "Attached character gains: \"<b>Action:</b> While this character is participating in a conflict, choose a participating character controlled by your opponent – challenge that character to a [conflict-military] duel. Instead of giving honor for this duel's bid, a player may choose and discard the required number of cards from hand. Bow the loser of the duel.\"",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "technique"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 1,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+0",
+    "political_bonus": "+0",
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "duelist-training",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Charles Urbach",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_142.jpg",
+        "position": "142",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "even-the-odds",
+    "name": "Even the Odds",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, if you control fewer participating characters than your opponent, choose a character you control – move that character to the conflict. If that character is a <em>Commander</em>, honor it.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "tactic"
+    ],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "even-the-odds",
+        "pack_id": "breath-of-the-kami",
+        "flavor": "",
+        "illustrator": "Lukas Banas",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C09_18.jpg",
+        "position": "18",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "fan-of-command",
+    "name": "Fan of Command",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict in which attached character is participating, choose a participating <em>Bushi</em> character - ready that character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "item"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+1",
+    "political_bonus": "+1",
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "fan-of-command",
+        "pack_id": "a-champion-s-foresight",
+        "flavor": "\"In the chaos of war, the chain of command unites the valor of samurai.\" - Akodo's Leadership",
+        "illustrator": "Joyce Maureira",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C23_106.jpg",
+        "position": "106",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "favorable-ground",
+    "name": "Favorable Ground",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "dynasty",
+    "type": "holding",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, sacrifice this holding. Choose a character you control – move that character to the conflict or home from the conflict.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "battlefield"
+    ],
+    "cost": null,
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": "+1",
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "favorable-ground",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Jon Hodgson",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_128.jpg",
+        "position": "128",
+        "quantity": 2,
+        "rotated": true
+      },
+      {
+        "card_id": "favorable-ground",
+        "pack_id": "emerald-core-set",
+        "flavor": "“High ground, high odds.”\n- Susaki Kiba",
+        "illustrator": "Jose M. Garcia",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs231.jpg",
+        "position": "231",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "forebearer-s-echoes",
+    "name": "Forebearer's Echoes",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Air</b> Role only.\n<b>Action:</b> During a [conflict-military] conflict, choose a character in your dynasty discard pile - put that character into play in the conflict. If that character is still in play at the end of the conflict, put it on the bottom of your dynasty deck.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "spell",
+      "air"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": 1,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [
+      "air"
+    ],
+    "versions": [
+      {
+        "card_id": "forebearer-s-echoes",
+        "pack_id": "bonds-of-blood",
+        "flavor": "",
+        "illustrator": "Pavel Kolomeyets",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C20_39.jpg",
+        "position": "39",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "formal-invitation",
+    "name": "Formal Invitation",
+    "name_extra": null,
+    "faction": "crane",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "Attach to a character with glory 2 or higher.\n<b>Action:</b> During a [conflict-political] conflict – move attached character to the conflict.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "item"
+    ],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 3,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+0",
+    "political_bonus": "+1",
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "formal-invitation",
+        "pack_id": "breath-of-the-kami",
+        "flavor": "\"It would be an honor if you would join us.\"",
+        "illustrator": "Joyce Maureira",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C09_14.jpg",
+        "position": "14",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "frostbitten-crossing",
+    "name": "Frostbitten Crossing",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "<em>Air</em> role only.\n<b>Action:</b> During a conflict at this province, choose a participating character – discard each attachment on that character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "air"
+    ],
+    "strength": "4",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [
+      "air"
+    ],
+    "versions": [
+      {
+        "card_id": "frostbitten-crossing",
+        "pack_id": "for-honor-and-glory",
+        "flavor": null,
+        "illustrator": "Eli Ring",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C03_21.jpg",
+        "position": "21",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "honored-veterans",
+    "name": "Honored Veterans",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "dynasty",
+    "type": "event",
+    "is_unique": false,
+    "text": "Rally. <i>(After this card is revealed in a province, add the top card of your dynasty deck to the province, faceup.)</i>\n<b>Action:</b> Each player chooses up to one <em>Bushi</em> character they played this phase - honor each of those characters.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "honored-veterans",
+        "pack_id": "as-honor-demands",
+        "flavor": "",
+        "illustrator": "Guillaume Ducos",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C33_101.jpg",
+        "position": "101",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "ikoma-prodigy",
+    "name": "Ikoma Prodigy",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After 1 or more fate is placed on this character – gain 1 honor.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [
+      "courtier"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "0",
+    "political": "2",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "ikoma-prodigy",
+        "pack_id": "core",
+        "flavor": "She was destined to follow the path of her ancestors, the path of the true Go sage.",
+        "illustrator": "Mario Wibisono",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_68.jpg",
+        "position": "68",
+        "quantity": 1,
+        "rotated": true
+      },
+      {
+        "card_id": "ikoma-prodigy",
+        "pack_id": "emerald-core-set",
+        "flavor": "Her first performance before the court proved what the Ikoma sensei had long suspected — this child could turn history into inspiration, making honor itself seem tangible.",
+        "illustrator": "Ana Gabriela David",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs098.jpg",
+        "position": "98",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "ikoma-reservist",
+    "name": "Ikoma Reservist",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "character",
+    "is_unique": false,
+    "text": "This character gets 2[conflict-military] while you have claimed the [element-fire] or [element-water] ring.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "bushi"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "ikoma-reservist",
+        "pack_id": "tainted-lands",
+        "flavor": "\"Take arms! The Unicorn are at our door!\"",
+        "illustrator": "Andreia Ugrai",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C10_34.jpg",
+        "position": "34",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "illustrious-forge",
+    "name": "Illustrious Forge",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After this province is revealed - search the top 5 cards of your conflict deck for an attachment and put it into play attached to a character you control. Shuffle.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "fire"
+    ],
+    "strength": "4",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "illustrious-forge",
+        "pack_id": "children-of-the-empire",
+        "flavor": "",
+        "illustrator": "Matt Zeilinger",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_2.jpg",
+        "position": "2",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "imperial-storehouse",
+    "name": "Imperial Storehouse",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "dynasty",
+    "type": "holding",
+    "is_unique": false,
+    "text": "<b>Action:</b> Sacrifice this holding – draw 1 card.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "imperial"
+    ],
+    "cost": null,
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": "+1",
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "imperial-storehouse",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "Charles Urbach",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_129.jpg",
+        "position": "129",
+        "quantity": 2,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "in-service-to-my-lord",
+    "name": "In Service to My Lord",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "This card can be played from your discard pile.\n<b>Action:</b> Bow a <i>(friendly)</i> non-unique character and choose a unique character - ready the chosen character. Put this card on the bottom of its owner's conflict deck.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "tactic"
+    ],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "in-service-to-my-lord",
+        "pack_id": "shoju-s-duty",
+        "flavor": "",
+        "illustrator": "Andreia Ugrai",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C24_127.jpg",
+        "position": "127",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "keeper-initiate",
+    "name": "Keeper Initiate",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<em>Keeper</em> role only.\n<b>Reaction:</b> After you claim a ring that matches the element of your role – put this character into play from your dynasty discard pile or provinces. Then, put 1 fate on this character.",
+    "restricted_in": [
+      "standard",
+      "jade-edict"
+    ],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "monk"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 2,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [
+      "keeper"
+    ],
+    "versions": [
+      {
+        "card_id": "keeper-initiate",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "Sergio Camarena",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_124.jpg",
+        "position": "124",
+        "quantity": 2,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "keeper-of-air",
+    "name": "Keeper of Air",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "role",
+    "type": "role",
+    "is_unique": false,
+    "text": "Increase your deckbuilding influence value by 3.\n<b>Reaction:</b> After you win an [element-air] conflict as the defending player – gain 1 fate.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "keeper",
+      "air"
+    ],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "keeper-of-air",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "–",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs261.jpg",
+        "position": "214A",
+        "quantity": 1,
+        "rotated": true
+      },
+      {
+        "card_id": "keeper-of-air",
+        "pack_id": "emerald-core-set",
+        "flavor": "",
+        "illustrator": "",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs261.jpg",
+        "position": "261",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "kitsu-motso",
+    "name": "Kitsu Motso",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "<b>Action</b>: During a conflict in which this character is participating, if you have fewer cards in your hand than your opponent, choose a character that opponent controls - move that character to the conflict.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [
+      "bushi",
+      "commander"
+    ],
+    "cost": "3",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 2,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "3",
+    "political": "3",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "kitsu-motso",
+        "pack_id": "the-emperor-s-legion",
+        "flavor": "\"The time is now\"",
+        "illustrator": "Felipe Gaona",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C27_8.jpg",
+        "position": "8",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "kitsu-spiritcaller",
+    "name": "Kitsu Spiritcaller",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, bow this character. Choose a character in one of your discard piles – put that character into play in the conflict. If that character is still in play at the end of the conflict, return it to the bottom of its deck.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [
+      "shugenja",
+      "water"
+    ],
+    "cost": "3",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 2,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "3",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "kitsu-spiritcaller",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Jessica Cox",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_74.jpg",
+        "position": "74",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "kyuden-ikoma",
+    "name": "Kyūden Ikoma",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "province",
+    "type": "stronghold",
+    "is_unique": true,
+    "text": "<b>Reaction:</b> After a character you control loses a conflict as an attacker, bow this stronghold. Choose a non-<em>Champion</em> character - bow that character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [
+      "castle"
+    ],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": 7,
+    "honor": 13,
+    "influence_pool": 10,
+    "strength_bonus": "+1",
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "kyuden-ikoma",
+        "pack_id": "the-emperor-s-legion",
+        "flavor": "",
+        "illustrator": "Daniel Alekow",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C27_1.jpg",
+        "position": "1",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "matsu-agetoki",
+    "name": "Matsu Agetoki",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "<b>Action:</b> During a conflict in which this character is attacking, if you are more honorable than your opponent - move the contested ring to another eligible province and reveal that province, if able. It is now the attacked province.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [
+      "bushi",
+      "cavalry",
+      "commander"
+    ],
+    "cost": "3",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 2,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "4",
+    "political": "2",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "matsu-agetoki",
+        "pack_id": "defenders-of-rokugan",
+        "flavor": "",
+        "illustrator": "Quintin Gleim",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C26_20.jpg",
+        "position": "20",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "matsu-mitsuko",
+    "name": "Matsu Mitsuko",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "<b>Action:</b> During a [conflict-military] conflict, if you are more honorable than your opponent, choose a character you control – move that character to the conflict.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [
+      "bushi",
+      "cavalry",
+      "commander"
+    ],
+    "cost": "4",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 2,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "4",
+    "political": "2",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "matsu-mitsuko",
+        "pack_id": "all-and-nothing",
+        "flavor": "",
+        "illustrator": "Cassandre Bolan",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C13_88.jpg",
+        "position": "88",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "matsu-tsuko-2",
+    "name": "Matsu Tsuko",
+    "name_extra": "(2)",
+    "faction": "lion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": true,
+    "text": "<b>Reaction:</b> After this character wins a conflict as the attacker against a non-stronghold province, if you are more honorable than your opponent – break the attacked province.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [
+      "bushi",
+      "champion",
+      "commander"
+    ],
+    "cost": "5",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 3,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "5",
+    "political": "4",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "matsu-tsuko-2",
+        "pack_id": "the-emperor-s-legion",
+        "flavor": "\"We will make them cower for their insults, and Arasou will be avenged.\"",
+        "illustrator": "Amélie Hutt",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C27_11.jpg",
+        "position": "11",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "miya-mystic",
+    "name": "Miya Mystic",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Action:</b> During the conflict phase, sacrifice this character. Choose an attachment – discard that attachment.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "shugenja",
+      "earth",
+      "imperial"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "miya-mystic",
+        "pack_id": "core",
+        "flavor": "\"Most of my family speak to the citizens of the Empire. I speak to the kami of the land itself.\"",
+        "illustrator": "Mike Capprotti",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_125.jpg",
+        "position": "125",
+        "quantity": 3,
+        "rotated": true
+      },
+      {
+        "card_id": "miya-mystic",
+        "pack_id": "emerald-core-set",
+        "flavor": "“The Miya motto speaks truth — there are no Miya heroes, only servants of balance. Today, I serve by returning chaos to order.”",
+        "illustrator": "Rob Smith",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs236.jpg",
+        "position": "236",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "prepare-for-war",
+    "name": "Prepare for War",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> Choose a character you control - you may discard any number of attachments and/or status tokens from it. If that character is a <em>Commander</em>, honor it.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "tactic"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "prepare-for-war",
+        "pack_id": "the-emperor-s-legion",
+        "flavor": "",
+        "illustrator": "Le Vuong",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C27_25.jpg",
+        "position": "25",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "proving-ground",
+    "name": "Proving Ground",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "dynasty",
+    "type": "holding",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After a character you control wins a duel - draw 1 card. (Limit twice per round.)",
+    "restricted_in": [
+      "emerald"
+    ],
+    "banned_in": [
+      "jade-edict"
+    ],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "dojo"
+    ],
+    "cost": null,
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": "+0",
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "proving-ground",
+        "pack_id": "children-of-the-empire",
+        "flavor": "",
+        "illustrator": "Lukas Banas",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_48.jpg",
+        "position": "48",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "regal-bearing",
+    "name": "Regal Bearing",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a [conflict-political] conflict in which you control a participating <em>Courtier</em> character - set the bid on your honor dial to 1 and draw cards equal to the difference between your honor bid and that of your opponent. (Max 1 per conflict.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 3,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "regal-bearing",
+        "pack_id": "the-children-of-heaven",
+        "flavor": "",
+        "illustrator": "Joshua Cairos",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C22_84.jpg",
+        "position": "84",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "setting-the-standard",
+    "name": "Setting the Standard",
+    "name_extra": null,
+    "faction": "crane",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "<em>Air</em> role only.\nRestricted.\nAttached character gains: \"<b>Reaction:</b> After this character wins a conflict — draw 2 cards, then discard 1 card from your hand.\"",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "technique"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+0",
+    "political_bonus": "+2",
+    "splash_banned_in": null,
+    "role_restrictions": [
+      "air"
+    ],
+    "versions": [
+      {
+        "card_id": "setting-the-standard",
+        "pack_id": "peace-at-any-cost",
+        "flavor": "",
+        "illustrator": "Isuardi Therianto",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/ffg/peace-at-any-cost/pac124.jpg",
+        "position": "124",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "shameful-display",
+    "name": "Shameful Display",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict at this province, choose 2 participating characters – honor one of those characters and dishonor the other.",
+    "restricted_in": [],
+    "banned_in": [
+      "jade-edict"
+    ],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "void"
+    ],
+    "strength": "3",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "shameful-display",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "Polar Engine",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_24.jpg",
+        "position": "24",
+        "quantity": 2,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "tactician-s-apprentice",
+    "name": "Tactician's Apprentice",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After honor dials are revealed, if your bid is lower than an opponent's – draw 1 card. (Limit once per phase.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [
+      "bushi"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "0",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "tactician-s-apprentice",
+        "pack_id": "all-and-nothing",
+        "flavor": "",
+        "illustrator": "Lin Hsiang",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C13_87.jpg",
+        "position": "87",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "the-art-of-war",
+    "name": "The Art of War",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "<b>Interrupt:</b> When this province is broken – draw 3 cards.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "water"
+    ],
+    "strength": "3",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "the-art-of-war",
+        "pack_id": "core",
+        "flavor": "\"Let your enemy see what he wishes to see, so that he will underestimate you.\" - Akodo's Leadership",
+        "illustrator": "Eli Ring",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_11.jpg",
+        "position": "11",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "true-strike-kenjutsu",
+    "name": "True Strike Kenjutsu",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "Attached character gains: \"<b>Action:</b> During a conflict, initiate a [conflict-military] duel - resolve the duel, using each character's base [conflict-military] instead of their total [conflict-military] skill for this duel. Bow the duel's loser.\"",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "technique"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+0",
+    "political_bonus": "+0",
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "true-strike-kenjutsu",
+        "pack_id": "children-of-the-empire",
+        "flavor": "",
+        "illustrator": "Britt Martin",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C16_61.jpg",
+        "position": "61",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "way-of-the-lion",
+    "name": "Way of the Lion",
+    "name_extra": null,
+    "faction": "lion",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, choose a [clan-lion] character – double that character's base [conflict-military] skill until the end of the conflict.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "lion"
+    ],
+    "traits": [
+      "philosophy"
+    ],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "way-of-the-lion",
+        "pack_id": "core",
+        "flavor": "\"War is the most noble pursuit of a samurai. It gives him purpose and brings honor to his ancestors.\" - Akodo's Leadership",
+        "illustrator": "Scott Wade",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_167.jpg",
+        "position": "167",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  }
+]

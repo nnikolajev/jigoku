@@ -20,9 +20,12 @@ const SEMANTIC_STAGES = ['visible', 'selectable', 'eligible', 'candidate', 'chos
 const ALIASES = Object.freeze({
     crane: 'Crane', 'crane-baseline': 'Crane', craneduel: 'CraneDuels', 'crane-duels': 'CraneDuels',
     crab: 'Crab', dragon: 'Dragon', 'dragon-attachments': 'DragonAttachments', dragonattachments: 'DragonAttachments',
-    lion: 'Lion', phoenix: 'Phoenix', 'phoenix-shugenja': 'PhoenixShugenja', phoenixshugenja: 'PhoenixShugenja',
+    lion: 'Lion', 'lion-duelist': 'LionDuelist', lionduelist: 'LionDuelist', duelist: 'LionDuelist', phoenix: 'Phoenix', 'phoenix-shugenja': 'PhoenixShugenja', phoenixshugenja: 'PhoenixShugenja',
     'phoenix-phoenix': 'PhoenixPhoenix', phoenixphoenix: 'PhoenixPhoenix',
-    scorpion: 'Scorpion', unicorn: 'Unicorn'
+    scorpion: 'Scorpion', 'scorpion-bidwar': 'ScorpionBidWar', scorpionbidwar: 'ScorpionBidWar',
+    'scorpion-bid-war': 'ScorpionBidWar', bidwar: 'ScorpionBidWar',
+    unicorn: 'Unicorn',
+    'unicorn-reveal': 'UnicornReveal', unicornreveal: 'UnicornReveal'
 });
 
 function usage() {

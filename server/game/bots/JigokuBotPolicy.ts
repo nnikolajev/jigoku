@@ -20,6 +20,7 @@ import { BidWarTactics } from './BidWarTactics.js';
 import type { BidWarCardPower } from './BidWarTactics';
 import { LionTactics } from './LionTactics.js';
 import { LionDuelistTactics } from './LionDuelistTactics.js';
+import { CrabSacrificeTactics } from './CrabSacrificeTactics.js';
 import { GloryTactics } from './GloryTactics.js';
 import { DragonTactics } from './DragonTactics.js';
 import { DuelTactics } from './DuelTactics.js';
@@ -412,6 +413,17 @@ class JigokuBotPolicy {
     private currentRebirth: RebirthTactics | null = null;
     private currentBidWar: BidWarTactics | null = null;
     private currentLionDuelist: LionDuelistTactics | null = null;
+    private currentCrabSacrifice: CrabSacrificeTactics | null = null;
+    // The body we last fed to a sacrifice cost. Weight of Duty's target prompt
+    // and Fifth Tower Watch's interrupt both compare against it (unique-ness
+    // and military respectively) and neither prompt carries that information.
+    private lastSacrificedBody: any = null;
+    // The body currently being spent as a sacrifice COST, and how many interrupt
+    // windows have opened since. A save fired on this body cancels the cost, and
+    // an unpaid cost means the ability never initiates — so the save is refused
+    // for exactly the window that belongs to our own sacrifice, then released.
+    private pendingSacrificeCostUuid: string | null = null;
+    private sacrificeCostWindowsSeen = 0;
     private currentClaimedRingElements: string[] = [];
     // Bayushi Kachiko (Atonement) replays at most three opponent events per
     // round. The engine enforces the cap; the bot tracks its own accepted
@@ -806,6 +818,12 @@ class JigokuBotPolicy {
         // branch that reads it is gated on it.
         const lionDuelist = profile.lionDuelist ? new LionDuelistTactics(profile.lionDuelist) : null;
         this.currentLionDuelist = lionDuelist;
+        // Castle of the Forgotten sacrifice Crab; null for every other deck, and
+        // every branch that reads it is gated on it.
+        const crabSacrifice = profile.crabSacrifice
+            ? new CrabSacrificeTactics(profile.crabSacrifice)
+            : null;
+        this.currentCrabSacrifice = crabSacrifice;
         // Glory/honor decks likewise; null for every other deck.
         const glory = profile.glory ? new GloryTactics(profile.glory) : null;
         // Monk/card-engine decks likewise; null for every other deck.
@@ -1410,6 +1428,21 @@ class JigokuBotPolicy {
         // Triggered ability windows ('Any reactions?' / 'Any interrupts to X?'):
         // fire own province and stronghold abilities, pass everything else.
         if(title.includes('any reaction') || title.includes('any interrupt')) {
+            // The interrupt window that follows our own sacrifice-cost click is
+            // the one that must not be answered with a save. The window names
+            // the departing card ("Any interrupts to Kaiu Envoy leaving play?"),
+            // so match on it: any OTHER card leaving play is the opponent's
+            // doing and is exactly what the saves are for. Two windows can open
+            // for the same body (the save's, then the death payoff's), after
+            // which the body is spent and the hold is released.
+            if(this.pendingSacrificeCostUuid) {
+                const pendingName = String(this.lastSacrificedBody?.name ||
+                    this.lastSacrificedBody?.label || '').toLowerCase();
+                this.sacrificeCostWindowsSeen += 1;
+                if(!pendingName || !title.includes(pendingName) || this.sacrificeCostWindowsSeen > 2) {
+                    this.pendingSacrificeCostUuid = null;
+                }
+            }
             return this.triggeredWindowDecision(playerState, me, buttons, title, context.playCost, context.cardHint, profile, context.conflictCosts, lion, attachmentTower, duelist, context.duelMargin, context.interruptedEventIsMine, context.displayOfPowerActive, bidWar, context.interruptedAbilityIsMine);
         }
 
@@ -1880,6 +1913,21 @@ class JigokuBotPolicy {
         };
     }
 
+    /**
+     * In-play Actions whose playbook entry was written for ONE deck but whose
+     * card also appears in another shipped list.
+     *
+     * Weight of Duty is a province the Lion swarm precon runs too. It shipped
+     * with no playbook entry at all — Lion only ever answers its TARGET prompts
+     * through a dedicated `lion` branch — so adding `inPlayAction` for the
+     * sacrifice Crab would silently start firing the Action for Lion as well,
+     * and change a measured deck. A `PlaybookEntry` is a static registry with
+     * no view of the `DeckProfile`; this is the layer that has one.
+     */
+    private inPlayActionScopedOut(cardId?: string): boolean {
+        return cardId === 'weight-of-duty' && !this.currentCrabSacrifice;
+    }
+
     private isDirectCardLegal(card: any, legalDirectCardUuids?: Record<string, true>): boolean {
         return !legalDirectCardUuids || !!(card?.uuid && legalDirectCardUuids[card.uuid]);
     }
@@ -1924,11 +1972,38 @@ class JigokuBotPolicy {
             Math.max(this.rawSkillValue(card, 'political') || 0, 0);
     }
 
-    // Dishonor decks at their honor floor stop declaring characters whose
-    // declaration bleeds honor (Marauding Oni's forced reaction) — unless no
-    // one else can fight. Inert for every other deck (dishonor is null).
+    // "Is our honor above the floor this deck is willing to spend down to?"
+    // Undefined means the deck has no floor and every playbook gate reading it
+    // treats the cost as payable, which is the legacy behaviour for every deck
+    // without one. The sacrifice Crab has a real floor: it pays 2 honor for
+    // Spreading the Darkness and 2 more for each Unleashed Experiment
+    // declaration, out of a starting pool of 10.
+    private canPayHonorCost(dishonor: DishonorTactics | null, honor: number): boolean | undefined {
+        if(dishonor) {
+            return dishonor.canPayHonor(honor);
+        }
+        const crabSacrifice = this.currentCrabSacrifice;
+        return crabSacrifice ? honor > crabSacrifice.profile.honorSpendFloor : undefined;
+    }
+
+    // Decks at their honor floor stop declaring characters whose declaration
+    // bleeds honor (Marauding Oni's forced reaction, Unleashed Experiment's
+    // "lose 2 honor" additional cost) — unless no one else can fight.
+    //
+    // This used to return early whenever `dishonor` was null, which made it
+    // inert for every deck but the Poison Mill list. The sacrifice Crab runs
+    // three Unleashed Experiment and pays 2 honor EVERY time one is declared,
+    // from a starting pool of 10, and 70% of its losses were to dishonor. Its
+    // floor comes from the deck profile instead of the dishonor tactics.
     private withoutHonorCostDeclares(cards: any[], dishonor: DishonorTactics | null, honor: number, cardHint?: CardHintLookup): any[] {
-        if(!dishonor || !cardHint || dishonor.canPayHonor(honor)) {
+        if(!cardHint) {
+            return cards;
+        }
+        const crabSacrifice = this.currentCrabSacrifice;
+        const canPay = dishonor
+            ? dishonor.canPayHonor(honor)
+            : !crabSacrifice || honor > crabSacrifice.profile.declareHonorFloor;
+        if((!dishonor && !crabSacrifice) || canPay) {
             return cards;
         }
         const filtered = cards.filter((card) => !(card.id && (cardHint(card.id) as any)?.declareCostsHonor));
@@ -2028,6 +2103,33 @@ class JigokuBotPolicy {
 
     private myCharactersInPlay(me: any): any[] {
         return (me?.cardPiles?.cardsInPlay || []).filter((card: any) => card.type === 'character' && card.uuid);
+    }
+
+    // Everything `CrabSacrificeTactics` needs to price a body's death: whether
+    // a save can cancel it (Iron Mine is a holding in a province slot, Reprieve
+    // is an attachment on the body, Ceaseless Duty is an event in hand capped
+    // by our unbroken province count), and whether the conflict is still live
+    // enough for the body's skill to be worth anything.
+    private crabSacrificeContext(playerState: any, me: any, skillType: string): any {
+        const standing = this.conflictStanding(playerState, me);
+        return {
+            axis: skillType === 'political' ? 'political' : 'military',
+            // Holdings sit in province slots, not among characters, so the
+            // whole visible tree is scanned rather than the character list.
+            myHoldings: this.findVisibleCards(me).filter((card: any) =>
+                card?.type === 'holding' && !card.facedown),
+            hand: me?.cardPiles?.hand || [],
+            // Ceaseless Duty reads "unbroken provinces you control", which
+            // includes the stronghold province; only the four outer ones break
+            // during normal play.
+            unbrokenProvinces: 5 - this.brokenOuterProvinceCount(me),
+            printedCosts: this.currentCharacterPrintedCosts,
+            // A conflict we cannot lose makes the skill on the table worthless,
+            // so a big body becomes cheap to spend. `gap` is the skill still
+            // needed to take the lead, so it is NEGATIVE by our margin when we
+            // are already ahead.
+            conflictDecided: !!standing && !standing.losing && -(standing.gap ?? 0) >= 4
+        };
     }
 
     private readyCharacters(me: any): any[] {
@@ -4036,6 +4138,9 @@ class JigokuBotPolicy {
             if(!hint?.inPlayAction || !hint.actionBeforePass) {
                 return false;
             }
+            if(this.inPlayActionScopedOut(card.id)) {
+                return false;
+            }
             if(hint.oncePerRound && this.boardAbilityIsUsed(card, dragon)) {
                 return false;
             }
@@ -4050,7 +4155,7 @@ class JigokuBotPolicy {
             fate: me?.stats?.fate ?? 0,
             // Dishonor decks stop paying honor costs at their floor; undefined
             // for every other deck (playbook gates treat undefined as payable).
-            canPayHonor: dishonor ? dishonor.canPayHonor(myHonor) : undefined,
+            canPayHonor: this.canPayHonorCost(dishonor, myHonor),
             opponentHonor: opponent?.stats?.honor,
             myBrokenProvinces: this.brokenOuterProvinceCount(me),
             opponentBrokenProvinces: this.brokenOuterProvinceCount(opponent),
@@ -4920,6 +5025,22 @@ class JigokuBotPolicy {
                     if(attachmentTower && card.id === 'daimyo-s-favor') {
                         return attachmentTower.shouldUseDaimyoFavor(card, playCtx);
                     }
+                    if(this.inPlayActionScopedOut(card.id)) {
+                        return false;
+                    }
+                    // Silent Skirmisher and Stoic Gunso buy conflict skill with
+                    // a PERMANENT body. The profile decides whether that trade
+                    // needs to actually decide the conflict; a `PlaybookEntry`
+                    // cannot see the profile, so the gate lives here.
+                    if(this.currentCrabSacrifice &&
+                        !this.currentCrabSacrifice.outletDecisive(
+                            card.id,
+                            this.currentCrabSacrifice.outletPayoff(card.id),
+                            playCtx?.strengthNeeded,
+                            playCtx?.winSkillNeeded
+                        )) {
+                        return false;
+                    }
                     // Matsu Agetoki moves the whole conflict. `strengthNeeded`
                     // is positive at declaration for nearly every attack, so
                     // the threshold — not a bare "> 0" — is what keeps the
@@ -5020,7 +5141,7 @@ class JigokuBotPolicy {
             amAttacker: standing?.amAttacker ?? false,
             honor: me?.stats?.honor ?? 10,
             fate: me?.stats?.fate ?? 0,
-            canPayHonor: dishonor ? dishonor.canPayHonor(me?.stats?.honor ?? 10) : undefined,
+            canPayHonor: this.canPayHonorCost(dishonor, me?.stats?.honor ?? 10),
             // Both honor pools and both break counts: honor is a win condition
             // at 0 and at 25, and how much of it a card may cost depends on the
             // race, not on our dial alone.
@@ -6039,6 +6160,26 @@ class JigokuBotPolicy {
                     !this.currentRebirth ||
                     this.seasonOfWarUses < this.currentRebirth.profile.seasonOfWarMaxPerGame);
 
+            // Those Who Serve is a CONFLICT event played from HAND whose Action
+            // is legal only during the dynasty phase: every character bought
+            // afterwards this phase costs 1 less. `playable` above is province
+            // cards only — the dynasty window never looks at the hand — so
+            // three copies measured zero uses per game and simply cycled. It
+            // must fire BEFORE any character is bought, or the discount is
+            // wasted on whatever is left.
+            if(this.currentCrabSacrifice) {
+                const reducerId = this.currentCrabSacrifice.profile.thoseWhoServeId;
+                const reducer = (me?.cardPiles?.hand || []).find((card: any) =>
+                    card?.id === reducerId && card.uuid &&
+                    this.isDirectCardLegal(card, legalDirectCardUuids) &&
+                    !this.isAttempted('cardClicked', [card.uuid]));
+                const buyableCharacters = playable.filter((card: any) => card?.type === 'character').length;
+                if(reducer && this.currentCrabSacrifice.shouldPlayThoseWhoServe(
+                    buyableCharacters, me?.stats?.fate ?? 0)) {
+                    return this.cardClickDecision(reducer, 'crab-play-those-who-serve-discount');
+                }
+            }
+
             const revealScoutedReserve = this.currentUnicornReveal &&
                 (me?.cardPiles?.hand || []).some((card: any) =>
                     card.id === this.currentUnicornReveal?.profile.scoutedTerrainCardId) &&
@@ -7001,6 +7142,25 @@ class JigokuBotPolicy {
                     if(!card.selectable || !card.uuid || !card.id || this.isAttempted('cardClicked', [card.uuid]) || this.isCancelVetoed(card.id)) {
                         return false;
                     }
+                    // The province/stronghold finder above already applied
+                    // `provinceReactionWorthIt`. A province or stronghold it
+                    // DECLINED must not be picked up again here — this filter
+                    // only checks priority, so the decline was silently
+                    // overridden and every Castle of the Forgotten arm measured
+                    // bit-identical to its control. Restricted to province and
+                    // stronghold cards, and to the one profile that needs it,
+                    // so no other measured deck moves. NOTE the override exists
+                    // for every deck — a declined Endless Plains or Sacred
+                    // Sanctuary is re-offered here too — but fixing it globally
+                    // would change decks that were tuned with the override in
+                    // place, so that is left alone deliberately.
+                    const isProvinceSource = card.isProvince || card.type === 'province' ||
+                        card.type === 'stronghold' ||
+                        /^(province [1-4]|stronghold province)$/.test(String(card.location || ''));
+                    if(this.currentCrabSacrifice && isProvinceSource &&
+                        !this.provinceReactionWorthIt(card, playerState, me, cardHint)) {
+                        return false;
+                    }
                     const hint = cardHint(card.id);
                     if(!hint || hint.useWhen === 'never' ||
                         (hint.priority < 6 && !allowLowPriority.has(card.id))) {
@@ -7022,6 +7182,18 @@ class JigokuBotPolicy {
                     }
                     if(card.id === 'iaijutsu-master' &&
                         !duelBidding.shouldUseIaijutsuMaster(duelMargin)) {
+                        return false;
+                    }
+                    // NEVER save a body we are ourselves spending as a
+                    // sacrifice COST. Cancelling the leave-play means the cost
+                    // was not paid, so the ability we were paying for does not
+                    // initiate and none of the death payoffs fire either — the
+                    // holding is spent for nothing. Pinned in
+                    // `test/server/cards/CrabSacrificeIronMine.spec.js`.
+                    if(this.currentCrabSacrifice && this.pendingSacrificeCostUuid &&
+                        (this.currentCrabSacrifice.profile.saveHoldingIds.includes(card.id) ||
+                            this.currentCrabSacrifice.profile.saveAttachmentIds.includes(card.id) ||
+                            this.currentCrabSacrifice.profile.saveEventIds.includes(card.id))) {
                         return false;
                     }
                     if(card.id === 'voice-of-honor' && interruptedEventIsMine === true) {
@@ -7133,6 +7305,18 @@ class JigokuBotPolicy {
         // it when there is actually a bowed character to ready.
         if(card.id === 'sacred-sanctuary') {
             return this.myCharactersInPlay(me).some((c: any) => c.bowed);
+        }
+        // Castle of the Forgotten bows itself to make every conflict declared
+        // this round military. The stronghold has no other ability, so the bow
+        // is close to free — but the effect is symmetric (`Players.Any`), so it
+        // also forces the OPPONENT onto the military axis, which is a gift to a
+        // military deck and a tax on a political one. `castleAlwaysAfterBreak`
+        // defaults true, which is exactly what this method did before the knob
+        // was wired, so a null arm is bit-identical.
+        if(this.currentCrabSacrifice && card.id === 'castle-of-the-forgotten') {
+            const castleProfile = this.currentCrabSacrifice.profile;
+            return castleProfile.castleAlwaysAfterBreak ||
+                (me?.stats?.conflictsRemaining ?? 0) >= castleProfile.castleMinimumConflictsRemaining;
         }
         if(this.currentUnicornReveal && !this.currentUnicornReveal.shouldTrigger(
             card.id,
@@ -7506,6 +7690,85 @@ class JigokuBotPolicy {
 
         const bidWar = this.currentBidWar;
         const lionDuelist = this.currentLionDuelist;
+        const crabSacrifice = this.currentCrabSacrifice;
+
+        // ---- Crab Berserker Sacrifice target steering ----------------------
+        //
+        // Gated on the profile, so no other deck reaches any of it even where
+        // it shares a card id (Iron Mine, Reprieve and Weight of Duty all
+        // appear in other lists).
+        if(crabSacrifice) {
+            const axis: 'military' | 'political' = skillType === 'political' ? 'political' : 'military';
+            const sacrificeCtx = this.crabSacrificeContext(playerState, me, skillType);
+
+            // Weight of Duty resolves in two prompts. The COST prompt asks for
+            // a participating body of ours; the TARGET prompt asks for one of
+            // theirs to bow and dishonor, and a non-unique sacrifice may only
+            // reach a non-unique target.
+            if(sourceId === 'weight-of-duty') {
+                if(actionNames.includes('sacrifice') && mine.length > 0) {
+                    const fodder = crabSacrifice.pickSacrifice(mine, sacrificeCtx);
+                    if(fodder) {
+                        this.lastSacrificedBody = fodder;
+                        this.pendingSacrificeCostUuid = fodder.uuid || null;
+                        this.sacrificeCostWindowsSeen = 0;
+                        return this.cardClickDecision(fodder, 'crab-weight-of-duty-sacrifice');
+                    }
+                }
+                if((actionNames.includes('bow') || actionNames.includes('dishonor')) && theirs.length > 0) {
+                    const target = crabSacrifice.pickWeightOfDutyTarget(theirs, this.lastSacrificedBody, axis) ||
+                        this.sortBySkillDesc(theirs, axis)[0];
+                    if(target) {
+                        return this.cardClickDecision(target, 'crab-weight-of-duty-bow-enemy');
+                    }
+                }
+            }
+
+            // Every other sacrifice COST in the deck asks the same question —
+            // which of our bodies dies — so they share one ranking. Silent
+            // Skirmisher, Stoic Gunso, Way of the Crab, Fulfill Your Duty,
+            // Steadfast Witch Hunter and Tainted Hero all land here.
+            if(actionNames.includes('sacrifice') && mine.length > 0) {
+                const fodder = crabSacrifice.pickSacrifice(mine, sacrificeCtx);
+                if(fodder) {
+                    this.lastSacrificedBody = fodder;
+                    this.pendingSacrificeCostUuid = fodder.uuid || null;
+                    this.sacrificeCostWindowsSeen = 0;
+                    return this.cardClickDecision(fodder, `crab-sacrifice-${sourceId || 'cost'}`);
+                }
+            }
+
+            // Steadfast Witch Hunter readies a character after eating one.
+            // Ready the biggest bowed participant so it fights again.
+            if(sourceId === 'steadfast-witch-hunter' && actionNames.includes('ready') && mine.length > 0) {
+                const bowed = this.sortBySkillDesc(mine.filter((card) => card.bowed), axis);
+                if(bowed.length > 0) {
+                    return this.cardClickDecision(bowed[0], 'crab-witch-hunter-ready-strongest');
+                }
+            }
+
+            // Fifth Tower Watch bows an enemy with LESS military than the body
+            // we just sacrificed; anything else is not a legal target, so pick
+            // the biggest one still under the threshold.
+            if(sourceId === 'fifth-tower-watch' && actionNames.includes('bow') && theirs.length > 0) {
+                const bowable = crabSacrifice.fifthTowerBowable(this.lastSacrificedBody, theirs, axis);
+                if(bowable.length > 0) {
+                    return this.cardClickDecision(bowable[0], 'crab-fifth-tower-bow-enemy');
+                }
+            }
+
+            // Pumps steer to Vengeful Berserker while it is live, because it
+            // DOUBLES its military and every point on it counts twice.
+            if(mine.length > 0 && !actionNames.includes('sacrifice') &&
+                ['banzai', 'spreading-the-darkness', 'silent-skirmisher', 'stoic-gunso',
+                    'sharpened-tsuruhashi', 'ancestral-daisho'].includes(sourceId)) {
+                const target = crabSacrifice.pickBuffTarget(mine, axis);
+                if(target) {
+                    return this.cardClickDecision(target, `crab-buff-${sourceId}`);
+                }
+            }
+        }
+
         // ---- Lion Duelist (Kyuden Ikoma) target steering -------------------
         //
         // Everything below is gated on the profile being present, so no other

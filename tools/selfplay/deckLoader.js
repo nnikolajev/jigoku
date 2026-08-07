@@ -109,6 +109,17 @@ function loadCrabDeck() {
     return buildDeck(decklist, cardsById);
 }
 
+// Crab "Berserker Sacrifice" (EmeraldDB 59c4d29f) — Castle of the Forgotten
+// military rush. Buys a wide board of cheap high-military bodies at zero fate,
+// then converts the surplus bodies into skill and removal by sacrificing them
+// (Silent Skirmisher, Stoic Gunso, Weight of Duty, Way of the Crab, Fulfill
+// Your Duty). Iron Mine / Reprieve / Ceaseless Duty keep the sacrificed body
+// on the table while the sacrifice effect still resolves.
+function loadCrabSacrificeDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'crab-sacrifice-decklist.json'), 'utf8'));
+    return buildDeck(decklist, indexFixtureCards(['crab-sacrifice-cards.json']));
+}
+
 // Scorpion "Poison Mill" v0.6 (EmeraldDB 914dc4d4) — dishonor/mill deck.
 function loadScorpionDeck() {
     const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'scorpion-decklist.json'), 'utf8'));
@@ -220,4 +231,4 @@ function loadCraneDuelDeck() {
     ]));
 }
 
-module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadUnicornRevealDeck, loadCraneDeck, loadCrabDeck, loadScorpionDeck, loadScorpionBidWarDeck, loadLionDeck, loadLionDuelistDeck, loadPhoenixDeck, loadPhoenixShugenjaDeck, loadPhoenixPhoenixDeck, loadDragonDeck, loadDragonAttachmentsDeck, loadCraneDuelDeck, FIXTURES };
+module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadUnicornRevealDeck, loadCraneDeck, loadCrabDeck, loadCrabSacrificeDeck, loadScorpionDeck, loadScorpionBidWarDeck, loadLionDeck, loadLionDuelistDeck, loadPhoenixDeck, loadPhoenixShugenjaDeck, loadPhoenixPhoenixDeck, loadDragonDeck, loadDragonAttachmentsDeck, loadCraneDuelDeck, FIXTURES };

@@ -4,6 +4,7 @@
 // they become player names and report keys.
 const {
     loadCrabDeck,
+    loadCrabSacrificeDeck,
     loadCraneDeck,
     loadCraneDuelDeck,
     loadDragonAttachmentsDeck,
@@ -23,6 +24,7 @@ const DECK_LOADERS = Object.freeze({
     Crane: loadCraneDeck,
     CraneDuels: loadCraneDuelDeck,
     Crab: loadCrabDeck,
+    CrabSacrifice: loadCrabSacrificeDeck,
     Dragon: loadDragonDeck,
     DragonAttachments: loadDragonAttachmentsDeck,
     Lion: loadLionDeck,

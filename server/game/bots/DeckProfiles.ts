@@ -28,6 +28,8 @@ import { LION_DEFAULTS } from './LionTactics.js';
 import type { LionProfile } from './LionTactics';
 import { LION_DUELIST_DEFAULTS } from './LionDuelistTactics.js';
 import type { LionDuelistProfile } from './LionDuelistTactics';
+import { CRAB_SACRIFICE_DEFAULTS } from './CrabSacrificeTactics.js';
+import type { CrabSacrificeProfile } from './CrabSacrificeTactics';
 import { DEFAULT_FATE_AWARE_ECONOMY, SWARM_FATE_AWARE_ECONOMY } from './FateAwareEconomy.js';
 import type { FateAwareEconomyProfile } from './FateAwareEconomy';
 import { DEFAULT_CONFLICT_CARD_ECONOMY, SWARM_CONFLICT_CARD_ECONOMY } from './ConflictCardEconomy.js';
@@ -379,6 +381,12 @@ export interface DeckProfile {
     // branch that reads it is gated on its presence, so the older Lion bushi
     // swarm list (Hayaken no Shiro) is untouched. Knobs in LionDuelistTactics.
     lionDuelist?: LionDuelistProfile;
+
+    // ---- Crab Berserker Sacrifice playstyle (Castle of the Forgotten) ----
+    // Present only for decks whose strategy derives `crabSacrifice`; every
+    // policy branch that reads it is gated on its presence, so the Kyuden Hida
+    // Crab wall precon is untouched. Knobs in CrabSacrificeTactics.
+    crabSacrifice?: CrabSacrificeProfile;
 
     // ---- Unicorn Shiro Shinjo province-reveal/economy playstyle ----
     // Reveal-first attacks, Scouted Terrain finisher, faceup-province scaling,
@@ -1594,6 +1602,145 @@ const OVERRIDES: ProfileOverride[] = [
         }
     },
     {
+        // Crab "Berserker Sacrifice" (EmeraldDB 59c4d29f, Castle of the
+        // Forgotten). A rush deck whose resource is BODIES, not fate: it buys
+        // the widest possible board of cheap high-military characters at zero
+        // fate and then spends the surplus as a cost. Castle of the Forgotten
+        // turns every conflict military after the first break, which is the
+        // whole board, so the axis is never in question.
+        //
+        // The honor pool is a consumable here — Spreading the Darkness pays 2,
+        // declaring Unleashed Experiment pays 2 — so the deck must race, and it
+        // bids for CARDS early (bodies and pumps both come from the hand) then
+        // drops to protect the honor total once the board is wide.
+        name: 'crab-sacrifice-castle-of-the-forgotten',
+        match: (ids, strategy) => strategy.crabSacrifice && ids.has('castle-of-the-forgotten'),
+        apply: {
+            // Deck-guide directive. The Eternal Watch's Action bows an attacker
+            // (or takes an honor) and stays legal on the game-deciding
+            // province; Fortified Assembly literally cannot go here.
+            strongholdProvinceId: 'the-eternal-watch',
+            // "Go first in all cases. This deck wants to try and break and get
+            // advantage early."
+            firstPlayerChoice: 'first',
+            // Essentially every body is military-only, and the stronghold makes
+            // all conflicts military after the first break anyway.
+            forceMilitaryConflict: true,
+            imperialFavorChoice: 'military',
+            // MEASURED, 672 games over 12 bases. This deck's honor problem is a
+            // TEMPO problem: every body held back is a conflict not ended, and
+            // the game then runs long enough for the dial to bleed it out.
+            // `all` + `win-only` together were worth +7.4pp, and they compound
+            // with the low dial below (+16.1pp on the search bases, +10.1pp on
+            // six fresh ones). Keeping a body home (`attackKeepHome: 2`)
+            // measured BIT-IDENTICAL — the knob is inert under `all`.
+            attackCommitment: 'all',
+            attackKeepHome: 0,
+            // Bowing bodies to save a province is the wrong trade for a deck
+            // that has to close: +3.6pp on its own.
+            defenseCommitment: 'win-only',
+            // Still worth spending cards on a defence we can actually WIN;
+            // switching this off cost 2.7pp.
+            spendCardsOnDefense: true,
+            // Zero-fate width is the plan; per-id amounts live in the tactics
+            // module and win through `preferDeckAdditionalFate`.
+            aggressiveFate: true,
+            reserveDynastyFate: false,
+            // Honor is spent on purpose here, and 0 honor is a loss, so the
+            // race has to be tracked in both directions.
+            honorRaceAware: true,
+            // The shared veto refuses every non-character card while none of
+            // our participants is ready, on the premise that a buff on a bowed
+            // body is wasted. This deck EMPTIES its own board on purpose — it
+            // sacrifices participants as a cost — and its saves, its recursion
+            // attachment and Way of the Crab all still work from that state.
+            // The default 'defense' scope is not enough because the deck spends
+            // most of its windows attacking.
+            conflictPlanning: { readyEffectIgnoresReadyParticipant: 'always' },
+            fateAwareEconomy: {
+                ...DEFAULT_FATE_AWARE_ECONOMY,
+                preferDeckCharacters: true,
+                preferDeckAdditionalFate: true,
+                prioritizeBodies: true,
+                passAfterDurable: false,
+                durableCharacterIds: ['repentant-legion', 'mercenary-company'],
+                durableAdditionalFateEarly: 1,
+                durableAdditionalFateLate: 0,
+                bodySpendCapEarly: 8,
+                bodySpendCapLate: 7,
+                bodySpendCapWithPersistent: 6,
+                bodyMaxCost: 5,
+                // Damned Hida is cost 3 and must stay DIRE to be 6 military, so
+                // the generic "put a fate on cost-3 bodies" rule is wrong here.
+                bodyAdditionalFateForCostThree: 0,
+                bodyOrder: 'highest-cost',
+                bodyFateReserve: 0
+            },
+            boardAwareDynasty: {
+                characterValueById: {
+                    'repentant-legion': 9,
+                    'mercenary-company': 8,
+                    'butcher-of-the-fallen': 7,
+                    'tainted-hero': 6,
+                    'damned-hida': 6,
+                    'fifth-tower-watch': 5,
+                    'vengeful-berserker': 5,
+                    'steadfast-witch-hunter': 5,
+                    'one-of-the-forgotten': 4,
+                    'unleashed-experiment': 4,
+                    'gallant-quartermaster': 3,
+                    'kaiu-envoy': 3,
+                    'silent-skirmisher': 2
+                }
+            },
+            // The deck needs CARDS — every pump, every save and every sacrifice
+            // outlet is a conflict card — but it also spends honor freely, so
+            // the dial drops off the opening once the board is built. A hard
+            // floor keeps it out of the self-inflicted dishonor loss that the
+            // Kyuden Bayushi list found the hard way.
+            // THE deck's biggest single lever, +12.8pp on its own. The HIGHER
+            // bidder pays the honor difference, and this list starts at 10 and
+            // spends more on Spreading the Darkness and on every Unleashed
+            // Experiment declaration. Bidding into the field was handing away
+            // the honor it then lost on: dishonor losses fell 158 -> 66.
+            //
+            // Note the shape of the mistake this replaces. Capping the deck's
+            // CARD honor costs instead (an honor floor on Unleashed Experiment
+            // and Spreading the Darkness) measured −6.5pp and made dishonor
+            // losses WORSE — it throttled the offence rather than the leak.
+            // `forceLowAfterOpening: true` on top of this was also worse
+            // (43.75% vs 46.43%): the opening hand still has to be bought.
+            drawBidding: {
+                ...DEFAULT_DRAW_BID_PROFILE,
+                objective: 'cards',
+                openingBid: 5,
+                minimumRoutineBid: 1,
+                lowBid: 1,
+                lowHonorThreshold: 8
+            },
+            mulligan: {
+                // "make sure it has characters on it and not holding during
+                // mulligan and end phase" — Shinsei's Last Hope discounts
+                // characters played from it by 2, so a holding sitting there is
+                // the worst card in the deck.
+                openingHoldingLimit: 1,
+                keepDynastyCardIds: ['those-who-serve'],
+                preferredCharacterIds: [
+                    'repentant-legion', 'mercenary-company', 'butcher-of-the-fallen',
+                    'tainted-hero', 'damned-hida', 'vengeful-berserker',
+                    'one-of-the-forgotten', 'unleashed-experiment'
+                ],
+                openingKeepConflictIds: [
+                    'banzai', 'spreading-the-darkness', 'way-of-the-crab',
+                    'those-who-serve', 'battle-meditation', 'sharpened-tsuruhashi'
+                ],
+                openingPaidConflictKeepLimit: 1,
+                endHoldingLimit: { weak: 0, developing: 1, strong: 1 }
+            },
+            crabSacrifice: { ...CRAB_SACRIFICE_DEFAULTS }
+        }
+    },
+    {
         // Crane Baseline (EmeraldDB 4736f7c0): mixed duels/honor/control. Tsuma
         // activates the shared duel package; these additional knobs cover the
         // cards that distinguish this exact list. Meditations strips fate from
@@ -1847,6 +1994,32 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     },
                     holdingValueById: { ...override.apply.lionDuelist.holdingValueById },
                     duelAxes: { ...override.apply.lionDuelist.duelAxes }
+                };
+            }
+            if(override.apply.crabSacrifice) {
+                apply.crabSacrifice = {
+                    ...override.apply.crabSacrifice,
+                    sacrificeTier1: [...override.apply.crabSacrifice.sacrificeTier1],
+                    sacrificeTier2: [...override.apply.crabSacrifice.sacrificeTier2],
+                    tierPenalty: [...override.apply.crabSacrifice.tierPenalty],
+                    sacrificeOutletIds: [...override.apply.crabSacrifice.sacrificeOutletIds],
+                    saveHoldingIds: [...override.apply.crabSacrifice.saveHoldingIds],
+                    saveAttachmentIds: [...override.apply.crabSacrifice.saveAttachmentIds],
+                    saveEventIds: [...override.apply.crabSacrifice.saveEventIds],
+                    taintedHeroIds: [...override.apply.crabSacrifice.taintedHeroIds],
+                    direCharacterIds: [...override.apply.crabSacrifice.direCharacterIds],
+                    declareCostsHonorIds: [...override.apply.crabSacrifice.declareCostsHonorIds],
+                    passFateCharacterIds: [...override.apply.crabSacrifice.passFateCharacterIds],
+                    mercenaryTakeoverIds: [...override.apply.crabSacrifice.mercenaryTakeoverIds],
+                    doublingCharacterIds: [...override.apply.crabSacrifice.doublingCharacterIds],
+                    berserkerIds: [...override.apply.crabSacrifice.berserkerIds],
+                    skillOutletIds: [...override.apply.crabSacrifice.skillOutletIds],
+                    butcherIds: [...override.apply.crabSacrifice.butcherIds],
+                    pumpValueById: { ...override.apply.crabSacrifice.pumpValueById },
+                    honorCostById: { ...override.apply.crabSacrifice.honorCostById },
+                    additionalFateByCharacterId: {
+                        ...override.apply.crabSacrifice.additionalFateByCharacterId
+                    }
                 };
             }
             if(strongholdDefense) {

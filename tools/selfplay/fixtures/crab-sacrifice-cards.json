@@ -1,0 +1,1819 @@
+[
+  {
+    "id": "ancestral-daisho",
+    "name": "Ancestral Daishō",
+    "name_extra": null,
+    "faction": "dragon",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "Ancestral. <i>(When attached card leaves play, return this card to your hand.)</i>\nRestricted. <i>(No more than two restricted attachments per character.)</i>",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "weapon"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+2",
+    "political_bonus": "+0",
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "ancestral-daisho",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Jason Juta",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_151.jpg",
+        "position": "151",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "banzai",
+    "name": "Banzai!",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, choose a participating character – that character gets +2[conflict-military] until the end of the conflict. You may lose 1 honor to resolve this ability twice. (Max 1 per conflict.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "banzai",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "Troy Graham",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_204.jpg",
+        "position": "204",
+        "quantity": 2,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "battle-meditation",
+    "name": "Battle Meditation",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After you break a province during a conflict, if you control a participating <em>Berserker</em> character - draw 3 cards. (Max 1 per conflict.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 1,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "battle-meditation",
+        "pack_id": "coils-of-power",
+        "flavor": "\"In the destruction of your enemies, may you find peace.\" - Hida Kiyomasa",
+        "illustrator": "Carlos Diaz",
+        "image_url": "https://images-cdn.fantasyflightgames.com/filer_public/21/1c/211c950a-4200-4e74-a467-655bf7c9299a/l5c40_battle-meditation.png",
+        "position": "100",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "butcher-of-the-fallen",
+    "name": "Butcher of the Fallen",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "Rally. <i>(After this card is revealed in a province, add the top card of your dynasty deck to the province, faceup.)</i>\nWhile this character is attacking, characters with less [conflict-military] skill than the number of unbroken provinces you control cannot be declared as defenders.\n<i>Errata from RRG v15 (2020-10-05)</i>",
+    "restricted_in": [
+      "emerald"
+    ],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "bushi",
+      "berserker"
+    ],
+    "cost": "4",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "6",
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "butcher-of-the-fallen",
+        "pack_id": "spreading-shadows",
+        "flavor": "",
+        "illustrator": "Carlos Dias",
+        "image_url": "https://images-cdn.fantasyflightgames.com/filer_public/58/0d/580df341-5311-4d65-b45b-af3e55555f30/l5c01_butcher-of-the-fallen.png",
+        "position": "31",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "castle-of-the-forgotten",
+    "name": "Castle of the Forgotten",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "province",
+    "type": "stronghold",
+    "is_unique": true,
+    "text": "<b>Reaction:</b>  After you break a province, bow this stronghold - each conflict declared this round is [conflict-military] instead of its normal type.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "castle"
+    ],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": 7,
+    "honor": 10,
+    "influence_pool": 9,
+    "strength_bonus": "+2",
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "castle-of-the-forgotten",
+        "pack_id": "coils-of-power",
+        "flavor": "",
+        "illustrator": "Nele Diel",
+        "image_url": "https://images-cdn.fantasyflightgames.com/filer_public/9a/59/9a59e3b5-fab0-40b3-85d0-8ab4d418dcb2/l5c40_castle-of-the-forgotten.png",
+        "position": "87",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "ceaseless-duty",
+    "name": "Ceaseless Duty",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Interrupt:</b> When a character with printed cost equal to or lower than the number of unbroken provinces you control would leave play - it remains in play instead.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 3,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "ceaseless-duty",
+        "pack_id": "as-honor-demands",
+        "flavor": "\"What if you are the sword that stems the tide of darkness?\" - Kaiu Shihobu",
+        "illustrator": "Joyce Maureira",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C33_107.jpg",
+        "position": "107",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "damned-hida",
+    "name": "Damned Hida",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "Dire - This character gets +3[conflict-military]. <i>(This character is dire when it has no fate on it.)</i>",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "bushi",
+      "berserker",
+      "shadowlands"
+    ],
+    "cost": "3",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "3",
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "damned-hida",
+        "pack_id": "a-crimson-offering",
+        "flavor": "\"While my honor cannot be redeemed, my service can still be fulfilled\"",
+        "illustrator": "Carlos Diaz",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C38_48.jpg",
+        "position": "48",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "exposed-secrets",
+    "name": "Exposed Secrets",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a [conflict-political] conflict, choose a participating character with [conflict-political] skill equal to or lower than its controller's honor bid - bow that character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "exposed-secrets",
+        "pack_id": "under-fu-leng-s-shadow",
+        "flavor": "\"You seemed awfully excited to learn of Ikoma-sama's return. I thought you had barely spoken to her?\"",
+        "illustrator": "Andreia Ugrai",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/ffg/under-fu-leng-s-shadow/fls117.jpg",
+        "position": "117",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "fifth-tower-watch",
+    "name": "Fifth Tower Watch",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "No attachments except <em>Weapon</em>.\n<b>Interrupt:</b> When you sacrifice a character, choose an opponent. That opponent must choose a character he or she controls with lower [conflict-military] skill than the sacrificed character - bow that character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "bushi",
+      "army"
+    ],
+    "cost": "5",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "5",
+    "political": "4",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "fifth-tower-watch",
+        "pack_id": "for-the-empire",
+        "flavor": "",
+        "illustrator": "Leanna Crossan",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C19_5.jpg",
+        "position": "5",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "fortified-assembly",
+    "name": "Fortified Assembly",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "Cannot be a stronghold province. This province gets +2 strength for each honor token on it.\n<b>Reaction:</b> After an attack is declared against this province - place 1 honor token on it.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "air"
+    ],
+    "strength": "3",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "fortified-assembly",
+        "pack_id": "the-children-of-heaven",
+        "flavor": "",
+        "illustrator": "Leanna Crossan",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C22_67.jpg",
+        "position": "67",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "fulfill-your-duty",
+    "name": "Fulfill Your Duty",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, sacrifice a <i>(friendly)</i> character - the attacked province gets +X strength until the end of the conflict, where X is the sacrificed character's [conflict-military] skill <i>(including modifiers)</i>.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": 3,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "fulfill-your-duty",
+        "pack_id": "clan-war",
+        "flavor": "",
+        "illustrator": "Francisco Miyara",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C28_67.jpg",
+        "position": "67",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "gallant-quartermaster",
+    "name": "Gallant Quartermaster",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Interrupt:</b> When this character is sacrificed - gain 2 fate.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "courtier"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "0",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "gallant-quartermaster",
+        "pack_id": "shoju-s-duty",
+        "flavor": "\"Doom descends on our brothers and sisters on the Wall. I will not wait for help to come when my own stores could mean the difference between life or death.\"",
+        "illustrator": "Joyce Maureira",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C24_111.jpg",
+        "position": "111",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "iron-mine",
+    "name": "Iron Mine",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "holding",
+    "is_unique": false,
+    "text": "<b>Interrupt:</b> When a character you control would leave play – sacrifice this holding instead.",
+    "restricted_in": [
+      "standard"
+    ],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "mine"
+    ],
+    "cost": null,
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": "+0",
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "iron-mine",
+        "pack_id": "meditations-on-the-ephemeral",
+        "flavor": "",
+        "illustrator": "Stanislav Dikolenko",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C07_103.jpg",
+        "position": "103",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "kaiu-envoy",
+    "name": "Kaiu Envoy",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "Courtesy. <i>(When this character leaves play, gain 1 fate.)</i>\nSincerity. <i>(When this character leaves play, draw 1 card.)</i>",
+    "restricted_in": [
+      "jade-edict"
+    ],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "bushi"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": "0",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "kaiu-envoy",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Drew Baker",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_27.jpg",
+        "position": "27",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "kitsuki-s-method",
+    "name": "Kitsuki's Method",
+    "name_extra": null,
+    "faction": "dragon",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "Ancestral. <i>(When attached card leaves play, return this card to your hand.)</i>\nRestricted. <i>(No more than two restricted attachments per character.)</i>",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "technique"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+0",
+    "political_bonus": "+2",
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "kitsuki-s-method",
+        "pack_id": "core",
+        "flavor": "Every detail, no matter how small, carries its own implications of the truth.",
+        "illustrator": "Stu Barnes",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_153.jpg",
+        "position": "153",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "mercenary-company",
+    "name": "Mercenary Company",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "No attachmants except <em>Weapon</em>. Rally.\n<b>Forced Reaction:</b> After this character loses a conflict - your opponent may move 1 fate from their fate pool to this character. If they do, they gain control of it. (Unlimited.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "bushi",
+      "ronin",
+      "army"
+    ],
+    "cost": "4",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "7",
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "mercenary-company",
+        "pack_id": "campaigns-of-conquest",
+        "flavor": "",
+        "illustrator": "Borja Pindado",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C32_85.jpg",
+        "position": "85",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "one-of-the-forgotten",
+    "name": "One of the Forgotten",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "You cannot place fate on this character when it is played from your provinces.\n<b>Reaction:</b> After an opponent passes on declaring a conflict, if that opponent controls any ready characters - put 1 fate on this character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "bushi",
+      "berserker"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "4",
+    "political": "0",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "one-of-the-forgotten",
+        "pack_id": "clan-war",
+        "flavor": "",
+        "illustrator": "Lin Hsiang",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C28_26.jpg",
+        "position": "26",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "promising-youth",
+    "name": "Promising Youth",
+    "name_extra": null,
+    "faction": "dragon",
+    "side": "conflict",
+    "type": "character",
+    "is_unique": false,
+    "text": "You may play this character as an attachment with the text: \"Attached character gets +2[conflict-military] and +2[conflict-political]. <b>Interrupt:</b> When attached character leaves play - detach this attachment and turn it into a character.\"",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "monk",
+      "tattooed"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": 1,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "2",
+    "political": "2",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "promising-youth",
+        "pack_id": "the-temptation-of-the-scorpion",
+        "flavor": "",
+        "illustrator": "Andreia Ugrai",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C39_78.jpg",
+        "position": "78",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "repentant-legion",
+    "name": "Repentant Legion",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "No attachments except <em>Weapon</em>.\n<b>Reaction:</b> After you break a province during a conflict in which this character is participating - fill each of your non-stronghold provinces with 1 facedown dynasty card.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "bushi",
+      "army",
+      "berserker"
+    ],
+    "cost": "5",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "9",
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "repentant-legion",
+        "pack_id": "coils-of-power",
+        "flavor": "",
+        "illustrator": "Aurelien Hubert",
+        "image_url": "https://images-cdn.fantasyflightgames.com/filer_public/36/43/364366f7-405b-423a-b0f8-4160a6b1f981/l5c40_repentant-legion.png",
+        "position": "90",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "reprieve",
+    "name": "Reprieve",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "<b>Interrupt:</b> When attached character would leave play – discard this attachment instead.",
+    "restricted_in": [
+      "jade-edict"
+    ],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "condition"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 1,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+0",
+    "political_bonus": "+0",
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "reprieve",
+        "pack_id": "core",
+        "flavor": "There is one more thing that must be done.",
+        "illustrator": "Steve Argyle",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_132.jpg",
+        "position": "132",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "seeker-of-void",
+    "name": "Seeker of Void",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "role",
+    "type": "role",
+    "is_unique": false,
+    "text": "You may replace 1 province of any element with an additional [element-void] province while deckbuilding.\n<b>Reaction:</b> After a [element-void] province you control is revealed – gain 1 fate.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "seeker",
+      "void"
+    ],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "seeker-of-void",
+        "pack_id": "core",
+        "flavor": "",
+        "illustrator": "–",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs269.jpg",
+        "position": "218B",
+        "quantity": 1,
+        "rotated": true
+      },
+      {
+        "card_id": "seeker-of-void",
+        "pack_id": "emerald-core-set",
+        "flavor": "",
+        "illustrator": "",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs269.jpg",
+        "position": "269",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "sharpened-tsuruhashi",
+    "name": "Sharpened Tsuruhashi",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "conflict",
+    "type": "attachment",
+    "is_unique": false,
+    "text": "<b>Interrupt:</b> When attached character is sacrificed - return this card to your hand.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "weapon"
+    ],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": "+1",
+    "political_bonus": "+0",
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "sharpened-tsuruhashi",
+        "pack_id": "the-children-of-heaven",
+        "flavor": "The builder's axe makes no distinction between wood or skull.",
+        "illustrator": "Carlos Palma Cruchaga",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C22_81.jpg",
+        "position": "81",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "shinsei-s-last-hope",
+    "name": "Shinsei's Last Hope",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "province",
+    "type": "province",
+    "is_unique": true,
+    "text": "Eminent. <i>(This province starts the game faceup and cannot be turned facedown. It cannot be a stronghold province.)</i>\nEach character played from this province costs 2 less to play and enters play dishonored.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "village"
+    ],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "earth",
+      "water"
+    ],
+    "strength": "3",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "shinsei-s-last-hope",
+        "pack_id": "spreading-shadows",
+        "flavor": "",
+        "illustrator": "Frej Agelii",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C30_26.jpg",
+        "position": "26",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "shrug-off-despair",
+    "name": "Shrug Off Despair",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "Cannot be a stronghold province.\n<b>Action:</b> During a conflict at another province you control - move the contested ring to this province. It is now the attacked province.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "void"
+    ],
+    "strength": "6",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "shrug-off-despair",
+        "pack_id": "rokugan-at-war",
+        "flavor": "",
+        "illustrator": "Guillaume Ducos",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C29_1.jpg",
+        "position": "1",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "silent-skirmisher",
+    "name": "Silent Skirmisher",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, sacrifice another character - this characters gets +2[conflict-military] until the end of the conflict.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "bushi",
+      "berserker"
+    ],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "1",
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "silent-skirmisher",
+        "pack_id": "honor-in-flames",
+        "flavor": "Even the warriors of the Crab whisper fearfully of the uncanny efficiency illustrated by Forgotten samurai.",
+        "illustrator": "Jason Juta",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C37_26.jpg",
+        "position": "26",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "spreading-the-darkness",
+    "name": "Spreading the Darkness",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> Lose 2 honor. Choose a participating character you control – until the end of the conflict, that character gets +4[conflict-military] and cannot be targeted by opponents' card abilities.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "maho",
+      "spell",
+      "earth"
+    ],
+    "cost": "0",
+    "deck_limit": 3,
+    "influence_cost": 2,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "spreading-the-darkness",
+        "pack_id": "tainted-lands",
+        "flavor": "\"Feast, kansen, upon this offering.\"",
+        "illustrator": "Lin Hsiang",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C10_32.jpg",
+        "position": "32",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "steadfast-witch-hunter",
+    "name": "Steadfast Witch Hunter",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Action:</b> Sacrifice a <i>(friendly)</i> character. Choose a character – ready that character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "shugenja",
+      "earth"
+    ],
+    "cost": "4",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "4",
+    "political": "2",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "steadfast-witch-hunter",
+        "pack_id": "core",
+        "flavor": "\"The Shadowlands Taint can poison any soul. It is my duty to cleanse it from our ranks.\"",
+        "illustrator": "Le Vuong",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_35.jpg",
+        "position": "35",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "stoic-gunso",
+    "name": "Stoic Gunsō",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "conflict",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict, sacrifice a <i>(friendly)</i> character – this character gets +3[conflict-military] until the end of the conflict.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "bushi"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": 1,
+    "elements": [],
+    "strength": null,
+    "glory": 1,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "2",
+    "political": "1",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "stoic-gunso",
+        "pack_id": "core",
+        "flavor": "\"We are the Wall.\"",
+        "illustrator": "Matt Zeilinger",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_131.jpg",
+        "position": "131",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "tainted-hero",
+    "name": "Tainted Hero",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "This character cannot be declared as an attacker or defender.\n<b>Action:</b> Sacrifice a <i>{friendly)</i> character – until the end of the phase, treat this character's printed text box as if it were blank (except for <em>Traits</em>).",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "bushi",
+      "berserker",
+      "shadowlands"
+    ],
+    "cost": "3",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "6",
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "tainted-hero",
+        "pack_id": "all-and-nothing",
+        "flavor": "",
+        "illustrator": "Pavel Kolomeyets",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C13_83.jpg",
+        "position": "83",
+        "quantity": 3,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "the-eternal-watch",
+    "name": "The Eternal Watch",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict at this province, choose an attacking character. Your opponent selects one - either bow that character or they give you 1 honor.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "earth"
+    ],
+    "strength": "5",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "the-eternal-watch",
+        "pack_id": "a-crimson-offering",
+        "flavor": "",
+        "illustrator": "Piotr Arendzikowski",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C38_45.jpg",
+        "position": "45",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "the-mountain-does-not-fall",
+    "name": "The Mountain Does Not Fall",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> Choose a character - for this phase, that character does not bow as a result of conflict resolution while defending. (Max 1 per round.)",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [
+      "technique"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 3,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "the-mountain-does-not-fall",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Antonio José Manzanedo",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_138.jpg",
+        "position": "138",
+        "quantity": 1,
+        "rotated": true
+      },
+      {
+        "card_id": "the-mountain-does-not-fall",
+        "pack_id": "emerald-core-set",
+        "flavor": "They say the wise bend like bamboo before the storm. The Crab are the mountain that breaks the storm itself.",
+        "illustrator": "Jérémie Morán",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs024.jpg",
+        "position": "24",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "those-who-serve",
+    "name": "Those Who Serve",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "Limited. <i>(No more than one limited card can be played by each player each round.)</i>\n<b>Action:</b> During the dynasty phase - reduce the cost for each character you play this phase by 1 <i>(to a minimum of 1)</i>.\n<i>Errata from Imperial Law (2020-04-06).</i>",
+    "restricted_in": [
+      "emerald"
+    ],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": 0,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "those-who-serve",
+        "pack_id": "the-emperor-s-legion",
+        "flavor": "",
+        "illustrator": "B. D. Judkins",
+        "image_url": "https://images-cdn.fantasyflightgames.com/filer_public/c7/ed/c7edc9f8-538d-41a5-b82c-6b25492f6e50/l5c27_those-who-serve.png",
+        "position": "28",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "unleashed-experiment",
+    "name": "Unleashed Experiment",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "Dire - this character loses each other non-keyword ability. <i>(This character is dire when it has no fate on it.)</i>\nAs an additional cost to declare this character as an attacker or defender, you lose 2 honor.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "creature",
+      "shadowlands"
+    ],
+    "cost": "2",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "4",
+    "political": "3",
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "unleashed-experiment",
+        "pack_id": "the-temptation-of-the-scorpion",
+        "flavor": "",
+        "illustrator": "Carlos Diaz",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C39_67.jpg",
+        "position": "67",
+        "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "vengeful-berserker",
+    "name": "Vengeful Berserker",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "dynasty",
+    "type": "character",
+    "is_unique": false,
+    "text": "<b>Reaction:</b> After another character you control leaves play during a conflict – double this character's [conflict-military] skill until the end of the conflict.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "bushi",
+      "berserker"
+    ],
+    "cost": "3",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": 0,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": "3",
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "vengeful-berserker",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Edwin David",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_33.jpg",
+        "position": "33",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "way-of-the-crab",
+    "name": "Way of the Crab",
+    "name_extra": null,
+    "faction": "crab",
+    "side": "conflict",
+    "type": "event",
+    "is_unique": false,
+    "text": "<b>Action:</b> Sacrifice a <i>(friendly)</i> [clan-crab] character. Choose an opponent – that player must sacrifice a character. (Max 1 per round.)",
+    "restricted_in": [
+      "jade-edict"
+    ],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab"
+    ],
+    "traits": [
+      "philosophy"
+    ],
+    "cost": "1",
+    "deck_limit": 3,
+    "influence_cost": null,
+    "elements": [],
+    "strength": null,
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": [],
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "way-of-the-crab",
+        "pack_id": "core",
+        "flavor": "Courage. Duty. Sacrifice.",
+        "illustrator": "Scott Wade",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_137.jpg",
+        "position": "137",
+        "quantity": 1,
+        "rotated": true
+      }
+    ]
+  },
+  {
+    "id": "weight-of-duty",
+    "name": "Weight of Duty",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "<b>Action:</b> During a conflict at an [element-void] province, sacrifice a participating character. Choose a non-unique character your opponent controls (or any character your opponent controls, if the sacrificed character was unique) - bow and dishonor the chosen character.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "void"
+    ],
+    "strength": "4",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "weight-of-duty",
+        "pack_id": "atonement",
+        "flavor": "",
+        "illustrator": "Asep Ariyanto",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C34_117.jpg",
+        "position": "117",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  }
+]

@@ -233,6 +233,15 @@ export interface DeckStrategy {
     // which is the Crane Tsuma package, and from `aggressive`, which this deck
     // deliberately is not.
     lionDuelist: boolean;
+    // Castle of the Forgotten Crab: a BODY IS A RESOURCE. Buys a wide board of
+    // cheap high-military characters at zero fate, then spends the surplus as a
+    // cost — Silent Skirmisher and Stoic Gunso turn one into skill, Weight of
+    // Duty into a bowed+dishonored enemy, Way of the Crab into an enemy body,
+    // Fulfill Your Duty into province strength — while Iron Mine, Reprieve and
+    // Ceaseless Duty cancel the leave-play so the payoff comes for free.
+    // Distinct from `aggressive` (which has no sacrifice economy) and from the
+    // Kyuden Hida `defensive`/`holdingEngine` Crab precon.
+    crabSacrifice: boolean;
 }
 
 const entry = (cardId: string, overrides: Partial<PlaybookEntry>): PlaybookEntry => Object.assign({
@@ -4222,6 +4231,454 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         maxCopiesPerTarget: 1,
         summary: 'bearer wins while more honorable: recur a conflict discard card',
         shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.isUnique)
+    }),
+
+    // ---- Crab "Berserker Sacrifice" (Castle of the Forgotten) -------------
+    //
+    // A body is a RESOURCE here. Every entry below either spends one, pays for
+    // one dying, or keeps one alive through its own death. The ranking of WHICH
+    // body is spent lives in `CrabSacrificeTactics`, not here — a PlaybookEntry
+    // cannot see the DeckProfile, and hard-coding a per-deck threshold in one is
+    // the exact mistake that made the Lion Duelist's Agetoki gate unreachable.
+
+    // ---- sacrifice OUTLETS (each converts a body into something) ----------
+
+    // Action during a conflict: sacrifice ANOTHER character, this one gets +2
+    // military. It is also the cheapest body in the deck (cost 0), so it is
+    // both an outlet and Tier 2 fodder depending on what else is on the table.
+    'silent-skirmisher': entry('silent-skirmisher', {
+        conflictTypes: ['military'],
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 7,
+        inPlayAction: true,
+        abilityValue: true,
+        conflictContribution: 2,
+        summary: 'sacrifice another character: +2 military',
+        shouldUseAction: (ctx) => {
+            const self = ctx.myCharacters.find((card) => card.id === 'silent-skirmisher');
+            return !!self && self.inConflict && !self.bowed &&
+                readyParticipants(ctx.myCharacters).length >= 2;
+        }
+    }),
+
+    // Action during a conflict: sacrifice a friendly character, this one gets
+    // +3 military. Strictly better rate than Silent Skirmisher, so it fires
+    // first when both are live.
+    'stoic-gunso': entry('stoic-gunso', {
+        conflictTypes: ['military'],
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        inPlayAction: true,
+        abilityValue: true,
+        conflictContribution: 3,
+        summary: 'sacrifice a character: +3 military',
+        shouldUseAction: (ctx) => {
+            const self = ctx.myCharacters.find((card) => card.id === 'stoic-gunso');
+            return !!self && self.inConflict && !self.bowed &&
+                readyParticipants(ctx.myCharacters).length >= 2;
+        }
+    }),
+
+    // Action: sacrifice a friendly character, ready any character. Readying a
+    // bowed participant lets it fight a second conflict this round, which is
+    // the whole plan of a deck that declares three.
+    'steadfast-witch-hunter': entry('steadfast-witch-hunter', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 7,
+        inPlayAction: true,
+        abilityValue: true,
+        worksWithoutReadyParticipant: true,
+        summary: 'sacrifice a character: ready a character',
+        shouldUseAction: (ctx) => ctx.myCharacters.some((card) => card.bowed) &&
+            ctx.myCharacters.length >= 3
+    }),
+
+    // Event: sacrifice a friendly Crab, the opponent must sacrifice a character
+    // of their choosing. They pick their worst, so this is a TOWER answer —
+    // against a board of one big body they have no cheap out — and dead weight
+    // against a wide one.
+    'way-of-the-crab': entry('way-of-the-crab', {
+        priority: 7,
+        abilityValue: true,
+        // The cost is a Crab anywhere on our side and the effect hits THEIR
+        // board, so a bowed/empty conflict does not make it worse. The shared
+        // "no ready participant" veto refused it 25 times per 8 games.
+        worksWithoutReadyParticipant: true,
+        summary: 'sacrifice a Crab: the opponent sacrifices a character',
+        shouldPlay: (ctx) => {
+            const theirs = ctx.opponentCharacters || [];
+            if(theirs.length === 0 || ctx.myCharacters.length < 2) {
+                return false;
+            }
+            // Only worth a card while their CHEAPEST body is still expensive —
+            // that is what "they cannot chump the sacrifice" means.
+            const worst = theirs
+                .slice()
+                .sort((left, right) => liveSkill(left, 'military') - liveSkill(right, 'military'))[0];
+            return liveSkill(worst, 'military') >= 3 || theirs.length <= 2;
+        }
+    }),
+
+    // Event during a military conflict: sacrifice a friendly character, the
+    // ATTACKED province gets +X strength where X is that body's military. A
+    // defensive outlet — it saves a province rather than winning a conflict —
+    // so it only fires while defending and only when it actually saves the
+    // break.
+    'fulfill-your-duty': entry('fulfill-your-duty', {
+        conflictTypes: ['military'],
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 7,
+        abilityValue: true,
+        // The break test is `attackerSkill - defenderSkill >= provinceStrength`,
+        // so sacrificing a READY PARTICIPANT is exactly neutral: defender skill
+        // drops by X and province strength rises by the same X, and the two
+        // cancel. The card only gains when the body it eats is contributing
+        // ZERO skill right now — a character at home, or a bowed participant
+        // (a bowed body adds nothing, `conflict.ts:474`). Those convert dead
+        // weight into province strength at full rate.
+        //
+        // The engine's cost is a bare `sacrifice({ cardType: Character })` with
+        // no participation restriction, so a body at home is a legal choice.
+        conflictContribution: (ctx) => {
+            if(ctx.amAttacker) {
+                return null;
+            }
+            const idle = ctx.myCharacters
+                .filter((card) => !card.inConflict || card.bowed)
+                .map((card) => liveSkill(card, 'military'))
+                .sort((left, right) => right - left);
+            return idle.length > 0 ? idle[0] : null;
+        },
+        // It deliberately eats a body that is contributing nothing, so "none
+        // of our participants is ready" is the state it exists for.
+        worksWithoutReadyParticipant: true,
+        summary: 'sacrifice an idle character: attacked province gets +X strength',
+        // Boosting the ATTACKED province while we are the attacker is
+        // self-harm, so this is a defence-only card.
+        shouldPlay: (ctx) => !ctx.amAttacker &&
+            (ctx.strengthNeeded ?? 1) > 0 &&
+            ctx.myCharacters.some((card) =>
+                (!card.inConflict || card.bowed) && liveSkill(card, 'military') > 0)
+    }),
+
+    // ---- sacrifice PAYOFFS (these get paid when a body dies) --------------
+
+    // Interrupt when this character is sacrificed: gain 2 fate. Cost 1 for 2
+    // fate is the best rate in the deck, so it is Tier 1 fodder. The interrupt
+    // itself is free and always correct.
+    'gallant-quartermaster': entry('gallant-quartermaster', {
+        priority: 8,
+        abilityValue: true,
+        summary: 'sacrificed: gain 2 fate'
+    }),
+
+    // Courtesy + Sincerity: a fate AND a card when it leaves play, by ANY
+    // route. Both keyword reactions are engine-generic; the entry exists so the
+    // 1-cost 1-military body is not filtered out as a zero-value buy.
+    'kaiu-envoy': entry('kaiu-envoy', {
+        priority: 7,
+        abilityValue: true,
+        optionalDrawCards: 1,
+        summary: 'leaves play: gain 1 fate and draw 1 card'
+    }),
+
+    // Interrupt when WE sacrifice a character: the opponent bows a character
+    // with LOWER military than the sacrificed one. If nothing they control is
+    // smaller the ability does nothing, so the target list is computed against
+    // the body we actually fed (`CrabSacrificeTactics.fifthTowerBowable`).
+    'fifth-tower-watch': entry('fifth-tower-watch', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        abilityValue: true,
+        summary: 'we sacrifice a character: bow a weaker enemy'
+    }),
+
+    // Reaction after another friendly character leaves play during a conflict:
+    // DOUBLE this character's military until the end of it. Doubling applies
+    // after modifiers, so every pump on this body counts twice — the buff
+    // steering in the tactics module aims here first.
+    'vengeful-berserker': entry('vengeful-berserker', {
+        conflictTypes: ['military'],
+        priority: 9,
+        abilityValue: true,
+        summary: 'a friendly character leaves play: double this military'
+    }),
+
+    // Reaction after we break a province during a conflict this character is in:
+    // refill every non-stronghold province with a facedown dynasty card. On top
+    // of 9 military for 5, which is the real reason it is in the deck.
+    'repentant-legion': entry('repentant-legion', {
+        priority: 8,
+        abilityValue: true,
+        summary: 'break while participating: refill all provinces'
+    }),
+
+    // Attachment, cost 0, +1 military. Interrupt when the bearer is SACRIFICED:
+    // return this to hand. A free permanent buff on a body we intend to feed,
+    // so it never actually costs a card.
+    'sharpened-tsuruhashi': entry('sharpened-tsuruhashi', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 7,
+        maxCopiesPerTarget: 1,
+        // Cost 0 and it comes back when the bearer is sacrificed, so its worth
+        // is the recursion rather than the +1 military the contribution
+        // filter can see.
+        abilityValue: true,
+        worksWithoutReadyParticipant: true,
+        summary: 'bearer sacrificed: return this to hand (free +1 military)'
+    }),
+
+    // Playable as a character OR as an attachment granting +2/+2 that turns
+    // back into a character when the bearer leaves play. As an attachment it is
+    // a buff that survives the sacrifice, which is strictly better here.
+    'promising-youth': entry('promising-youth', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 7,
+        abilityValue: true,
+        summary: 'attachment +2/+2 that becomes a character when the bearer dies'
+    }),
+
+    // ---- bodies -----------------------------------------------------------
+
+    // Dire (+3 military at zero fate) makes this a 6-military body for 3. The
+    // profile's `additionalFateByCharacterId` pins it at 0 fate; a fate here is
+    // a strict DOWNGRADE, not insurance.
+    'damned-hida': entry('damned-hida', {
+        priority: 6,
+        summary: 'dire: 6 military while it has no fate'
+    }),
+
+    // Cannot be declared as attacker or defender at all until its own Action
+    // blanks its text box, and that Action costs a friendly body. 6 military
+    // for 3 fate afterwards. The blanking must happen BEFORE declaration, so
+    // the action is offered in the conflict-phase window as well.
+    'tainted-hero': entry('tainted-hero', {
+        priority: 8,
+        inPlayAction: true,
+        conflictPhaseAction: true,
+        actionBeforePass: true,
+        abilityValue: true,
+        summary: 'sacrifice a character: blank own text so it can fight (6 military)',
+        shouldUseAction: (ctx) => {
+            const self = ctx.myCharacters.find((card) => card.id === 'tainted-hero');
+            return !!self && !self.bowed && ctx.myCharacters.length >= 2;
+        }
+    }),
+
+    // Dire: loses its other non-keyword abilities at zero fate, which is what
+    // we want. Declaring it as attacker/defender costs 2 honor on top.
+    'unleashed-experiment': entry('unleashed-experiment', {
+        priority: 6,
+        declareCostsHonor: true,
+        summary: 'dire 4 military; declaring it costs 2 honor'
+    }),
+
+    // Reaction after the opponent PASSES on declaring a conflict while they
+    // control ready characters: put 1 fate on this character. Fate cannot be
+    // placed on it any other way, so the reaction is its only growth.
+    'one-of-the-forgotten': entry('one-of-the-forgotten', {
+        priority: 7,
+        abilityValue: true,
+        summary: 'opponent passes with ready characters: +1 fate on this'
+    }),
+
+    // While attacking, characters with less military than our unbroken province
+    // count cannot be declared as defenders. Early — four unbroken provinces —
+    // that locks out most of a field board.
+    'butcher-of-the-fallen': entry('butcher-of-the-fallen', {
+        priority: 7,
+        abilityValue: true,
+        summary: 'attacking: small characters cannot defend'
+    }),
+
+    // 7 military for 4 is the best raw rate in the deck. Forced reaction after
+    // it LOSES a conflict: the opponent may pay 1 fate to take control of it.
+    // That trade is priced from both sides in `CrabSacrificeTactics` so every
+    // deck in the field answers the prompt instead of stalling on it.
+    'mercenary-company': entry('mercenary-company', {
+        priority: 7,
+        summary: '7 military; loses a conflict -> opponent may buy it for 1 fate'
+    }),
+
+    // ---- saves (cancel a leave-play, keep the payoff) ---------------------
+
+    // Holding. Interrupt when a friendly character WOULD leave play: sacrifice
+    // this holding instead. Used offensively here — sacrifice the biggest body
+    // to an outlet, cancel the loss, bank the payoff for free.
+    'iron-mine': entry('iron-mine', {
+        priority: 8,
+        abilityValue: true,
+        summary: 'a character would leave play: sacrifice this holding instead'
+    }),
+
+    // Attachment doing the same for its bearer. Worth putting on the body we
+    // intend to feed repeatedly.
+    'reprieve': entry('reprieve', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 7,
+        abilityValue: true,
+        maxCopiesPerTarget: 1,
+        worksWithoutReadyParticipant: true,
+        summary: 'bearer would leave play: discard this instead',
+        shouldPlay: (ctx) => ctx.myCharacters.some((card) => !card.bowed)
+    }),
+
+    // Event doing the same, but only for a character whose PRINTED cost is at
+    // most our unbroken province count — so it is a wide net early and narrows
+    // as provinces break.
+    'ceaseless-duty': entry('ceaseless-duty', {
+        priority: 8,
+        abilityValue: true,
+        worksWithoutReadyParticipant: true,
+        summary: 'a cheap character would leave play: it stays instead',
+        shouldPlay: (ctx) => {
+            const unbroken = 5 - (ctx.myBrokenProvinces ?? 0);
+            const costs = ctx.characterPrintedCosts || {};
+            return ctx.myCharacters.some((card) =>
+                (Number(costs[card.uuid]) || 0) <= unbroken);
+        }
+    }),
+
+    // ---- pumps and card draw ---------------------------------------------
+
+    // Action: lose 2 honor, a participating character gets +4 military and
+    // cannot be targeted by opponents' abilities. Bigger than Banzai and it
+    // dodges removal, but the honor is a real cost in a deck that already
+    // bleeds it, so it is gated on the pool.
+    'spreading-the-darkness': entry('spreading-the-darkness', {
+        conflictTypes: ['military'],
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        conflictContribution: 4,
+        summary: 'lose 2 honor: +4 military and untargetable',
+        // The honor floor is a DECK property, not a card property — this list
+        // pays 2 here and 2 more for every Unleashed Experiment declaration out
+        // of a starting 10, and lost 70% of its games to dishonor before the
+        // floor existed. `canPayHonor` carries the profile's floor; undefined
+        // means "no floor", which keeps the legacy reading for other decks.
+        shouldPlay: (ctx) => ctx.honor > 6 && ctx.canPayHonor !== false &&
+            readyParticipants(ctx.myCharacters).length > 0
+    }),
+
+    // Reaction after we break a province with a participating Berserker: draw
+    // 3, max 1 per conflict. The deck's only real card engine and almost every
+    // body is a Berserker.
+    'battle-meditation': entry('battle-meditation', {
+        priority: 9,
+        abilityValue: true,
+        optionalDrawCards: 3,
+        summary: 'break with a Berserker participating: draw 3'
+    }),
+
+    // Action during a POLITICAL conflict: bow a participating character whose
+    // political skill is at most its controller's honor bid. This deck has
+    // almost no political skill, so it is used to hollow out THEIR political
+    // conflicts rather than to win one.
+    'exposed-secrets': entry('exposed-secrets', {
+        conflictTypes: ['political'],
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        abilityValue: true,
+        summary: 'political: bow a character with political <= its owner\'s bid',
+        shouldPlay: (ctx) => {
+            const bid = ctx.opponentBid ?? 0;
+            return bid > 0 && participating(ctx.opponentCharacters)
+                .some((card) => liveSkill(card, 'political') <= bid);
+        }
+    }),
+
+    // Dynasty EVENT: during the dynasty phase, every character we play this
+    // phase costs 1 less. Dynasty events have no economy path in the shared bot
+    // — every dynasty ranker sorts characters only — so without `dynastyAction`
+    // three copies sit face-up in their provinces and rot, exactly as three
+    // Honored Veterans did for the Lion Duelist list.
+    // A CONFLICT event (Limited) whose Action is legal only during the DYNASTY
+    // phase, played from hand. The dynasty window looks at provinces only, so
+    // it is fired by an explicit hook in the policy before any character is
+    // bought — `crab-those-who-serve-discount`. It is never a conflict play.
+    'those-who-serve': entry('those-who-serve', {
+        priority: 9,
+        abilityValue: true,
+        summary: 'dynasty phase, from hand: every character costs 1 less this phase',
+        shouldPlay: () => false
+    }),
+
+    // ---- provinces --------------------------------------------------------
+
+    // Action during a conflict at ANOTHER province we control: move the
+    // contested ring here, making this the attacked province. It is a VOID
+    // province, so the move also turns Weight of Duty on — that pairing is the
+    // deck's removal engine.
+    'shrug-off-despair': entry('shrug-off-despair', {
+        priority: 8,
+        inPlayAction: true,
+        actionBeforePass: true,
+        abilityValue: true,
+        summary: 'move the conflict to this (void) province, enabling Weight of Duty',
+        shouldUseAction: (ctx) => !ctx.amAttacker
+    }),
+
+    // Action during a conflict at a void province: sacrifice a participating
+    // character, then bow AND dishonor an opposing character. Non-unique
+    // sacrifice reaches only a non-unique target.
+    'weight-of-duty': entry('weight-of-duty', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 9,
+        inPlayAction: true,
+        actionBeforePass: true,
+        abilityValue: true,
+        summary: 'void province: sacrifice a participant to bow+dishonor an enemy',
+        shouldUseAction: (ctx) => participating(ctx.myCharacters).length >= 1 &&
+            (ctx.opponentCharacters || []).length > 0
+    }),
+
+    // Action during a conflict here: choose an attacker; the opponent either
+    // bows it or gives us an honor. Both branches are good, so it fires on the
+    // biggest attacker every time. Used as the stronghold province.
+    'the-eternal-watch': entry('the-eternal-watch', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        inPlayAction: true,
+        actionBeforePass: true,
+        abilityValue: true,
+        summary: 'bow the strongest attacker, or take 1 honor',
+        shouldUseAction: (ctx) => !ctx.amAttacker &&
+            participating(ctx.opponentCharacters).length > 0
+    }),
+
+    // Reaction when attacked: place an honor token, and the province gets +2
+    // strength per token. Defending it compounds, so the reaction is free value
+    // and always taken.
+    'fortified-assembly': entry('fortified-assembly', {
+        priority: 8,
+        abilityValue: true,
+        summary: 'attacked: +1 honor token (province gets +2 strength each)'
+    }),
+
+    // Stronghold. Reaction after WE break a province: bow this, every conflict
+    // declared this round becomes military. The whole board is military, so
+    // this is close to unconditional — but it is worth nothing with no conflict
+    // left this round.
+    'castle-of-the-forgotten': entry('castle-of-the-forgotten', {
+        priority: 9,
+        abilityValue: true,
+        // A stronghold REACTION fires through `provinceReactionWorthIt`, which
+        // never consults `shouldUseAction` — a gate here would be dead code.
+        // The real gate is `CrabSacrificeProfile.castleAlwaysAfterBreak` /
+        // `castleMinimumConflictsRemaining`, enforced in the policy.
+        summary: 'after a break: all conflicts this round are military'
     })
 };
 
@@ -4363,7 +4820,11 @@ export function deriveDeckStrategy(cardIds: Iterable<string>): DeckStrategy {
         bidWar: ids.has('kyuden-bayushi') || bidWarCount >= 8,
         // Kyuden Ikoma uniquely identifies the Lion Duelist list; the older Lion
         // swarm precon runs Hayaken no Shiro / Manicured Garden and is untouched.
-        lionDuelist: ids.has('kyuden-ikoma')
+        lionDuelist: ids.has('kyuden-ikoma'),
+        // Castle of the Forgotten uniquely identifies the Berserker Sacrifice
+        // list. The Crab Kaiu Wall defense precon runs Kyuden Hida and keeps
+        // its holdingEngine/defensive derivation untouched.
+        crabSacrifice: ids.has('castle-of-the-forgotten')
     };
 }
 

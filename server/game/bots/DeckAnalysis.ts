@@ -232,7 +232,30 @@ const ANALYSIS: CardModel[] = [
     { id: 'honor-s-reward', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
     { id: 'shameful-display', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
     { id: 'effective-deception', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
-    { id: 'upholding-authority', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' }
+    { id: 'upholding-authority', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+
+    // Crab "Berserker Sacrifice" (EmeraldDB 59c4d29f). Its conflict events all
+    // spend a BODY on top of their fate cost, so the swing recorded here is the
+    // net effect after that body leaves — which is why the two pure pumps read
+    // lower than their printed numbers suggest.
+    // Lose 2 honor: +4 military and untargetable. The biggest single pump in
+    // the deck, and the protection is worth roughly another point.
+    { id: 'spreading-the-darkness', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 4, polBonus: 0, swing: 5, tag: 'buff', conflictTypes: ['military'] },
+    // Sacrifice a Crab; the opponent sacrifices a character of their choice.
+    // They pick their worst, so the swing is a tower answer, not a removal.
+    { id: 'way-of-the-crab', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
+    // Sacrifice a character: the attacked province gets +X strength. Defensive,
+    // and break-neutral unless the body was contributing nothing.
+    { id: 'fulfill-your-duty', type: 'event', side: 'conflict', fate: 2, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'utility', conflictTypes: ['military'] },
+    // A cheap character that would leave play stays instead. Denies a removal.
+    { id: 'ceaseless-duty', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'utility' },
+    // Break with a participating Berserker: draw 3. Card economy, no skill.
+    { id: 'battle-meditation', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'draw' },
+    // Bow a participating character whose political is at most its controller's
+    // honor bid. Political-only, and this deck uses it purely to deny.
+    { id: 'exposed-secrets', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'debuff', conflictTypes: ['political'] },
+    // Dynasty-phase cost reducer played from hand; no conflict effect at all.
+    { id: 'those-who-serve', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' }
 ];
 
 const BY_ID = new Map<string, CardModel>(ANALYSIS.map((card) => [card.id, card]));

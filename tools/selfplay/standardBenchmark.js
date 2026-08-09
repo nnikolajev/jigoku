@@ -226,6 +226,14 @@ function roundRobinPayload(report) {
             opponentsCompleted: row.opponentsCompleted
         };
     }
+    const matchups = (report.matchups || []).map((matchup) => ({
+        left: matchup.left,
+        right: matchup.right,
+        leftWins: matchup.leftWins,
+        rightWins: matchup.rightWins,
+        other: matchup.other,
+        played: matchup.played
+    }));
     return {
         suiteId: STANDARD_SUITE_ID,
         ...benchmarkIdentity(report.config.engineVersion || 'v1', report.config.botSeed, report.config.omniscient ? 'omniscient' : 'fair', {
@@ -236,7 +244,8 @@ function roundRobinPayload(report) {
         botSeed: report.config.botSeed,
         drawBidPolicy: report.config.drawBidPolicy || 'adaptive',
         seatsAlternate: true,
-        decks
+        decks,
+        matchups
     };
 }
 

@@ -89,6 +89,10 @@ describe('standard self-play benchmark config', function() {
                 deck: 'Lion', wins: 500, losses: 399, other: 1, played: 900,
                 overallWinRate: 500 / 899, averageOpponentWinRate: 0.56,
                 opponentsCompleted: 9
+            }],
+            matchups: [{
+                left: 'Lion', right: 'Crane', leftWins: 23, rightWins: 16,
+                other: 1, played: 40, targetGames: 40, failedJobs: []
             }]
         });
 
@@ -108,6 +112,10 @@ describe('standard self-play benchmark config', function() {
             engineVersion: 'v1', strategySeed: 1, informationMode: 'fair',
             configurationHash: jasmine.any(String)
         }));
+        expect(roundRobin.matchups).toEqual([{
+            left: 'Lion', right: 'Crane', leftWins: 23, rightWins: 16,
+            other: 1, played: 40
+        }]);
 
         const omniscient = omniscientPayload({
             generatedAt: 'omni',

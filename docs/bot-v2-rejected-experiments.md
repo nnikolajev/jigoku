@@ -988,3 +988,118 @@ so the ship was checked end to end:
 The reverse arm replicates the forward effect at the expected size on bases
 never used for it. **~10,200 games total on this lever**, two null arms at
 exactly 50.00%.
+
+## Dynasty-phase SKIP to save fate (`saveFatePass.earlyRounds` / `lateFromRound`): rejected
+
+The "pass turn two to save fate" half of the Kyuden Bayushi primer. Full
+write-up and the engine reasoning in `bot-save-fate-pass.md`.
+
+- Rig: `probePaired.js`, `SEAT=0` and `SEAT=1` pooled, four bases, 2176 paired
+  games per arm. Null arm (profile named but inert) 272/272 bit-identical.
+- Skip rounds 2+3 when two bodies stand: **-4.64pp**, 54 flips to / 155 away,
+  sign-p < 0.0001. **No deck positive.** Fire rate correlates with damage at
+  **r = -0.652** across the 17 decks, and the one deck that never fires
+  (PhoenixPhoenix) measures exactly 0.00pp.
+- Setup + skip round 2: **-1.06pp**, against +2.02pp for the same setup half
+  with no skip on the same bases. The skip costs ~3.1pp wherever it is added.
+- Late rounds only (skip a round-4+ phase while the board is ahead):
+  **CEILING 0.23pp** — under the noise floor, so no run can resolve it and
+  tuning `lateSkillRatio` cannot help. Of the round-4+ windows only 129 reach
+  "board ahead"; 1056 are refused because our own provinces are already
+  falling and 1505 because the board is too thin.
+- Reason, and why it will not come back in a new shape: V1 buys nearly every
+  body with zero extra fate, so it is discarded in that same round's fate
+  phase. At the round-two dynasty window V1 has **no characters 33% of the
+  time and exactly one 57% of the time**. There is no standing board to
+  protect, so the skip forfeits development rather than banking tempo.
+- This reproduces the earlier `dynastyPassFirstForFate` rejection (-1.7pp) at
+  four times the sample size and explains it. The SETUP half of the same
+  profile — a fate floor on round-one buys — is the part that works and
+  shipped (+2.22pp, p=0.011).
+
+## Extending the save-fate floor past round three: rejected
+
+`saveFatePass.setupRounds` beyond `[1,2,3]`. Full write-up in
+`bot-save-fate-pass.md`.
+
+- Paired probe, both seats, 2176 games each, bases 91001-94001: rounds `[1..5]`
+  read **+1.65pp (sign-p 0.0078)** and every-round read **+1.79pp (p=0.0039)**.
+- Head-to-head on six bases never used to find it: **+0.80pp, z=0.91, p=0.363**,
+  and negative on one base.
+- The lesson: those two probe arms were run on the SAME base set, so their
+  agreement was not a replication. Two arms agreeing on one base set is one
+  measurement, not two.
+- The ceiling had already halved (18.9% of games flip for the `[1,2,3]` step
+  versus 8.0% here), which was the early warning. `setupRounds` stays `[1,2,3]`.
+
+## Dynasty-phase SKIP, RETESTED on the persistent-board baseline: still rejected
+
+The skip's original -4.64pp had a specific cause — no board to protect — and the
+shipped fate floor removed that cause, so it was re-measured rather than left on
+an inherited verdict. Baseline: shipped V1 (floor rounds 1-3, skip off), both
+seats, four bases, 2176 games per arm.
+
+| arm | fires | result |
+|---|---:|---:|
+| rounds 2+3, two bodies | 1805 | **-8.64pp** (p<0.0001) |
+| rounds 2+3, three bodies | 656 | **-3.31pp** (p<0.0001) |
+| board strength ONLY, from round 2, 1.25x | 679 | **-2.99pp** (p<0.0001) |
+| board strength ONLY, from round 2, 1.75x | 181 | -0.23pp, CEILING **0.46pp** |
+
+- It got **worse**, not better: -4.64pp before the floor, -8.64pp after. The
+  floor made rounds two and three worth MORE, so declining to buy in them costs
+  more. The floor and the skip are the same question answered opposite ways.
+- The board-strength rule, **isolated for the first time** (no round list at
+  all), fired 679 times on a board that was genuinely ahead and won 27 of 119
+  decided games. The skip loses even while winning.
+- Every bar sits on one line: damage is proportional to firing rate, down to a
+  firing rate of zero. Wrong SIGN, not wrong scope. No scoping can rescue it.
+- No deck was positive in any arm, at any bar.
+
+### ...including "one turn off", which is what the advice actually says
+
+The arms above skip rounds two AND three. The human advice is "skip turn two OR
+turn three depending on board state". `maxSkipsPerGame` was added to express
+that (default 0 = uncapped, inert unless an arm names it), and it does not help:
+
+| arm | skips taken | result |
+|---|---:|---:|
+| round 2 only | 674 | **-3.26pp** (p<0.0001) |
+| round 3 only | 1342 | **-6.11pp** (p<0.0001) |
+| round 2 OR 3, cap 1 per game | 1571 | **-7.26pp** (p<0.0001) |
+
+Round two is not special — it looks milder only because fewer boards qualify
+that early. Per skip taken, rounds two and three cost the same.
+
+**Net flips regress on skips TAKEN at r = -0.996, slope -0.107 games per skip**,
+across all seven scopings measured (round choice, body bar, per-game cap,
+strength ratio, from 181 to 1805 skips). A skipped dynasty phase costs about a
+tenth of a game regardless of when or why. Every scoping buys the same thing —
+fewer skips — and the only one that stops losing is the one that stops firing.
+
+## Banking fate for a strong hand: rejected (both halves)
+
+Full census and reasoning in `bot-fate-starvation.md`.
+
+Fate starvation is REAL and was measured: 48.4% of conflict-window closes hold
+a card the bot cannot pay for, ~47% of closes happen on 0-1 fate, and the
+starved cards cost 1-2 (display-of-power 836, feral-ningyo 719,
+forebearer-s-echoes 673, regal-bearing 341, consumed-by-five-fires 449). The
+diagnosis was right; neither fix worked.
+
+- **`saveFatePass.handReserve`** — hold back the cheapest wanted card's cost
+  from the dynasty budget. Field-wide **-1.98pp (p=0.0095)** at a 1-fate
+  reserve and **-4.14pp** at 2, the usual dose-response.
+- **`aggressiveSpend`** — force the best legal affordable card at the
+  `no-card-passed-intent-filter` gate instead of passing. Field-wide -0.92pp
+  (p=0.23) at priority>=5 and +0.14pp (p=0.88) at priority>=9. Null.
+- **Both per-deck candidates INVERTED on fresh bases.** ScorpionBidWar's
+  reserve went +8.59pp (p=0.007) -> **-5.21pp**; Lion's aggressive spend went
+  7-0 in decided games (p=0.016) -> **0.00pp, 9-9**. About 100 per-deck rows
+  were screened across the two experiments, so five false positives at p<0.05
+  are expected; these were two of them.
+
+**Measurement trap worth remembering:** `isPlayableByMe` folds COST into
+playability, so any "what could the bot have played" census that filters on it
+cannot see fate starvation at all and will report that fate is not the
+constraint no matter how starved the bot is. Count `cost > fate` separately.

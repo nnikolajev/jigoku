@@ -119,6 +119,14 @@ export interface ConflictPhasePlannerProfile {
     // `potentialSkill - breakTarget`. Negative. `breakTarget` assumes the
     // opponent defends with its whole ready board, so this wants slack.
     hopelessAttackReach?: number;
+    // Send the WEAKEST contributing body on a hopeless attack instead of the
+    // strongest. Attack candidates are ordered `sortBySkillDesc`, so a capped
+    // hopeless attack otherwise bows the best attacker for a conflict it
+    // cannot win — when the point of declaring is the ring's fate (taken at
+    // declaration, win or lose) the cheapest legal body buys the same fate.
+    // Candidates are already filtered to skill > 0, so the pick still
+    // contributes. Undefined keeps the strongest-first order.
+    hopelessAttackWeakestFirst?: boolean;
 
     // ---- triggered abilities (V2-only) ----
     // The triggered-ability window drops any card whose playbook priority is

@@ -223,6 +223,29 @@ function loadDragonAttachmentsDeck() {
     return buildDeck(decklist, cardsById);
 }
 
+// Crane "Courtier Honor" (EmeraldDB db118806) — Seven Fold Palace honor race.
+// Wins at 25 honor rather than by conquest: it fields a wide board of cheap
+// Courtiers, honors them (Way of the Crane, Court Games, A Perfect Cut, Tsuma),
+// and converts each honored body into honor income (the stronghold's attacker
+// reaction, Doji Hotaru, Honored Blade, Kakita Asami's political drain, Bonsai
+// Garden on air conflicts, and Way of the Chrysanthemum off the honor dial).
+function loadCraneHonorDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'crane-honor-decklist.json'), 'utf8'));
+    return buildDeck(decklist, indexFixtureCards(['crane-honor-cards.json']));
+}
+
+// Lion "Honor" (EmeraldDB 65b10e6f) — Kyuden Ikoma honor RACE. Unlike the Lion
+// Duelist list (which treats the honor lead as a switch that turns other cards
+// on), this deck plans to reach 25 honor outright: Seeker of Air over two air
+// provinces, Before the Throne's 2-honor break, Kenson no Gakka honoring its own
+// defenders, and a per-card faucet on almost every body (Ikoma Prodigy, Revered
+// Ikoma, Ardent Omoidasu, Bushido Adherent, Hero of Three Trees, Chronicler of
+// Conquests, Honored Blade) doubled by Way of the Chrysanthemum off a floor dial.
+function loadLionHonorDeck() {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'lion-honor-decklist.json'), 'utf8'));
+    return buildDeck(decklist, indexFixtureCards(['lion-honor-cards.json']));
+}
+
 function loadCraneDuelDeck() {
     const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'craneduel-decklist.json'), 'utf8'));
     return buildDeck(decklist, indexFixtureCards([
@@ -231,4 +254,4 @@ function loadCraneDuelDeck() {
     ]));
 }
 
-module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadUnicornRevealDeck, loadCraneDeck, loadCrabDeck, loadCrabSacrificeDeck, loadScorpionDeck, loadScorpionBidWarDeck, loadLionDeck, loadLionDuelistDeck, loadPhoenixDeck, loadPhoenixShugenjaDeck, loadPhoenixPhoenixDeck, loadDragonDeck, loadDragonAttachmentsDeck, loadCraneDuelDeck, FIXTURES };
+module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadUnicornRevealDeck, loadCraneDeck, loadCraneHonorDeck, loadCrabDeck, loadCrabSacrificeDeck, loadScorpionDeck, loadScorpionBidWarDeck, loadLionDeck, loadLionDuelistDeck, loadLionHonorDeck, loadPhoenixDeck, loadPhoenixShugenjaDeck, loadPhoenixPhoenixDeck, loadDragonDeck, loadDragonAttachmentsDeck, loadCraneDuelDeck, FIXTURES };

@@ -19,9 +19,12 @@ const PER_GAME_MS = 15000;
 const SEMANTIC_STAGES = ['visible', 'selectable', 'eligible', 'candidate', 'chosen', 'resolved', 'payoffRealized'];
 const ALIASES = Object.freeze({
     crane: 'Crane', 'crane-baseline': 'Crane', craneduel: 'CraneDuels', 'crane-duels': 'CraneDuels',
+    'crane-honor': 'CraneHonor', cranehonor: 'CraneHonor', honor: 'CraneHonor',
     crab: 'Crab', 'crab-sacrifice': 'CrabSacrifice', crabsacrifice: 'CrabSacrifice', sacrifice: 'CrabSacrifice',
     dragon: 'Dragon', 'dragon-attachments': 'DragonAttachments', dragonattachments: 'DragonAttachments',
-    lion: 'Lion', 'lion-duelist': 'LionDuelist', lionduelist: 'LionDuelist', duelist: 'LionDuelist', phoenix: 'Phoenix', 'phoenix-shugenja': 'PhoenixShugenja', phoenixshugenja: 'PhoenixShugenja',
+    lion: 'Lion', 'lion-duelist': 'LionDuelist', lionduelist: 'LionDuelist', duelist: 'LionDuelist',
+    'lion-honor': 'LionHonor', lionhonor: 'LionHonor',
+    phoenix: 'Phoenix', 'phoenix-shugenja': 'PhoenixShugenja', phoenixshugenja: 'PhoenixShugenja',
     'phoenix-phoenix': 'PhoenixPhoenix', phoenixphoenix: 'PhoenixPhoenix',
     scorpion: 'Scorpion', 'scorpion-bidwar': 'ScorpionBidWar', scorpionbidwar: 'ScorpionBidWar',
     'scorpion-bid-war': 'ScorpionBidWar', bidwar: 'ScorpionBidWar',

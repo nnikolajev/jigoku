@@ -255,7 +255,61 @@ const ANALYSIS: CardModel[] = [
     // honor bid. Political-only, and this deck uses it purely to deny.
     { id: 'exposed-secrets', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'debuff', conflictTypes: ['political'] },
     // Dynasty-phase cost reducer played from hand; no conflict effect at all.
-    { id: 'those-who-serve', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' }
+    { id: 'those-who-serve', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+
+    // ---- Lion "Honor" (EmeraldDB 65b10e6f) ----------------------------------
+    // Only the four EVENT ids unique to this list are modelled. Every other
+    // card in it is either a body (the live card object already supplies skill
+    // and cost) or shared with a deck that was measured WITHOUT a model for it
+    // — and a model is global by card id, so adding one there would move that
+    // deck. This is the same rule the Crane Honor block below records.
+    //
+    // What the opponent model needs to know about this deck is that its events
+    // almost never add skill: they tax, cap and stall. So the swings are small
+    // and none of them is a `buff`.
+    { id: 'privileged-position', type: 'event', side: 'conflict', fate: 2, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'command-respect', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
+    { id: 'ready-for-battle', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
+    // Reveals a SECOND province and fights at both, so it does not change the
+    // skill in the conflict at all — it doubles what a win is worth.
+    { id: 'a-war-on-two-fronts', type: 'event', side: 'conflict', fate: 2, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility', conflictTypes: ['military'] },
+
+    // ---- Crane "Courtier Honor" (EmeraldDB db118806) ------------------------
+    // NOTE: tsuma, brash-samurai and savvy-politician are deliberately NOT here.
+    // The Crane Baseline and Crane Duels lists run them, and a model for a card
+    // another deck also plays changes that deck (measured: 5 of 56 paired games
+    // for Crane). All three are bodies/provinces whose skill and cost the live
+    // card object already supplies, so the model would buy almost nothing.
+    // The list is almost all zero-swing honor faucets. What matters for the
+    // opponent model is that its threats are POLITICAL and its events mostly
+    // move the honor track rather than skill — so most swings here are small
+    // and the tags say `honor`.
+    { id: 'seven-fold-palace', type: 'stronghold', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'honor' },
+    { id: 'before-the-throne', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'honor' },
+    { id: 'driven-by-courage', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 2, polBonus: 2, swing: 2, tag: 'buff' },
+    { id: 'pledge-of-loyalty', type: 'province', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
+    { id: 'bonsai-garden', type: 'holding', side: 'dynasty', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'honor' },
+    { id: 'esteemed-tea-house', type: 'holding', side: 'dynasty', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'removal' },
+    { id: 'doji-diplomat', type: 'character', side: 'dynasty', fate: 0, mil: 0, pol: 1, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'doji-whisperer', type: 'character', side: 'dynasty', fate: 1, mil: 0, pol: 3, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'callow-delegate', type: 'character', side: 'dynasty', fate: 1, mil: 0, pol: 1, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'chancellor-s-aide', type: 'character', side: 'dynasty', fate: 1, mil: 1, pol: 1, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'kakita-asami', type: 'character', side: 'dynasty', fate: 3, mil: 1, pol: 3, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'hantei-sotorii', type: 'character', side: 'dynasty', fate: 4, mil: 4, pol: 3, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'benevolent-host', type: 'character', side: 'dynasty', fate: 4, mil: 2, pol: 2, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'asahina-storyteller', type: 'character', side: 'dynasty', fate: 4, mil: 2, pol: 4, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    { id: 'doji-hotaru-2', type: 'character', side: 'dynasty', fate: 5, mil: 3, pol: 6, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
+    // Restricted weapon with no printed stats — the card IS its honor reaction.
+    { id: 'honored-blade', type: 'attachment', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'honor' },
+    // Cancels an event outright while its controller leads on honored bodies:
+    // the biggest single swing in the list, because it answers our best card.
+    { id: 'stand-your-ground', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
+    { id: 'try-again-tomorrow', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
+    { id: 'elegance-and-grace', type: 'event', side: 'conflict', fate: 2, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'utility' },
+    { id: 'return-the-offense', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'duel', conflictTypes: ['political'] },
+    { id: 'soul-beyond-reproach', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'honor' },
+    { id: 'way-of-the-chrysanthemum', type: 'event', side: 'conflict', fate: 2, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'honor' },
+    { id: 'festival-for-the-fortunes', type: 'event', side: 'conflict', fate: 3, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'honor' }
 ];
 
 const BY_ID = new Map<string, CardModel>(ANALYSIS.map((card) => [card.id, card]));

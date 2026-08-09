@@ -4391,22 +4391,41 @@ describe('Jigoku heuristic bot', function() {
             };
         }
 
+        // Round FOUR onward, where the shipped `saveFatePass` fate
+        // floor (rounds 1-3) is not in play and this curve is the whole rule.
         it('scales placed fate with the character cost', function() {
             const policy = new JigokuBotPolicy('fate-curve');
             // Cheap bodies are disposable.
-            expect(policy.decide(makeFateState(10), 'Jigoku Bot', { playCost: 1 }).target).toBe('0');
+            expect(policy.decide(makeFateState(10), 'Jigoku Bot', { roundNumber: 4, playCost: 1 }).target).toBe('0');
             // Mid-cost gets 1 (7 - 4 - 1 = 2 spare, not rich enough to bump).
-            expect(policy.decide(makeFateState(7), 'Jigoku Bot', { playCost: 4 }).target).toBe('1');
+            expect(policy.decide(makeFateState(7), 'Jigoku Bot', { roundNumber: 4, playCost: 4 }).target).toBe('1');
             // Expensive gets 2.
-            expect(policy.decide(makeFateState(8), 'Jigoku Bot', { playCost: 5 }).target).toBe('2');
+            expect(policy.decide(makeFateState(8), 'Jigoku Bot', { roundNumber: 4, playCost: 5 }).target).toBe('2');
             // Rich (12 - 5 - 2 = 5 spare): bump the investment to 3.
-            expect(policy.decide(makeFateState(12), 'Jigoku Bot', { playCost: 5 }).target).toBe('3');
+            expect(policy.decide(makeFateState(12), 'Jigoku Bot', { roundNumber: 4, playCost: 5 }).target).toBe('3');
+        });
+
+        // The exception to both rules above, and the one that shipped. A body
+        // bought with no fate is discarded in that same round's fate phase, so
+        // the floor beats both the curve and the reserve. Measured on the
+        // head-to-head rig, six fresh bases each time: +2.22pp (p=0.011) for
+        // round one, then +4.14pp (p<0.0001) for extending it to rounds 1-3.
+        it('floors rounds one to three at one fate regardless of cost or reserve', function() {
+            const policy = new JigokuBotPolicy('fate-early-rounds');
+            for(const round of [1, 2, 3]) {
+                expect(policy.decide(makeFateState(10), 'Jigoku Bot', { roundNumber: round, playCost: 1 }).target).toBe('1');
+                expect(policy.decide(makeFateState(5), 'Jigoku Bot', { roundNumber: round, playCost: 4 }).target).toBe('1');
+            }
+            // It only ever RAISES: an expensive body keeps its own larger bid.
+            expect(policy.decide(makeFateState(12), 'Jigoku Bot', { roundNumber: 1, playCost: 5 }).target).toBe('3');
+            // And round four is back to the curve.
+            expect(policy.decide(makeFateState(10), 'Jigoku Bot', { roundNumber: 4, playCost: 1 }).target).toBe('0');
         });
 
         it('keeps a fate reserve when nearly broke', function() {
             const policy = new JigokuBotPolicy('fate-reserve');
             // 5 - 4 - 1 leaves nothing for conflict cards: place 0 instead.
-            expect(policy.decide(makeFateState(5), 'Jigoku Bot', { playCost: 4 }).target).toBe('0');
+            expect(policy.decide(makeFateState(5), 'Jigoku Bot', { roundNumber: 4, playCost: 4 }).target).toBe('0');
         });
 
         it('spends the reserve rather than starve an expensive character', function() {
@@ -5323,10 +5342,13 @@ describe('Jigoku heuristic bot', function() {
                 }
             });
             const policy = new JigokuBotPolicy('rush-fate');
+            // Round four onward; rounds 1-3 carry the shipped `saveFatePass`
+            // fate floor, which raises the cheap body to 1.
             // Cheap body: still 0.
-            expect(policy.decide(fateState(10), 'Jigoku Bot', { playCost: 1, strategy: rush }).target).toBe('0');
+            expect(policy.decide(fateState(10), 'Jigoku Bot', { roundNumber: 4, playCost: 1, strategy: rush }).target).toBe('0');
             // Powerhouse that would normally get 2 is capped at 1.
-            expect(policy.decide(fateState(10), 'Jigoku Bot', { playCost: 5, strategy: rush }).target).toBe('1');
+            expect(policy.decide(fateState(10), 'Jigoku Bot', { roundNumber: 4, playCost: 5, strategy: rush }).target).toBe('1');
+            expect(policy.decide(fateState(10), 'Jigoku Bot', { roundNumber: 1, playCost: 1, strategy: rush }).target).toBe('1');
         });
 
         it('commits every body when the break is out of reach', function() {

@@ -30,8 +30,21 @@ import { LION_DUELIST_DEFAULTS } from './LionDuelistTactics.js';
 import type { LionDuelistProfile } from './LionDuelistTactics';
 import { CRAB_SACRIFICE_DEFAULTS } from './CrabSacrificeTactics.js';
 import type { CrabSacrificeProfile } from './CrabSacrificeTactics';
+import { CRANE_HONOR_DEFAULTS } from './CraneHonorTactics.js';
+import type { CraneHonorProfile } from './CraneHonorTactics';
+import { LION_HONOR_DEFAULTS } from './LionHonorTactics.js';
+import type { LionHonorProfile } from './LionHonorTactics';
+import type {
+    ConflictRecursionProfile,
+    DynastyEventProfile,
+    StrongholdBowProfile
+} from './SharedCardTactics';
 import { DEFAULT_FATE_AWARE_ECONOMY, SWARM_FATE_AWARE_ECONOMY } from './FateAwareEconomy.js';
 import type { FateAwareEconomyProfile } from './FateAwareEconomy';
+import { DEFAULT_SAVE_FATE_PASS } from './SaveFatePassPolicy.js';
+import type { SaveFatePassProfile } from './SaveFatePassPolicy';
+import { DEFAULT_AGGRESSIVE_SPEND } from './AggressiveSpendPolicy.js';
+import type { AggressiveSpendProfile } from './AggressiveSpendPolicy';
 import { DEFAULT_CONFLICT_CARD_ECONOMY, SWARM_CONFLICT_CARD_ECONOMY } from './ConflictCardEconomy.js';
 import type { ConflictCardEconomyProfile } from './ConflictCardEconomy';
 import { GLORY_DEFAULTS } from './GloryTactics.js';
@@ -119,6 +132,17 @@ export type AttackCommitment = 'all' | 'all-but-one' | 'breakable-or-hold' | 'br
 //   'prevent-break' — defend to win when reachable, else defend just enough to
 //                     stop the province breaking (generic / defensive).
 export type DefenseCommitment = 'win-only' | 'prevent-break';
+
+// A dynasty-phase cost reducer played from hand (Those Who Serve). Kept generic
+// because two shipped decks now run the card and a `PlaybookEntry` cannot see
+// the deck profile.
+export interface DynastyCostReducerProfile {
+    cardId: string;
+    // Only fire with this many characters still buyable, and this much fate to
+    // buy them with — otherwise the discount is spent on nothing.
+    minimumCharacters: number;
+    minimumFate: number;
+}
 
 export interface DeckProfile {
     // ---- dynasty / economy ----
@@ -388,6 +412,52 @@ export interface DeckProfile {
     // Crab wall precon is untouched. Knobs in CrabSacrificeTactics.
     crabSacrifice?: CrabSacrificeProfile;
 
+    // ---- Crane Courtier Honor playstyle (Seven Fold Palace) ----
+    // Present only for decks whose strategy derives `craneHonor`; every policy
+    // branch that reads it is gated on its presence, so the Crane Baseline and
+    // Crane Duels lists — which share Tsuma and most of the honor events — are
+    // untouched. Knobs in CraneHonorTactics.
+    craneHonor?: CraneHonorProfile;
+
+    // ---- Lion Honor 25-honor race (Kyuden Ikoma + Kenson no Gakka) ----
+    // Present only for decks whose strategy derives `lionHonor`; every policy
+    // branch that reads it is gated on its presence, so the Lion Duelist list —
+    // same stronghold, opposite plan — is untouched. Knobs in LionHonorTactics.
+    lionHonor?: LionHonorProfile;
+
+    // ---- shared card packages (see SharedCardTactics) ----
+    // Each of these was one deck's tactics method that a second deck running
+    // the same card could not reach. All three are undefined by default, so a
+    // deck that does not opt in keeps the previous behaviour exactly.
+    //
+    // Stronghold "bow a character" reaction — Kyuden Ikoma, both Lion lists.
+    strongholdBow?: StrongholdBowProfile;
+    // Put a body from a discard pile into the conflict — Kitsu Spiritcaller,
+    // Forebearer's Echoes.
+    conflictRecursion?: ConflictRecursionProfile;
+    // Dynasty EVENTS, which no dynasty economy path ranks — Honored Veterans,
+    // A Season of War, Procedural Interference.
+    dynastyEvents?: DynastyEventProfile;
+    // Skip a whole dynasty phase to bank the income (plus the first-passer
+    // fate) when the board already stands. Undefined/off for every deck that
+    // has not measured positive with it.
+    saveFatePass?: SaveFatePassProfile;
+    // Last-resort conflict spending: play the best legal affordable card when
+    // the intent filter has rejected everything and the budget was open.
+    // Undefined/off unless a deck measures positive with it.
+    aggressiveSpend?: AggressiveSpendProfile;
+    // Trait lists used by shared card steering where the serialized summary may
+    // not carry the trait. Empty by default; the trait check runs first.
+    commanderCharacterIds?: readonly string[];
+    bushiCharacterIds?: readonly string[];
+
+    // A CONFLICT event played from HAND during the DYNASTY phase that reduces
+    // every character bought afterwards this phase (Those Who Serve). The
+    // dynasty window only ever scans PROVINCES, so without an explicit hook the
+    // copies sit in hand and cycle. Undefined for every deck that does not run
+    // one, which keeps the hook inert.
+    dynastyCostReducer?: DynastyCostReducerProfile;
+
     // ---- Unicorn Shiro Shinjo province-reveal/economy playstyle ----
     // Reveal-first attacks, Scouted Terrain finisher, faceup-province scaling,
     // and card-specific target/fate choices. Exact-list override only.
@@ -401,6 +471,32 @@ export interface DeckProfile {
 
 // Generic baseline = a deck with no strategy flags (e.g. Crane, unknown). These
 // are the values the policy used for a flag-less deck before the refactor.
+// Bodies bought in rounds one to three get a fate, so they survive the fate
+// phase of the round that bought them. V1 otherwise answers ZERO to the
+// additional-fate prompt almost every time, and a character with no fate is
+// discarded at step 4.2 of that same round.
+//
+// Shipped in two measured steps, each on the head-to-head rig (baseline a hard
+// 50%, null arm exactly 50.00%) and each on six shuffle bases never used to
+// find it:
+//   round 1 only          +2.22pp  z=2.54  p=0.011   (3263 games, 6/6 bases)
+//   rounds 1-3, on top    +4.14pp  z=4.73  p<0.0001  (3264 games, 6/6 bases)
+// The extension wins across all three win conditions, not just conquest.
+//
+// The AMOUNT is not the lever — raising the floor to 2 measured +0.69pp
+// (p=0.45). The DURATION is, which fits the mechanism: the body that dies for
+// want of one fate is bought every round, not only in round one.
+//
+// Disabling it per deck was tested and no deck qualified: the disable arm
+// measured -1.93pp (p=0.022) overall and no deck read a resolvable gain from
+// having it off. The SKIP half of this profile measured -4.64pp and stays off
+// everywhere. See `docs/bot-save-fate-pass.md`.
+const SHIPPED_SAVE_FATE_PASS: SaveFatePassProfile = {
+    ...DEFAULT_SAVE_FATE_PASS,
+    setupRounds: [1, 2, 3],
+    setupAdditionalFate: 1
+};
+
 export const DEFAULT_PROFILE: DeckProfile = {
     fateAwareEconomy: { ...DEFAULT_FATE_AWARE_ECONOMY },
     boardAwareDynasty: {
@@ -516,7 +612,16 @@ export const DEFAULT_PROFILE: DeckProfile = {
     chumpBlockSurplusBodies: 0,
     dynastyAbilityScale: 0,
     dynastyAbilityCostWeight: 0,
-    provinceConcede: { cardIds: ['the-art-of-war'], maxOwnBrokenProvinces: 1 }
+    provinceConcede: { cardIds: ['the-art-of-war'], maxOwnBrokenProvinces: 1 },
+    // Round-one bodies get a fate so they survive the round-one fate phase.
+    // Shipped field-wide 2026-08-07: +2.22pp (z=2.54, p=0.011) over 3263
+    // head-to-head games on six shuffle bases never used to find it, positive
+    // on all six, against a null arm that scored exactly 50.00%. It fires only
+    // where the deck's own answer was ZERO extra fate — i.e. on bodies that
+    // were guaranteed to be discarded the same round. See
+    // `docs/bot-save-fate-pass.md`; the SKIP half of that profile is measured
+    // at -4.64pp and stays off.
+    saveFatePass: SHIPPED_SAVE_FATE_PASS
 };
 
 // Exact reproduction of the old flag-driven behavior. Start from the generic
@@ -544,6 +649,10 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         },
         conflictCardEconomy: { ...DEFAULT_PROFILE.conflictCardEconomy },
         conflictPlanning: { ...DEFAULT_PROFILE.conflictPlanning },
+        saveFatePass: {
+            ...SHIPPED_SAVE_FATE_PASS,
+            setupRounds: [...SHIPPED_SAVE_FATE_PASS.setupRounds]
+        },
         conflictIntents: {
             ...DEFAULT_PROFILE.conflictIntents,
             rules: DEFAULT_PROFILE.conflictIntents.rules.map((rule) => ({ ...rule })),
@@ -864,6 +973,236 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             preferDeckAdditionalFate: true
         };
     }
+    if(strategy.craneHonor) {
+        // Applied AFTER the `duelist` overlay above, because Tsuma makes this
+        // deck derive `duelist` too and the shared duel package's economy
+        // (durable towers, deep fate) is the opposite of what an honor race
+        // wants: width of cheap honored bodies, each of which pays 1 honor when
+        // it dies.
+        profile.craneHonor = {
+            ...CRANE_HONOR_DEFAULTS,
+            additionalFateByCharacterId: { ...CRANE_HONOR_DEFAULTS.additionalFateByCharacterId },
+            honorTargetPriority: [...CRANE_HONOR_DEFAULTS.honorTargetPriority],
+            hostTargetPriority: [...CRANE_HONOR_DEFAULTS.hostTargetPriority],
+            hostTowerCardIds: [...CRANE_HONOR_DEFAULTS.hostTowerCardIds],
+            saveCardIds: [...CRANE_HONOR_DEFAULTS.saveCardIds],
+            airProvinceIds: [...CRANE_HONOR_DEFAULTS.airProvinceIds]
+        };
+        // Honor is the SCOREBOARD, not a resource: 25 wins outright, so the
+        // race gates in the shared playbook have to be live.
+        profile.honorRaceAware = true;
+        // The higher bidder pays the difference to the lower one. For a deck
+        // whose win condition IS honor that transfer is the game, and Way of
+        // the Chrysanthemum doubles what we receive.
+        profile.drawBidding = {
+            ...HONOR_DRAW_BID_PROFILE,
+            minimumRoutineBid: 1,
+            // Effectively unconditional, the same shape as the fate-economy
+            // profile: there is no honor total at which paying the opponent
+            // honor is right for this deck.
+            lowHonorThreshold: 20,
+            honorPlanSelfThreshold: 12
+        };
+        // Duels here exist to force a NEW honor bid (Return the Offense, Make
+        // Your Case), not to kill a body — losing one on a low bid is income.
+        profile.duelBidding = {
+            ...profile.duelBidding,
+            objective: 'honor',
+            duelWinUtility: 4,
+            duelLossUtility: 3,
+            honorRaceUtility: 3
+        };
+        // Tsuma plays its characters pre-honored, so a character sitting in it
+        // is worth keeping through the fate phase over any holding.
+        profile.mulligan = {
+            ...profile.mulligan,
+            honorProvinceCharacters: true
+        };
+        // Before the Throne and Tsuma cannot be the stronghold province by
+        // printed text; Shameful Display's own Action is the one worth having
+        // behind the last three breaks.
+        profile.strongholdProvinceId = 'shameful-display';
+        // The board is Courtiers; the Favor's political side is the one this
+        // deck can actually hold and use.
+        profile.imperialFavorChoice = 'political';
+        // Conceding a province walks the opponent toward conquest, and this
+        // deck needs the game to go LONG.
+        profile.provinceConcede = { cardIds: [], maxOwnBrokenProvinces: 0 };
+        profile.dynastyCostReducer = {
+            cardId: 'those-who-serve',
+            minimumCharacters: 2,
+            minimumFate: 2
+        };
+        // Width over depth: the additional-fate answer comes from
+        // CraneHonorTactics, which says 0 for every cheap Courtier.
+        profile.fateAwareEconomy = {
+            ...profile.fateAwareEconomy,
+            preferDeckCharacters: true,
+            preferDeckAdditionalFate: true,
+            durableCharacterIds: ['doji-hotaru-2', 'hantei-sotorii', 'iron-crane-legion'],
+            durableCostThreshold: 4,
+            passAfterDurable: false,
+            durableSpendCapEarly: Number.POSITIVE_INFINITY,
+            durableSpendCapLate: Number.POSITIVE_INFINITY,
+            durableAdditionalFateEarly: 3,
+            durableAdditionalFateLate: 2,
+            bodyMaxCost: 5,
+            bodyAdditionalFateForCostThree: 0
+        };
+    }
+    if(strategy.lionHonor) {
+        profile.lionHonor = {
+            ...LION_HONOR_DEFAULTS,
+            additionalFateByCharacterId: { ...LION_HONOR_DEFAULTS.additionalFateByCharacterId },
+            dynastyAbilityValueById: { ...LION_HONOR_DEFAULTS.dynastyAbilityValueById },
+            toturiCardIds: [...LION_HONOR_DEFAULTS.toturiCardIds],
+            toturiRingElements: [...LION_HONOR_DEFAULTS.toturiRingElements],
+            towerCardIds: [...LION_HONOR_DEFAULTS.towerCardIds],
+            honorTargetPriority: [...LION_HONOR_DEFAULTS.honorTargetPriority],
+            magistrateCardIds: [...LION_HONOR_DEFAULTS.magistrateCardIds],
+            battlefieldAttachmentCardIds: [...LION_HONOR_DEFAULTS.battlefieldAttachmentCardIds],
+            battlefieldProvincePreference: [...LION_HONOR_DEFAULTS.battlefieldProvincePreference],
+            battlefieldCardIds: [...LION_HONOR_DEFAULTS.battlefieldCardIds],
+            proceduralInterferenceProvincePriority:
+                [...LION_HONOR_DEFAULTS.proceduralInterferenceProvincePriority]
+        };
+        // Honor is the SCOREBOARD: 25 wins outright and 0 loses outright, so
+        // the race gates in the shared playbook have to be live.
+        profile.honorRaceAware = true;
+        // The higher bidder pays the difference to the lower one, and Way of
+        // the Chrysanthemum gains that difference AGAIN. Round 1 still bids for
+        // a hand — this deck has to see its brakes early — and then lives at
+        // the floor, which is also where Privileged Position turns on.
+        profile.drawBidding = {
+            ...HONOR_DRAW_BID_PROFILE,
+            openingBid: 4,
+            forceLowAfterOpening: true,
+            lowBid: 1,
+            minimumRoutineBid: 1,
+            // Effectively unconditional: there is no honor total at which
+            // paying the opponent honor is right for this deck.
+            lowHonorThreshold: 20,
+            honorPlanSelfThreshold: 12
+        };
+        // Duels are not this deck's plan, but a duel bid moves honor the same
+        // way a draw dial does and losing one on a low bid is income.
+        profile.duelBidding = {
+            ...profile.duelBidding,
+            objective: 'honor',
+            duelWinUtility: 4,
+            duelLossUtility: 3,
+            honorRaceUtility: 3
+        };
+        // Kenson no Gakka: "after you LOSE a conflict at this province — honor
+        // each defending character". Losing is the trigger, so the deck puts
+        // its game-ending province behind the effect it most wants to fire, and
+        // sizes the defense to stop the BREAK rather than to win.
+        profile.strongholdProvinceId = LION_HONOR_DEFAULTS.honorProvinceId;
+        profile.defenseCommitment = 'prevent-break';
+        profile.spendCardsOnDefense = true;
+        // "Go first in all cases" — the deck wants the first air ring and the
+        // first Privileged Position.
+        profile.firstPlayerChoice = 'first';
+        // Conceding a province walks the opponent toward the conquest win that
+        // is the only way this deck loses, and the game has to go LONG.
+        profile.provinceConcede = { cardIds: [], maxOwnBrokenProvinces: 0 };
+        // MEASURED, and against the board reading: the Favor's POLITICAL side
+        // is worth +2.09pp on one six-base set and +2.60pp on a second,
+        // independent one, even though the deck's raw skill is military
+        // (Toturi 6, Bushido Adherent 4, Righteous Samurai 4). The reason is
+        // that this deck DEFENDS: the opponent picks the axis, the Courtier
+        // half of the board (Prodigy, Chronicler, Revered Ikoma, Ardent
+        // Omoidasu, Steward of Law) is what meets a political attack, and the
+        // field contests the political Favor less, so the deck holds it more.
+        profile.imperialFavorChoice = 'political';
+        // An unopposed defensive loss bleeds 1 honor, and honor is the
+        // SCOREBOARD here, so a body thrown in front of a province that was
+        // breaking anyway buys a point of the win condition. Measured +2.87pp
+        // and +1.56pp on two independent six-base sets — and note this is the
+        // OPPOSITE of the Crane honor race, where the same knob is -2.50pp
+        // because that deck needs the body to attack with. Honor wins go
+        // 151 -> 172 here.
+        profile.chumpBlock = true;
+        // Attack, but never at the cost of the stronghold province: Kyuden
+        // Ikoma's own reaction only fires after an attack we LOSE, and every
+        // loss this deck suffers is a conquest loss.
+        profile.attackCommitment = 'all-but-one';
+        profile.attackKeepHome = 1;
+        profile.reserveDynastyFate = true;
+        // Shared card packages. Both Kyuden Ikoma lists drive the same
+        // stronghold reaction from here.
+        profile.strongholdBow = {
+            strongholdCardId: 'kyuden-ikoma',
+            championCharacterIds: ['akodo-toturi'],
+            towerCharacterIds: [...LION_HONOR_DEFAULTS.towerCardIds],
+            requiresReadyTarget: true,
+            skipsParticipants: true,
+            minimumSkill: 1
+        };
+        profile.conflictRecursion = {
+            sourceCardIds: ['kitsu-spiritcaller', 'forebearer-s-echoes'],
+            minimumSkill: 2,
+            gloryWeight: 0.5,
+            fateWeight: 0
+        };
+        profile.dynastyEvents = {
+            honorBushiCardIds: ['honored-veterans'],
+            honorBushiMinimumGlory: 1,
+            rerollCardIds: [],
+            rerollMaxUsefulProvinceCards: 1,
+            rerollMinimumFate: 2,
+            alwaysPlayCardIds: ['procedural-interference'],
+            alwaysPlayMaximumHonor: Number.POSITIVE_INFINITY
+        };
+        // Called to War asks the DEFENDER "give your opponent 1 honor for a fate
+        // on one of your Bushi?". Honor is this deck's scoreboard AND the
+        // trigger for the opposing Kyuden Ikoma list's "more honorable" gates,
+        // so it never sells. Shared knob, not a Lion one.
+        profile.personalHonor = {
+            ...profile.personalHonor,
+            honorGiftResponse: {
+                ...profile.personalHonor.honorGiftResponse,
+                enabled: false
+            }
+        };
+        profile.commanderCharacterIds = ['honored-general'];
+        profile.bushiCharacterIds = [
+            'akodo-toturi', 'honored-general', 'bushido-adherent', 'righteous-samurai',
+            'hero-of-three-trees', 'lion-s-pride-paragon', 'implacable-magistrate'
+        ];
+        // Width plus exactly one tower; the per-id amounts come from
+        // LionHonorTactics and win through `preferDeckAdditionalFate`.
+        profile.fateAwareEconomy = {
+            ...profile.fateAwareEconomy,
+            preferDeckCharacters: true,
+            preferDeckAdditionalFate: true,
+            passAfterDurable: false,
+            durableCharacterIds: [...LION_HONOR_DEFAULTS.towerCardIds],
+            durableCostThreshold: 4,
+            durableAdditionalFateEarly: 2,
+            durableAdditionalFateLate: 2,
+            bodyMaxCost: 5,
+            bodyAdditionalFateForCostThree: 0,
+            bodyFateReserve: 1
+        };
+        // Tsuma-style pre-honored bodies do not exist here, but Kenson no Gakka
+        // is worth keeping unbroken, and the two brakes must be in the opening
+        // hand for the plan to work at all.
+        profile.mulligan = {
+            ...profile.mulligan,
+            openingKeepConflictIds: [
+                'privileged-position', 'way-of-the-chrysanthemum', 'voice-of-honor',
+                'court-games', 'soul-beyond-reproach', 'command-respect'
+            ],
+            openingPaidConflictKeepLimit: 2,
+            keepDynastyCardIds: ['honored-veterans', 'procedural-interference'],
+            preferredCharacterIds: [
+                'ikoma-prodigy', 'chronicler-of-conquests', 'revered-ikoma',
+                'honored-general', 'bushido-adherent', 'hero-of-three-trees',
+                'akodo-toturi'
+            ]
+        };
+    }
     return profile;
 }
 
@@ -898,6 +1237,13 @@ type DeckProfileOverride = Omit<Partial<DeckProfile>,
     };
     conflictPlanning?: Partial<ConflictPhasePlannerProfile>;
     conflictActionPlan?: Partial<ConflictActionProfile>;
+    // Per-deck tuning of the shipped round-one fate floor. Merged field by
+    // field, so an override naming only `setupAdditionalFate` keeps the
+    // shipped rounds — and keeps the SKIP half off, which no deck may enable.
+    saveFatePass?: Partial<SaveFatePassProfile>;
+    // Last-resort conflict spending, per deck. Field-wide this is negative;
+    // only decks that replicated on fresh bases carry it.
+    aggressiveSpend?: Partial<AggressiveSpendProfile>;
     // `rules` replaces wholesale — a deck owns its declaration policy outright
     // rather than inheriting half of another deck's list.
     conflictIntents?: Omit<Partial<ConflictIntentProfile>, 'rules' | 'defenseRules'> & {
@@ -1226,6 +1572,47 @@ const OVERRIDES: ProfileOverride[] = [
             // instead of playing bodies), leaving too thin a board to defend.
             // Tuned by self-play vs the Crane precon: 10% -> ~45% win rate.
             digMinBoardCharacters: 3,
+            // Last-resort conflict spending, CRAB ONLY. The shared intent
+            // filter closes ~15 windows a game holding a card the engine says
+            // is legal and affordable; forcing the best of them is null across
+            // the field (-1.07pp) but positive for this deck specifically.
+            //
+            //   six-base screen (200001-205001)   41.1% -> 45.8%   +4.7pp
+            //   40 games/opponent, 20 FRESH bases 41.1% -> 45.0%   +3.91pp
+            //                                     54 flips to / 29 away, p=0.008
+            //                                     positive on 15 of 20 bases
+            //
+            // Broad rather than one matchup: Lion +10/-0, Unicorn +8/-3,
+            // Crane +5/-0. `minPriority: 9` also replicates (+3.28pp, p=0.019)
+            // and is the weaker of the two. Only `crab-defense` carries this —
+            // CrabSacrifice measured -3.1pp and matches a different override.
+            // See `docs/bot-fate-starvation.md`.
+            aggressiveSpend: {
+                enabled: true,
+                minPriority: 5,
+                fateReserve: 0,
+                maxPerRound: 1,
+                attackOnly: false
+            },
+            // Cheap-body ring raid: cap an attack that cannot break at ONE
+            // body and send the WEAKEST contributing one. The ring's fate goes
+            // to the attacker at declaration win or lose, so the cheap body
+            // buys the same fate and the good bodies stay ready.
+            //
+            // SHIPPED ON A NULL CONFIRMATION, on top of the aggressiveSpend
+            // above (which is what its control carried):
+            //   six-base screen (270001-275001)  46.9% -> 52.6%   +5.7pp p=0.035
+            //   40 games/opponent, 20 FRESH bases 46.7% -> 47.3%  +0.63pp,
+            //                                     39 to / 35 away, p=0.73
+            // The +5.7 did not survive. What IS established is the ordering:
+            // the same cap sending the STRONGEST body measured -5.2pp p=0.031
+            // for this deck, so `hopelessAttackWeakestFirst` is load-bearing —
+            // never enable the cap without it.
+            conflictPlanning: {
+                hopelessAttackKeepHome: 99,
+                hopelessAttackReach: 0,
+                hopelessAttackWeakestFirst: true
+            },
             mulligan: {
                 openingHoldingLimit: 2,
                 openingKeepHoldingIds: [
@@ -1315,6 +1702,23 @@ const OVERRIDES: ProfileOverride[] = [
         match: (ids, strategy) => strategy.duelist && ids.has('vassal-fields'),
         apply: {
             strongholdProvinceId: 'vassal-fields',
+            // Last-resort conflict spending at the top priority band. SHIPPED
+            // ON A NULL CONFIRMATION — read the numbers before trusting it:
+            //   six-base screen (200001-205001)  39.1% -> 42.7%   +3.6pp
+            //   40 games/opponent, 20 FRESH bases 41.7% -> 42.5%  +0.78pp,
+            //                                     47 to / 42 away, p=0.67
+            // The deep retest is indistinguishable from zero, so this is a
+            // judgement call taken on the mildly positive point estimate, NOT
+            // a measured win. Field-wide the same arm is -0.34pp. If this deck
+            // is ever re-tuned, treat the slot as empty rather than as
+            // established. See `docs/bot-fate-starvation.md`.
+            aggressiveSpend: {
+                enabled: true,
+                minPriority: 9,
+                fateReserve: 0,
+                maxPerRound: 1,
+                attackOnly: false
+            },
             boardAwareDynasty: {
                 fullPlannerAtUrgent: false,
                 secondPlayerDeficitPlanner: false
@@ -1598,6 +2002,34 @@ const OVERRIDES: ProfileOverride[] = [
                 // Keeper of Air role makes that a routine event.
                 endPhaseDiscardCardIds: ['keeper-initiate']
             },
+            // Shared card packages, set to this deck's own previously
+            // hard-coded values so the extraction into `SharedCardTactics` is
+            // bit-identical. See `LionHonorTactics` for the second consumer.
+            strongholdBow: {
+                strongholdCardId: 'kyuden-ikoma',
+                championCharacterIds: [...LION_DUELIST_DEFAULTS.championCharacters],
+                towerCharacterIds: [...LION_DUELIST_DEFAULTS.towerCharacters],
+                requiresReadyTarget: LION_DUELIST_DEFAULTS.strongholdBowRequiresReadyTarget,
+                skipsParticipants: LION_DUELIST_DEFAULTS.strongholdBowSkipsParticipants,
+                minimumSkill: LION_DUELIST_DEFAULTS.strongholdBowMinimumSkill
+            },
+            conflictRecursion: {
+                sourceCardIds: ['kitsu-spiritcaller', 'forebearer-s-echoes'],
+                minimumSkill: LION_DUELIST_DEFAULTS.recursionMinimumSkill,
+                gloryWeight: LION_DUELIST_DEFAULTS.recursionGloryWeight,
+                fateWeight: LION_DUELIST_DEFAULTS.recursionFateWeight
+            },
+            dynastyEvents: {
+                honorBushiCardIds: ['honored-veterans'],
+                honorBushiMinimumGlory: LION_DUELIST_DEFAULTS.honoredVeteransMinimumGlory,
+                rerollCardIds: ['a-season-of-war'],
+                rerollMaxUsefulProvinceCards: LION_DUELIST_DEFAULTS.seasonOfWarMaxUsefulProvinceCards,
+                rerollMinimumFate: LION_DUELIST_DEFAULTS.seasonOfWarMinimumFate,
+                alwaysPlayCardIds: [],
+                alwaysPlayMaximumHonor: Number.POSITIVE_INFINITY
+            },
+            commanderCharacterIds: [...LION_DUELIST_DEFAULTS.commanderCharacters],
+            bushiCharacterIds: [...LION_DUELIST_DEFAULTS.bushiCharacters],
             lionDuelist: { ...LION_DUELIST_DEFAULTS }
         }
     },
@@ -1657,6 +2089,15 @@ const OVERRIDES: ProfileOverride[] = [
             // The default 'defense' scope is not enough because the deck spends
             // most of its windows attacking.
             conflictPlanning: { readyEffectIgnoresReadyParticipant: 'always' },
+            // Those Who Serve. Previously read off `CrabSacrificeProfile`; now a
+            // shared knob because the Crane Courtier Honor list runs the card
+            // too. The values are the ones this deck was measured with, so the
+            // move is bit-identical here.
+            dynastyCostReducer: {
+                cardId: 'those-who-serve',
+                minimumCharacters: 2,
+                minimumFate: 2
+            },
             fateAwareEconomy: {
                 ...DEFAULT_FATE_AWARE_ECONOMY,
                 preferDeckCharacters: true,
@@ -1996,6 +2437,33 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     duelAxes: { ...override.apply.lionDuelist.duelAxes }
                 };
             }
+            if(override.apply.strongholdBow) {
+                apply.strongholdBow = {
+                    ...override.apply.strongholdBow,
+                    championCharacterIds: [...override.apply.strongholdBow.championCharacterIds],
+                    towerCharacterIds: [...override.apply.strongholdBow.towerCharacterIds]
+                };
+            }
+            if(override.apply.conflictRecursion) {
+                apply.conflictRecursion = {
+                    ...override.apply.conflictRecursion,
+                    sourceCardIds: [...override.apply.conflictRecursion.sourceCardIds]
+                };
+            }
+            if(override.apply.dynastyEvents) {
+                apply.dynastyEvents = {
+                    ...override.apply.dynastyEvents,
+                    honorBushiCardIds: [...override.apply.dynastyEvents.honorBushiCardIds],
+                    rerollCardIds: [...override.apply.dynastyEvents.rerollCardIds],
+                    alwaysPlayCardIds: [...override.apply.dynastyEvents.alwaysPlayCardIds]
+                };
+            }
+            if(override.apply.commanderCharacterIds) {
+                apply.commanderCharacterIds = [...override.apply.commanderCharacterIds];
+            }
+            if(override.apply.bushiCharacterIds) {
+                apply.bushiCharacterIds = [...override.apply.bushiCharacterIds];
+            }
             if(override.apply.crabSacrifice) {
                 apply.crabSacrifice = {
                     ...override.apply.crabSacrifice,
@@ -2183,6 +2651,26 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     markerCards: [...override.apply.craneBaseline.markerCards],
                     gossipImportance: { ...override.apply.craneBaseline.gossipImportance },
                     gossipTagWeights: { ...override.apply.craneBaseline.gossipTagWeights }
+                };
+            }
+            // Merged rather than replaced: `Object.assign` below would swap the
+            // whole object, so an override tuning one field would silently drop
+            // the shipped round-one floor from every deck that named it.
+            if(override.apply.saveFatePass) {
+                const base = profile.saveFatePass || SHIPPED_SAVE_FATE_PASS;
+                apply.saveFatePass = {
+                    ...base,
+                    ...override.apply.saveFatePass,
+                    setupRounds: [...(override.apply.saveFatePass.setupRounds || base.setupRounds)]
+                };
+            }
+            // Filled from the defaults so an override naming a subset cannot
+            // leave the rest undefined on a profile the policy will read.
+            if(override.apply.aggressiveSpend) {
+                apply.aggressiveSpend = {
+                    ...DEFAULT_AGGRESSIVE_SPEND,
+                    ...(profile.aggressiveSpend || {}),
+                    ...override.apply.aggressiveSpend
                 };
             }
             Object.assign(profile, apply);

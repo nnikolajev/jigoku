@@ -61,6 +61,14 @@
         "CrabSacrifice": [
             "rush",
             "sacrifice"
+        ],
+        "CraneHonor": [
+            "honor-race",
+            "courtier"
+        ],
+        "LionHonor": [
+            "honor-race",
+            "bushi"
         ]
     },
     "training": {
@@ -80,7 +88,9 @@
             "ScorpionBidWar",
             "Unicorn",
             "UnicornReveal",
-            "CrabSacrifice"
+            "CrabSacrifice",
+            "CraneHonor",
+            "LionHonor"
         ],
         "matchups": "all-pairs",
         "rngSeeds": [
@@ -115,7 +125,9 @@
             "ScorpionBidWar",
             "Unicorn",
             "UnicornReveal",
-            "CrabSacrifice"
+            "CrabSacrifice",
+            "CraneHonor",
+            "LionHonor"
         ],
         "matchups": "all-pairs",
         "rngSeeds": [

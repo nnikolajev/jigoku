@@ -50,7 +50,6 @@
 //   outletRequireDecisiveSwing, skillOutletIds, pumpValueById -> outletDecisive
 //   doublingCharacterIds, doublingBuffBonus -> pickBuffTarget
 //   weightOfDutyMinimumTargetSkill    -> pickWeightOfDutyTarget
-//   thoseWhoServeId/MinimumCharacters/MinimumFate -> the dynasty-window hook
 //   declareHonorFloor                 -> withoutHonorCostDeclares
 //   honorSpendFloor                   -> canPayHonorCost
 //
@@ -229,14 +228,9 @@ export interface CrabSacrificeProfile {
     // NOT WIRED (descriptive) — Butcher's lockout is a passive.
     butcherIds: string[];
 
-    // ---- Those Who Serve ---------------------------------------------------
-    // A dynasty EVENT: during the dynasty phase, reduce every character's cost
-    // by 1 this phase. Dynasty events have no economy path in the shared bot —
-    // every dynasty ranker sorts characters only — so without an explicit hook
-    // three copies sit face-up in their provinces and rot.
-    thoseWhoServeId: string;
-    thoseWhoServeMinimumCharacters: number;
-    thoseWhoServeMinimumFate: number;
+    // Those Who Serve moved to the shared `DeckProfile.dynastyCostReducer` when
+    // a second deck (Crane Courtier Honor) adopted the card. Same values, same
+    // call site.
 }
 
 export const CRAB_SACRIFICE_DEFAULTS: CrabSacrificeProfile = {
@@ -333,11 +327,7 @@ export const CRAB_SACRIFICE_DEFAULTS: CrabSacrificeProfile = {
         'vengeful-berserker', 'butcher-of-the-fallen', 'repentant-legion'
     ],
 
-    butcherIds: ['butcher-of-the-fallen'],
-
-    thoseWhoServeId: 'those-who-serve',
-    thoseWhoServeMinimumCharacters: 2,
-    thoseWhoServeMinimumFate: 2
+    butcherIds: ['butcher-of-the-fallen']
 };
 
 type Axis = 'military' | 'political';
@@ -677,18 +667,6 @@ export class CrabSacrificeTactics {
         }
         return skillOf(card, axis) >= this.profile.mercenaryTakeoverValue ||
             skillOf(card, 'military') >= this.profile.mercenaryTakeoverValue;
-    }
-
-    // ---- Those Who Serve ---------------------------------------------------
-
-    /**
-     * Dynasty event: every character played this phase costs 1 less. Worth a
-     * card only when there are actually characters left to buy and fate to buy
-     * them with.
-     */
-    shouldPlayThoseWhoServe(buyableCharacters: number, fate: number): boolean {
-        return buyableCharacters >= this.profile.thoseWhoServeMinimumCharacters &&
-            fate >= this.profile.thoseWhoServeMinimumFate;
     }
 
     // ---- Tainted Hero ------------------------------------------------------

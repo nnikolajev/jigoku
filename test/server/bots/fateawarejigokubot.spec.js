@@ -581,9 +581,14 @@ describe('fate-aware Jigoku bot policy', function() {
         expect(opening.decide(dynastyState(3, [two]), playerName, {
             roundNumber: 1, dynastyCosts: { two: 2 }
         }).args[0]).toBe('two');
+        // The round-one budget would place nothing here. `saveFatePass`
+        // ships a fate FLOOR on round-one buys and it deliberately overrides
+        // the budget cap: a body bought with no fate is discarded in this same
+        // round's fate phase, and paying for it measured +2.22pp (p=0.011)
+        // over 3263 head-to-head games. See `docs/bot-save-fate-pass.md`.
         expect(opening.decide(additionalFateState(3), playerName, {
             roundNumber: 1, playCost: 2
-        }).target).toBe('0');
+        }).target).toBe('1');
         expect(opening.decide(dynastyState(1, [one]), playerName, {
             roundNumber: 1, dynastyCosts: { one: 1 }
         }).reason).toBe('fate-aware-preserve-fate');
@@ -633,9 +638,11 @@ describe('fate-aware Jigoku bot policy', function() {
 
         expect(policy.decide(dynastyState(7, [three, two, one]), playerName, context).args[0])
             .toBe('ashigaru-levy');
+        // Round one: the shipped `saveFatePass` floor raises the swarm's zero
+        // to one so the body survives its own fate phase.
         expect(policy.decide(additionalFateState(6), playerName, {
             roundNumber: 1, playCost: 1, profile: lionProfile
-        }).target).toBe('0');
+        }).target).toBe('1');
 
         expect(policy.decide(dynastyState(6, [three, two]), playerName, context).args[0])
             .toBe('matsu-berserker');
@@ -645,9 +652,13 @@ describe('fate-aware Jigoku bot policy', function() {
 
         expect(policy.decide(dynastyState(4, [three]), playerName, context).args[0])
             .toBe('matsu-beiona');
+        // Same floor. In a live game the engine offers only amounts the pool
+        // can pay, which is what bounds the floor there (measured: 134 of 1011
+        // round-one raises could not reach 1 and stayed at 0); this fixture
+        // hands the policy the full button list regardless.
         expect(policy.decide(additionalFateState(1), playerName, {
             roundNumber: 1, playCost: 3, profile: lionProfile
-        }).target).toBe('0');
+        }).target).toBe('1');
 
         expect(policy.decide(dynastyState(1, [spare]), playerName, context).reason)
             .toBe('fate-aware-preserve-fate');

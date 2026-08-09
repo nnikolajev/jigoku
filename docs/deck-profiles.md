@@ -34,6 +34,8 @@ reads the knobs; the profile is chosen per deck.
 | `mulliganForHoldings` | dig opening provinces toward holdings (Kaiu Wall) |
 | `digWithActions` | fire dynasty Action diggers (Kyuden Hida, engineers) |
 | `digMinBoardCharacters` | only dig once this many own characters are in play (0 = always) |
+| `saveFatePass` | early-round fate FLOOR: buys in rounds 1-3 get 1 extra fate so they survive their own fate phase. Shipped field-wide (+2.22pp then +4.14pp). The skip/reserve halves that once shared this profile all measured negative and were removed — see `bot-fate-experiments-recovery.md` |
+| `aggressiveSpend` | last-resort conflict spending: play the best legal affordable card when the intent filter rejected everything. Field-wide negative; per-deck only (Crab, CraneDuels). See `bot-fate-starvation.md` |
 | `aggressiveFate` | flood cheap bodies, deploy 0-1 fate |
 | `forceMilitaryConflict` | always declare military while any military skill exists |
 | `attackCommitment` | `all` / `all-but-one` / `breakable-or-hold` / `breakable-or-pressure` |
@@ -104,8 +106,52 @@ participants, and movement-trigger setup, and `lionDuelist?: LionDuelistProfile`
 (`LionDuelistTactics.ts`, doc `bot-lion-duelist.md`) for the Kyuden Ikoma
 honor-switch Lion — the "more honorable than your opponent" payoffs, Matsu
 Tsuko's win-is-break planning, the move/ready package, and a card-payoff term
-for the conflict AXIS. Same gating rule: the sub-profile exists only for decks
-whose strategy/override derives it, and every policy hook checks its presence.
+for the conflict AXIS, and `craneHonor?: CraneHonorProfile`
+(`CraneHonorTactics.ts`, doc `bot-crane-honor.md`) for the Seven Fold Palace
+honor RACE — air-ring steering, width-first dynasty buying, the deck's own
+honor-token ordering, and the Chrysanthemum bid floor, and
+`lionHonor?: LionHonorProfile` (`LionHonorTactics.ts`, doc `bot-lion-honor.md`)
+for the SECOND Kyuden Ikoma list, which races the honor track rather than using
+the lead as a switch — air/Toturi ring steering, faucet-weighted dynasty buying,
+Under Amaterasu's Gaze province choice and the Procedural Interference target.
+Same gating rule: the sub-profile exists only for decks whose strategy/override
+derives it, and every policy hook checks its presence.
+
+Three SHARED card packages live on `DeckProfile` itself rather than in a deck's
+tactics module, because more than one shipped list runs the card and a
+`PlaybookEntry` cannot see the profile: `strongholdBow?: StrongholdBowProfile`
+(Kyuden Ikoma's "bow a non-Champion" reaction),
+`conflictRecursion?: ConflictRecursionProfile` (Kitsu Spiritcaller, Forebearer's
+Echoes) and `dynastyEvents?: DynastyEventProfile` (Honored Veterans, A Season of
+War, Procedural Interference — dynasty EVENTS, which no dynasty economy path
+ranks). All three are in `SharedCardTactics.ts` and all three are undefined by
+default. They were lifted out of `LionDuelistTactics`, where the second Kyuden
+Ikoma deck could not reach them; the duel override sets them to its own
+previously hard-coded values and measured **bit-identical over 48 games**
+(`tools/selfplay/deckFingerprint.js`). `commanderCharacterIds` /
+`bushiCharacterIds` are the same idea for the trait lists that Prepare for War
+and Called to War steer on.
+
+The two Kyuden Ikoma lists are MUTUALLY EXCLUSIVE by derivation instead:
+`lionDuelist` is `kyuden-ikoma && !kenson-no-gakka` and `lionHonor` is
+`kenson-no-gakka`. A stronghold cannot be the key when two decks share it, and
+layering one over the other would have been wrong here — the duel override names
+a province (`frostbitten-crossing`) the honor list does not own.
+
+Two other decks derive TWO sub-profiles. The Fushicho rotation list layers
+`rebirth` over `shugenja` (it runs Kyuden Isawa), and the Courtier Honor list
+layers `craneHonor` over `duelist` (it runs Tsuma, which is the only key
+`deriveDeckStrategy` has for the duel package). In both cases the later overlay
+must be applied second in `profileFromStrategy` AND checked first at every
+policy dispatch site, or the earlier profile silently owns the decision — the
+duel package's dynasty picker held the whole dynasty phase for the honor deck
+until `CraneHonorTactics.pickDynastyCharacter` was moved ahead of it.
+
+`dynastyCostReducer?: DynastyCostReducerProfile` is a shared knob rather than a
+tactics module: Those Who Serve is a CONFLICT event played from HAND during the
+dynasty phase, which the dynasty window (provinces only) can never see. Both the
+Crab Sacrifice and Crane Courtier Honor lists run it; it is undefined, and
+therefore inert, for every other deck.
 
 `personalHonor: PersonalHonorProfile` is different: every deck receives this
 generic injectable profile. `PersonalHonorTactics.ts` centralizes high-glory

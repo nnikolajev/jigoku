@@ -43,6 +43,14 @@ export interface PlaybookContext {
     hand?: any[]; // own conflict hand (spell-recursion and setup gates)
     rings?: any[]; // live rings (ring-manipulation action gates)
     conflictProvinceElements?: string[]; // elements of the current conflict province(s), both sides
+    // The elements of the RING the current conflict is being fought over. A
+    // handful of cards read the conflict's element rather than the province's
+    // (Bonsai Garden gains an honor "during an air conflict"), and the province
+    // elements above cannot answer that — a fire ring can be contested at an
+    // air province. It is a LIST because `Conflict.getSummary()` publishes one:
+    // a ring added to a conflict contributes its element too, and the conflict
+    // then counts as every element it carries. Empty outside a conflict.
+    conflictRingElements?: string[];
     opponentHandSize?: number; // public hidden-card count for Tadaka's discard gate
     cardsPlayed?: number; // cards played this conflict (Dragon count-payoff gates)
     opponentCardsPlayed?: number; // Ichi counts cards played by both players
@@ -115,6 +123,11 @@ export interface PlaybookContext {
     // Whether an eligible unbroken province other than the contested one is
     // still available (Matsu Agetoki has somewhere to move the conflict TO).
     alternateProvincesAvailable?: number;
+    // "if there is a Battlefield in play" (Chronicler of Conquests). Every
+    // Battlefield in the field is either a HOLDING sitting in a province or an
+    // ATTACHMENT hung on one, so neither `myCharacters` nor `hand` can answer
+    // it — the same class of blind spot `conflictRingElements` fixed.
+    battlefieldInPlay?: boolean;
 }
 
 export interface PlaybookEntry extends CardHint {
@@ -242,6 +255,23 @@ export interface DeckStrategy {
     // Distinct from `aggressive` (which has no sacrifice economy) and from the
     // Kyuden Hida `defensive`/`holdingEngine` Crab precon.
     crabSacrifice: boolean;
+    // Seven Fold Palace Crane: the HONOR RACE. It does not plan to break four
+    // provinces — it plans to reach 25 honor, off a wide board of cheap honored
+    // Courtiers (an honored character that leaves play pays 1 honor), the air
+    // ring, the stronghold's 2-honor attacker reaction, and a set of per-card
+    // faucets (Doji Hotaru, Honored Blade, Kakita Asami, Bonsai Garden, Way of
+    // the Chrysanthemum). Distinct from `duelist`, which this deck also derives
+    // through Tsuma, and from `glory`, which pumps skill rather than the track.
+    craneHonor: boolean;
+    // Kyuden Ikoma Lion, second list: the HONOR RACE. Same stronghold as
+    // `lionDuelist` and the opposite plan — the duel list treats the honor lead
+    // as a SWITCH that turns five other cards on, this one is racing to 25 off
+    // air rings (doubled by Akodo Toturi), Before the Throne, Kenson no Gakka
+    // honoring every defender, and a per-conflict faucet on almost every body,
+    // while Privileged Position / Command Respect / Under Amaterasu's Gaze slow
+    // the opponent down. Keyed on Kenson no Gakka, which the duel list does not
+    // run, so the two are mutually exclusive.
+    lionHonor: boolean;
 }
 
 const entry = (cardId: string, overrides: Partial<PlaybookEntry>): PlaybookEntry => Object.assign({
@@ -3969,6 +3999,191 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: 'sacrifice after a win to shuffle a discard pile into its deck'
     }),
 
+    // ---- Lion Honor (Kyuden Ikoma + Kenson no Gakka) ---------------------
+    //
+    // A 25-HONOR RACE, not a conquest deck. Every entry below is a faucet or a
+    // brake, and none of these ids appears in any other shipped list, so the
+    // entries are globally safe without `DECK_SCOPED_PLAYBOOK_ENTRIES`.
+
+    // Province reaction: after we LOSE a conflict here, honor EVERY defending
+    // character. Losing is the trigger, so this is the one province the deck
+    // wants attacked — it is also the stronghold province, which is why the
+    // defense is sized to prevent the BREAK rather than to win.
+    'kenson-no-gakka': entry('kenson-no-gakka', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 9,
+        summary: 'lost conflict here: honor every defending character'
+    }),
+
+    // Reaction after an opponent's ability or ring effect dishonors one of
+    // ours: TAKE 2 honor. A 4-point swing, entirely on their clock, so the
+    // body only has to be on the table.
+    'ardent-omoidasu': entry('ardent-omoidasu', {
+        priority: 9,
+        summary: 'they dishonor one of ours: take 2 honor from them'
+    }),
+
+    // Reaction after an opponent's card or ring effect costs us honor: honor a
+    // character. Turns their honor removal into our honor income.
+    'righteous-samurai': entry('righteous-samurai', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        summary: 'we lose honor to their effect: honor one of our characters'
+    }),
+
+    // Action while participating: honor a participating character; the
+    // opponent draws 1. For a deck whose scoreboard is honor, a card is the
+    // cheap half of that trade — but only while there is somebody to honor.
+    'bushido-adherent': entry('bushido-adherent', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        inPlayAction: true,
+        summary: 'honor a participating character (opponent draws 1)',
+        shouldUseAction: (ctx) => ctx.activeConflict !== false &&
+            participating(ctx.myCharacters).some((card) => !card.isHonored)
+    }),
+
+    // Action while participating, if a Battlefield is in play: gain 1 honor.
+    // The deck runs six Battlefields (three Exposed Courtyard holdings, three
+    // Under Amaterasu's Gaze), so the condition is normally live — but it is
+    // NOT free to check: neither holdings nor province attachments appear in
+    // `myCharacters`, which is why `battlefieldInPlay` exists.
+    'chronicler-of-conquests': entry('chronicler-of-conquests', {
+        priority: 8,
+        inPlayAction: true,
+        abilityValue: true,
+        summary: 'conflict + a Battlefield in play: gain 1 honor',
+        shouldUseAction: (ctx) => ctx.activeConflict !== false && ctx.battlefieldInPlay === true
+    }),
+
+    // Action while participating and behind on cards: gain 1 honor, or take a
+    // point of strength off the attacked province. The honor is the win
+    // condition; `LionHonorTactics.heroPrefersHonorOverStrength` owns the one
+    // case that flips it (exactly one point short of a break).
+    'hero-of-three-trees': entry('hero-of-three-trees', {
+        priority: 8,
+        inPlayAction: true,
+        abilityValue: true,
+        summary: 'fewer cards than opponent: gain 1 honor, or -1 province strength',
+        shouldUseAction: (ctx) => ctx.activeConflict !== false &&
+            (ctx.hand?.length ?? 0) < (ctx.opponentHandSize ?? 0)
+    }),
+
+    // Action: if we have gained 2+ honor this phase, gain 1 fate. The engine
+    // owns the "this phase" bookkeeping, so the gate here only avoids a click
+    // in a phase where nothing could have moved the track; `oncePerRound`
+    // stops the unlimited Action from looping.
+    'revered-ikoma': entry('revered-ikoma', {
+        priority: 7,
+        inPlayAction: true,
+        conflictPhaseAction: true,
+        oncePerRound: true,
+        abilityValue: true,
+        summary: 'gained 2+ honor this phase: gain 1 fate'
+    }),
+
+    // Action while ATTACKING: sacrifice it to resolve the contested ring's
+    // effect as though we had won as the attacker. On air that is 2 honor we
+    // do not have to win the conflict for — and it stacks with actually
+    // winning it. The body is a 1/1, so the sacrifice is nearly free.
+    'kami-unleashed': entry('kami-unleashed', {
+        priority: 8,
+        inPlayAction: true,
+        abilityValue: true,
+        summary: 'sacrifice while attacking: resolve the contested ring effect',
+        shouldUseAction: (ctx) => ctx.activeConflict !== false && !!ctx.amAttacker &&
+            participating(ctx.myCharacters).some((card) => card.id === 'kami-unleashed')
+    }),
+
+    // Holding Action during a MILITARY conflict: mill 2 and play an event out
+    // of our own conflict discard as if it were in hand. A free card every
+    // military conflict, and this deck's discard fills with cheap honor events.
+    'exposed-courtyard': entry('exposed-courtyard', {
+        conflictTypes: ['military'],
+        priority: 8,
+        inPlayAction: true,
+        abilityValue: true,
+        optionalAbilityConflictDeckCardsConsumed: 2,
+        summary: 'military conflict: play an event from our conflict discard free',
+        shouldUseAction: (ctx) => ctx.activeConflict !== false &&
+            ctx.conflictType === 'military' &&
+            (ctx.conflictDeckConsumptionAllowed ? ctx.conflictDeckConsumptionAllowed(2) : true)
+    }),
+
+    // Action during a conflict while behind on cards: their events cost 1
+    // honor each for the rest of it. Pure brake, and the honor lands on our
+    // side of the track. Cheap enough to fire on the condition alone.
+    'command-respect': entry('command-respect', {
+        priority: 8,
+        abilityValue: true,
+        // No skill: the payoff is a tax on their hand, not a pump.
+        conflictContribution: () => null,
+        worksWithoutReadyParticipant: true,
+        summary: 'fewer cards than opponent: tax their events 1 honor each',
+        shouldPlay: (ctx) => (ctx.hand?.length ?? 0) < (ctx.opponentHandSize ?? 0) &&
+            (ctx.opponentHandSize ?? 0) > 0
+    }),
+
+    // Reaction after honor dials are revealed: every opponent who bid HIGHER
+    // than us is capped at one conflict against us this round. The deck's main
+    // brake, and the reason it lives at the bid floor. Reaction-only.
+    'privileged-position': entry('privileged-position', {
+        priority: 9,
+        abilityValue: true,
+        summary: 'they out-bid us: cap them at one conflict this round',
+        shouldPlay: () => false
+    }),
+
+    // Reaction after their effect bows one of ours: ready it. Answers the
+    // whole bow package (Kyuden Ikoma mirrors included) for free.
+    'ready-for-battle': entry('ready-for-battle', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        abilityValue: true,
+        summary: 'their effect bowed one of ours: ready it',
+        shouldPlay: () => false
+    }),
+
+    // Dynasty event. "Choose an opponent's province. That opponent selects one
+    // - either discard each card in that province, or you gain 2 honor." BOTH
+    // branches pay us, so it is played on sight; the target ranking lives in
+    // `LionHonorTactics.pickInterferenceProvince`.
+    'procedural-interference': entry('procedural-interference', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        abilityValue: true,
+        summary: 'their province: they discard its cards or give us 2 honor'
+    }),
+
+    // Reaction after we declare a MILITARY conflict while more honorable:
+    // reveal a second province and fight at both. Two breaks off one attack.
+    'a-war-on-two-fronts': entry('a-war-on-two-fronts', {
+        conflictTypes: ['military'],
+        priority: 8,
+        abilityValue: true,
+        summary: 'more honorable: the military conflict is at a second province too',
+        // Declaration reaction, never an ordinary conflict Action.
+        shouldPlay: () => false
+    }),
+
+    // Battlefield attachment on an unbroken PROVINCE: every card played from
+    // hand at that province costs 1 more, unless that player leads by 5 honor.
+    // So it is our card while we hold the lead — and it is also the cheapest
+    // way to guarantee Chronicler of Conquests' condition. Zero printed stats.
+    'under-amaterasu-s-gaze': entry('under-amaterasu-s-gaze', {
+        priority: 7,
+        abilityValue: true,
+        maxCopiesPerTarget: 1,
+        summary: 'province Battlefield: +1 cost to play cards there without a 5-honor lead',
+        shouldPlay: (ctx) => (ctx.honor ?? 0) - (ctx.opponentHonor ?? 0) >= 5 ||
+            ctx.myCharacters.some((card) => card.id === 'chronicler-of-conquests')
+    }),
+
     // ---- Lion Duelist (Kyuden Ikoma) -------------------------------------
     //
     // Five of these read "if you are more honorable than your opponent", which
@@ -4679,6 +4894,361 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         // The real gate is `CrabSacrificeProfile.castleAlwaysAfterBreak` /
         // `castleMinimumConflictsRemaining`, enforced in the policy.
         summary: 'after a break: all conflicts this round are military'
+    }),
+
+    // ---- Crane "Courtier Honor" (Seven Fold Palace) -------------------------
+    //
+    // The whole list is an honor faucet. Two rules make the entries below make
+    // sense: an HONORED character that leaves play gains its controller 1 honor
+    // (`drawcard.ts:1026`), and an honored character adds its GLORY to both
+    // skills. So honoring a body is simultaneously a stat pump, a card (through
+    // Asahina Storyteller's granted Sincerity) and a point on the track.
+
+    // Conflict Action needing an own participating Courtier: the opponent
+    // chooses whether the target is dishonored or bowed. Both answers help —
+    // bowed is the full skill, dishonored is its glory — so the value is the
+    // SMALLER of the two, which is what the opponent will pick.
+    'for-shame': entry('for-shame', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 8,
+        abilityValue: true,
+        conflictContribution: priced('for-shame', (ctx) => {
+            if(!participating(ctx.myCharacters).some((card) => hasTraitNamed(card, 'courtier'))) {
+                return 0;
+            }
+            const axis = ctx.conflictType === 'political' ? 'political' : 'military';
+            return readyParticipants(ctx.opponentCharacters).reduce((best, card) => {
+                // Bowing removes the body's whole skill; dishonoring removes its
+                // glory. The opponent picks, so budget for the cheaper of the two.
+                const skill = liveSkill(card, axis);
+                return Math.max(best, Math.min(skill, gloryOf(card)));
+            }, 0);
+        }, 2),
+        summary: 'Courtier: the opponent must bow or dishonor a participant',
+        shouldPlay: (ctx) => participating(ctx.myCharacters)
+            .some((card) => hasTraitNamed(card, 'courtier')) &&
+            readyParticipants(ctx.opponentCharacters).length > 0
+    }),
+
+    // Action while participating in a POLITICAL conflict we are winning on
+    // political skill: take 1 honor from the opponent. Two points of honor
+    // swing (they lose one, we gain one) for a click, every political conflict
+    // she is in — the single best repeatable faucet in the deck.
+    'kakita-asami': entry('kakita-asami', {
+        conflictTypes: ['political'],
+        priority: 10,
+        inPlayAction: true,
+        actionBeforePass: true,
+        abilityValue: true,
+        summary: 'political: take 1 honor while we lead the political count',
+        shouldUseAction: (ctx) => {
+            if(ctx.conflictType !== 'political') {
+                return false;
+            }
+            const asami = participating(ctx.myCharacters)
+                .find((card) => card.id === 'kakita-asami');
+            if(!asami) {
+                return false;
+            }
+            // The printed condition is a live comparison of the conflict's
+            // political totals; the engine re-checks it, so this only avoids a
+            // wasted click while we are visibly behind.
+            const mine = readyParticipants(ctx.myCharacters)
+                .reduce((total, card) => total + liveSkill(card, 'political'), 0);
+            const theirs = readyParticipants(ctx.opponentCharacters)
+                .reduce((total, card) => total + liveSkill(card, 'political'), 0);
+            return mine > theirs;
+        }
+    }),
+
+    // Holding. Action during an AIR conflict: gain 1 honor. Free, repeatable,
+    // and the reason the deck steers every ring choice toward air.
+    'bonsai-garden': entry('bonsai-garden', {
+        priority: 9,
+        inPlayAction: true,
+        actionBeforePass: true,
+        abilityValue: true,
+        summary: 'air conflict: gain 1 honor',
+        shouldUseAction: (ctx) => (ctx.conflictRingElements || []).includes('air')
+    }),
+
+    // Holding. Action with an own participating Courtier: bounce an attachment
+    // off a participant, and lock further copies for the phase. Value is the
+    // shared attachment-control policy's — strip our own debuffs, or their
+    // best buff.
+    'esteemed-tea-house': entry('esteemed-tea-house', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 7,
+        inPlayAction: true,
+        actionBeforePass: true,
+        abilityValue: true,
+        requiresPreferredTarget: true,
+        summary: 'Courtier: return an attachment on a participant to hand',
+        shouldUseAction: (ctx) => participating(ctx.myCharacters)
+            .some((card) => hasTraitNamed(card, 'courtier')) &&
+            participating(ctx.myCharacters).concat(participating(ctx.opponentCharacters))
+                .some((card) => (card.attachments || []).length > 0)
+    }),
+
+    // 0-cost body. Reaction on entering play: each player reveals a facedown
+    // province they do NOT control — so the opponent flips one of OURS, which
+    // is how Driven by Courage and Pledge of Loyalty become usable, and we get
+    // to see one of theirs. Free both ways; always fire.
+    'doji-diplomat': entry('doji-diplomat', {
+        targetSide: 'enemy',
+        priority: 8,
+        abilityValue: true,
+        summary: 'entering play: both players reveal an opposing facedown province'
+    }),
+
+    // The tower. Unlimited: 1 honor for every card the opponent plays in a
+    // conflict she is in, which also taxes their whole answer suite.
+    'doji-hotaru-2': entry('doji-hotaru-2', {
+        priority: 10,
+        abilityValue: true,
+        summary: 'gain 1 honor per opposing card played in her conflicts (unlimited)'
+    }),
+
+    // Restricted weapon with NO printed stats: the whole card is the 1 honor
+    // per conflict its bearer wins, so it needs `abilityValue` or the
+    // zero-contribution filter refuses to play it at all.
+    'honored-blade': entry('honored-blade', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 7,
+        abilityValue: true,
+        maxCopiesPerTarget: 1,
+        summary: 'attached character wins a conflict: gain 1 honor',
+        shouldPlay: (ctx) => ctx.myCharacters.length > 0
+    }),
+
+    // Action in a MILITARY conflict: +3 glory to a participant. Glory is only
+    // skill on a character with a status token, so this is aimed at an HONORED
+    // participant (+3 to both skills) and is worth nothing on a plain body.
+    'hantei-sotorii': entry('hantei-sotorii', {
+        conflictTypes: ['military'],
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        inPlayAction: true,
+        abilityValue: true,
+        summary: 'military: +3 glory to an honored participant (= +3/+3)',
+        shouldUseAction: (ctx) => ctx.conflictType === 'military' &&
+            participating(ctx.myCharacters).some((card) => card.id === 'hantei-sotorii') &&
+            readyParticipants(ctx.myCharacters).some((card) => card.isHonored)
+    }),
+
+    // Reaction after playing it: a free Courtier out of the provinces, plus a
+    // fate if that Courtier costs 2 or less. Effectively a 4-cost that buys two
+    // bodies — and out of Tsuma the second one arrives honored.
+    'benevolent-host': entry('benevolent-host', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 10,
+        abilityValue: true,
+        summary: 'entering play: put a Courtier from our provinces into play free'
+    }),
+
+    // Interrupt when it leaves play: honor a character we control. Pointed at
+    // itself, it is 1 honor on the way out for free (the honored leave-play
+    // rule); pointed at a survivor it is a permanent pump.
+    'callow-delegate': entry('callow-delegate', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 9,
+        abilityValue: true,
+        summary: 'leaving play: honor one of our characters'
+    }),
+
+    // Interrupt when it leaves play: the opponent either hands us an honor or
+    // both players discard a card. On an empty-ish hand the discard is the
+    // better half; either way it is free, so it always fires.
+    'chancellor-s-aide': entry('chancellor-s-aide', {
+        priority: 9,
+        abilityValue: true,
+        summary: 'leaving play: 1 honor from the opponent, or a forced discard'
+    }),
+
+    // Interrupt: keep an honored character by discarding its honored TOKEN.
+    // That forgoes the 1 honor the leave-play would have paid, so it is only
+    // right on a body worth more than one honor — gated in the policy through
+    // `CraneHonorTactics.shouldSaveHonoredCharacter`, which can see the profile.
+    'stand-your-ground': entry('stand-your-ground', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        abilityValue: true,
+        worksWithoutReadyParticipant: true,
+        summary: 'save an honored character by discarding its honored token',
+        // Interrupt-only; it must never be attempted as an ordinary Action.
+        shouldPlay: () => false
+    }),
+
+    // Ready up to 2 honored characters totalling 6 printed cost or less. A
+    // second conflict out of the same bodies, or a ready board for the Favor's
+    // glory count. It READIES, so the no-ready-participant veto must not apply.
+    'elegance-and-grace': entry('elegance-and-grace', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        abilityValue: true,
+        worksWithoutReadyParticipant: true,
+        conflictContribution: priced('elegance-and-grace', (ctx) => {
+            const axis = ctx.conflictType === 'political' ? 'political' : 'military';
+            return (ctx.myCharacters || [])
+                .filter((card) => card.bowed && card.isHonored && card.inConflict)
+                .map((card) => liveSkill(card, axis))
+                .sort((left, right) => right - left)
+                .slice(0, 2)
+                .reduce((total, skill) => total + skill, 0);
+        }),
+        summary: 'ready up to 2 honored characters (6 printed cost or less)',
+        shouldPlay: (ctx) => (ctx.myCharacters || [])
+            .filter((card) => card.bowed && card.isHonored).length >= 1
+    }),
+
+    // Starts a political duel between ANY two characters on opposite sides.
+    // The point is not the duel: it is the fresh honor bid, which pays the
+    // lower bidder — and this deck always bids the floor.
+    'return-the-offense': entry('return-the-offense', {
+        conflictTypes: ['political'],
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 7,
+        abilityValue: true,
+        summary: 'political duel between any two characters: forces a new honor bid',
+        shouldPlay: (ctx) => participating(ctx.myCharacters).length > 0 &&
+            participating(ctx.opponentCharacters).length > 0
+    }),
+
+    // Needs an own participating HONORED Courtier; moves an ATTACKING character
+    // home. Defence only, and it is the deck's answer to a body it cannot
+    // out-skill.
+    'try-again-tomorrow': entry('try-again-tomorrow', {
+        targetSide: 'enemy',
+        targetPreference: 'strongest',
+        priority: 9,
+        abilityValue: true,
+        worksWithoutReadyParticipant: true,
+        conflictContribution: priced('try-again-tomorrow', (ctx) => {
+            if(ctx.amAttacker) {
+                return 0;
+            }
+            if(!participating(ctx.myCharacters)
+                .some((card) => card.isHonored && hasTraitNamed(card, 'courtier'))) {
+                return 0;
+            }
+            const axis = ctx.conflictType === 'political' ? 'political' : 'military';
+            return readyParticipants(ctx.opponentCharacters)
+                .reduce((best, card) => Math.max(best, liveSkill(card, axis)), 0);
+        }),
+        summary: 'defence: move the biggest attacker home',
+        shouldPlay: (ctx) => !ctx.amAttacker &&
+            participating(ctx.myCharacters)
+                .some((card) => card.isHonored && hasTraitNamed(card, 'courtier')) &&
+            readyParticipants(ctx.opponentCharacters).length > 0
+    }),
+
+    // Honor a character we control TWICE. On a dishonored body that is
+    // dishonored -> plain -> honored, a double glory swing; on a plain body it
+    // is one honor token plus a wasted half.
+    'soul-beyond-reproach': entry('soul-beyond-reproach', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        abilityValue: true,
+        conflictContribution: priced('soul-beyond-reproach', (ctx) => {
+            const dishonored = readyParticipants(ctx.myCharacters).filter((card) => card.isDishonored);
+            if(dishonored.length > 0) {
+                return dishonored.reduce((best, card) => Math.max(best, gloryOf(card) * 2), 0);
+            }
+            return readyParticipants(ctx.myCharacters)
+                .filter((card) => !card.isHonored)
+                .reduce((best, card) => Math.max(best, gloryOf(card)), 0);
+        }),
+        summary: 'honor an own character twice (clears a dishonor, then honors)',
+        shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.isDishonored || !card.isHonored)
+    }),
+
+    // Reaction after an honor bid GIVES us honor: gain that much again. The
+    // deck bids the floor on purpose so that this doubles a real number.
+    'way-of-the-chrysanthemum': entry('way-of-the-chrysanthemum', {
+        priority: 10,
+        abilityValue: true,
+        summary: 'double the honor received from an honor bid (max 1 per round)',
+        // Reaction-only; never an ordinary conflict Action.
+        shouldPlay: () => false
+    }),
+
+    // Honors EVERY character, both sides. Only pays while we field more
+    // unhonored bodies than they do — otherwise it is a 3-cost gift.
+    'festival-for-the-fortunes': entry('festival-for-the-fortunes', {
+        targetSide: 'self',
+        priority: 7,
+        abilityValue: true,
+        worksWithoutReadyParticipant: true,
+        conflictContribution: priced('festival-for-the-fortunes', (ctx) => {
+            const mine = readyParticipants(ctx.myCharacters).filter((card) => !card.isHonored);
+            const theirs = readyParticipants(ctx.opponentCharacters).filter((card) => !card.isHonored);
+            const sum = (cards: any[]) => cards.reduce((total, card) => total + gloryOf(card), 0);
+            return Math.max(0, sum(mine) - sum(theirs));
+        }),
+        summary: 'honor every character — only with a wide own board',
+        shouldPlay: (ctx) => {
+            const mine = ctx.myCharacters.filter((card) => !card.isHonored);
+            const theirs = ctx.opponentCharacters.filter((card) => !card.isHonored);
+            return mine.length >= 3 && mine.length - theirs.length >= 1;
+        }
+    }),
+
+    // Province Action at an AIR province: +2/+2 to a participant. Three of the
+    // deck's five provinces are air, and the Seeker of Air role adds a fourth
+    // reveal payoff on top.
+    'driven-by-courage': entry('driven-by-courage', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        inPlayAction: true,
+        actionBeforePass: true,
+        abilityValue: true,
+        conflictContribution: priced('driven-by-courage',
+            (ctx) => readyParticipants(ctx.myCharacters).length > 0 ? 2 : 0, 2),
+        summary: 'air province: +2 military and +2 political to a participant',
+        shouldUseAction: (ctx) => readyParticipants(ctx.myCharacters).length > 0
+    }),
+
+    // Province interrupt when it breaks: take 2 honor from the opponent. A
+    // 4-point swing on the track for a province that was breaking anyway, so
+    // it is unconditional.
+    'before-the-throne': entry('before-the-throne', {
+        priority: 9,
+        abilityValue: true,
+        summary: 'broken: take 2 honor from the opponent'
+    }),
+
+    // Province interrupt: keep an honored character by discarding its honored
+    // token. Same trade as Stand Your Ground and gated the same way.
+    'pledge-of-loyalty': entry('pledge-of-loyalty', {
+        targetSide: 'self',
+        targetPreference: 'strongest',
+        priority: 8,
+        abilityValue: true,
+        summary: 'save an honored character by discarding its honored token'
+    }),
+
+    // Stronghold. Reaction after an HONORED character of ours wins a conflict
+    // as the ATTACKER: bow this, gain 2 honor. Two honor a round is a quarter
+    // of the way to the win every four rounds, and the bow costs nothing the
+    // deck uses — this is why the honor list still has to attack.
+    'seven-fold-palace': entry('seven-fold-palace', {
+        priority: 10,
+        abilityValue: true,
+        // Stronghold REACTIONS fire through `provinceReactionWorthIt`, which
+        // never consults `shouldUseAction`; the printed condition is checked by
+        // the engine, so there is nothing left to gate here.
+        summary: 'honored attacker won: bow the stronghold for 2 honor'
     })
 };
 
@@ -4818,16 +5388,68 @@ export function deriveDeckStrategy(cardIds: Iterable<string>): DeckStrategy {
         // Kyuden Bayushi uniquely identifies the bid-war list. The Poison Mill
         // list scores 5 markers, so the fallback threshold sits well above it.
         bidWar: ids.has('kyuden-bayushi') || bidWarCount >= 8,
-        // Kyuden Ikoma uniquely identifies the Lion Duelist list; the older Lion
-        // swarm precon runs Hayaken no Shiro / Manicured Garden and is untouched.
-        lionDuelist: ids.has('kyuden-ikoma'),
+        // Kyuden Ikoma marks BOTH supported Kyuden Ikoma lists, so the duel
+        // package additionally requires that this is not the honor list. Kenson
+        // no Gakka appears in no other shipped deck, and the duel list does not
+        // run it, so this exclusion is bit-identical for Lion Duelist. The
+        // older Lion swarm precon runs Hayaken no Shiro / Manicured Garden and
+        // was never in scope for either.
+        lionDuelist: ids.has('kyuden-ikoma') && !ids.has('kenson-no-gakka'),
         // Castle of the Forgotten uniquely identifies the Berserker Sacrifice
         // list. The Crab Kaiu Wall defense precon runs Kyuden Hida and keeps
         // its holdingEngine/defensive derivation untouched.
-        crabSacrifice: ids.has('castle-of-the-forgotten')
+        crabSacrifice: ids.has('castle-of-the-forgotten'),
+        // Seven Fold Palace uniquely identifies the Courtier Honor list. It
+        // shares Tsuma (and therefore the `duelist` package) with both other
+        // Crane lists, so the stronghold is the only safe key.
+        craneHonor: ids.has('seven-fold-palace'),
+        // Kenson no Gakka uniquely identifies the Lion Honor list. It shares
+        // Kyuden Ikoma with the Lion Duelist list, so the province — not the
+        // stronghold — has to be the key, and `lionDuelist` above excludes it.
+        lionHonor: ids.has('kenson-no-gakka')
     };
 }
 
-export function getPlaybookEntry(cardId: string | undefined): PlaybookEntry | undefined {
-    return cardId ? PLAYBOOK[cardId] : undefined;
+/**
+ * Entries written for ONE deck whose card also appears in another shipped list.
+ *
+ * A `PlaybookEntry` is a static registry keyed by printed card id, so adding one
+ * for a new deck silently changes every OTHER deck that runs the same card — and
+ * those decks were measured without it. `JigokuBotPolicy.inPlayActionScopedOut`
+ * solves this for board Actions; this solves it for the entry itself, which is
+ * the only thing that restores the previous behaviour EXACTLY (falling through
+ * to the cached LLM analysis, which is what "no entry" meant).
+ *
+ * Measured, which is why this exists: `for-shame` (also in Scorpion Bid War) and
+ * `before-the-throne` (also in Scorpion Poison Mill) changed ~50 of 56 paired
+ * games for those decks and moved them −12.5pp and −7.1pp on one base. Scoping
+ * them returns both to bit-identical.
+ *
+ * The value is a LIST of owning strategies, so a second deck that genuinely
+ * wants the same entry opts in by name rather than by re-implementing it —
+ * which is what "make the logic generic" means for a scoped entry. Adding a
+ * strategy here widens the entry to that deck ONLY; every deck that derives
+ * none of the listed flags still falls through to the cached LLM analysis,
+ * exactly as "no entry" did.
+ */
+export const DECK_SCOPED_PLAYBOOK_ENTRIES: Readonly<Record<string, readonly (keyof DeckStrategy)[]>> = Object.freeze({
+    'for-shame': ['craneHonor'],
+    // Both honor-race decks want it; Scorpion Poison Mill (which also runs the
+    // province) measured −7.1pp with it and keeps the fall-through.
+    'before-the-throne': ['craneHonor', 'lionHonor']
+});
+
+export function getPlaybookEntry(
+    cardId: string | undefined,
+    strategy?: DeckStrategy
+): PlaybookEntry | undefined {
+    if(!cardId) {
+        return undefined;
+    }
+    const scope = DECK_SCOPED_PLAYBOOK_ENTRIES[cardId];
+    // No strategy supplied (specs, older callers) keeps the unscoped lookup.
+    if(scope && strategy && !scope.some((flag) => strategy[flag])) {
+        return undefined;
+    }
+    return PLAYBOOK[cardId];
 }

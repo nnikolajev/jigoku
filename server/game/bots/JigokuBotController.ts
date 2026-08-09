@@ -430,8 +430,12 @@ class JigokuBotController {
                     playCardId: this.currentPlayCardId(player),
                     handStats: this.handStatsHint(player),
                     // Hand-written playbook knowledge outranks the cached LLM
-                    // analysis for the same card.
-                    cardHint: (cardId: string) => getPlaybookEntry(cardId) || this.hintService?.getHint(cardId),
+                    // analysis for the same card — except for entries scoped to a
+                    // deck this one is not, which fall through to the analysis
+                    // exactly as they did before the entry existed.
+                    cardHint: (cardId: string) =>
+                        getPlaybookEntry(cardId, this.currentDeckStrategy(player)) ||
+                        this.hintService?.getHint(cardId),
                     strategy: this.currentDeckStrategy(player),
                     profile: this.decisionProfile(player),
                     opponentConflictDeck: this.opponentConflictDeck(player),
@@ -723,7 +727,9 @@ class JigokuBotController {
             'defenseTuning', 'conflictDeclaration', 'conflictCardEconomy',
             'drawBidding', 'duelBidding', 'personalHonor', 'boardAwareDynasty',
             'mulligan', 'honorRace', 'unicornReveal', 'provinceRevealResponse',
-            'bidWar', 'lionDuelist', 'crabSacrifice'] as const) {
+            'bidWar', 'lionDuelist', 'crabSacrifice', 'craneHonor', 'lionHonor',
+            'strongholdBow', 'conflictRecursion', 'dynastyEvents', 'saveFatePass',
+            'aggressiveSpend'] as const) {
             if(sharedTop?.[key] || perDeck[key]) {
                 merged[key] = JigokuBotController.mergeTacticsProfile(
                     baseAny[key], sharedTop?.[key], perDeck[key]
@@ -748,7 +754,8 @@ class JigokuBotController {
 
         // Cards with a hand-written playbook entry never need model analysis.
         const cards = allCards
-            .filter((card: any) => card.owner === player && card.cardData?.id && !getPlaybookEntry(card.cardData.id))
+            .filter((card: any) => card.owner === player && card.cardData?.id &&
+                !getPlaybookEntry(card.cardData.id, this.currentDeckStrategy(player)))
             .map((card: any) => ({
                 id: card.cardData.id,
                 name: card.cardData.name,
@@ -1833,7 +1840,7 @@ class JigokuBotController {
                 if(!checker(card)) {
                     continue;
                 }
-                const hint: any = getPlaybookEntry(card.cardData?.id);
+                const hint: any = getPlaybookEntry(card.cardData?.id, this.currentDeckStrategy(player));
                 const preferredSide = hint?.attachSide || hint?.targetSide;
                 if(hint?.requiresPreferredTarget &&
                     (preferredSide === 'self' || preferredSide === 'enemy') &&

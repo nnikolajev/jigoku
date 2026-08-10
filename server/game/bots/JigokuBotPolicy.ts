@@ -29,6 +29,7 @@ import {
     StrongholdBowTactics,
     hasTrait as hasSharedTrait
 } from './SharedCardTactics.js';
+import type { HonorTargetOptions, DynastyPrintedStats } from './SharedCardTactics';
 import { SaveFatePassPolicy } from './SaveFatePassPolicy.js';
 import { AggressiveSpendPolicy } from './AggressiveSpendPolicy.js';
 import { GloryTactics } from './GloryTactics.js';
@@ -394,6 +395,10 @@ class JigokuBotPolicy {
     private currentOpponentDuelBidding: DuelBidProfile | undefined;
     private currentDuelParticipantIaijutsuReady: Record<string, boolean> | undefined;
     private currentCharacterPrintedCosts: Record<string, number> | undefined;
+    // Exact printed stats for face-up PROVINCE dynasty cards, keyed by uuid.
+    // The engine only fills skill/glory summaries for cards in play, so without
+    // this every dynasty ranker reads `undefined` off a province card.
+    private currentDynastyPrintedStats: Record<string, DynastyPrintedStats> | undefined;
     // The value-model view of the conflict window currently being decided.
     // Undefined outside a conflict window, which is what keeps the veto below
     // from firing on stale board state in a dynasty or action window.
@@ -551,6 +556,7 @@ class JigokuBotPolicy {
         this.currentOpponentDuelBidding = context.opponentDuelBidding;
         this.currentDuelParticipantIaijutsuReady = context.duelParticipantIaijutsuReady;
         this.currentCharacterPrintedCosts = context.characterPrintedCosts;
+        this.currentDynastyPrintedStats = context.dynastyCharacterInfo;
         this.currentConflictCosts = context.conflictCosts;
         this.currentDynastyDiscardBodies = context.dynastyDiscardBodies;
         this.currentHoldingStrengths = context.holdingStrengths;
@@ -4444,6 +4450,7 @@ class JigokuBotPolicy {
             myBrokenProvinces: this.brokenOuterProvinceCount(me),
             opponentBrokenProvinces: this.brokenOuterProvinceCount(opponent),
             honorRaceAware: this.currentDeckProfile.honorRaceAware === true,
+            eleganceRequiresUse: this.currentDeckProfile.eleganceRequiresUse !== false,
             myBid: Number(me?.showBid) || 0,
             opponentBid: Number(opponent?.showBid) || 0,
             bidWarAware: this.currentDeckProfile.bidWarAware === true,
@@ -4467,6 +4474,7 @@ class JigokuBotPolicy {
             ringsHaveFate,
             highHouseWaitForFate,
             conflictsRemaining: me?.stats?.conflictsRemaining ?? 0,
+            opponentConflictsRemaining: opponent?.stats?.conflictsRemaining ?? 0,
             strongholdConflict: strongholdDefense || strongholdAssault,
             preferFavorableRetreat: !!dragon,
             strengthNeeded,
@@ -5480,6 +5488,7 @@ class JigokuBotPolicy {
             myBrokenProvinces: this.brokenOuterProvinceCount(me),
             opponentBrokenProvinces: this.brokenOuterProvinceCount(opponent),
             honorRaceAware: this.currentDeckProfile.honorRaceAware === true,
+            eleganceRequiresUse: this.currentDeckProfile.eleganceRequiresUse !== false,
             // The VISIBLE honor dials. `player.showBid` is public for both
             // seats and is what I Can Swim, Make an Opening, Regal Bearing and
             // Social Puppeteer all read; duel bids overwrite it, which is
@@ -5500,6 +5509,7 @@ class JigokuBotPolicy {
             cardsPlayed: me?.cardsPlayedThisConflict ?? 0,
             opponentCardsPlayed: opponent?.cardsPlayedThisConflict ?? 0,
             conflictsRemaining: me?.stats?.conflictsRemaining ?? 0,
+            opponentConflictsRemaining: opponent?.stats?.conflictsRemaining ?? 0,
             strengthNeeded: this.conflictStrengthNeeded(playerState, me),
             winSkillNeeded: standing?.losing ? standing.gap : 0,
             clarityProtectedUuids: Array.from(this.clarityProtectedUuids),
@@ -6669,7 +6679,8 @@ class JigokuBotPolicy {
                         costs: dynastyCosts || {},
                         fate: me?.stats?.fate ?? 0,
                         board: this.myCharactersInPlay(me),
-                        reserve: this.currentCraneHonor.desiredDynastyFateReserve(me?.cardPiles?.hand || [])
+                        reserve: this.currentCraneHonor.desiredDynastyFateReserve(me?.cardPiles?.hand || []),
+                        printedStats: this.dynastyPrintedStatsForRanking()
                     });
                     if(pick) {
                         return this.cardClickDecision(pick, 'crane-honor-play-body');
@@ -6688,7 +6699,8 @@ class JigokuBotPolicy {
                         costs: dynastyCosts || {},
                         fate: me?.stats?.fate ?? 0,
                         board: this.myCharactersInPlay(me),
-                        reserve: this.currentLionHonor.desiredDynastyFateReserve(me?.cardPiles?.hand || [])
+                        reserve: this.currentLionHonor.desiredDynastyFateReserve(me?.cardPiles?.hand || []),
+                        printedStats: this.dynastyPrintedStatsForRanking()
                     });
                     if(pick) {
                         return this.cardClickDecision(pick, 'lion-honor-play-body');
@@ -6942,7 +6954,8 @@ class JigokuBotPolicy {
                 costs,
                 fate,
                 board,
-                reserve: this.currentCraneHonor.desiredDynastyFateReserve(me?.cardPiles?.hand || [])
+                reserve: this.currentCraneHonor.desiredDynastyFateReserve(me?.cardPiles?.hand || []),
+                printedStats: this.dynastyPrintedStatsForRanking()
             });
             return pick
                 ? { card: pick, playReason: 'crane-honor-play-body', passReason: 'crane-honor-board-complete', terminal: true }
@@ -6954,7 +6967,8 @@ class JigokuBotPolicy {
                 costs,
                 fate,
                 board,
-                reserve: this.currentLionHonor.desiredDynastyFateReserve(me?.cardPiles?.hand || [])
+                reserve: this.currentLionHonor.desiredDynastyFateReserve(me?.cardPiles?.hand || []),
+                printedStats: this.dynastyPrintedStatsForRanking()
             });
             return pick
                 ? { card: pick, playReason: 'lion-honor-play-body', passReason: 'lion-honor-board-complete', terminal: true }
@@ -8092,6 +8106,50 @@ class JigokuBotPolicy {
     // hit the opponent's strongest card (or our weakest when only own cards
     // are legal, e.g. a forced sacrifice), helpful effects go to our own side
     // (preferring characters already in the conflict).
+    // A prompt that resolves BOTH an honor and a dishonor (Shameful Display's
+    // "select two participating characters") is not an honor-target prompt: it
+    // picks the SIDES, and the honor/dishonor split is decided by a later menu.
+    // The deck honor rankers below only understand "which of ours gets the
+    // token", so letting them answer this one selects two of OUR characters and
+    // the follow-up then dishonors one of them. Shameful Display's own handler
+    // owns the two-card select; the deck rankers still own the single-action
+    // follow-up prompts ('Choose a character to honor'), which arrive here with
+    // `honor` alone.
+    private isPureHonorPrompt(actionNames: string[]): boolean {
+        if(!actionNames.includes('honor')) {
+            return false;
+        }
+        return this.currentDeckProfile.shamefulDisplaySplitSides === false ||
+            !actionNames.includes('dishonor');
+    }
+
+    // Sources that honor the SAME character twice, so the second half is only
+    // worth a card on a dishonored body.
+    private static readonly DOUBLE_HONOR_SOURCE_IDS = ['soul-beyond-reproach'];
+
+    // Printed province-card stats for the honor decks' dynasty rankers, or
+    // `undefined` when the profile holds them at their legacy reading (in which
+    // case `dynastyValue` sees `undefined` stats and scores on ability alone,
+    // bit-identical to before the hint was threaded through).
+    private dynastyPrintedStatsForRanking(): Record<string, DynastyPrintedStats> | undefined {
+        return this.currentDeckProfile.dynastyPrintedStats === false
+            ? undefined
+            : this.currentDynastyPrintedStats;
+    }
+
+    private honorTargetOptions(playerState: any, targetHint?: TargetHint): HonorTargetOptions {
+        if(this.currentDeckProfile.honorTargetLiveSwing === false) {
+            // Every candidate scores the same urgency, so the printed priority
+            // list decides on its own — bit-identical to the pre-fix ordering.
+            return {};
+        }
+        return {
+            activeConflict: !!playerState?.conflict?.type,
+            doubleHonor: JigokuBotPolicy.DOUBLE_HONOR_SOURCE_IDS
+                .includes(String(targetHint?.sourceCardId || ''))
+        };
+    }
+
     private polarityTargetDecision(cards: any[], playerState: any, me: any, skillType: string, targetHint: TargetHint, buttons: any[], personalHonor: PersonalHonorTactics, profile: DeckProfile, cardHint?: CardHintLookup, glory: GloryTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, attachmentControl: AttachmentControlTactics | null = null): BotDecision | null {
         const myUuids = new Set(this.findVisibleCards(me).map((card) => card.uuid));
         const mine = cards.filter((card) => this.cardBelongsToPlayer(card, me, myUuids));
@@ -8587,8 +8645,8 @@ class JigokuBotPolicy {
                 'soul-beyond-reproach', 'shameful-display', 'tsuma'
             ];
             if(honorSources.includes(String(targetHint.sourceCardId)) &&
-                actionNames.includes('honor') && mine.length > 0) {
-                const target = craneHonor.pickHonorTarget(mine);
+                this.isPureHonorPrompt(actionNames) && mine.length > 0) {
+                const target = craneHonor.pickHonorTarget(mine, this.honorTargetOptions(playerState, targetHint));
                 if(target) {
                     return this.cardClickDecision(target, 'crane-honor-token-target');
                 }
@@ -8659,8 +8717,8 @@ class JigokuBotPolicy {
                 'kenson-no-gakka', 'prepare-for-war'
             ];
             if(honorSources.includes(String(targetHint.sourceCardId)) &&
-                actionNames.includes('honor') && mine.length > 0) {
-                const target = lionHonor.pickHonorTarget(mine);
+                this.isPureHonorPrompt(actionNames) && mine.length > 0) {
+                const target = lionHonor.pickHonorTarget(mine, this.honorTargetOptions(playerState, targetHint));
                 if(target) {
                     return this.cardClickDecision(target, 'lion-honor-token-target');
                 }
@@ -9549,13 +9607,23 @@ class JigokuBotPolicy {
         if(targetHint.sourceCardId === 'shameful-display') {
             const promptTitle = String(me.promptTitle || '');
             const menuTitle = String(me.menuTitle || '');
+            // Which of OURS takes the honor. The two honor decks rank this from
+            // their own priority list (the token is an engine trigger there, not
+            // only a stat swing), so they answer it when they are piloting;
+            // everyone else falls back to the shared glory ranking.
+            const honorOpts = this.honorTargetOptions(playerState, targetHint);
+            const deckRanks = this.currentDeckProfile.shamefulDisplaySplitSides !== false;
+            const pickOwnHonor = (pool: any[]) =>
+                (deckRanks && craneHonor ? craneHonor.pickHonorTarget(pool, honorOpts) : null) ||
+                (deckRanks && lionHonor ? lionHonor.pickHonorTarget(pool, honorOpts) : null) ||
+                personalHonor.pickOwnHonor(pool);
             // Follow-up prompts after both targets are picked: the honored
             // character must be OURS and the dishonored one THEIRS. When the
             // right side is not legal (own pick already honored / enemy pick
             // already dishonored), give the leftover to the weakest legal
             // card so the misdirected token costs the least.
             if(promptTitle === 'Choose a character to honor' || menuTitle === 'Choose a character to honor') {
-                const pick = personalHonor.pickOwnHonor(mine) ||
+                const pick = (mine.length > 0 ? pickOwnHonor(mine) : null) ||
                     personalHonor.pickForcedEnemyHonor(theirs);
                 return pick ? this.cardClickDecision(pick, 'shameful-honor-own') : null;
             }
@@ -9570,8 +9638,9 @@ class JigokuBotPolicy {
                 if(mine.length === 0) {
                     return cancel ? this.buttonDecision(cancel, 'cancel-wrong-side-target') : null;
                 }
-                const ownPick = personalHonor.pickOwnHonor(mine.filter((card) => !card.isHonored)) ||
-                    personalHonor.pickOwnHonor(mine);
+                const unhonored = mine.filter((card) => !card.isHonored);
+                const ownPick = (unhonored.length > 0 ? pickOwnHonor(unhonored) : null) ||
+                    pickOwnHonor(mine);
                 return this.cardClickDecision(ownPick, 'shameful-pick-own');
             }
             const second = personalHonor.pickEnemyDishonor(theirs.filter((card) => !card.isDishonored)) ||

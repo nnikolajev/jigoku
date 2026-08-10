@@ -250,6 +250,47 @@ export interface DeckProfile {
     honorRaceAware: boolean;
     honorRace: HonorRaceLimits;
 
+    // The two honor decks rank dynasty buys with
+    // `military/political/glory * weight + ability`, but a card sitting in a
+    // PROVINCE carries no skill or glory summary — the engine only fills those
+    // for cards in play — so every one of those terms reads `undefined` and the
+    // ranking collapses onto `dynastyAbilityValueById` alone. The exact printed
+    // values already exist on `dynastyCharacterInfo`; `true` threads them in.
+    //
+    // MEASURED AND REJECTED (2026-08-10), and the reason is worth keeping: the
+    // ability table was hand-tuned in a world where `ability` was the ONLY term
+    // that survived, so it had absorbed the whole body-quality judgement.
+    // Switching the skill terms on does not add information to a calibrated
+    // model, it re-weights a table fitted to the broken input — Akodo Toturi
+    // jumps 6 -> 15 and starts taking windows from the cheap wide bodies both
+    // honor plans are built on. 768 games/arm over 12 bases:
+    // CraneHonor 64.58 -> 62.24 (-2.34pp), LionHonor 57.42 -> 55.34 (-2.08pp).
+    // Do NOT flip this on without re-fitting `dynastyAbilityValueById` for both
+    // decks in the same change; on its own it is a regression.
+    dynastyPrintedStats: boolean;
+
+    // ---- honor-token targeting fixes (injectable so the pre-fix behaviour can
+    // be measured; `false` on each restores exactly what shipped before) ------
+    //
+    // Shameful Display's two-card SELECT resolves an honor AND a dishonor, so
+    // its prompt carries both actions. The two honor decks' own honor-token
+    // rankers answered it and returned an OWN character for both clicks, which
+    // made the follow-up menu honor one of ours and dishonor the other. On,
+    // only single-action honor prompts reach those rankers and the card's own
+    // handler owns the side split (ours honored, theirs dishonored).
+    shamefulDisplaySplitSides: boolean;
+    // The honor decks rank honor targets from a printed priority list. A bowed
+    // character, and one at home, contribute no skill, so during a live
+    // conflict that list happily spends the token for zero swing. On, a ready
+    // participant outranks the list, and a double-honor source (Soul Beyond
+    // Reproach) prefers a dishonored body, where its second half is not a no-op.
+    honorTargetLiveSwing: boolean;
+    // Elegance and Grace readies bowed honored characters. On, it is only spent
+    // when something can still USE the ready body — a bowed participant, or a
+    // conflict either side has left to declare. Ready bodies are not glory, so
+    // the Imperial Favor does not pay for them.
+    eleganceRequiresUse: boolean;
+
     // Turns on the live honor-DIAL readings in shared playbook entries (Make
     // an Opening's X is the absolute dial difference, so the card is dead on a
     // tie). Off holds those entries at their legacy reading, which is what
@@ -605,6 +646,10 @@ export const DEFAULT_PROFILE: DeckProfile = {
     conflictDeclaration: { opponentBoardWeight: 1 },
     honorRaceAware: false,
     honorRace: { ...DEFAULT_HONOR_RACE_LIMITS },
+    dynastyPrintedStats: false,
+    shamefulDisplaySplitSides: true,
+    honorTargetLiveSwing: true,
+    eleganceRequiresUse: true,
     bidWarAware: false,
     firstPlayerChoice: 'first',
     imperialFavorChoice: 'military',

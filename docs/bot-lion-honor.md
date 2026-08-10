@@ -304,6 +304,35 @@ sets — the most stable row in the table), **Scorpion Poison Mill** drains it,
 and **Lion Duelist** contests the same "more honorable" space from a faster
 board. Everything that has to assemble a board loses to the clock.
 
+## Honor-token targeting fixes (2026-08-10)
+
+Reported live against the Crane Courtier Honor bot, but this list shares both
+offending cards (Shameful Display, Soul Beyond Reproach) and the same
+priority-list ranker, so it carried the same two bugs. Full write-up in
+**`docs/bot-honor-token-targeting.md`**.
+
+Effect on this deck, `deckFieldWinRate.js`, six bases (91001-96001), 384 games
+per arm, injected null as the control:
+
+| Arm | Win rate |
+|---|---:|
+| pre-fix (`shamefulDisplaySplitSides` / `honorTargetLiveSwing` / `eleganceRequiresUse` all `false`) | 55.47% |
+| **fixed (shipping default)** | **58.59%** |
+
+**+3.12pp**, positive on both seats (57.81→63.02 and 53.13→54.17).
+
+The two changes that reach `LionHonorTactics`:
+
+- Shameful Display's two-card select carries `['honor','dishonor']`, so the
+  `honorSources` block above answered it and picked two of OUR OWN participants;
+  the follow-up menu then honored one and dishonored the other. It now only
+  answers single-action honor prompts, which still includes Shameful Display's
+  `'Choose a character to honor'` follow-up.
+- `pickHonorTarget` ranks by whether the token converts to skill NOW (ready
+  participant; and for Soul Beyond Reproach, a dishonored body so the second
+  honor is not a no-op) BEFORE it consults `honorTargetPriority`. The list is
+  unchanged and still breaks ties.
+
 ## Cross-deck safety
 
 Every new behaviour is scoped, and the extraction was **verified, not argued**:

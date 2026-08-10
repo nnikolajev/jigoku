@@ -947,6 +947,68 @@ describe('Jigoku heuristic bot', function() {
         expect(decision.target).toBe('Dishonor');
     });
 
+    it('Shameful Display selects one of OURS and one of THEIRS, never two of ours', function() {
+        // Regression. Shameful Display's two-card SELECT carries both `honor`
+        // and `dishonor` in its gameActions, so the Crane Honor deck's
+        // honor-token ranker answered it and returned an own character for
+        // BOTH clicks. The follow-up menu then honored one of ours and
+        // dishonored the other. Live log: "uses Shameful Display to change the
+        // personal honor of Brash Samurai and Brash Samurai".
+        const character = (uuid, id, extra = {}) => ({
+            uuid, id, name: id, type: 'character', selectable: true,
+            bowed: false, inConflict: true, isHonored: false, isDishonored: false,
+            militarySkillSummary: { stat: '0' }, politicalSkillSummary: { stat: '3' },
+            glorySummary: { stat: '1' }, attachments: [], ...extra
+        });
+        const state = {
+            conflict: { type: 'political', attackingPlayerId: 'human', defendingPlayerId: 'bot' },
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot', id: 'bot',
+                    promptTitle: 'Political Air Conflict', menuTitle: 'Select two characters',
+                    buttons: [],
+                    stats: { fate: 3, honor: 12, conflictsRemaining: 1 },
+                    cardPiles: {
+                        cardsInPlay: [
+                            character('brash-a', 'brash-samurai'),
+                            character('brash-b', 'brash-samurai')
+                        ]
+                    }
+                },
+                'Human': {
+                    name: 'Human', id: 'human',
+                    stats: { fate: 3, honor: 12, conflictsRemaining: 1 },
+                    cardPiles: {
+                        cardsInPlay: [character('negotiator', 'cunning-negotiator')]
+                    }
+                }
+            }
+        };
+        const profile = resolveDeckProfile(
+            ['seven-fold-palace', 'brash-samurai'],
+            deriveDeckStrategy(['seven-fold-palace'])
+        );
+        const ctx = {
+            profile,
+            targetHint: {
+                gameActions: ['honor', 'dishonor'],
+                sourceCardId: 'shameful-display',
+                sourceIsMine: true
+            }
+        };
+        const policy = new JigokuBotPolicy('shameful-two-targets');
+
+        const first = policy.decide(state, 'Jigoku Bot', ctx);
+        expect(first.command).toBe('cardClicked');
+        expect(first.args[0]).toBe('brash-a');
+        expect(first.reason).toBe('shameful-pick-own');
+
+        const second = policy.decide(state, 'Jigoku Bot', ctx);
+        expect(second.command).toBe('cardClicked');
+        expect(second.args[0]).toBe('negotiator');
+        expect(second.reason).toBe('shameful-pick-enemy');
+    });
+
     it('Court Games (non-glory deck): honors own participant, else dishonors enemy', function() {
         const makeState = (isHonored) => ({
             players: {

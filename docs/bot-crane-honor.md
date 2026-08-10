@@ -355,6 +355,31 @@ positive. A load-bearing mechanism and a tunable constant are different things:
 
 <!-- ROUND3REST -->
 
+## Honor-token targeting fixes (2026-08-10)
+
+Three live-play bugs reported from one session against this deck — Shameful
+Display honoring AND dishonoring the bot's own characters, Soul Beyond Reproach
+landing on a bowed character at home, and Elegance and Grace readying bodies
+after the last conflict had resolved. Written up in full, with root causes and
+the measurement, in **`docs/bot-honor-token-targeting.md`**.
+
+Effect on this deck, `deckFieldWinRate.js`, six bases (91001-96001), 384 games
+per arm, injected null as the control:
+
+| Arm | Win rate |
+|---|---:|
+| pre-fix (`shamefulDisplaySplitSides` / `honorTargetLiveSwing` / `eleganceRequiresUse` all `false`) | 59.64% |
+| **fixed (shipping default)** | **64.58%** |
+
+**+4.94pp**, positive on both seats (61.46→64.58 and 57.81→64.58). Card audit
+after the change: 27/27 plays, 0 zero-use, 17/17 abilities, 0 stalls.
+
+The one that matters for `CraneHonorTactics`: **`pickHonorTarget` now ranks by
+whether the token converts to skill RIGHT NOW before it consults
+`honorTargetPriority`.** The printed list said `kakita-asami` first and got
+obeyed even when she was bowed at home, for a zero swing. The list is unchanged
+— it just no longer outranks a ready participant.
+
 ## Cross-deck safety
 
 The list shares a lot of card ids with the two other Crane decks and with the

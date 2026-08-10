@@ -56,6 +56,15 @@ export interface PlaybookContext {
     opponentCardsPlayed?: number; // Ichi counts cards played by both players
     moreCardsPlayable?: boolean; // a playable hand card remains (diagnostics/compatibility)
     conflictsRemaining?: number; // own future conflicts after the current one
+    // Their future conflicts. "Is a ready body still worth anything?" cannot be
+    // answered from our own count alone — a body readied with none of our own
+    // conflicts left is still a DEFENDER for one of theirs.
+    opponentConflictsRemaining?: number;
+    // DeckProfile A/B switch, carried the same way `honorRaceAware` is because
+    // a `PlaybookEntry` cannot see the profile. Off holds Elegance and Grace at
+    // its legacy gate (any bowed honored body, whether or not anything can use
+    // the ready).
+    eleganceRequiresUse?: boolean;
     strongholdConflict?: boolean; // do not retreat from the game-ending defense
     preferFavorableRetreat?: boolean; // Dragon preserves its tower for another conflict
     conflictCosts?: Record<string, number>; // live printed costs for hand/discard cards
@@ -5105,8 +5114,28 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
                 .reduce((total, skill) => total + skill, 0);
         }),
         summary: 'ready up to 2 honored characters (6 printed cost or less)',
-        shouldPlay: (ctx) => (ctx.myCharacters || [])
-            .filter((card) => card.bowed && card.isHonored).length >= 1
+        // A ready body is only worth a card if something can still USE it. A
+        // bowed PARTICIPANT contributes no skill until it readies, so readying
+        // one swings the conflict being fought; a bowed body at home is an
+        // attacker for a conflict of ours still to come or a defender for one
+        // of theirs. With none of the three the ready is cosmetic — the
+        // Imperial Favor counts glory, not ready characters — and the card is
+        // spent for nothing. Seen live: two characters readied after the last
+        // conflict of the round was already resolved.
+        shouldPlay: (ctx) => {
+            const targets = (ctx.myCharacters || []).filter((card) => card.bowed && card.isHonored);
+            if(targets.length === 0) {
+                return false;
+            }
+            if(ctx.eleganceRequiresUse === false) {
+                return true;
+            }
+            if(targets.some((card) => card.inConflict)) {
+                return true;
+            }
+            return (Number(ctx.conflictsRemaining) || 0) > 0 ||
+                (Number(ctx.opponentConflictsRemaining) || 0) > 0;
+        }
     }),
 
     // Starts a political duel between ANY two characters on opposite sides.

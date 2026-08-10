@@ -31,6 +31,49 @@ const gloryOf = (card: any): number =>
 const byUuid = (left: any, right: any): number =>
     String(left?.uuid || '').localeCompare(String(right?.uuid || ''));
 
+// Context for "who gets the honored token", shared by every deck that ranks
+// honor targets from its own priority list. Both honor decks used to sort by
+// that list alone, which hands the token to whichever printed id sits highest
+// even when it is a bowed character at home and the token therefore swings
+// nothing in the conflict being fought.
+export interface HonorTargetOptions {
+    // A conflict is live, so a token on a ready participant converts to skill
+    // immediately. Outside a conflict every body is equally live.
+    activeConflict?: boolean;
+    // The source honors the same character TWICE (Soul Beyond Reproach). The
+    // second half only pays on a DISHONORED body; on anything else it no-ops.
+    doubleHonor?: boolean;
+}
+
+// PRINTED stats for a dynasty card sitting face-up in a province.
+//
+// The engine only fills `militarySkillSummary` / `politicalSkillSummary` /
+// `glorySummary` for cards IN PLAY, so a province card reaches a dynasty ranker
+// with `military`, `political` and `glory` all `undefined`. Any ranker that
+// multiplies those by a weight silently scores every candidate on its ability
+// term alone, and its skill/glory weights are dead knobs.
+// `JigokuBotController.dynastyCharacterInfo` already publishes the exact
+// printed values keyed by uuid; this is the shape the honor decks read them in.
+export interface DynastyPrintedStats {
+    military?: number;
+    political?: number;
+    glory?: number;
+}
+
+// Printed value first, live summary second, 0 last. Kept here so both honor
+// decks resolve a province card's stats identically.
+export const printedStatOf = (
+    card: any,
+    stats: DynastyPrintedStats | undefined,
+    field: 'military' | 'political' | 'glory'
+): number => {
+    const exact = Number(stats?.[field]);
+    if(Number.isFinite(exact)) {
+        return Math.max(0, exact);
+    }
+    return field === 'glory' ? gloryOf(card) : skillOf(card, field);
+};
+
 export const hasTrait = (card: any, trait: string): boolean => {
     if(Array.isArray(card?.traits)) {
         return card.traits.some((value: any) => String(value).toLowerCase() === trait);

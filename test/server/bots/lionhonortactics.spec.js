@@ -232,6 +232,25 @@ describe('LionHonorTactics', function() {
         it('returns null with nothing to honor', function() {
             expect(tactics.pickHonorTarget([])).toBeNull();
         });
+
+        it('prefers a ready participant while a conflict is live', function() {
+            // A bowed body, and a body at home, contribute no skill, so the
+            // token's glory only converts on a ready participant. Off a
+            // conflict the printed ordering is unchanged.
+            const magistrate = character('implacable-magistrate', { glory: 1, bowed: true });
+            const chronicler = character('chronicler-of-conquests', { glory: 1, inConflict: true });
+            expect(tactics.pickHonorTarget([chronicler, magistrate], { activeConflict: true }).id)
+                .toBe('chronicler-of-conquests');
+            expect(tactics.pickHonorTarget([chronicler, magistrate]).id).toBe('implacable-magistrate');
+        });
+
+        it('sends a DOUBLE honor at a dishonored body', function() {
+            const magistrate = character('implacable-magistrate', { glory: 1 });
+            const chronicler = character('chronicler-of-conquests', { glory: 1, isDishonored: true });
+            expect(tactics.pickHonorTarget([chronicler, magistrate], { doubleHonor: true }).id)
+                .toBe('chronicler-of-conquests');
+            expect(tactics.pickHonorTarget([chronicler, magistrate]).id).toBe('implacable-magistrate');
+        });
     });
 
     describe('Way of the Chrysanthemum', function() {

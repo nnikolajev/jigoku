@@ -69,6 +69,20 @@
 //   measured BIT-IDENTICAL over 384 games. The rule is kept because it is the
 //   correct reading of the card and costs nothing, but do NOT spend a
 //   measurement cycle on it without first making the body get bought.
+//
+//   WHY it is barely bought, established 2026-08-10: `dynastyValue` multiplies
+//   `military`/`political`/`glory`, and a card in a PROVINCE carries none of
+//   them (the engine fills skill summaries only for cards in play), so the
+//   ranking runs on `dynastyAbilityValueById` alone. The Magistrate lands in a
+//   five-way tie at 6.00 broken by uuid — i.e. by decklist position, the same
+//   way every game — and Righteous Samurai (ability 3, cost 3) sorts LAST of
+//   twelve despite a printed 4/2/2. Feeding the real printed stats in is
+//   `DeckProfile.dynastyPrintedStats`; it works, and it measured NEGATIVE on
+//   both honor decks because the ability table was fitted around the defect.
+//   See `docs/bot-honor-token-targeting.md`.
+
+import type { HonorTargetOptions, DynastyPrintedStats } from './SharedCardTactics.js';
+import { printedStatOf } from './SharedCardTactics.js';
 
 export interface LionHonorProfile {
     // ---- the honor race ----------------------------------------------------
@@ -440,13 +454,13 @@ export class LionHonorTactics {
     // ---- dynasty buying ----------------------------------------------------
 
     /** Standalone worth of a body to this deck, before its cost. */
-    dynastyValue(card: any): number {
+    dynastyValue(card: any, stats?: DynastyPrintedStats): number {
         const ability = numberOr(this.profile.dynastyAbilityValueById[String(card?.id || '')], 0);
-        return skillOf(card, 'military') * this.profile.dynastyMilitaryWeight +
-            skillOf(card, 'political') * this.profile.dynastyPoliticalWeight +
+        return printedStatOf(card, stats, 'military') * this.profile.dynastyMilitaryWeight +
+            printedStatOf(card, stats, 'political') * this.profile.dynastyPoliticalWeight +
             // Glory is honor income twice over here: it is skill while honored,
             // and honoring is what the deck does all game.
-            gloryOf(card) * this.profile.dynastyGloryWeight +
+            printedStatOf(card, stats, 'glory') * this.profile.dynastyGloryWeight +
             ability;
     }
 
@@ -464,6 +478,10 @@ export class LionHonorTactics {
         fate: number;
         board: any[];
         reserve?: number;
+        // Exact PRINTED skills/glory per province-card uuid. Absent = the old
+        // reading, where a province card's stats are all `undefined` and the
+        // ranking collapses onto `dynastyAbilityValueById` alone.
+        printedStats?: Record<string, DynastyPrintedStats>;
     }): any | null {
         // Zero is a real budget — this list has 1-cost bodies and width is the
         // plan — so only a NEGATIVE budget (reserve exceeds the pool) passes.
@@ -492,7 +510,7 @@ export class LionHonorTactics {
         // naked, which is the bug that made the same knob measure bit-identical
         // on the Crane Honor list (see `docs/bot-crane-honor.md`).
         const score = (card: any) => {
-            const value = this.dynastyValue(card);
+            const value = this.dynastyValue(card, input.printedStats?.[String(card?.uuid || '')]);
             const cost = costOf(card);
             return value + (this.profile.dynastyEfficiencyWeight * value) / (cost + 1);
         };
@@ -512,18 +530,34 @@ export class LionHonorTactics {
     }
 
     /**
+     * How much the token is worth RIGHT NOW; lower is better, and it outranks
+     * the printed priority list. A bowed body, and a body at home, contribute
+     * no skill, so during a live conflict the glory an honored token adds only
+     * shows up on a READY PARTICIPANT. `doubleHonor` marks the sources that
+     * honor the same character twice (Soul Beyond Reproach), whose second half
+     * only pays on a DISHONORED body and no-ops on anything else.
+     */
+    private honorUrgency(card: any, opts: HonorTargetOptions): number {
+        const liveNow = !!opts.activeConflict && !!card?.inConflict && !card?.bowed;
+        const doublePays = !!opts.doubleHonor && !!card?.isDishonored;
+        return (liveNow ? 0 : 2) + (doublePays ? 0 : 1);
+    }
+
+    /**
      * Who gets the honored token. The shared `PersonalHonorTactics` ranks by
      * GLORY, which is right when the token is only a stat swing; here it is
      * also 1 honor when the body dies and the enabler for Implacable
-     * Magistrate, so the deck's own ordering runs first and glory breaks ties.
+     * Magistrate, so the deck's own ordering runs after the live-swing tier and
+     * glory breaks its ties.
      */
-    pickHonorTarget(cards: any[]): any | null {
+    pickHonorTarget(cards: any[], opts: HonorTargetOptions = {}): any | null {
         const pool = (cards || []).filter((card) => card && !card.isHonored);
         const list = pool.length > 0 ? pool : (cards || []).filter(Boolean);
         if(list.length === 0) {
             return null;
         }
         return list.slice().sort((a, b) =>
+            this.honorUrgency(a, opts) - this.honorUrgency(b, opts) ||
             this.honorRank(a) - this.honorRank(b) ||
             gloryOf(b) - gloryOf(a) ||
             (b.inConflict ? 1 : 0) - (a.inConflict ? 1 : 0) ||

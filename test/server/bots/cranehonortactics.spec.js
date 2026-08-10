@@ -128,6 +128,32 @@ describe('CraneHonorTactics', function() {
         it('returns null with no characters', function() {
             expect(tactics.pickHonorTarget([])).toBeNull();
         });
+
+        it('prefers a ready PARTICIPANT over a higher-ranked body that cannot use the token', function() {
+            // Seen live: the bot honored a bowed Asami sitting at home while a
+            // ready Brash Samurai was defending, and the defender's skill did
+            // not move. A bowed character contributes no skill, and neither
+            // does one at home, so the glory only converts on a ready
+            // participant while a conflict is live.
+            const bowedAsami = { ...asami, bowed: true, inConflict: false };
+            const readyBrash = { id: 'brash-samurai', uuid: 'd', glory: 1, political: 2, inConflict: true };
+            expect(tactics.pickHonorTarget([bowedAsami, readyBrash], { activeConflict: true }).id)
+                .toBe('brash-samurai');
+            // Outside a conflict no body is live, so the printed priority wins.
+            expect(tactics.pickHonorTarget([bowedAsami, readyBrash], { activeConflict: false }).id)
+                .toBe('kakita-asami');
+            // And the default (no options) keeps the priority ordering too.
+            expect(tactics.pickHonorTarget([bowedAsami, readyBrash]).id).toBe('kakita-asami');
+        });
+
+        it('sends a DOUBLE honor (Soul Beyond Reproach) at a dishonored body', function() {
+            // Honor twice on a plain character wastes the second half; on a
+            // dishonored one it is dishonored -> plain -> honored.
+            const dishonored = { id: 'doji-diplomat', uuid: 'e', glory: 1, political: 1, isDishonored: true };
+            expect(tactics.pickHonorTarget([asami, dishonored], { doubleHonor: true }).id)
+                .toBe('doji-diplomat');
+            expect(tactics.pickHonorTarget([asami, dishonored]).id).toBe('kakita-asami');
+        });
     });
 
     describe('Festival for the Fortunes', function() {
@@ -158,6 +184,24 @@ describe('CraneHonorTactics', function() {
                 { uuid: 'a', bowed: false, isHonored: true, cost: 1 },
                 { uuid: 'b', bowed: true, isHonored: false, cost: 1 }
             ])).toEqual([]);
+        });
+
+        it('only spends the card when a ready body still has something to do', function() {
+            // Seen live: two characters readied after the last conflict of the
+            // round had already resolved. Ready bodies are not glory, so the
+            // Imperial Favor does not pay for them.
+            const gate = getPlaybookEntry('elegance-and-grace').shouldPlay;
+            const home = [{ bowed: true, isHonored: true, inConflict: false }];
+            const participant = [{ bowed: true, isHonored: true, inConflict: true }];
+            const spent = { conflictsRemaining: 0, opponentConflictsRemaining: 0 };
+            // A bowed PARTICIPANT contributes no skill until it readies.
+            expect(gate({ ...spent, myCharacters: participant })).toBe(true);
+            // A body at home is worth readying for a conflict either side has left.
+            expect(gate({ ...spent, conflictsRemaining: 1, myCharacters: home })).toBe(true);
+            expect(gate({ ...spent, opponentConflictsRemaining: 1, myCharacters: home })).toBe(true);
+            // Nothing left to fight: the ready is cosmetic.
+            expect(gate({ ...spent, myCharacters: home })).toBe(false);
+            expect(gate({ ...spent, myCharacters: [] })).toBe(false);
         });
     });
 

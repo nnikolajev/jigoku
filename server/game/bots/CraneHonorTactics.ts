@@ -56,6 +56,9 @@
 //     `honorRaceAware` / `honorRace` limits do this job today; these exist for
 //     a future crane-honor-specific spend gate and are inert until one lands.
 
+import type { HonorTargetOptions, DynastyPrintedStats } from './SharedCardTactics.js';
+import { printedStatOf } from './SharedCardTactics.js';
+
 export interface CraneHonorProfile {
     // ---- the honor race ----------------------------------------------------
     // The printed win condition. Everything below is measured against it.
@@ -382,10 +385,10 @@ export class CraneHonorTactics {
     // ---- dynasty buying ----------------------------------------------------
 
     /** Standalone worth of a body to this deck, before its cost. */
-    dynastyValue(card: any): number {
+    dynastyValue(card: any, stats?: DynastyPrintedStats): number {
         const ability = numberOr(this.profile.dynastyAbilityValueById[String(card?.id || '')], 0);
-        return skillOf(card, 'political') * this.profile.dynastyPoliticalWeight +
-            gloryOf(card) * this.profile.dynastyGloryWeight +
+        return printedStatOf(card, stats, 'political') * this.profile.dynastyPoliticalWeight +
+            printedStatOf(card, stats, 'glory') * this.profile.dynastyGloryWeight +
             ability;
     }
 
@@ -403,6 +406,10 @@ export class CraneHonorTactics {
         fate: number;
         board: any[];
         reserve?: number;
+        // Exact PRINTED skills/glory per province-card uuid. Absent = the old
+        // reading, where a province card's stats are all `undefined` and the
+        // ranking collapses onto `dynastyAbilityValueById` alone.
+        printedStats?: Record<string, DynastyPrintedStats>;
     }): any | null {
         // Zero is a real budget: Doji Diplomat costs 0 and the deck runs three
         // of them, so a `<= 0` guard here silently refuses the widest bodies in
@@ -435,7 +442,7 @@ export class CraneHonorTactics {
             return tower;
         }
         const score = (card: any) => {
-            const value = this.dynastyValue(card);
+            const value = this.dynastyValue(card, input.printedStats?.[String(card?.uuid || '')]);
             const cost = costOf(card);
             return value + (this.profile.dynastyEfficiencyWeight * value) / (cost + 1);
         };
@@ -455,18 +462,35 @@ export class CraneHonorTactics {
     }
 
     /**
+     * How much the token is worth RIGHT NOW; lower is better, and it outranks
+     * the printed priority list. A bowed character contributes no skill, and a
+     * character at home contributes none either, so during a live conflict the
+     * glory on an honored token only shows up on a READY PARTICIPANT — the
+     * priority list on its own happily hands it to a bowed Asami at home for
+     * zero swing. `doubleHonor` marks the sources that honor twice (Soul Beyond
+     * Reproach): those want a DISHONORED body, where the second half of the
+     * effect is the difference between -glory and +glory instead of a no-op.
+     */
+    private honorUrgency(card: any, opts: HonorTargetOptions): number {
+        const liveNow = !!opts.activeConflict && !!card?.inConflict && !card?.bowed;
+        const doublePays = !!opts.doubleHonor && !!card?.isDishonored;
+        return (liveNow ? 0 : 2) + (doublePays ? 0 : 1);
+    }
+
+    /**
      * Who to put the honored token on. The shared PersonalHonorTactics ranks by
      * GLORY, which is right when the token is only a stat swing; here the token
      * is also an engine trigger (Storyteller's Sincerity, Asami's drain), so the
-     * deck's own priority runs first and glory breaks its ties.
+     * deck's own priority runs after the live-swing tier and glory breaks ties.
      */
-    pickHonorTarget(cards: any[]): any | null {
+    pickHonorTarget(cards: any[], opts: HonorTargetOptions = {}): any | null {
         const pool = (cards || []).filter((card) => card && !card.isHonored);
         const list = pool.length > 0 ? pool : (cards || []).filter(Boolean);
         if(list.length === 0) {
             return null;
         }
         return list.slice().sort((a, b) =>
+            this.honorUrgency(a, opts) - this.honorUrgency(b, opts) ||
             this.honorRank(a) - this.honorRank(b) ||
             gloryOf(b) - gloryOf(a) ||
             (b.inConflict ? 1 : 0) - (a.inConflict ? 1 : 0) ||

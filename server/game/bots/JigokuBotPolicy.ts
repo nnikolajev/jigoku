@@ -159,6 +159,17 @@ const HELPFUL_ACTIONS = new Set([
     'gainFate', 'addToken', 'gainStatus', 'restoreProvince', 'createToken'
 ]);
 
+// Cards whose only ability replaces a character's leave-play. Every one of
+// them is worth a body — but only OUR body. Iron Mine and Reprieve carry
+// "a character you control" in their printed condition so the engine never
+// offers them on the opponent's; Ceaseless Duty does NOT, and the bot was
+// observed spending it to keep an opponent's character alive during the
+// opponent's fate-phase discard. Deck-agnostic on purpose: the gate is a
+// no-op for the two engine-restricted cards, so no other deck moves.
+const LEAVE_PLAY_SAVE_CARD_IDS = new Set([
+    'iron-mine', 'reprieve', 'ceaseless-duty'
+]);
+
 interface TargetHint {
     gameActions?: string[];
     sourceIsMine?: boolean;
@@ -273,6 +284,11 @@ interface DecideContext {
     // sides' provinces, so without this it would cancel our own province
     // reactions. Undefined = unknown, and every gate treats that as "hold".
     interruptedAbilityIsMine?: boolean;
+    // Whether the body the current leave-play interrupt window is about is
+    // OURS. Ceaseless Duty has no controller clause in its printed text, so the
+    // engine offers it on the opponent's departing character too — saving it
+    // for them, with our card. Undefined = no leave-play event in the window.
+    leavingPlayCardIsMine?: boolean;
     // A Display of Power already survived interrupts and installed its delayed
     // ring replacement in this conflict. Later copies must be preserved.
     displayOfPowerActive?: boolean;
@@ -1559,7 +1575,7 @@ class JigokuBotPolicy {
                     this.pendingSacrificeCostUuid = null;
                 }
             }
-            return this.triggeredWindowDecision(playerState, me, buttons, title, context.playCost, context.cardHint, profile, context.conflictCosts, lion, attachmentTower, duelist, context.duelMargin, context.interruptedEventIsMine, context.displayOfPowerActive, bidWar, context.interruptedAbilityIsMine);
+            return this.triggeredWindowDecision(playerState, me, buttons, title, context.playCost, context.cardHint, profile, context.conflictCosts, lion, attachmentTower, duelist, context.duelMargin, context.interruptedEventIsMine, context.displayOfPowerActive, bidWar, context.interruptedAbilityIsMine, context.leavingPlayCardIsMine);
         }
 
         // Opponent-forced "reveal N cards from your hand" selects (Daidoji
@@ -2062,6 +2078,36 @@ class JigokuBotPolicy {
      */
     private inPlayActionScopedOut(cardId?: string): boolean {
         return cardId === 'weight-of-duty' && !this.currentCrabSacrifice;
+    }
+
+    /**
+     * Gate for clicking an attacked own province's conflict Action.
+     *
+     * Both province-click paths fire that Action on sight — "free value while
+     * defending" — which is true for Fertile Fields and Meditations on the Tao
+     * and false for Frostbitten Crossing, whose Action DISCARDS EVERY
+     * ATTACHMENT on one participant. Its target selector only offers
+     * participants that carry an attachment, so on a board where the only
+     * loaded body is ours the ability's one legal target is our own tower, and
+     * the target prompt does not reliably carry a Cancel to back out with. The
+     * decision has to be made here, before the click.
+     *
+     * Scoped on the deck profile, so a deck that runs the same province without
+     * the Lion Duelist tactics keeps its measured behaviour exactly.
+     */
+    private provinceActionWorthwhile(card: any, mine: any[], theirs: any[]): boolean {
+        const lionDuelist = this.currentLionDuelist;
+        if(lionDuelist && card?.id === 'frostbitten-crossing') {
+            const attachmentControl = this.currentDeckProfile?.attachmentControl ||
+                DEFAULT_PROFILE.attachmentControl;
+            return lionDuelist.shouldUseStrip(
+                mine,
+                theirs,
+                attachmentControl.ownDebuffScores,
+                attachmentControl.enemyAttachmentScores
+            );
+        }
+        return true;
     }
 
     private isDirectCardLegal(card: any, legalDirectCardUuids?: Record<string, true>): boolean {
@@ -4230,6 +4276,11 @@ class JigokuBotPolicy {
                     // (Shameful Display with saturated honor states) is dead
                     // until the next round — stop re-clicking it.
                     !this.isCancelVetoed(card.id) &&
+                    this.provinceActionWorthwhile(
+                        card,
+                        this.myCharactersInPlay(me),
+                        this.myCharactersInPlay(provinceOpponent)
+                    ) &&
                     (!lion || lion.shouldUseProvince(
                         card.id,
                         this.myCharactersInPlay(me),
@@ -5322,6 +5373,11 @@ class JigokuBotPolicy {
             .map((list) => (list || []).find((card: any) =>
                 card.isProvince && card.inConflict && card.uuid && !card.isBroken &&
                 !this.isCancelVetoed(card.id) &&
+                this.provinceActionWorthwhile(
+                    card,
+                    playCtx?.myCharacters || [],
+                    playCtx?.opponentCharacters || []
+                ) &&
                 (!lion || lion.shouldUseProvince(
                     card.id,
                     playCtx?.myCharacters || [],
@@ -7510,7 +7566,7 @@ class JigokuBotPolicy {
     // worth firing (e.g. Meditations on the Tao stripping attacker fate);
     // character and event reactions stay passed until per-card knowledge
     // exists, because firing them blindly wastes fate and honor.
-    private triggeredWindowDecision(playerState: any, me: any, buttons: any[], windowTitle: string, playCost?: number, cardHint?: CardHintLookup, profile: DeckProfile = DEFAULT_PROFILE, conflictCosts?: Record<string, number>, lion: LionTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, duelist: DuelTactics | null = null, duelMargin?: number, interruptedEventIsMine?: boolean, displayOfPowerActive = false, bidWar: BidWarTactics | null = null, interruptedAbilityIsMine?: boolean): BotDecision | null {
+    private triggeredWindowDecision(playerState: any, me: any, buttons: any[], windowTitle: string, playCost?: number, cardHint?: CardHintLookup, profile: DeckProfile = DEFAULT_PROFILE, conflictCosts?: Record<string, number>, lion: LionTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, duelist: DuelTactics | null = null, duelMargin?: number, interruptedEventIsMine?: boolean, displayOfPowerActive = false, bidWar: BidWarTactics | null = null, interruptedAbilityIsMine?: boolean, leavingPlayCardIsMine?: boolean): BotDecision | null {
         const duelBidding = new DuelBidTactics(profile.duelBidding);
         // A cost increase can make the engine expose Castle while a printed
         // cost-zero attachment is being played. Preserve the once-per-round
@@ -7621,6 +7677,17 @@ class JigokuBotPolicy {
                         (this.currentCrabSacrifice.profile.saveHoldingIds.includes(card.id) ||
                             this.currentCrabSacrifice.profile.saveAttachmentIds.includes(card.id) ||
                             this.currentCrabSacrifice.profile.saveEventIds.includes(card.id))) {
+                        return false;
+                    }
+                    // NEVER spend a save on the OPPONENT's body. Ceaseless Duty
+                    // has no "a character you control" clause, so the engine
+                    // offers it during the opponent's fate-phase discard and
+                    // the bot kept an enemy Meddling Mediator alive with it.
+                    // Only an explicit `false` blocks: an unknown owner leaves
+                    // the legacy behaviour, and Iron Mine/Reprieve are already
+                    // engine-restricted to friendly bodies, so this moves only
+                    // the card that is actually wrong.
+                    if(LEAVE_PLAY_SAVE_CARD_IDS.has(card.id) && leavingPlayCardIsMine === false) {
                         return false;
                     }
                     if(card.id === 'voice-of-honor' && interruptedEventIsMine === true) {
@@ -8330,6 +8397,19 @@ class JigokuBotPolicy {
                 const cancel = this.findButton(buttons, ['cancel']);
                 if(cancel) {
                     return this.buttonDecision(cancel, 'lion-duelist-strip-no-value');
+                }
+                // No target worth taking and no way to back out. The generic
+                // fallback below reads this as an ordinary harmful effect and
+                // aims it at the only selectable body — which here is OUR
+                // loaded tower. Choose the least damaging legal body instead.
+                const forced = lionDuelist.pickForcedStripTarget(
+                    mine,
+                    theirs,
+                    profile.attachmentControl.ownDebuffScores,
+                    profile.attachmentControl.enemyAttachmentScores
+                );
+                if(forced) {
+                    return this.cardClickDecision(forced, 'lion-duelist-strip-forced-least-bad');
                 }
             }
 

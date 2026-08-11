@@ -20,6 +20,8 @@
 // Every knob is data. Nothing here is reachable unless `DeckProfile.lionDuelist`
 // is present, which only the `lion-duelist-kyuden-ikoma` override sets.
 
+import { attachmentWorth } from './AttachmentControlTactics.js';
+
 export interface LionDuelistProfile {
     // ---- identity lists ----------------------------------------------------
     // Bodies worth extra dynasty fate and first claim on attachments.
@@ -44,6 +46,12 @@ export interface LionDuelistProfile {
 
     // ---- Frostbitten Crossing (strip every attachment off one body) --------
     stripMinimumValue: number;
+    // The province discards EVERY attachment on the chosen body, so aiming it at
+    // one of ours pays for the debuff we shed with every buff that comes off
+    // with it. This weights that loss against the debuff scores; 0 restores the
+    // old debuffs-only reading, which was how a fully kitted Akodo Toturi could
+    // be picked as a "free" strip and hand the conflict away.
+    ownAttachmentLossWeight: number;
 
     // ---- Kitsu Motso -------------------------------------------------------
     // Drags an OPPONENT body into the conflict. That body bows when it returns
@@ -166,6 +174,7 @@ export const LION_DUELIST_DEFAULTS: LionDuelistProfile = {
     strongholdBowMinimumSkill: 1,
 
     stripMinimumValue: 8,
+    ownAttachmentLossWeight: 1,
 
     motsoAllowOnDefense: false,
     motsoMinimumTargetSkill: 2,
@@ -314,9 +323,13 @@ export class LionDuelistTactics {
     // ---- Frostbitten Crossing --------------------------------------------
 
     // The province strips EVERY attachment off ONE participant, so the target is
-    // chosen per character, not per attachment. Our own side scores the debuffs
-    // we would shed; theirs scores the buffs we would take away. Positive-only:
-    // stripping our own good weapons is never the play.
+    // chosen per character, not per attachment. Theirs scores the buffs we would
+    // take away. Ours is a NET reading — the debuffs we shed MINUS everything
+    // good that comes off with them — because the effect is not selective the
+    // way Let Go is: it cannot take the Pacifism and leave the katana. A body of
+    // ours carrying only buffs therefore scores negative and can never be
+    // picked, and one carrying a debuff is only worth it when the debuff
+    // outweighs the rest of its kit.
     stripValue(
         card: any,
         mine: boolean,
@@ -326,15 +339,16 @@ export class LionDuelistTactics {
         let total = 0;
         for(const attachment of card?.attachments || []) {
             if(mine) {
-                total += Math.max(0, numberOr(ownDebuffScores[attachment?.id], 0));
+                const debuff = ownDebuffScores[attachment?.id];
+                if(debuff !== undefined) {
+                    total += Math.max(0, numberOr(debuff, 0));
+                    continue;
+                }
+                total -= attachmentWorth(attachment, enemyAttachmentScores) *
+                    this.profile.ownAttachmentLossWeight;
                 continue;
             }
-            const liveStats = Math.max(
-                0,
-                numberOr(attachment?.militarySkillSummary?.stat, 0),
-                numberOr(attachment?.politicalSkillSummary?.stat, 0)
-            );
-            total += numberOr(enemyAttachmentScores[attachment?.id], 6 + liveStats);
+            total += attachmentWorth(attachment, enemyAttachmentScores);
         }
         return total;
     }
@@ -358,6 +372,43 @@ export class LionDuelistTactics {
             entry.value >= this.profile.stripMinimumValue);
         return scored.sort((left, right) => right.value - left.value ||
             byUuid(left.card, right.card))[0]?.card || null;
+    }
+
+    // Forced: the ability is already on the stack and the prompt offers no way
+    // out, so SOMETHING must be chosen. Same scores, no minimum — the least bad
+    // body, which is whichever one loses us the least by being stripped.
+    pickForcedStripTarget(
+        mine: any[],
+        theirs: any[],
+        ownDebuffScores: Record<string, number>,
+        enemyAttachmentScores: Record<string, number>
+    ): any | null {
+        const scored = [
+            ...(mine || []).map((card) => ({
+                card,
+                value: this.stripValue(card, true, ownDebuffScores, enemyAttachmentScores)
+            })),
+            ...(theirs || []).map((card) => ({
+                card,
+                value: this.stripValue(card, false, ownDebuffScores, enemyAttachmentScores)
+            }))
+        ].filter((entry) => (entry.card?.attachments || []).length > 0);
+        return scored.sort((left, right) => right.value - left.value ||
+            byUuid(left.card, right.card))[0]?.card || null;
+    }
+
+    // Asked BEFORE the province is clicked. The Action's own target prompt only
+    // offers participants that carry an attachment, so once it is on the stack
+    // the only legal target can be our own loaded body — and the prompt does not
+    // always carry a Cancel. The "is this worth it" question has to be answered
+    // at the click, not at the target.
+    shouldUseStrip(
+        mine: any[],
+        theirs: any[],
+        ownDebuffScores: Record<string, number>,
+        enemyAttachmentScores: Record<string, number>
+    ): boolean {
+        return !!this.pickStripTarget(mine, theirs, ownDebuffScores, enemyAttachmentScores);
     }
 
     // ---- Kitsu Motso ------------------------------------------------------

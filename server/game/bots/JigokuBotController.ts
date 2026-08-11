@@ -461,6 +461,7 @@ class JigokuBotController {
                     duelMargin: this.currentDuelMargin(player),
                     interruptedEventIsMine: this.currentInterruptedEventIsMine(player),
                     interruptedAbilityIsMine: this.currentInterruptedAbilityIsMine(player),
+                    leavingPlayCardIsMine: this.currentLeavingPlayCardIsMine(player),
                     displayOfPowerActive: this.displayOfPowerActiveThisConflict(),
                     legalDirectCardUuids: this.currentLegalDirectCardUuids(player),
                     legalAttachmentTargetUuidsBySource: this.legalAttachmentTargetUuidsBySource(player),
@@ -1393,6 +1394,32 @@ class JigokuBotController {
         const abilityPlayer = event?.context?.player ||
             (event?.card || event?.context?.source)?.controller;
         return abilityPlayer?.name ? abilityPlayer.name === player.name : undefined;
+    }
+
+    // Whose body the leave-play interrupt window is about. Ceaseless Duty's
+    // printed text has NO controller clause — Iron Mine and Reprieve both read
+    // "a character you control" — so the engine legally offers it when the
+    // OPPONENT's character leaves play, and a save spent there keeps THEIR
+    // board alive at the cost of our card. Observed live: the bot answered the
+    // opponent's fate-phase discard of Meddling Mediator with Ceaseless Duty.
+    //
+    // Undefined when the window carries no leave-play event, which every gate
+    // treats as "not blocked". One window can carry several events, so this is
+    // true when ANY of the departing bodies is ours: the ability still has a
+    // friendly target to choose.
+    private currentLeavingPlayCardIsMine(player: Player): boolean | undefined {
+        const step = this.currentPromptStep(player);
+        // The window queues its own select prompt, which becomes the current
+        // step, so the events live on `game.currentAbilityWindow` by the time
+        // the bot is asked. See `currentPlaySource` for the same fallback.
+        const events: any[] = step?.events || step?.window?.events ||
+            (this.game as any).currentAbilityWindow?.events || [];
+        const leaving = events.filter((candidate: any) =>
+            candidate?.name === EventNames.OnCardLeavesPlay && !candidate.cancelled && candidate.card);
+        if(leaving.length === 0) {
+            return undefined;
+        }
+        return leaving.some((candidate: any) => candidate.card.controller?.name === player.name);
     }
 
     private recordDisplayOfPowerInitiated(event: any): void {

@@ -26,6 +26,13 @@
 //     death payoffs fire either. Measured in full in
 //     `test/server/cards/CrabSacrificeIronMine.spec.js`. The saves answer the
 //     OPPONENT's removal, and nothing else.
+//     They also do not all read the same. Iron Mine and Reprieve carry "a
+//     character you control" in their printed condition; CEASELESS DUTY DOES
+//     NOT, so the engine legally offers it on the opponent's departing body and
+//     the bot spent it keeping an enemy character alive during the opponent's
+//     fate-phase discard. The controller gate lives in `JigokuBotPolicy`'s
+//     triggered-ability filter (`LEAVE_PLAY_SAVE_CARD_IDS`), pinned in
+//     `test/server/cards/14.5-AHD/CeaselessDutyBot.spec.js`.
 //
 // Every knob is data. Nothing here is reachable unless `DeckProfile.crabSacrifice`
 // is present, which only the `crab-sacrifice-castle-of-the-forgotten` override

@@ -35,6 +35,23 @@ export function isNegativeAttachmentId(id: string | undefined): boolean {
     return !!id && Object.prototype.hasOwnProperty.call(ATTACHMENT_CONTROL_DEFAULTS.ownDebuffScores, id);
 }
 
+// What one attachment is WORTH to whoever controls it: a known id's score, else
+// a floor plus whatever skill it is currently granting. This is the scale Let Go
+// ranks enemy attachments on, and Frostbitten Crossing prices OUR OWN
+// attachments with the same function — a province that discards every
+// attachment on the chosen body has to compare "a debuff we shed" against "the
+// buffs we throw away with it" on one scale, or the comparison is meaningless.
+export function attachmentWorth(attachment: any, enemyAttachmentScores: Record<string, number>): number {
+    const known = enemyAttachmentScores[attachment?.id];
+    if(typeof known === 'number' && Number.isFinite(known)) {
+        return known;
+    }
+    const liveStats = Math.max(0,
+        Number(attachment?.militarySkillSummary?.stat) || 0,
+        Number(attachment?.politicalSkillSummary?.stat) || 0);
+    return 6 + liveStats;
+}
+
 export class AttachmentControlTactics {
     constructor(private profile: AttachmentControlProfile) {}
 
@@ -53,10 +70,7 @@ export class AttachmentControlTactics {
         }
         for(const carrier of theirs) {
             for(const attachment of carrier.attachments || []) {
-                const liveStats = Math.max(0,
-                    Number(attachment.militarySkillSummary?.stat) || 0,
-                    Number(attachment.politicalSkillSummary?.stat) || 0);
-                const base = this.profile.enemyAttachmentScores[attachment.id] ?? (6 + liveStats);
+                const base = attachmentWorth(attachment, this.profile.enemyAttachmentScores);
                 candidates.push({ attachment, score: base + carrierScore(carrier) });
             }
         }

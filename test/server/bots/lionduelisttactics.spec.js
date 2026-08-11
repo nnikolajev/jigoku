@@ -116,29 +116,91 @@ describe('LionDuelistTactics', function() {
         const weapon = { id: 'fine-katana', uuid: 'att-2' };
         const scores = LION_DUELIST_DEFAULTS;
 
-        it('scores only known debuffs on our own side', function() {
+        const stripValue = (card, mine) => tactics.stripValue(card, mine,
+            DEFAULT_PROFILE.attachmentControl.ownDebuffScores,
+            DEFAULT_PROFILE.attachmentControl.enemyAttachmentScores);
+        const pickStrip = (mine, theirs) => tactics.pickStripTarget(mine, theirs,
+            DEFAULT_PROFILE.attachmentControl.ownDebuffScores,
+            DEFAULT_PROFILE.attachmentControl.enemyAttachmentScores);
+
+        it('prices our own kit as a LOSS, not as nothing', function() {
             const own = character({ uuid: 'own', inConflict: true, attachments: [weapon] });
-            expect(tactics.stripValue(own, true,
-                DEFAULT_PROFILE.attachmentControl.ownDebuffScores,
-                DEFAULT_PROFILE.attachmentControl.enemyAttachmentScores)).toBe(0);
+            expect(stripValue(own, true)).toBeLessThan(0);
         });
 
         it('takes our own body when it carries a heavy debuff', function() {
             const own = character({ uuid: 'own', inConflict: true, attachments: [debuff] });
             const theirs = character({ uuid: 'theirs', inConflict: true, attachments: [] });
-            const pick = tactics.pickStripTarget([own], [theirs],
+            expect(pickStrip([own], [theirs]).uuid).toBe('own');
+        });
+
+        it('leaves our own body alone when the debuff costs less than the kit', function() {
+            const loaded = character({
+                uuid: 'loaded',
+                inConflict: true,
+                attachments: [debuff, weapon, { id: 'fan-of-command', uuid: 'att-3' },
+                    { id: 'setting-the-standard', uuid: 'att-4' }]
+            });
+            expect(stripValue(loaded, true)).toBeLessThan(scores.stripMinimumValue);
+            expect(pickStrip([loaded], [])).toBeNull();
+        });
+
+        // The Frostbitten Crossing loss from the Phoenix game: every attachment
+        // on the board was ours, all of them buffs, and the province stripped
+        // the tower it had spent the whole game building.
+        it('never strips a body of ours that carries only buffs', function() {
+            const toturi = character({
+                uuid: 'akodo-toturi',
+                inConflict: true,
+                attachments: [
+                    { id: 'fan-of-command', uuid: 'att-1' },
+                    { id: 'duelist-training', uuid: 'att-2' },
+                    { id: 'formal-invitation', uuid: 'att-3' },
+                    { id: 'true-strike-kenjutsu', uuid: 'att-4' }
+                ]
+            });
+            const bare = [
+                character({ uuid: 'adept', inConflict: true }),
+                character({ uuid: 'prodigy', inConflict: true })
+            ];
+            expect(pickStrip([toturi], bare)).toBeNull();
+            expect(tactics.shouldUseStrip([toturi], bare,
                 DEFAULT_PROFILE.attachmentControl.ownDebuffScores,
-                DEFAULT_PROFILE.attachmentControl.enemyAttachmentScores);
-            expect(pick.uuid).toBe('own');
+                DEFAULT_PROFILE.attachmentControl.enemyAttachmentScores)).toBe(false);
+        });
+
+        it('still prefers a loaded enemy body over ours', function() {
+            const own = character({ uuid: 'own', inConflict: true, attachments: [debuff] });
+            const theirs = character({
+                uuid: 'theirs',
+                inConflict: true,
+                attachments: [{ id: 'tetsubo-of-blood', uuid: 'att-9' }]
+            });
+            expect(pickStrip([own], [theirs]).uuid).toBe('theirs');
         });
 
         it('returns nothing when no participant carries enough weight', function() {
             const own = character({ uuid: 'own', inConflict: true, attachments: [] });
-            const pick = tactics.pickStripTarget([own], [],
+            expect(pickStrip([own], [])).toBeNull();
+            expect(scores.stripMinimumValue).toBeGreaterThan(0);
+        });
+
+        it('forced with no way out, takes the least damaging body', function() {
+            const tower = character({
+                uuid: 'tower',
+                inConflict: true,
+                attachments: [{ id: 'fan-of-command', uuid: 'att-1' },
+                    { id: 'true-strike-kenjutsu', uuid: 'att-2' }]
+            });
+            const cheap = character({
+                uuid: 'cheap',
+                inConflict: true,
+                attachments: [{ id: 'fan-of-command', uuid: 'att-3' }]
+            });
+            const forced = tactics.pickForcedStripTarget([tower, cheap], [],
                 DEFAULT_PROFILE.attachmentControl.ownDebuffScores,
                 DEFAULT_PROFILE.attachmentControl.enemyAttachmentScores);
-            expect(pick).toBeNull();
-            expect(scores.stripMinimumValue).toBeGreaterThan(0);
+            expect(forced.uuid).toBe('cheap');
         });
     });
 

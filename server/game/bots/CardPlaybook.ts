@@ -563,14 +563,15 @@ const readyAtHome = (cards: any[]): any[] =>
 const holdsRing = (ctx: PlaybookContext, elements: string[]): boolean =>
     (ctx.myClaimedRingElements || []).some((element) => elements.includes(String(element)));
 
-// Total attachment weight the Frostbitten Crossing strip would remove from one
-// body. Ours only counts KNOWN debuffs (shedding our own weapon is never the
-// play); theirs counts everything, because every attachment they paid for is
-// something we would rather they did not have.
+// Net attachment weight the Frostbitten Crossing strip would take off one body.
+// Theirs counts everything, because every attachment they paid for is something
+// we would rather they did not have. Ours is debuffs MINUS everything else: the
+// province discards EVERY attachment on the chosen character, so a body of ours
+// only qualifies when it is carrying more affliction than kit.
 const stripWeight = (card: any, mine: boolean): number =>
     (card?.attachments || []).reduce((total: number, attachment: any) => {
         if(mine) {
-            return total + (isNegativeAttachmentId(attachment?.id) ? 1 : 0);
+            return total + (isNegativeAttachmentId(attachment?.id) ? 1 : -1);
         }
         return total + 1;
     }, 0);

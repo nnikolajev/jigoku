@@ -26,6 +26,12 @@ export interface CardModel {
     milBonus: number; // military skill granted to a participant (attachments/buffs)
     polBonus: number; // political skill granted to a participant
     swing: number; // skill-equivalent conflict swing (events: removal/duel/debuff)
+    // Honor paid to play the card, or to reach the FULL `swing` where part of
+    // it is optional (Banzai's second resolution). Honor is a real budget --
+    // the same one the draw bid trades away -- so a hand-threat estimate that
+    // ignores it prices Assassination as free and reads 4 skill into almost
+    // every hand. Absent means zero.
+    honorCost?: number;
     tag: CardTag;
     conflictTypes?: ('military' | 'political')[];
 }
@@ -49,7 +55,7 @@ const ANALYSIS: CardModel[] = [
     { id: 'doji-kuwanan', type: 'character', side: 'dynasty', fate: 5, mil: 5, pol: 4, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
     { id: 'kakita-blade', type: 'attachment', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 2, polBonus: 0, swing: 0, tag: 'buff' },
     { id: 'tengu-sensei', type: 'character', side: 'dynasty', fate: 5, mil: 4, pol: 2, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
-    { id: 'assassination', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
+    { id: 'assassination', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, honorCost: 3, tag: 'removal' },
     { id: 'daidoji-uji-2', type: 'character', side: 'dynasty', fate: 5, mil: 6, pol: 2, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
     { id: 'kakita-kaezin', type: 'character', side: 'dynasty', fate: 3, mil: 3, pol: 2, milBonus: 0, polBonus: 0, swing: 0, tag: 'body' },
     { id: 'kyuden-kakita', type: 'stronghold', side: 'province', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'utility' },
@@ -111,7 +117,7 @@ const ANALYSIS: CardModel[] = [
     { id: 'the-mountain-does-not-fall', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility' },
     { id: 'the-strength-of-the-mountain', type: 'event', side: 'conflict', fate: 3, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'utility' },
 
-    { id: 'banzai', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'buff', conflictTypes: ['military'] },
+    { id: 'banzai', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, honorCost: 1, tag: 'buff', conflictTypes: ['military'] },
     { id: 'void-fist', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
     { id: 'hurricane-punch', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'buff', conflictTypes: ['military'] },
     { id: 'swell-of-seafoam', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'honor' },
@@ -171,7 +177,7 @@ const ANALYSIS: CardModel[] = [
     { id: 'ujik-tactics', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'buff', conflictTypes: ['military'] },
     { id: 'spoils-of-war', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 0, tag: 'draw', conflictTypes: ['military'] },
     { id: 'flank-the-enemy', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
-    { id: 'captive-audience', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, tag: 'utility', conflictTypes: ['political'] },
+    { id: 'captive-audience', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 2, honorCost: 1, tag: 'utility', conflictTypes: ['political'] },
     { id: 'cavalry-reserves', type: 'event', side: 'conflict', fate: 3, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 6, tag: 'body', conflictTypes: ['military'] },
     { id: 'challenge-on-the-fields', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 3, tag: 'duel', conflictTypes: ['military'] },
 
@@ -240,7 +246,7 @@ const ANALYSIS: CardModel[] = [
     // lower than their printed numbers suggest.
     // Lose 2 honor: +4 military and untargetable. The biggest single pump in
     // the deck, and the protection is worth roughly another point.
-    { id: 'spreading-the-darkness', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 4, polBonus: 0, swing: 5, tag: 'buff', conflictTypes: ['military'] },
+    { id: 'spreading-the-darkness', type: 'event', side: 'conflict', fate: 0, mil: 0, pol: 0, milBonus: 4, polBonus: 0, swing: 5, honorCost: 2, tag: 'buff', conflictTypes: ['military'] },
     // Sacrifice a Crab; the opponent sacrifices a character of their choice.
     // They pick their worst, so the swing is a tower answer, not a removal.
     { id: 'way-of-the-crab', type: 'event', side: 'conflict', fate: 1, mil: 0, pol: 0, milBonus: 0, polBonus: 0, swing: 4, tag: 'removal' },
@@ -368,7 +374,25 @@ export interface HandThreatCard {
     id: string;
     value: number;
     fate: number;
+    // Honor the card spends. Charged against a separate budget from fate,
+    // because they are separate resources with separate loss conditions.
+    honor: number;
     kind: 'body' | 'trick';
+}
+
+/**
+ * Board facts a hand-threat estimate needs to know whether its cards can do
+ * anything at all. Absent means "assume everything works", which is the
+ * behaviour every caller had before.
+ *
+ * The requirement is derived from the model's existing `tag` rather than
+ * curated per card: a BUFF needs one of ours in the conflict to receive it, and
+ * removal/debuff/duel needs one of theirs to point at. A BODY needs neither —
+ * it is the thing that creates a participant.
+ */
+export interface HandThreatBoard {
+    friendlyParticipants: number;
+    enemyParticipants: number;
 }
 
 export interface HandThreatPlan {
@@ -434,9 +458,35 @@ export interface Omniscient {
 export function buildHandThreatMatrix(
     hand: KnownCard[],
     fate: number,
-    type: 'military' | 'political'
+    type: 'military' | 'political',
+    // Honor we can actually spend. Undefined keeps the old honor-blind
+    // behaviour; pass the player's honor (less whatever must be kept) to stop
+    // Assassination and friends being priced as free skill.
+    honorBudget?: number,
+    board?: HandThreatBoard
 ): HandThreatPlan[] {
     const maxBudget = Math.max(Math.floor(Number(fate) || 0), 0);
+    const honorAvailable = Number.isFinite(honorBudget as number)
+        ? Math.max(0, Math.floor(Number(honorBudget)))
+        : Number.POSITIVE_INFINITY;
+    const honorOf = (card: KnownCard) =>
+        Math.max(0, Math.floor(Number((card as any).honorCost) || 0));
+    // A card whose target cannot exist contributes nothing, however large its
+    // printed swing. Pricing those was what made a hand of unplayable tricks
+    // read as four free skill.
+    const usableNow = (card: KnownCard): boolean => {
+        if(!board) {
+            return true;
+        }
+        const tag = String((card as any).tag || '');
+        if(tag === 'buff') {
+            return Math.max(0, Number(board.friendlyParticipants) || 0) > 0;
+        }
+        if(tag === 'removal' || tag === 'debuff' || tag === 'duel') {
+            return Math.max(0, Number(board.enemyParticipants) || 0) > 0;
+        }
+        return true;
+    };
     const legalForType = (card: KnownCard) => !card.conflictTypes ||
         card.conflictTypes.length === 0 || card.conflictTypes.includes(type);
 
@@ -446,18 +496,20 @@ export function buildHandThreatMatrix(
             id: card.id,
             value: Math.max(type === 'military' ? card.mil : card.pol, 0),
             fate: Math.max(Math.floor(Number(card.fate) || 0), 0),
+            honor: honorOf(card),
             kind: 'body'
         }))
         .filter((entry) => entry.value > 0);
 
     const tricks = hand
-        .filter((card) => card.type !== 'character' && legalForType(card))
+        .filter((card) => card.type !== 'character' && legalForType(card) && usableNow(card))
         .map((card): HandThreatCard => {
             const buff = card.type === 'attachment' ? Math.max(type === 'military' ? card.milBonus : card.polBonus, 0) : 0;
             return {
                 id: card.id,
                 value: buff + card.swing,
                 fate: Math.max(Math.floor(Number(card.fate) || 0), 0),
+                honor: honorOf(card),
                 kind: 'trick'
             };
         })
@@ -474,6 +526,8 @@ export function buildHandThreatMatrix(
 
     const score = (cards: HandThreatCard[]) => cards.reduce((total, card) => total + card.value, 0);
     const spent = (cards: HandThreatCard[]) => cards.reduce((total, card) => total + card.fate, 0);
+    const honorSpent = (cards: HandThreatCard[]) =>
+        cards.reduce((total, card) => total + card.honor, 0);
     const better = (candidate: HandThreatCard[], current: HandThreatCard[]) => {
         const skillDiff = score(candidate) - score(current);
         if(skillDiff !== 0) {
@@ -493,7 +547,8 @@ export function buildHandThreatMatrix(
     return Array.from({ length: maxBudget + 1 }, (_, budget) => {
         let best: HandThreatCard[] = [];
         for(const plan of plans) {
-            if(spent(plan) <= budget && better(plan, best)) {
+            if(spent(plan) <= budget && honorSpent(plan) <= honorAvailable &&
+                better(plan, best)) {
                 best = plan;
             }
         }
@@ -513,9 +568,11 @@ export function buildHandThreatMatrix(
 export function estimateHandThreat(
     hand: KnownCard[],
     fate: number,
-    type: 'military' | 'political'
+    type: 'military' | 'political',
+    honorBudget?: number,
+    board?: HandThreatBoard
 ): { skill: number; detail: string } {
-    const matrix = buildHandThreatMatrix(hand, fate, type);
+    const matrix = buildHandThreatMatrix(hand, fate, type, honorBudget, board);
     const plan = matrix[matrix.length - 1];
     return { skill: plan.skill, detail: plan.detail };
 }

@@ -86,8 +86,13 @@ describe('DrawBidTactics', function() {
         }
     });
 
-    it('uses honor win/loss rails before conquest emergencies', function() {
-        const tactics = new DrawBidTactics(DEFAULT_DRAW_BID_PROFILE);
+    // The original rail order, kept as the `cardsOverHonor: false` contract.
+    // Every honor rail outranks conquest, including at honor totals where
+    // nobody can actually win or lose on the honor track.
+    it('uses honor win/loss rails before conquest emergencies without cardsOverHonor', function() {
+        const tactics = new DrawBidTactics({
+            ...DEFAULT_DRAW_BID_PROFILE, cardsOverHonor: false
+        });
         expect(tactics.analyze(context({ myHonor: 6, myBrokenProvinces: 3 })).reason)
             .toBe('protect-low-honor');
         expect(tactics.analyze(context({ opponentHonor: 6, opponentBrokenProvinces: 3 })).reason)
@@ -96,6 +101,23 @@ describe('DrawBidTactics', function() {
             .toBe('pursue-honor-victory');
         expect(tactics.analyze(context({ opponentHonor: 21, opponentBrokenProvinces: 3 })).reason)
             .toBe('deny-opponent-honor-victory');
+    });
+
+    // Shipped default: conquest outranks the two rails where honor is only a
+    // resource, and still yields to the two where it decides the game.
+    it('spends honor for cards near conquest, but never a live honor race', function() {
+        const tactics = new DrawBidTactics(DEFAULT_DRAW_BID_PROFILE);
+        expect(tactics.analyze(context({ myHonor: 6, myBrokenProvinces: 3 })).reason)
+            .toBe('defend-open-stronghold');
+        expect(tactics.analyze(context({ opponentHonor: 6, opponentBrokenProvinces: 3 })).reason)
+            .toBe('attack-open-stronghold');
+        expect(tactics.analyze(context({ myHonor: 22, myBrokenProvinces: 3 })).reason)
+            .toBe('pursue-honor-victory');
+        expect(tactics.analyze(context({ opponentHonor: 22, opponentBrokenProvinces: 3 })).reason)
+            .toBe('deny-opponent-honor-victory');
+        // Still protects a total a maximum bid could zero out.
+        expect(tactics.analyze(context({ myHonor: 4, myBrokenProvinces: 3 })).reason)
+            .toBe('protect-low-honor');
     });
 
     it('draws maximum cards when either stronghold is open and honor is safe', function() {
@@ -219,6 +241,67 @@ describe('DrawBidTactics', function() {
         const tactics = new DrawBidTactics(DEFAULT_DRAW_BID_PROFILE);
         expect(tactics.analyze(context({ roundNumber: 1, legalBids: [1, 3] })).selectedBid).toBe(3);
     });
+
+    // Honor is a RESOURCE until it is a live win condition. The shipped rails
+    // fire at 6 honor either way, where nobody is winning or losing on the
+    // honor track, and the deck then bids 1 and starves itself of the cards
+    // that convert a break. Measured over 17 games: 58 bids were made with a
+    // stronghold already open and the honor rails took 35 of them.
+    describe('cardsOverHonor', function() {
+        const tuned = (extra = {}) => new DrawBidTactics({
+            ...DEFAULT_DRAW_BID_PROFILE, cardsOverHonor: true, ...extra
+        });
+        const open = { myBrokenProvinces: 3, myHonor: 6, opponentHonor: 11 };
+
+        it('reverts to protect-low-honor when switched off', function() {
+            const result = new DrawBidTactics({
+                ...DEFAULT_DRAW_BID_PROFILE, cardsOverHonor: false
+            }).analyze(context(open));
+
+            expect(result.reason).toBe('protect-low-honor');
+            expect(result.selectedBid).toBe(1);
+        });
+
+        it('spends honor for cards once a stronghold is exposed', function() {
+            const result = tuned().analyze(context(open));
+
+            expect(result.reason).toBe('defend-open-stronghold');
+            expect(result.selectedBid).toBe(5);
+        });
+
+        it('holds when OUR honor win is genuinely close', function() {
+            expect(tuned().analyze(context({ ...open, myHonor: 22 })).reason)
+                .toBe('pursue-honor-victory');
+        });
+
+        it('holds when THEIR honor win is genuinely close', function() {
+            expect(tuned().analyze(context({ ...open, myHonor: 11, opponentHonor: 22 })).reason)
+                .toBe('deny-opponent-honor-victory');
+        });
+
+        it('holds the dishonor squeeze only when they are one push from zero', function() {
+            const squeeze = (honor) => context({ ...open, myHonor: 11, opponentHonor: honor });
+
+            expect(tuned().analyze(squeeze(2)).reason).toBe('pressure-opponent-dishonor');
+            // At 5 the shipped rail would still bid 1; they cannot be finished
+            // this round, so the cards are worth more.
+            expect(tuned().analyze(squeeze(5)).reason).toBe('defend-open-stronghold');
+        });
+
+        it('never bids into a lethal honor transfer', function() {
+            expect(tuned().analyze(context({ ...open, myHonor: 4 })).reason)
+                .toBe('protect-low-honor');
+        });
+
+        it('waits for an open stronghold unless told otherwise', function() {
+            const quiet = context({ myBrokenProvinces: 1, myHonor: 6, opponentHonor: 11 });
+
+            expect(tuned().analyze(quiet).reason).toBe('protect-low-honor');
+            expect(tuned({ cardsOverHonorRequiresOpenStronghold: false })
+                .analyze(quiet).reason).toBe('cards-over-honor');
+        });
+    });
+
 });
 
 describe('LegacyDrawBidTactics', function() {
@@ -376,4 +459,5 @@ describe('draw-bid live context', function() {
         expect(live.board.militarySkill).toBe(5);
         expect(live.board.politicalSkill).toBe(4);
     });
+
 });

@@ -10,6 +10,8 @@ import { dynastyAbilityValueOf } from './DynastyAbilityValue.js';
 import { DefenseCommitmentPolicy, recordDefenseSizing } from './DefenseCommitmentPolicy.js';
 import type { DefenseCommitmentMode } from './DefenseCommitmentPolicy';
 import { ConflictDeclarationPolicy, recordAxisChoice } from './ConflictDeclarationPolicy.js';
+import { ConflictTempoPolicy, recordTempoRead } from './ConflictTempoPolicy.js';
+import type { ConflictTempoRead } from './ConflictTempoPolicy';
 import { BotTelemetry } from './BotTelemetry.js';
 import type { DeckProfile } from './DeckProfiles';
 import type { FateAwareEconomyProfile } from './FateAwareEconomy';
@@ -422,6 +424,10 @@ class JigokuBotPolicy {
     // this every dynasty ranker reads `undefined` off a province card.
     private currentDynastyPrintedStats: Record<string, DynastyPrintedStats> | undefined;
     private currentOpponentProvinceDenial: Record<string, FaceupProvinceInfo> | undefined;
+    // Printed data for our own conflict hand. `cardPiles.hand` carries only the
+    // client summary (id/name/facedown) — no skills, cost or swing — so any
+    // hand-threat estimate built from THAT reads zero for every card.
+    private currentOwnConflictHand: KnownCard[] | undefined;
     // The value-model view of the conflict window currently being decided.
     // Undefined outside a conflict window, which is what keeps the veto below
     // from firing on stale board state in a dynasty or action window.
@@ -501,6 +507,8 @@ class JigokuBotPolicy {
     private wayOfPhoenixUsedThisPhase = false;
     private currentDuelBidProfile: DuelBidProfile = DEFAULT_PROFILE.duelBidding;
     private currentDeckProfile: DeckProfile = DEFAULT_PROFILE;
+    // Cleared at the top of every decide() call; see `conflictTempoRead`.
+    private tempoReadCache: Map<string, ConflictTempoRead> = new Map();
     // Experimental fate-aware copy state. Generic policy never enters these
     // branches: FateAwareJigokuBotPolicy opts in through the protected hook.
     private fateAwareRoundNumber = 0;
@@ -573,6 +581,7 @@ class JigokuBotPolicy {
         }
 
         this.recordReturnedFailedPlay(playerState, me);
+        this.tempoReadCache.clear();
         this.currentRoundNumber = context.roundNumber ?? this.currentRoundNumber;
         this.currentOmniscient = context.omniscient;
         this.currentOpponentParticipantCanBow = !!context.opponentParticipantCanBow;
@@ -581,6 +590,7 @@ class JigokuBotPolicy {
         this.currentCharacterPrintedCosts = context.characterPrintedCosts;
         this.currentDynastyPrintedStats = context.dynastyCharacterInfo;
         this.currentOpponentProvinceDenial = context.opponentProvinceDenial;
+        this.currentOwnConflictHand = context.ownConflictHand;
         this.currentConflictCosts = context.conflictCosts;
         this.currentDynastyDiscardBodies = context.dynastyDiscardBodies;
         this.currentHoldingStrengths = context.holdingStrengths;
@@ -2722,13 +2732,27 @@ class JigokuBotPolicy {
         const ringConditionalIds = new Set(shugenja && !this.currentRebirth
             ? shugenja.ringConditionalHandIds()
             : []);
-        const threat = (hand: KnownCard[] | undefined, fate: number) => {
+        // A hand's threat is capped by whether its cards have anything to point
+        // at. The participants of a conflict not yet declared are the READY
+        // bodies each side can send: with none of ours a buff has no bearer, and
+        // with none of theirs removal and debuffs have no target. Sides flip for
+        // the opponent's estimate — their buffs need THEIR bodies.
+        const readyCount = (player: any) => this.readyCharacters(player).length;
+        const boardFor = (side: 'self' | 'opponent') =>
+            this.currentDeckProfile.handThreatPreconditions === false
+                ? undefined
+                : side === 'self'
+                    ? { friendlyParticipants: readyCount(me), enemyParticipants: readyCount(opponent) }
+                    : { friendlyParticipants: readyCount(opponent), enemyParticipants: readyCount(me) };
+        const threat = (hand: KnownCard[] | undefined, fate: number,
+            side: 'self' | 'opponent' = 'self') => {
             const usable = hand && ringConditionalIds.size > 0
                 ? hand.filter((card) => !ringConditionalIds.has(String(card?.id || '')))
                 : hand;
+            const board = boardFor(side);
             return {
-                military: usable ? estimateHandThreat(usable, fate, 'military').skill : 0,
-                political: usable ? estimateHandThreat(usable, fate, 'political').skill : 0
+                military: usable ? estimateHandThreat(usable, fate, 'military', undefined, board).skill : 0,
+                political: usable ? estimateHandThreat(usable, fate, 'political', undefined, board).skill : 0
             };
         };
         const forcedAttackerUuids = selfCharacters.filter((card) => card.inConflict).map((card) => card.uuid);
@@ -2795,7 +2819,7 @@ class JigokuBotPolicy {
             // opponent can answer, so it keeps to conflicts it can actually win
             // on its strong axis. Gated by profile; default (0) is unchanged V1.
             opponentHandThreat: context.omniscient
-                ? threat(context.omniscient.oppHand, context.omniscient.oppFate)
+                ? threat(context.omniscient.oppHand, context.omniscient.oppFate, 'opponent')
                 : (() => {
                     const buffer = Number(profile.conflictPlanning?.fairDefenseBuffer) || 0;
                     if(buffer <= 0) {
@@ -3028,7 +3052,7 @@ class JigokuBotPolicy {
         // that tier here would clamp every ring to the same value. Its element
         // half is already the fate-free number this consumer wants.
         const planEffect = shugenja && !this.currentRebirth
-            ? shugenja.ringPlanEffectScore(ring, this.shugenjaRingPlanContext(me, opponent))
+            ? shugenja.ringPlanEffectScore(ring, this.shugenjaRingPlanContext(me, opponent, shugenja))
             : null;
         if(planEffect !== null) {
             return Math.max(0, Math.min(50, planEffect + this.ringElementBase(ring, me, opponent)));
@@ -3541,6 +3565,8 @@ class JigokuBotPolicy {
             // Final stronghold pushes override these caps and commit all eligible
             // attackers when a guaranteed break is not yet reachable.
             const keepHome = Math.max(1, profile.attackKeepHome);
+            const attackTempo = this.conflictTempoRead(
+                me, opponent, type === 'political' ? 'political' : 'military', 'attack');
             // V2 declaration sizing, part two: the same hopeless cap applied to
             // the generic (non-rollout) commitment path. Every mode below sends
             // the same number of bodies whether the break is one point away or
@@ -3552,6 +3578,15 @@ class JigokuBotPolicy {
                 unbreakableCommit = false;
             } else if(attackIsHopeless) {
                 unbreakableCommit = committed.length < hopelessCap;
+            } else if(attackTempo.attackSendAll) {
+                // Losing board, and we chose not to defend with the body V1
+                // keeps home — so it attacks instead of standing idle.
+                unbreakableCommit = committed.length < totalEligible;
+            } else if(attackTempo.attackKeepHome !== undefined) {
+                // Winning board running the ready loop: one body stays back to
+                // defend and be readied by the water ring.
+                unbreakableCommit = committed.length <
+                    Math.max(1, totalEligible - attackTempo.attackKeepHome);
             } else if(profile.attackCommitment === 'breakable-or-pressure') {
                 unbreakableCommit = committed.length < Math.max(1, totalEligible - keepHome);
             } else {
@@ -3669,10 +3704,20 @@ class JigokuBotPolicy {
                     card.type === 'character' && !card.bowed && (Number(card.fate) || 0) === 0).length;
                 const myBowed = this.myCharactersInPlay(me).some((card) => card.bowed);
                 const moreConflictsComing = (me?.stats?.conflictsRemaining ?? 0) >= 2;
+                // The ready half of the ring, priced from the body it would
+                // actually bring back. V1's flat 25 loses to earth's 40 no
+                // matter whose 5-skill body is lying bowed, and it never fires
+                // at all when the readied body's use is DEFENDING a conflict
+                // the opponent still has coming. The ring choice is made before
+                // the axis is, so take the better of the two.
+                const readyBonus = Math.max(
+                    this.conflictTempoRead(me, opponent, 'military', 'ring').readyRingBonus,
+                    this.conflictTempoRead(me, opponent, 'political', 'ring').readyRingBonus
+                );
                 if(bowTargets >= 2) {
-                    return 35;
+                    return 35 + readyBonus;
                 }
-                return myBowed && moreConflictsComing ? 25 : 8;
+                return (myBowed && moreConflictsComing ? 25 : 8) + readyBonus;
             }
             default:
                 return 15;
@@ -3771,7 +3816,7 @@ class JigokuBotPolicy {
         // injected arm — but its rings are steered by `RebirthTactics`, which
         // the early return below would silently discard.
         const ringPlan = shugenja && !this.currentRebirth
-            ? shugenja.ringPlanScore(ring, this.shugenjaRingPlanContext(me, opponent))
+            ? shugenja.ringPlanScore(ring, this.shugenjaRingPlanContext(me, opponent, shugenja))
             : null;
         if(ringPlan !== null) {
             return ringPlan + base;
@@ -3781,14 +3826,42 @@ class JigokuBotPolicy {
             attachmentBonus + rebirthBonus + lionDuelistBonus + craneHonorBonus + lionHonorBonus;
     }
 
-    private shugenjaRingPlanContext(me: any, opponent: any): ShugenjaRingPlanContext {
+    private shugenjaRingPlanContext(me: any, opponent: any,
+        shugenja: ShugenjaTactics | null): ShugenjaRingPlanContext {
+        const hand = me?.cardPiles?.hand || [];
+        const fate = Math.max(0, Number(me?.stats?.fate) || 0);
+        // Ring-blind hand skill: what we could add to this conflict no matter
+        // which ring wins the declaration. The ring-conditional bodies are
+        // removed because the element side already counts them; leaving them in
+        // would credit a water body to the baseline and cancel its own bonus.
+        const conditional = new Set(shugenja && !this.currentRebirth
+            ? shugenja.ringConditionalHandIds()
+            : []);
+        const known = this.currentOwnConflictHand || [];
+        const usable = conditional.size > 0
+            ? known.filter((card) => !conditional.has(String(card?.id || '')))
+            : known;
         return {
             myCharacters: this.myCharactersInPlay(me),
             opponentCharacters: opponent?.cardPiles?.cardsInPlay || [],
-            hand: me?.cardPiles?.hand || [],
-            fate: Math.max(0, Number(me?.stats?.fate) || 0),
+            hand,
+            fate,
             targetStrength: this.weakestLegalTargetStrength(opponent),
-            skillOf: (card: any, axis: 'military' | 'political') => this.skillValue(card, axis) || 0
+            skillOf: (card: any, axis: 'military' | 'political') => this.skillValue(card, axis) || 0,
+            baselineHandSkill: (() => {
+                // At declaration the participants are the ready bodies we are
+                // about to send, not the (zero) bodies currently in a conflict,
+                // so a buff has someone to land on and removal has someone to
+                // point at exactly when those sides are non-empty.
+                const board = {
+                    friendlyParticipants: this.readyCharacters(me).length,
+                    enemyParticipants: this.readyCharacters(opponent).length
+                };
+                return {
+                    military: estimateHandThreat(usable, fate, 'military', undefined, board).skill,
+                    political: estimateHandThreat(usable, fate, 'political', undefined, board).skill
+                };
+            })()
         };
     }
 
@@ -3811,6 +3884,48 @@ class JigokuBotPolicy {
                 return Number.isFinite(stat) ? stat : PROVINCE_TARGETING_DEFAULTS.unknownStrength;
             });
         return strengths.length > 0 ? Math.min(...strengths) : 0;
+    }
+
+    /**
+     * The declaration-time board read (`ConflictTempoPolicy`). Memoised per
+     * decide() call and per axis: `ringElementBase` asks once per ring, and the
+     * read is a pure function of a board that cannot change inside one prompt.
+     * Telemetry is emitted on the miss only, so a ring sort does not publish
+     * five copies of the same decision.
+     */
+    private conflictTempoRead(me: any, opponent: any, axis: 'military' | 'political',
+        site: string): ConflictTempoRead {
+        const key = `${axis}|${site}`;
+        const cached = this.tempoReadCache.get(key);
+        if(cached) {
+            return cached;
+        }
+        const toTempo = (card: any) => ({
+            military: Math.max(0, this.skillValue(card, 'military') || 0),
+            political: Math.max(0, this.skillValue(card, 'political') || 0),
+            bowed: !!card.bowed
+        });
+        const mine = this.myCharactersInPlay(me);
+        const theirs = this.myCharactersInPlay(opponent);
+        const input = {
+            axis,
+            myReady: mine.filter((card: any) => !card.bowed).map(toTempo),
+            myBowed: mine.filter((card: any) => !!card.bowed).map(toTempo),
+            theirReady: theirs.filter((card: any) => !card.bowed).map(toTempo),
+            myConflictsRemaining: Math.max(0, Number(me?.stats?.conflictsRemaining) || 0),
+            opponentConflictsRemaining: Math.max(0, Number(opponent?.stats?.conflictsRemaining) || 0),
+            isFirstPlayer: !!me?.firstPlayer,
+            myBrokenProvinces: this.brokenOuterProvinceCount(me),
+            opponentBrokenProvinces: this.brokenOuterProvinceCount(opponent)
+        };
+        const result = new ConflictTempoPolicy(this.currentDeckProfile.conflictTempo).read(input);
+        recordTempoRead(input, result, {
+            seat: String(me?.name || ''),
+            round: this.currentRoundNumber,
+            site
+        });
+        this.tempoReadCache.set(key, result);
+        return result;
     }
 
     // The side (military/political) to attack on. V1's rule is "wherever my own
@@ -4136,10 +4251,20 @@ class JigokuBotPolicy {
         // Size a one-trick reserve from what the attacker can still pay.
         const threatBuffer = this.defenseThreatBuffer(profile, me, opponent);
 
+        // A losing board would rather exchange provinces than bow bodies into a
+        // defense it cannot win: the province falls a conflict later anyway and
+        // the bodies are gone now. This is the board read (`ConflictTempoPolicy`)
+        // overriding what is otherwise a per-deck CONSTANT. Everything above
+        // still takes precedence, including the stronghold.
+        const tempo = opponent
+            ? this.conflictTempoRead(me, opponent, type === 'political' ? 'political' : 'military', 'defense')
+            : null;
         const defenseCommitment = profile.preventBreakAfterBrokenProvinces > 0 &&
             this.brokenOuterProvinceCount(me) < profile.preventBreakAfterBrokenProvinces
             ? 'win-only'
-            : profile.defenseCommitment;
+            : tempo?.defenseWinOnly
+                ? 'win-only'
+                : profile.defenseCommitment;
 
         // The body the sizing below would actually spend, so the policy can
         // price the extra point instead of assuming it costs one skill.
@@ -4603,6 +4728,17 @@ class JigokuBotPolicy {
             bidWarAware: this.currentDeckProfile.bidWarAware === true,
             myCharacters,
             opponentCharacters,
+            // Exact live printed cost for every character in play, BOTH sides
+            // (`characterNumberHint` walks player and opponent). The other
+            // context builder has carried this for a while; this one did not,
+            // so any playbook gate asking "is that character cheap enough to
+            // target" fell back to the curated card model, which covers 22% of
+            // dynasty characters. Assassination saw a legal kill in 4% of its
+            // evaluations as a result.
+            characterPrintedCosts: this.currentDeckProfile.liveCharacterCosts !== false
+                ? this.currentCharacterPrintedCosts
+                : undefined,
+            liveCharacterCosts: this.currentDeckProfile.liveCharacterCosts !== false,
             opponentHandSize: (opponent?.cardPiles?.hand || []).length,
             dynastyDiscard: me?.cardPiles?.dynastyDiscardPile || [],
             hand: me?.cardPiles?.hand || [],
@@ -7455,7 +7591,7 @@ class JigokuBotPolicy {
                 return null;
             }
             const cost = costOf(body);
-            const desiredAdditional = cost === 3 ? economy.bodyAdditionalFateForCostThree : 0;
+            const desiredAdditional = this.bodyAdditionalFate(economy, cost, me);
             const additionalCap = Math.max(0, Math.min(
                 fate - cost - dynamicFateReserve,
                 remainingBodyBudget - cost
@@ -7494,6 +7630,38 @@ class JigokuBotPolicy {
         return !economy.deferPassForDynastyActions && pass
             ? this.buttonDecision(pass, 'fate-aware-preserve-fate')
             : null;
+    }
+
+    /**
+     * Fate to put on a cheap dynasty body. V1's rule is the printed cost alone
+     * (cost 3 gets `bodyAdditionalFateForCostThree`, everything else nothing),
+     * which means most bodies are discarded in the fate phase of the round they
+     * were bought in.
+     *
+     * Two board facts change that, both from the owner's replays. The
+     * first-player token alternates unconditionally at regroup, so the SECOND
+     * player is buying for a round it will open — a body has to survive to be
+     * there. And once a stronghold is exposed the game rarely reaches another
+     * round at all, so persistence is a fate tax on the bodies that would
+     * fight for it.
+     *
+     * Both defaults reproduce V1 exactly: `bodyAdditionalFateSecondPlayer: 0`
+     * and no `bodyAdditionalFateEndgame`.
+     */
+    private bodyAdditionalFate(economy: FateAwareEconomyProfile, cost: number, me: any): number {
+        const base = cost === 3 ? economy.bodyAdditionalFateForCostThree : 0;
+        const endgame = economy.bodyAdditionalFateEndgame;
+        if(endgame !== undefined) {
+            const exposed = this.brokenOuterProvinceCount(me) >= economy.endgameBrokenProvinces ||
+                !!this.currentProvinceKnowledge?.opponentStrongholdAttackable;
+            if(exposed) {
+                return Math.max(0, endgame);
+            }
+        }
+        if(!me?.firstPlayer) {
+            return Math.max(base, Math.max(0, Number(economy.bodyAdditionalFateSecondPlayer) || 0));
+        }
+        return base;
     }
 
     // Own board cards whose Action is worth firing in the dynasty window

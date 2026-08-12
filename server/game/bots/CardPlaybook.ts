@@ -77,6 +77,7 @@ export interface PlaybookContext {
     omniscient?: boolean; // optional capability has exact opposing-hand information
     opponentHasAffordableBowEffect?: boolean; // exact omniscient hand threat after fate check
     characterPrintedCosts?: Record<string, number>; // exact live printed cost by in-play character UUID
+    liveCharacterCosts?: boolean; // false restores the curated-model-only targeting checks
     characterBaseMilitary?: Record<string, number>; // exact live base military by in-play character UUID
     participatingCharacterCounts?: { self: number; opponent: number }; // exact live count, including virtual participants
     cavalryCharacterUuids?: Record<string, true>; // live traits, including Utaku Battle Steed
@@ -629,9 +630,24 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetPreference: 'strongest',
         priority: 9,
         summary: 'discard an enemy cost-2-or-less character for 3 honor',
-        shouldPlay: (ctx) => ctx.honor >= 6 && ctx.opponentCharacters.some((card) => {
-            const model = card.id ? getCardModel(card.id) : undefined;
-            return !!model && model.fate <= 2;
+        // `characterPrintedCosts` is the exact live cost by UUID; the curated
+        // model is only the fallback. Requiring a model entry hid 74 of the 99
+        // legal targets in the deck pool from this check — the registry covers
+        // 22% of dynasty characters, so Brash Samurai, Kaiu Envoy, Silent
+        // Skirmisher and most other cheap bodies read as untargetable and the
+        // card was refused with a legal kill on the board.
+        // Honor floor relaxes on a stronghold conflict. Three honor is a real
+        // price mid-game, but on the conflict that decides conquest the honor
+        // has no later use — the deck owner plays it down to 4 there and keeps
+        // 6 everywhere else. `strongholdConflict` is the existing flag for
+        // "this conflict is at a stronghold, attacking or defending".
+        shouldPlay: (ctx) => ctx.honor >= (ctx.liveCharacterCosts && ctx.strongholdConflict ? 4 : 6) &&
+            ctx.opponentCharacters.some((card) => {
+            const live = card.uuid ? Number(ctx.characterPrintedCosts?.[card.uuid]) : NaN;
+            const cost = Number.isFinite(live)
+                ? live
+                : (card.id ? getCardModel(card.id)?.fate : undefined);
+            return Number.isFinite(cost as number) && (cost as number) <= 2;
         })
     }),
 

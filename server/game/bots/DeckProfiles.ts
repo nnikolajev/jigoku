@@ -19,6 +19,8 @@
 import type { DeckStrategy, HonorRaceLimits } from './CardPlaybook';
 import type { DefenseCommitmentConfig } from './DefenseCommitmentPolicy';
 import type { ConflictDeclarationConfig } from './ConflictDeclarationPolicy';
+import { DEFAULT_CONFLICT_TEMPO } from './ConflictTempoPolicy.js';
+import type { ConflictTempoConfig } from './ConflictTempoPolicy';
 import { DEFAULT_HONOR_RACE_LIMITS } from './CardPlaybook.js';
 import { DISHONOR_DEFAULTS } from './DishonorTactics.js';
 import type { DishonorProfile } from './DishonorTactics';
@@ -243,10 +245,30 @@ export interface DeckProfile {
     // opponent has ready to meet it, although that board is public. Empty = the
     // old own-board rule.
     conflictDeclaration: Partial<ConflictDeclarationConfig>;
+    // The declaration-time board read, owned by `ConflictTempoPolicy`: my ready
+    // bodies against theirs, conflicts remaining on both sides, the first-player
+    // token, and the best INDIVIDUAL body on each side. It decides whether to
+    // trade provinces or hold the board, whether the water ring is worth taking
+    // to ready a bowed body, and how many bodies an attack keeps home.
+    // `enabled: false` (the default) is V1 exactly.
+    conflictTempo: Partial<ConflictTempoConfig>;
 
     // Honor is a win condition on both ends — 0 loses, 25 wins — and the bot
     // pays honor costs (Assassination is 3) with no budget at all outside the
     // dishonor decks. Off keeps the per-card constants that were there before.
+    // Publish exact live printed costs of characters in play to the conflict
+    // card-play context, and relax Assassination's honor floor on a stronghold
+    // conflict. False restores the pre-2026-08-12 behaviour, where any playbook
+    // gate asking "is that character cheap enough to target" fell back to the
+    // curated card model -- which covers 22% of dynasty characters, so 74 of
+    // the 99 legal Assassination targets in the deck pool were invisible.
+    liveCharacterCosts: boolean;
+    // Cap a hand-threat estimate by whether its cards have a legal target: a
+    // buff needs one of our bodies in the conflict, removal/debuff/duel needs
+    // one of theirs. False restores the target-blind estimate, which priced a
+    // hand of unusable tricks as several free skill and fed that straight into
+    // attack sizing and defence.
+    handThreatPreconditions: boolean;
     honorRaceAware: boolean;
     honorRace: HonorRaceLimits;
 
@@ -627,6 +649,28 @@ export const DEFAULT_PROFILE: DeckProfile = {
     defenseThreatBufferIdleOnly: false,
     defenseBreakTie: false,
     defenseTuning: {},
+    // SHIPPED: the READY LOOP half only. V1's water score notices a bowed body
+    // but prices it flat at 25 against earth's 40 — so a 5-skill body lying
+    // bowed loses the ring exactly as a 1-skill one does — and it only fires
+    // while WE have another conflict, never when the readied body's use is
+    // DEFENDING one the opponent still has coming. This prices the ring from
+    // the body it actually brings back and counts the defensive use.
+    //
+    // Measured on the paired probe, both seats, 9 independent bases, 4896
+    // games: 82 flips to the change against 51 away, **+0.32pp, p=0.009**, and
+    // all four cells positive (+0.67 / +0.31 seat 0/1 on the search bases,
+    // +0.25 / +0.21 on six FRESH ones). It weakened on fresh bases rather than
+    // inverting. Causally per deck: Unicorn +1.56pp (p=0.049), Lion +1.39pp
+    // (p=0.039), Crab +1.22pp. Revert with `readyLoopEnabled: false`.
+    //
+    // The other three levers in this policy stay OFF and are documented
+    // negatives -- see docs/bot-conflict-rules-from-replays.md rule 13.
+    conflictTempo: {
+        ...DEFAULT_CONFLICT_TEMPO,
+        enabled: true,
+        readyLoopEnabled: true,
+        readyRingBonusPerSkill: 4
+    },
     // SHIPPED ON. V1 used to choose the conflict axis from its own ready board
     // alone, ignoring the opponent's board even though that board is public and
     // the fair `ringScore` already reads it. Weight 1 subtracts the opponent's
@@ -644,6 +688,8 @@ export const DEFAULT_PROFILE: DeckProfile = {
     // non-rush decks positive, none negative. Lion and Unicorn record exactly
     // zero flips because `forceMilitaryConflict` returns before the policy runs.
     conflictDeclaration: { opponentBoardWeight: 1 },
+    liveCharacterCosts: true,
+    handThreatPreconditions: true,
     honorRaceAware: false,
     honorRace: { ...DEFAULT_HONOR_RACE_LIMITS },
     dynastyPrintedStats: false,
@@ -681,6 +727,7 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         // every deck the SAME object, so one override would leak to all ten.
         defenseTuning: { ...DEFAULT_PROFILE.defenseTuning },
         conflictDeclaration: { ...DEFAULT_PROFILE.conflictDeclaration },
+        conflictTempo: { ...DEFAULT_PROFILE.conflictTempo },
         fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },
         boardAwareDynasty: {
             ...DEFAULT_PROFILE.boardAwareDynasty,

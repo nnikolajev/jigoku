@@ -1193,6 +1193,28 @@ threshold rather than a preference. It is still null.
 
 Both seats disagreed in sign in both runs (-0.48 / +4.81, then +1.92 / -2.16).
 
+**RETRACTION (2026-08-12): the two break-test rows above are void.** They
+measured a break test whose "could I break this WITHOUT the element" baseline
+counted only bodies already in play. It read the hand from
+`player.cardPiles.hand`, which in the policy's view is the CLIENT SUMMARY — id,
+name, facedown, and no skills, cost or swing — so `estimateHandThreat` returned
+zero for every card and the test believed the hand was empty. Any element adding
+any skill therefore read as converting a miss into a break, worth 4
+fate-equivalents = 4000 points against a ring-EFFECT base of 8-50.
+
+Found by the deck's owner reviewing an exported self-play game (Scorpion, base
+91001): the deck scored water 4000 for a Feral Ningyo it never played, took that
+ring over a void that would have stripped fate off Bayushi Shoju, broke the
+province with Shrine Maiden instead, and then declined to resolve the water ring.
+Fixed with `ShugenjaRingPlanContext.baselineHandSkill`, fed from
+`DecideContext.ownConflictHand` through `buildHandThreatMatrix` — which prices
+affordable bodies AND buffs for every deck, so the hand model is generic and only
+Feral Ningyo's free-on-water entry stays deck-specific. On the same shuffle the
+declaration flips to void and no phantom conversion survives in that game.
+
+Lesson for any future hand-aware rule: **`cardPiles.hand` is not a hand model.**
+It is a display summary. Use `ownConflictHand`.
+
 **Bug worth remembering:** the first break-aware revision short-circuited
 `elementValue` and returned the break bonus ALONE, which silently scored air at
 zero with Kudaka in play — the only element the break test can fire on in this
@@ -1206,3 +1228,40 @@ or break-conditional — points those flips anywhere. `auditCards` confirms the
 downstream cards all fire, so this is not an unconverted plan. The ring choice
 appears to trade one win path for another rather than add wins, and whatever
 binds this deck's win rate is somewhere else.
+
+## Declaration-time board read (`ConflictTempoPolicy`), 2026-08-12
+
+Four levers derived from the owner's own account of how he reads a conflict
+phase (`bot-conflict-rules-from-replays.md` rule 13). One shipped; three did
+not. Paired probe, both seats, bases 500001-502001 then 510001-515001.
+
+- **`tradeDefenseWinOnly`** — on a losing board, concede defenses that cannot be
+  won instead of bowing bodies into them. **−0.18pp, p=0.84** on a 5.82pp
+  ceiling, and NOT for want of reach: it diverges in 11656 windows across **94%
+  of games**, the widest of anything measured on this bot. This is the sixth
+  defensive lever to land flat or negative and the FIRST that defends LESS, so
+  the explanation that carried the other five ("a ready body is worth less than
+  the tempo spent keeping it") does not survive it either. Defense SIZING looks
+  like a free parameter in this engine in both directions. Do not propose
+  another one without a mechanism that is not sizing.
+- **`tradeAttackSendAll`** — send every eligible body on a losing board instead
+  of V1's all-but-one. **−0.49pp** (4 to / 12 away, p=0.077), ceiling 0.98pp.
+- **`bodyAdditionalFateSecondPlayer: 1`** — the second player buys bodies that
+  persist, because the first-player token alternates and it opens the next
+  conflict phase. **+0.01pp, p=1.00** over 4896 games. Three of four cells
+  positive and the fourth (seat 1, fresh bases, 19 to / 32 away) cancelled them
+  exactly. Reaches only 6 of 17 decks; eleven show zero decided games.
+  **SHIPPED ANYWAY at the owner's request** — a null, not a negative, and he
+  judges the games by hand in live play. Do not treat it as a measured win.
+- **`bodyAdditionalFateEndgame: 0`** — unmeasurable, not rejected: −0.12pp on a
+  **0.49pp** ceiling, 1.0% of games flipped.
+
+**`controlAttackKeepHome: 1` was a BROKEN ARM, not a null.** It produced games
+bit-identical to the adjacent arm while computing a keep-home in 822 windows,
+because V1's default `all-but-one` sizing already is `Math.max(1, totalEligible
+- 1)` — the branch was degenerate with the code it replaced. A null arm cannot
+catch this (it moves both seats together). Diff a new arm against the ADJACENT
+arm as well as the control.
+
+Shipped from the same policy: the water **ready loop**, +0.32pp / p=0.009 over
+4896 games. See `bot-conflict-rules-from-replays.md`.

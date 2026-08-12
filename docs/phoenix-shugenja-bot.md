@@ -132,25 +132,82 @@ The plan is skipped when `RebirthTactics` is active. The Fushicho rotation runs
 Kyuden Isawa too and so resolves to the same archetype, but its rings are
 steered by its own `ringBonus`, which this path would discard.
 
-Disabled by default, and `refactorIdentity.js` hashed identically
-(`cfa9c47963546588`) before and after the change, so V1's shipped behavior is
-untouched until an arm turns it on.
+**SHIPPED 2026-08-12** for this deck only, as `ringPlanEnabled` +
+`ringPlanBreakAware` on the `phoenix-shugenja-vassal-fields` override. The
+Fushicho rotation and every other deck keep their own ring logic.
 
-**Measured null — do not ship it as it stands.** Pooled over 39 fresh bases and
-both seats, decided games split 167 to / 168 away (n=335, p=0.96). It is not
-inert: it flips 25% of this deck's games, takes water 42% more often and
-declines a larger fate pile 159 times per ~1000 declarations. A linear value per
-payoff simply is not the rule that beats fate-first here.
+Measurement history matters here, because two of the three results below were
+taken against a BROKEN implementation:
 
-Three further structures were built on top and are also null — giving the ring
-to the phase rollout (`conflictPlanning.applyRingPlan`), publishing the
-element-gated resources the rollout cannot see
-(`ringPlanPlannerResources` -> `selfRingHandThreat` / `selfRingCovert`), and the
-faithful threshold rule (`ringPlanBreakAware`: an element jumps the fate tier
-only when its free bodies and Covert lockout convert a miss into a break).
-Six arms, ~1000 decided games, nothing points anywhere. Every flag defaults
-off. Full census, per-seat splits and the conversion-vs-economy bug are in
-`bot-v2-rejected-experiments.md`.
+1. **Flat fate-equivalents: null.** 39 fresh bases, both seats, 167 to / 168
+   away (n=335, p=0.96). It flipped 25% of the deck's games, took water 42%
+   more often, and declined a larger fate pile 159 times per ~1000
+   declarations. A linear value per payoff is not the rule that beats
+   fate-first.
+2. **Rollout-owned ring and published resources: null.**
+   `conflictPlanning.applyRingPlan` drifts to void on the rollout's own scale;
+   `ringPlanPlannerResources` is 87.5% inert alone because a fate-first choice
+   never contests water. Both stay off.
+3. **`ringPlanBreakAware` — the faithful threshold rule.** Measured 105 to /
+   106 away and shipped as a fidelity choice. **That measurement is void.** The
+   break test's "could I break this WITHOUT the element" baseline counted only
+   bodies already in play, because it read the hand from `cardPiles.hand`, the
+   client summary, which carries no skills or costs. Every card in hand priced
+   at zero, so any element adding any skill read as decisive.
+
+The live consequence, caught by the deck's owner reviewing an exported game
+against Scorpion: the deck scored water at 4000 (four fate-equivalents) for a
+Feral Ningyo it then did not play, took the ring over a void that would have
+stripped fate off Bayushi Shoju, broke the province with Shrine Maiden instead,
+and **declined to resolve the water ring** — a ring bought for nothing.
+
+Fixed by giving the break test the same hand model the rest of the bot uses:
+`ShugenjaRingPlanContext.baselineHandSkill`, fed from
+`DecideContext.ownConflictHand` through `buildHandThreatMatrix`, which prices
+affordable BODIES and buffs for any deck. Only Feral Ningyo's free-on-water
+entry stays deck-specific. On the same shuffle the deck now takes void, and the
+phantom conversions are gone from every declaration in that game.
+
+### Re-measured after the fix
+
+Paired probe, `ONLY=PhoenixShugenja`, arm = the plan turned OFF, so a positive
+number here is the plan COSTING games. The null arm (plan injected at its
+shipped value) scored 0 flips on 192 games, 100% bit-identical, which is what
+validates the double-nested `deckProfileByArchetype.shugenja.shugenja`
+injection path — a single-nested arm sets a top-level field nothing reads and
+measures a flat zero.
+
+| bases | seat | decided | OFF | ON | plan | p |
+|---|---|---|---|---|---|---|
+| 320001-331001 | 0 | 48 | 29 | 19 | -5.21pp | 0.193 |
+| 320001-331001 | 1 | 49 | 25 | 24 | -0.52pp | 1.000 |
+| 340001-375001 | 0 | 144 | 80 | 64 | -2.78pp | 0.211 |
+| 340001-375001 | 1 | 139 | 57 | 82 | **+4.34pp** | **0.041** |
+| **pooled** | both | **380** | 191 | 189 | **-0.13pp** | **0.959** |
+
+**Null: -0.13pp over 380 decided games, 48 bases, both seats.** The plan costs
+nothing and gains nothing.
+
+Read the seat-1 row on the fresh bases before trusting any single-seat probe
+again: **+4.34pp at p=0.041**, which in isolation looks like a shippable result
+and is entirely an artifact. The two seat-0 cells agreeing with each other is
+NOT both seats agreeing — that mistake produced an interim "-2.9pp, sign
+consistent" reading here that the fourth cell erased.
+
+**Kept shipped**, on the same fidelity grounds it was shipped on, now resting on
+a valid measurement: neutral win rate, and on the declarations its owner
+reviewed it picks void to strip Bayushi Shoju's fate rather than water for
+nothing. A neutral change that reasons correctly is worth keeping; a neutral
+change that reasons wrongly is not, which is why the pre-fix version was not
+defensible and this one is.
+
+**Known remaining defect — the scale.** `ringPlanScore` is
+`(fate + element) * ringPlanFateScale` with the scale at 1000, added to V1's
+element base, where the entire ring-EFFECT range is 8-50. A legitimate
+conversion is therefore worth 4000 and no ring effect can outbid it. Since the
+baseline fix, conversions fire rarely, which is the likeliest reason this
+measures null rather than negative. Making the element term commensurate with
+the effect base is the next thing to try if the plan is ever meant to GAIN.
 
 ## Implementation
 

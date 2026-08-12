@@ -157,6 +157,47 @@ describe('StrongholdDefenseTactics', function() {
         expect(result.forceAllAttackers).toBe(true);
     });
 
+    // Three provinces each is a race, and the first-player token alternates
+    // unconditionally, so the side that still faces an enemy conflict wins by
+    // surviving the round rather than by spending its board on the race.
+    describe('raceRequiresSafety', function() {
+        const RACE = { opponentStrongholdExposed: true };
+
+        it('is off by default, so the race stays unconditional', function() {
+            expect(plan(RACE).mode).toBe('last-conflict-all-in');
+        });
+
+        it('holds back when the opponent still has a conflict that can break us', function() {
+            // Strength 5 against a ready 6: unlike the default fixture's 7,
+            // this stronghold does NOT survive an undefended counterattack.
+            const result = plan({ ...RACE, strongholdProvinceStrength: 5 },
+                { raceRequiresSafety: true });
+
+            expect(result.mode).not.toBe('last-conflict-all-in');
+            expect(result.forceAllAttackers).toBe(false);
+            expect(result.reserveUuids.length).toBeGreaterThan(0);
+        });
+
+        it('still races once the opponent has no conflict left', function() {
+            const result = plan({ ...RACE, opponentConflictsRemaining: 0 },
+                { raceRequiresSafety: true });
+
+            expect(result.mode).toBe('last-conflict-all-in');
+            expect(result.forceAllAttackers).toBe(true);
+        });
+
+        it('still races when their whole board cannot break the stronghold', function() {
+            const result = plan({
+                ...RACE,
+                strongholdProvinceStrength: 20,
+                opponentReady: [card('weak', 1, 1)]
+            }, { raceRequiresSafety: true });
+
+            expect(result.mode).toBe('last-conflict-all-in');
+            expect(result.reason).toBe('stronghold-race-all-in');
+        });
+    });
+
     it('does not trust a single stay-home defender against covert', function() {
         const result = plan({ opponentReady: [card('covert', 2, 2, true)] });
         expect(result.mode).toBe('hold-all');

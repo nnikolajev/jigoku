@@ -33,6 +33,9 @@ export interface DrawBidContext {
     handCardCosts: number[];
     board: DrawBidBoardState;
     legalBids?: number[];
+    // Does the opponent's KNOWN decklist have an honor or dishonor plan?
+    // L5R decklists are public, so this is fair information.
+    opponentHonorPlan?: boolean;
 }
 
 export interface DrawBidProfile {
@@ -46,6 +49,38 @@ export interface DrawBidProfile {
     honorWinSetupThreshold: number;
     opponentHonorThreatThreshold: number;
     strongholdEmergencyBid: number;
+    // CARDS OVER HONOR. Honor is a resource, not a score, until it is a live
+    // win condition — so the shipped rails fire far too early. They trigger at
+    // 6 honor either way, where nobody is winning or losing on the honor track
+    // yet, and a deck then bids 1 and starves itself of the cards that convert
+    // a break. Measured over 17 games: 58 bids were made with a stronghold
+    // already open and the honor rails took 35 of them.
+    //
+    // With this on, each honor rail holds only at the number where honor can
+    // actually END the game, and everything else bids for cards.
+    cardsOverHonor: boolean;
+    // Our own honor victory is genuinely close (win is 25).
+    cardsOverHonorMyWinFloor: number;
+    // Theirs is, so denying it is worth more than cards.
+    cardsOverHonorOpponentWinFloor: number;
+    // Their dishonor loss (at 0) is one push away, so the squeeze is real.
+    cardsOverHonorDishonorFloor: number;
+    // Never bid into a lethal transfer: the most a maximum bid can hand over is
+    // `strongholdEmergencyBid - lowBid`, so holding that much makes it safe.
+    cardsOverHonorSafetyFloor: number;
+    // Restrict the whole thing to boards where a stronghold is already exposed,
+    // which is the clearest signal that conquest decides the game before honor.
+    cardsOverHonorRequiresOpenStronghold: boolean;
+    // HOW MUCH to bid, rather than always jamming the maximum. The transfer is
+    // the DIFFERENCE between the bids, so the cost of bidding is set by what
+    // the opponent is about to bid, not by our own number: bidding 3 into their
+    // 1 costs 2 honor and buys 3 cards. Budget is how much honor we will hand
+    // over for that.
+    cardsOverHonorTransferBudget: number;
+    // Against a deck that can actually win on the honor track, every point we
+    // hand over is ammunition. Used in place of the budget above when the
+    // opponent's known decklist has an honor or dishonor plan.
+    cardsOverHonorConservativeBudget: number;
     forceLowAfterOpening: boolean;
     ringFateConversion: number;
     ringFateCap: number;
@@ -108,6 +143,20 @@ export const DEFAULT_DRAW_BID_PROFILE: DrawBidProfile = {
     honorWinSetupThreshold: 19,
     opponentHonorThreatThreshold: 21,
     strongholdEmergencyBid: 5,
+    // SHIPPED 2026-08-12 at the deck owner's request for live play, KNOWING it
+    // measures negative in self-play: -1.65pp gated (p=0.0055) and -8.58pp
+    // unrestricted (p=1.4e-13), both seats agreeing. The rationale is that
+    // self-play measures a bot that does not convert the cards it buys, and he
+    // wants to judge the resulting games by hand. Set false to revert.
+    // See docs/bot-conflict-rules-from-replays.md rule 9.
+    cardsOverHonor: true,
+    cardsOverHonorMyWinFloor: 22,
+    cardsOverHonorOpponentWinFloor: 22,
+    cardsOverHonorDishonorFloor: 2,
+    cardsOverHonorSafetyFloor: 5,
+    cardsOverHonorRequiresOpenStronghold: true,
+    cardsOverHonorTransferBudget: 2,
+    cardsOverHonorConservativeBudget: 1,
     forceLowAfterOpening: false,
     // Ring fate is not guaranteed, so value only a fraction and cap how much
     // future income can excuse an aggressive draw.
@@ -169,6 +218,8 @@ export const CARD_ENGINE_DRAW_BID_PROFILE: DrawBidProfile = {
 export const FATE_ECONOMY_DRAW_BID_PROFILE: DrawBidProfile = {
     ...DEFAULT_DRAW_BID_PROFILE,
     objective: 'balanced',
+    // Bidding low is worth +4.58pp here (p=1.6e-9). Do not reverse it.
+    cardsOverHonor: false,
     minimumRoutineBid: 1,
     // Above the honor track's practical ceiling, so the low bid is effectively
     // unconditional. Measured as a monotone sweep: 6 -> +0.99pp, 9 -> +1.84pp,
@@ -179,6 +230,8 @@ export const FATE_ECONOMY_DRAW_BID_PROFILE: DrawBidProfile = {
 export const HONOR_DRAW_BID_PROFILE: DrawBidProfile = {
     ...DEFAULT_DRAW_BID_PROFILE,
     objective: 'honor',
+    // This deck WINS on the honor track, so honor is not a resource to spend.
+    cardsOverHonor: false,
     honorPlanSelfThreshold: 15,
     honorOpportunityPenalty: 3
 };
@@ -186,6 +239,8 @@ export const HONOR_DRAW_BID_PROFILE: DrawBidProfile = {
 export const DISHONOR_DRAW_BID_PROFILE: DrawBidProfile = {
     ...DEFAULT_DRAW_BID_PROFILE,
     objective: 'dishonor',
+    // Bidding up hands the opponent the honor this deck is trying to strip.
+    cardsOverHonor: false,
     forceLowAfterOpening: true
 };
 
@@ -275,6 +330,38 @@ export class DrawBidTactics extends BaseDrawBidTactics {
         const round = Math.max(1, Math.trunc(finite(context.roundNumber, 1)));
         if(round <= 1) {
             return this.fixedAnalysis(context, this.profile.openingBid, 'opening-max-cards');
+        }
+
+        // Cards over honor: keep every honor rail, but only at the numbers
+        // where honor can still decide the game. Below those, honor is spent
+        // for cards like any other resource.
+        const strongholdOpen = context.myBrokenProvinces >= 3 ||
+            context.opponentBrokenProvinces >= 3;
+        const cardsFirst = this.profile.cardsOverHonor &&
+            (strongholdOpen || !this.profile.cardsOverHonorRequiresOpenStronghold) &&
+            context.myHonor >= this.profile.cardsOverHonorSafetyFloor &&
+            context.myHonor < this.profile.cardsOverHonorMyWinFloor &&
+            context.opponentHonor < this.profile.cardsOverHonorOpponentWinFloor &&
+            context.opponentHonor > this.profile.cardsOverHonorDishonorFloor;
+        if(cardsFirst) {
+            // Only the DIFFERENCE transfers, so match their expected bid for
+            // free and pay the budget on top of it — never the maximum by
+            // reflex. Capped by the honor we can spare above the safety floor.
+            const budget = context.opponentHonorPlan
+                ? this.profile.cardsOverHonorConservativeBudget
+                : this.profile.cardsOverHonorTransferBudget;
+            const affordable = Math.max(0, context.myHonor - this.profile.cardsOverHonorSafetyFloor);
+            const bid = clamp(
+                this.predictOpponentBid(context) + Math.min(budget, affordable),
+                this.profile.minimumRoutineBid,
+                this.profile.strongholdEmergencyBid
+            );
+            return this.fixedAnalysis(context, bid,
+                context.myBrokenProvinces >= 3
+                    ? 'defend-open-stronghold'
+                    : context.opponentBrokenProvinces >= 3
+                        ? 'attack-open-stronghold'
+                        : 'cards-over-honor');
         }
 
         // Honor rails outrank conquest urgency. Bidding low can win immediately

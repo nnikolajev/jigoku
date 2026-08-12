@@ -734,7 +734,8 @@ class JigokuBotController {
             'mulligan', 'honorRace', 'unicornReveal', 'provinceRevealResponse',
             'bidWar', 'lionDuelist', 'crabSacrifice', 'craneHonor', 'lionHonor',
             'strongholdBow', 'conflictRecursion', 'dynastyEvents', 'saveFatePass',
-            'aggressiveSpend', 'provinceTargeting'] as const) {
+            'aggressiveSpend', 'provinceTargeting', 'conflictDeckSafety',
+            'conflictTempo'] as const) {
             if(sharedTop?.[key] || perDeck[key]) {
                 merged[key] = JigokuBotController.mergeTacticsProfile(
                     baseAny[key], sharedTop?.[key], perDeck[key]
@@ -1746,6 +1747,28 @@ class JigokuBotController {
         return Object.keys(costs).length > 0 ? costs : undefined;
     }
 
+    // Does the opponent's deck actually win on the honor track? L5R decklists
+    // are public, so this reuses the same strategy detection the bot applies to
+    // its own deck rather than guessing from the honor total. Used to bid more
+    // conservatively: every point handed to an honor or dishonor deck is
+    // ammunition, while against a conquest deck it is just a resource.
+    private opponentHasHonorPlan(me: Player): boolean {
+        const opp = (me as any).opponent as Player | undefined;
+        if(!opp) {
+            return false;
+        }
+        const allCards: any[] = (this.game as any).allCards || [];
+        const ids = allCards
+            .filter((card: any) => card?.owner === opp && card?.cardData?.id)
+            .map((card: any) => String(card.cardData.id));
+        if(ids.length === 0) {
+            return false;
+        }
+        const strategy = deriveDeckStrategy(ids) as any;
+        return !!(strategy.dishonor || strategy.craneHonor || strategy.lionHonor ||
+            strategy.bidWar);
+    }
+
     private drawBidContext(player: Player): DrawBidContext {
         const opponent = (player as any).opponent as Player | undefined;
         const allCards: any[] = (this.game as any).allCards || [];
@@ -1791,6 +1814,7 @@ class JigokuBotController {
 
         return {
             roundNumber: (this.game as any).roundNumber,
+            opponentHonorPlan: this.opponentHasHonorPlan(player),
             myHonor: Number((player as any).honor) || 0,
             opponentHonor: Number((opponent as any)?.honor) || 0,
             myHandCount: hand.length,

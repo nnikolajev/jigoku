@@ -57,6 +57,15 @@ overrides.
   - A 4+ cost character receives up to 2 additional fate, then the bot passes.
   - Cheap-character spending is capped at 4 fate per round.
   - If two characters already have fate, the cheap-character cap drops to 3.
+- **Second player buys bodies that persist.** A cheap body bought with no fate
+  is discarded in that same round's fate phase, and `RegroupPhase.passFirstPlayer`
+  alternates the token unconditionally — so while the bot does NOT hold the
+  token it is buying for a round it will OPEN, and the body has to survive to be
+  there. `bodyAdditionalFateSecondPlayer` (shipped at 1, field-wide) is a floor
+  on a cheap body's fate in that case. It measured a clean **null** (+0.01pp,
+  p=1.00 over 4896 games) and ships on the owner's call for live play, not as a
+  measured win; `bodyAdditionalFateEndgame` is the unshipped other half. See
+  [`bot-conflict-tempo.md`](bot-conflict-tempo.md).
 - Passing after the planned purchase preserves fate and seeks the first-pass
   dynasty bonus.
 - Any unclaimed ring holding at least 1 fate gets the same overriding priority

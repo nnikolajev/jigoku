@@ -113,6 +113,13 @@ export interface ShugenjaRingPlanContext {
     targetStrength?: number;
     /** Live skill of a card on an axis, so the tactics never parse summaries. */
     skillOf?: (card: any, axis: 'military' | 'political') => number;
+    /** Skill the RING-BLIND hand can already add to this conflict. The break
+     *  test asks whether an element turns a miss into a break, so the "miss"
+     *  baseline has to include the pumps and bodies we could play regardless of
+     *  which ring is contested — otherwise every element that adds any skill at
+     *  all reads as decisive. Excludes the ring-conditional cards themselves,
+     *  which are counted on the element side. */
+    baselineHandSkill?: { military: number; political: number };
 }
 
 /** Fate-equivalents a ring is worth, split so the planner can drop the fate half. */
@@ -379,7 +386,8 @@ export class ShugenjaTactics {
         const theirs = ready(context.opponentCharacters || []);
 
         for(const axis of ['military', 'political'] as const) {
-            const attack = mine.reduce((sum, card) => sum + Math.max(0, skillOf(card, axis)), 0);
+            const attack = mine.reduce((sum, card) => sum + Math.max(0, skillOf(card, axis)), 0) +
+                Math.max(0, Number(context.baselineHandSkill?.[axis]) || 0);
             const defenceSkills = theirs
                 .map((card) => Math.max(0, skillOf(card, axis)))
                 .sort((left, right) => right - left);

@@ -6,6 +6,10 @@ export interface ConflictDeckSafetyProfile {
     forcedHonorLossByOpponentCardId: Record<string, number>;
     conflictDeckExhaustionHonorLoss: number;
     avoidOptionalDrawAtLethalExhaustionHonor: boolean;
+    // Count a forced-draw card that is already on the board during the
+    // conflict phase, whatever its fate. False keeps the shipped rule,
+    // which only counts it at 2+ fate outside the draw phase.
+    countForcedDrawsInConflictPhase: boolean;
 }
 
 export interface VisibleOpponentCard {
@@ -49,7 +53,8 @@ export const DEFAULT_CONFLICT_DECK_SAFETY: ConflictDeckSafetyProfile = {
         'bayushi-shoju-2': 1
     },
     conflictDeckExhaustionHonorLoss: 5,
-    avoidOptionalDrawAtLethalExhaustionHonor: true
+    avoidOptionalDrawAtLethalExhaustionHonor: true,
+    countForcedDrawsInConflictPhase: false
 };
 
 export class ConflictDeckSafetyTactics {
@@ -71,7 +76,17 @@ export class ConflictDeckSafetyTactics {
             // During the current draw phase the visible character will reach
             // the conflict phase. From conflict/fate onward it needs 2+ fate
             // to survive fate removal and force the same draw next round.
-            const persistsToNextConflict = phase === 'draw' || (Number(card?.fate) || 0) >= 2;
+            //
+            // `countForcedDrawsInConflictPhase` covers the case that test gets
+            // wrong: a character already on the board during the CONFLICT phase
+            // does not need to survive to the next round, because its ability
+            // fires in the phase we are standing in. Measured live: Bayushi
+            // Shoju sat at 1 fate and forced three draws (six cards) across one
+            // game while the reserve counted it as zero, and the deck ran out.
+            const firesThisPhase = this.profile.countForcedDrawsInConflictPhase &&
+                phase === 'conflict';
+            const persistsToNextConflict = phase === 'draw' || firesThisPhase ||
+                (Number(card?.fate) || 0) >= 2;
             if(!persistsToNextConflict) {
                 continue;
             }

@@ -26,6 +26,48 @@ describe('ConflictDeckSafetyTactics', function() {
         expect(result.reason).toBe('conflict-deck-safety-skip-lethal-exhaustion');
     });
 
+    // The shipped persistence test asks whether a forced-draw card survives to
+    // the NEXT round, which is the wrong question during the conflict phase:
+    // the ability fires in the phase we are standing in. Measured live, Bayushi
+    // Shoju sat at 1 fate and forced three draws in one game while the reserve
+    // counted him as zero.
+    describe('countForcedDrawsInConflictPhase', function() {
+        const shoju = [{ id: 'bayushi-shoju-2', fate: 1 }];
+        const query = {
+            remainingConflictCards: 4,
+            optionalCardsConsumed: 2,
+            ownHonor: 6,
+            phase: 'conflict',
+            visibleOpponentCards: shoju
+        };
+
+        it('is off by default: a 1-fate Shoju reserves nothing', function() {
+            const result = tactics.analyzeOptionalConsumption(query);
+
+            expect(result.reservedFutureDraws).toBe(1);
+            expect(result.shouldConsume).toBe(true);
+        });
+
+        it('reserves for a 1-fate Shoju already on the board when enabled', function() {
+            const result = new ConflictDeckSafetyTactics({
+                ...DEFAULT_CONFLICT_DECK_SAFETY,
+                countForcedDrawsInConflictPhase: true
+            }).analyzeOptionalConsumption(query);
+
+            expect(result.reservedFutureDraws).toBe(3);
+            expect(result.shouldConsume).toBe(false);
+        });
+
+        it('does not change the fate phase, where surviving the round is the right test', function() {
+            const fatePhase = { ...query, phase: 'fate' };
+
+            expect(new ConflictDeckSafetyTactics({
+                ...DEFAULT_CONFLICT_DECK_SAFETY,
+                countForcedDrawsInConflictPhase: true
+            }).analyzeOptionalConsumption(fatePhase).reservedFutureDraws).toBe(1);
+        });
+    });
+
     it('takes the same optional draw when the conflict deck safely covers public future draws', function() {
         expect(tactics.shouldConsumeOptionalCards({
             remainingConflictCards: 16,

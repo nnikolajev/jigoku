@@ -140,7 +140,11 @@ function buildLog(result, options, names) {
             winner: result.winner,
             date: new Date().toISOString(),
             players: record.players,
-            downloadedBy: 'exportReplay.js',
+            // MUST be a player name. `GameReplay` passes it to the board as the
+            // viewing user, and a name that matches no player puts the board in
+            // spectator mode, where `getPlayerHand` renders nothing — leaving
+            // only the opponent's hand panel on screen.
+            downloadedBy: record.viewer,
             // Not part of the client's format; harmless extra the viewer
             // ignores, and it is what makes an exported game reproducible.
             selfplay: {

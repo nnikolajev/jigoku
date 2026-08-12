@@ -1011,6 +1011,31 @@ describe('Phoenix Shugenja tactics', function() {
                 expect(breakOn().ringPlanValue(ring('water'), ctx).element).toBe(0);
             });
 
+            // REGRESSION. The baseline counted only bodies already in play, so
+            // any pump or body still in hand was invisible and the test read a
+            // break we could already reach as a "miss the element converts".
+            // Live consequence: vs Scorpion the deck scored water 4000 for a
+            // Feral Ningyo it never played, took the ring over a void that
+            // would have stripped fate off Bayushi Shoju, then declined to
+            // resolve water at all.
+            it('pays nothing when the hand alone already reaches the break', function() {
+                const ctx = context({
+                    myCharacters: [body('isawa-ujina', 4, 4)],
+                    opponentCharacters: [],
+                    hand: [character('feral-ningyo'), character('shrine-maiden')],
+                    targetStrength: 5,
+                    // Shrine Maiden is a one-fate body from hand: it closes the
+                    // gap on its own, whichever ring is contested.
+                    baselineHandSkill: { military: 1, political: 1 },
+                    skillOf
+                });
+                expect(breakOn().ringPlanValue(ring('water'), ctx).element).toBe(0);
+
+                // Without that hand the same board IS a miss the water bodies convert.
+                const blind = { ...ctx, baselineHandSkill: { military: 0, political: 0 } };
+                expect(breakOn().ringPlanValue(ring('water'), blind).element).toBe(4);
+            });
+
             it('pays nothing when even the free bodies fall short', function() {
                 const ctx = context({
                     myCharacters: [body('kudaka', 1, 1)],

@@ -371,6 +371,21 @@ export interface ConflictPhasePlannerInput {
     opponentBrokenProvinces: number;
     actor?: 'self' | 'opponent';
     selfHandThreat?: Partial<ConflictPlannerHandThreat>;
+    /**
+     * Own hand skill that is live ONLY while a given ring is contested, keyed
+     * by element — Feral Ningyo enters play free in a water conflict and in no
+     * other. Kept separate from `selfHandThreat` because that number is
+     * ring-blind, and adding a water-only body to it would credit it to every
+     * declaration. Absent (the default) leaves the rollout unchanged.
+     */
+    selfRingHandThreat?: Record<string, Partial<ConflictPlannerHandThreat>>;
+    /**
+     * Enemy bodies we can lock out of a conflict on a given ring. The `covert`
+     * flag on a character is only set once the qualifying conflict is already
+     * running, so a grant that depends on the element cannot be read off the
+     * board at declaration time.
+     */
+    selfRingCovert?: Record<string, number>;
     opponentHandThreat?: Partial<ConflictPlannerHandThreat>;
     lockedAxis?: ConflictAxis;
     lockedRingElement?: string;
@@ -756,7 +771,8 @@ export class ConflictPhasePlanner {
         const defender = actor === 'self' ? 'opponent' : 'self';
         const defenders = this.availableCharacters(state, input, defender, choice.axis)
             .filter((card) => !choice.attackers.some((attacker) => attacker.uuid === card.uuid));
-        const covert = choice.attackers.filter((card) => card.covert).length;
+        const covert = choice.attackers.filter((card) => card.covert).length +
+            this.ringCovert(input, actor, choice);
         const uncovertable = defenders.slice().sort((a, b) =>
             this.skill(b, choice.axis) - this.skill(a, choice.axis)).slice(covert);
         const defenseSets = this.usefulSets(uncovertable, choice.axis, [], true);
@@ -778,9 +794,9 @@ export class ConflictPhasePlanner {
                 choice.axis);
             next.rings = next.rings.filter((ring) => ring.element !== choice.ring.element);
             const attackSkill = choice.attackers.reduce((sum, card) => sum + this.skill(card, choice.axis), 0) +
-                this.handThreat(input, actor, choice.axis);
+                this.handThreat(input, actor, choice.axis, choice.ring);
             const defenseSkill = defense.reduce((sum, card) => sum + this.skill(card, choice.axis), 0) +
-                this.handThreat(input, defender, choice.axis);
+                this.handThreat(input, defender, choice.axis, choice.ring);
             // Engine rule: attacker wins a nonzero tie. Only 0-0 has no
             // winner (`Conflict.determineWinner`).
             const attackerWon = attackSkill >= defenseSkill && attackSkill > 0;
@@ -1015,14 +1031,15 @@ export class ConflictPhasePlanner {
         const actor = state.actor;
         const defender = actor === 'self' ? 'opponent' : 'self';
         const attack = choice.attackers.reduce((sum, card) => sum + this.skill(card, choice.axis), 0) +
-            this.handThreat(input, actor, choice.axis);
+            this.handThreat(input, actor, choice.axis, choice.ring);
         const defenders = this.availableCharacters(state, input, defender, choice.axis)
             .slice()
             .sort((left, right) => this.skill(right, choice.axis) - this.skill(left, choice.axis));
-        const covert = choice.attackers.filter((card) => card.covert).length;
+        const covert = choice.attackers.filter((card) => card.covert).length +
+            this.ringCovert(input, actor, choice);
         const defense = defenders.slice(covert)
             .reduce((sum, card) => sum + this.skill(card, choice.axis), 0) +
-            this.handThreat(input, defender, choice.axis);
+            this.handThreat(input, defender, choice.axis, choice.ring);
         const margin = attack - defense;
         const breakable = margin >= choice.target.strength;
         const other: ConflictAxis = choice.axis === 'military' ? 'political' : 'military';
@@ -1130,13 +1147,33 @@ export class ConflictPhasePlanner {
         return Math.max(0, Number(actor === 'self' ? ring.selfValue : ring.opponentValue) || 0);
     }
 
-    private handThreat(input: ConflictPhasePlannerInput, side: 'self' | 'opponent', axis: ConflictAxis): number {
+    private handThreat(input: ConflictPhasePlannerInput, side: 'self' | 'opponent', axis: ConflictAxis,
+        ring?: ConflictPlannerRing): number {
         const threat = side === 'self' ? input.selfHandThreat : input.opponentHandThreat;
         const opportunities = side === 'self' ? input.selfOpportunities : input.opponentOpportunities;
+        // Only our own hand carries ring-conditional bodies; the opponent's is
+        // an estimate we have no element breakdown for.
+        const conditional = side === 'self' && ring
+            ? Math.max(0, Number(input.selfRingHandThreat?.[ring.element]?.[axis]) || 0)
+            : 0;
         // A hand is one shared budget, not a fresh boost in every branch of
         // the rollout. Amortize it across that side's remaining declarations.
-        return Math.max(0, Number(threat?.[axis]) || 0) /
+        return (Math.max(0, Number(threat?.[axis]) || 0) + conditional) /
             Math.max(1, Number(opportunities.total) || 0);
+    }
+
+    /** Defenders this ring's Covert grant can keep out of the conflict. */
+    private ringCovert(input: ConflictPhasePlannerInput, actor: 'self' | 'opponent',
+        choice: AttackChoice): number {
+        if(actor !== 'self') {
+            return 0;
+        }
+        // A Covert grant rides on an attacking body, so it can never lock out
+        // more defenders than we declared attackers.
+        return Math.min(
+            Math.max(0, Number(input.selfRingCovert?.[choice.ring.element]) || 0),
+            choice.attackers.length
+        );
     }
 
     private skill(card: ConflictPlannerCharacter, axis: ConflictAxis): number {

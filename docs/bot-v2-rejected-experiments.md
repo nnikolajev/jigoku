@@ -1103,3 +1103,106 @@ diagnosis was right; neither fix worked.
 playability, so any "what could the bot have played" census that filters on it
 cannot see fate starvation at all and will report that fate is not the
 constraint no matter how starved the bot is. Count `cost > fate` separately.
+
+## Phoenix Shugenja fate-equivalent ring plan: null (reachable, decisive, directionless)
+
+`shugenja.ringPlanEnabled` replaces V1's saturated ring score for this deck with
+one currency. V1 prices any ring holding fate at `1000 + 100 x fate` and adds
+every per-card bonus AFTER it, so `ringCardBonus: 18` can never outrank a
+one-fate pile — the ring choice is decided by fate alone. The plan scores a ring
+in fate-equivalents instead: the pile, plus what that pile UNLOCKS from hand
+that we could not already afford (Pacifism / Stolen Breath at 2, Disguised
+Tadaka at five minus the prepared base's printed cost, Consumed by Five Fires at
+5 and only against five actionable enemy fate), plus what contesting that
+ELEMENT contributes (free Feral Ningyo bodies and a Covert lockout on a narrow
+board for water, Kudaka's fate-and-card for air, Ujina for void).
+
+The mechanism is neither inert nor mistuned-into-silence, which is why this is
+worth recording rather than retrying:
+
+| | void | water | earth | air | fire | fate taken | fate left | took smaller pile |
+|---|---|---|---|---|---|---|---|---|
+| V1 control | 292 | 197 | 249 | 175 | 197 | 854 | 862 | **0** |
+| ring plan | 259 | **280** | 196 | 173 | 158 | 763 | 1114 | **159** |
+
+Water rises 42%, the bot refuses a larger fate pile 159 times, and it collects
+11% less ring fate. **25% of the deck's games flip winner** and only ~27% stay
+bit-identical, so the ceiling is 12-13pp — far above the noise floor.
+
+It still wins exactly half of them. Pooled over 39 fresh bases and both seats,
+`probePaired` decided games split **167 to / 168 away (n=335, p=0.96)**;
+seat-averaged effect **-0.08pp**.
+
+Two things this cost, both already in the skill and both re-confirmed here:
+
+- **13 bases were not enough.** The lever read **+5.29pp on seat 0 / +2.88pp on
+  seat 1** over bases 100001-112001, then **+0.24pp / -4.57pp** over
+  120001-145001. The seats split in OPPOSITE directions on the larger sample.
+- **High decisiveness makes the swings larger, not the answer clearer** — the
+  same shape as `defenseBreakTie`.
+
+What the result actually says: for this deck the ring choice matters enormously
+(a quarter of its games hang on it), and a LINEAR value for each payoff is not
+the rule that exploits it. The human play this was modelled on does not give
+water a standing bonus; it takes water when Ningyo plus a Covert lockout
+converts that specific conflict into a BROKEN PROVINCE, and takes the fate
+otherwise. That is a threshold on the phase outcome, which is what
+`ConflictPhasePlanner`'s rollout already computes and what
+`ConflictDeclarationOption.ringElement` exists to express — behind
+`applyIntentPlan`, which is `false` in both planner profiles and overridden by
+no deck, so that whole surface is currently dead code.
+
+The knobs stay in the profile, default off and `refactorIdentity`-clean
+(`cfa9c47963546588`), as the rig for that next attempt.
+
+### Route B: handing the ring to the rollout, and the break test — also null
+
+The follow-up to the entry above. If a LINEAR value per payoff is the wrong
+shape, the right shape is the deck's actual rule: contest water when the free
+Feral Ningyo bodies and a Covert lockout convert THIS declaration into a break,
+and take the fate otherwise. Three structures were built and measured.
+
+**1. `conflictPlanning.applyRingPlan` — give the ring to the phase rollout.**
+The rollout already scores whole phases by whether they reach a break, so in
+principle it can answer the question directly. It does not help: the rollout
+weights a ring by its own `selfValue`/`ringFateValue` scale rather than V1's
+fate tier, so it stops chasing fate piles and drifts to VOID. Census over three
+bases: water flat at 100 both arms, void 144 -> 184, a smaller fate pile taken
+122 times. Triage read 2 to / 5 away.
+
+**2. `shugenja.ringPlanPlannerResources` — publish what the rollout cannot see.**
+`ConflictPlannerCharacter.covert` is only set once the qualifying conflict is
+already running, and Feral Ningyo sits in hand at its printed cost though it
+enters FREE. Both are now publishable per element
+(`selfRingHandThreat`, `selfRingCovert`) so the rollout computes the break
+itself. Alone it is **87.5% inert** — with a fate-first ring choice the bot
+almost never contests water, so the better break math has nothing to apply to.
+Combined with (1): 2 to / 8 away. Each half needs the other, and together they
+still lose.
+
+**3. `shugenja.ringPlanBreakAware` — keep fate-first, let an element jump the
+tier only when it converts a miss into a break.** This is the faithful version
+and it behaves correctly: water 100 -> 116 and a larger fate pile declined only
+**20 times** (against 159 for the flat values and 122 for the rollout), i.e. a
+threshold rather than a preference. It is still null.
+
+| arm | pooled decided | verdict |
+|---|---|---|
+| break test, water only | 94 to / 76 away, n=170 | p=0.17 |
+| break test + air/void economy | 105 to / 106 away, n=211 | p=0.95 |
+
+Both seats disagreed in sign in both runs (-0.48 / +4.81, then +1.92 / -2.16).
+
+**Bug worth remembering:** the first break-aware revision short-circuited
+`elementValue` and returned the break bonus ALONE, which silently scored air at
+zero with Kudaka in play — the only element the break test can fire on in this
+deck is water, so every non-water payoff was deleted. Conversion (skill this
+element adds to this conflict) and economy (what CLAIMING the ring pays, win or
+lose) are independent and must add. Fixed, specced, and re-measured above.
+
+**Conclusion after six arms and ~1000 decided games:** the declaration ring
+flips 20-27% of this deck's games and no valuation of it — flat, rollout-owned,
+or break-conditional — points those flips anywhere. `auditCards` confirms the
+downstream cards all fire, so this is not an unconverted plan. The ring choice
+appears to trade one win path for another rather than add wins, and whatever
+binds this deck's win rate is somewhere else.

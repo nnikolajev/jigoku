@@ -1650,6 +1650,57 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
         const enemyTower = character('enemy-tower', 'enemy-tower', { inConflict: true, fate: 5 });
 
         run(profile, ringState([adept], [character('ningyo', 'feral-ningyo')]));
+        // The ring plan is injectable and OFF by default, so its branch is only
+        // reachable through a profile that turns it on. Fate on a ring plus an
+        // unaffordable lock and a prepared Tadaka base in hand also reaches the
+        // unlock-threshold arm.
+        // Break-aware scoring needs a legal province to measure the margin
+        // against, plus the water resources whose presence it is testing.
+        run({
+            ...profile,
+            shugenja: { ...profile.shugenja, ringPlanEnabled: true, ringPlanBreakAware: true }
+        }, makeState({
+            promptTitle: 'Initiate Conflict', menuTitle: 'Choose an elemental ring', buttons: [PASS],
+            stats: { fate: 3 },
+            cardPiles: {
+                cardsInPlay: [character('breaker', 'kudaka'), character('grantor', 'adept-of-the-waves')],
+                hand: [character('ningyo-a', 'feral-ningyo'), character('ningyo-b', 'feral-ningyo')]
+            }
+        }, {
+            cardPiles: { cardsInPlay: [enemyTower] },
+            provinces: {
+                one: [{
+                    uuid: 'weak-province', id: 'weak-province', type: 'province', isProvince: true,
+                    location: 'province 1', facedown: false, isBroken: false,
+                    strengthSummary: { stat: '3' }
+                }],
+                two: [], three: [], four: []
+            }
+        }, {
+            rings: {
+                air: { element: 'air', fate: 0 }, earth: { element: 'earth', fate: 1 },
+                fire: { element: 'fire', fate: 0 }, water: { element: 'water', fate: 0 },
+                void: { element: 'void', fate: 0 }
+            }
+        }));
+        run({ ...profile, shugenja: { ...profile.shugenja, ringPlanEnabled: true } }, makeState({
+            promptTitle: 'Initiate Conflict', menuTitle: 'Choose an elemental ring', buttons: [PASS],
+            stats: { fate: 1 },
+            cardPiles: {
+                cardsInPlay: [adept, character('prepared', 'ethereal-dreamer', { fate: 2 })],
+                hand: [
+                    character('ningyo', 'feral-ningyo'),
+                    character('tadaka-hand', 'isawa-tadaka-2'),
+                    attachment('pacifism-hand', 'pacifism')
+                ]
+            }
+        }, { cardPiles: { cardsInPlay: [enemyTower] } }, {
+            rings: {
+                air: { element: 'air', fate: 2 }, earth: { element: 'earth', fate: 0 },
+                fire: { element: 'fire', fate: 0 }, water: { element: 'water', fate: 1 },
+                void: { element: 'void', fate: 0 }
+            }
+        }));
         run(profile, makeState({
             promptTitle: 'Offerings', menuTitle: 'Choose a ring to claim and resolve', buttons: [] ,
             selectRing: true,

@@ -877,6 +877,205 @@ describe('Phoenix Shugenja tactics', function() {
         expect(decision.args[0]).toBe('live');
     });
 
+    describe('ring plan', function() {
+        const on = (overrides = {}) => new ShugenjaTactics({
+            ...SHUGENJA_DEFAULTS, ringPlanEnabled: true, ...overrides
+        });
+        const ring = (element, fate = 0) => ({ element, fate });
+        const character = (id, extra = {}) => ({
+            id, uuid: id, type: 'character', bowed: false, fate: 0, ...extra
+        });
+        const context = (overrides = {}) => ({
+            myCharacters: [], opponentCharacters: [], hand: [], fate: 0, ...overrides
+        });
+
+        it('is inert by default, so the generic ring score is unchanged', function() {
+            expect(SHUGENJA_DEFAULTS.ringPlanEnabled).toBe(false);
+            expect(tactics.ringPlanValue(ring('water'), context())).toBeNull();
+            expect(tactics.ringPlanScore(ring('water'), context())).toBeNull();
+            expect(tactics.ringPlanEffectScore(ring('water'), context())).toBeNull();
+        });
+
+        it('prices a ring fate pile at one fate each when nothing is unlocked', function() {
+            expect(on().ringPlanValue(ring('fire', 2), context())).toEqual({ fate: 2, element: 0 });
+            expect(on().ringPlanScore(ring('fire', 2), context())).toBe(2000);
+        });
+
+        it('counts every Feral Ningyo in hand as a free body, on water only', function() {
+            const hand = [character('feral-ningyo'), character('feral-ningyo')];
+            expect(on().ringPlanValue(ring('water'), context({ hand })).element).toBe(3);
+            expect(on().ringPlanValue(ring('earth'), context({ hand })).element).toBe(0);
+        });
+
+        it('values a Covert lockout only while their board is narrow', function() {
+            const mine = [character('adept-of-the-waves')];
+            const narrow = [character('akodo-toturi')];
+            const wide = ['a', 'b', 'c', 'd'].map((id) => character(id));
+            expect(on().ringPlanValue(ring('water'), context({ myCharacters: mine, opponentCharacters: narrow })).element).toBe(2);
+            expect(on().ringPlanValue(ring('water'), context({ myCharacters: mine, opponentCharacters: wide })).element).toBe(0);
+            // Nothing to lock out is worth nothing either.
+            expect(on().ringPlanValue(ring('water'), context({ myCharacters: mine })).element).toBe(0);
+        });
+
+        it('pays Kudaka for air and Ujina for void, and Ujina only with a legal target', function() {
+            const kudaka = context({ myCharacters: [character('kudaka')] });
+            expect(on().ringPlanValue(ring('air'), kudaka).element).toBe(1.5);
+            expect(on().ringPlanValue(ring('void'), kudaka).element).toBe(0);
+
+            const ujina = [character('isawa-ujina')];
+            const zeroFate = [character('brash-samurai')];
+            const allFated = [character('brash-samurai', { fate: 1 })];
+            expect(on().ringPlanValue(ring('void'), context({ myCharacters: ujina, opponentCharacters: zeroFate })).element).toBe(1);
+            expect(on().ringPlanValue(ring('void'), context({ myCharacters: ujina, opponentCharacters: allFated })).element).toBe(0);
+        });
+
+        it('credits a fate pile only for the hand card it actually unlocks', function() {
+            const hand = [character('pacifism')];
+            // Already affordable: the ring changes nothing.
+            expect(on().ringPlanValue(ring('earth', 1), context({ hand, fate: 2 })).fate).toBe(1);
+            // One short, and this ring closes the gap.
+            expect(on().ringPlanValue(ring('earth', 1), context({ hand, fate: 1 })).fate).toBe(2);
+            // Still short even with the ring.
+            expect(on().ringPlanValue(ring('earth', 1), context({ hand, fate: 0 })).fate).toBe(1);
+        });
+
+        it('resolves Tadaka against the prepared base actually on the board', function() {
+            const hand = [character('isawa-tadaka-2')];
+            // Adept costs 2, so Disguised costs 3. No prepared base: no unlock.
+            expect(on().ringPlanValue(ring('earth', 1), context({ hand, fate: 2 })).fate).toBe(1);
+            const base = [character('adept-of-the-waves', { fate: 2 })];
+            expect(on().ringPlanValue(ring('earth', 1), context({ hand, fate: 2, myCharacters: base })).fate).toBe(3);
+            // Prodigy costs 4, so Disguised costs 1 and two fate already covers it.
+            const cheaper = [character('prodigy-of-the-waves', { fate: 2 })];
+            expect(on().ringPlanValue(ring('earth', 1), context({ hand, fate: 2, myCharacters: cheaper })).element).toBe(0);
+            expect(on().ringPlanValue(ring('earth', 1), context({ hand, fate: 2, myCharacters: cheaper })).fate).toBe(1);
+        });
+
+        it('reaches for Five Fires only against a board fat enough to be worth stripping', function() {
+            const hand = [character('consumed-by-five-fires')];
+            const mine = [character('kudaka')];
+            const fat = [character('aranat', { fate: 3 }), character('yoritomo', { fate: 2 })];
+            const lean = [character('aranat', { fate: 2 })];
+            // Three fate short of five, and this ring closes the gap.
+            expect(on().ringPlanValue(ring('earth', 3), context({ hand, myCharacters: mine, opponentCharacters: fat, fate: 2 })).fate).toBe(5.5);
+            // Same fate, nothing worth burning it on.
+            expect(on().ringPlanValue(ring('earth', 3), context({ hand, myCharacters: mine, opponentCharacters: lean, fate: 2 })).fate).toBe(3);
+            // Fires needs one of our own Shugenja to be legal at all.
+            expect(on().ringPlanValue(ring('earth', 3), context({ hand, opponentCharacters: fat, fate: 2 })).fate).toBe(3);
+        });
+
+        it('keeps the water engine ahead of a two-fate pile, and yields when it is empty', function() {
+            // The board from the recorded stronghold break: Adept + Prodigy in
+            // play against three ready Lion bodies, one Ningyo in hand, and two
+            // fate sitting on fire. V1 takes fire and throws the engine away.
+            const engine = context({
+                myCharacters: [character('adept-of-the-waves'), character('prodigy-of-the-waves')],
+                opponentCharacters: [character('akodo-toturi'), character('akodo-zentaro'), character('ikoma-prodigy')],
+                hand: [character('feral-ningyo')]
+            });
+            expect(on().ringPlanScore(ring('water'), engine))
+                .toBeGreaterThan(on().ringPlanScore(ring('fire', 2), engine));
+            // Same pile, no water package: fate wins.
+            const bare = context({ opponentCharacters: engine.opponentCharacters });
+            expect(on().ringPlanScore(ring('water'), bare))
+                .toBeLessThan(on().ringPlanScore(ring('fire', 2), bare));
+        });
+
+        describe('break-aware element value', function() {
+            const skillOf = (card, axis) => Number(card[axis] || 0);
+            const body = (id, mil, pol, extra = {}) => character(id, { military: mil, political: pol, ...extra });
+            const breakOn = (overrides = {}) => on({ ringPlanBreakAware: true, ...overrides });
+
+            it('pays for water only when the free bodies turn a miss into a break', function() {
+                // 4 attack vs 3 defence is +1 against a strength-3 province:
+                // a miss. Two Feral Ningyo add 6 military and make it a break.
+                const ctx = context({
+                    myCharacters: [body('kudaka', 4, 4)],
+                    opponentCharacters: [body('blocker', 3, 3)],
+                    hand: [character('feral-ningyo'), character('feral-ningyo')],
+                    targetStrength: 3,
+                    skillOf
+                });
+                expect(breakOn().ringPlanValue(ring('water'), ctx).element).toBe(4);
+                expect(breakOn().ringPlanValue(ring('fire'), ctx).element).toBe(0);
+            });
+
+            it('pays nothing when the attack already breaks without them', function() {
+                const ctx = context({
+                    myCharacters: [body('kudaka', 20, 20)],
+                    opponentCharacters: [body('blocker', 1, 1)],
+                    hand: [character('feral-ningyo')],
+                    targetStrength: 3,
+                    skillOf
+                });
+                expect(breakOn().ringPlanValue(ring('water'), ctx).element).toBe(0);
+            });
+
+            it('pays nothing when even the free bodies fall short', function() {
+                const ctx = context({
+                    myCharacters: [body('kudaka', 1, 1)],
+                    opponentCharacters: [body('wall', 30, 30)],
+                    hand: [character('feral-ningyo'), character('feral-ningyo')],
+                    targetStrength: 5,
+                    skillOf
+                });
+                expect(breakOn().ringPlanValue(ring('water'), ctx).element).toBe(0);
+            });
+
+            it('counts a Covert lockout, capped by how many attackers we have', function() {
+                // One ready body of 5 against two 4-skill defenders is -3.
+                // Locking one out makes it +1, enough for a strength-1 province.
+                const ctx = context({
+                    myCharacters: [body('kudaka', 5, 5), body('adept-of-the-waves', 0, 0)],
+                    opponentCharacters: [body('big', 4, 4), body('big2', 4, 4)],
+                    targetStrength: 1,
+                    skillOf
+                });
+                expect(breakOn().ringPlanValue(ring('water'), ctx).element).toBe(4);
+
+                // The same board with a province one point stronger needs BOTH
+                // defenders locked out, and one Adept cannot do that.
+                const harder = { ...ctx, targetStrength: 6 };
+                expect(breakOn().ringPlanValue(ring('water'), harder).element).toBe(0);
+            });
+
+            it('still pays the claim payoffs that have nothing to do with breaking', function() {
+                // Kudaka's fate-and-card is worth the same whether or not the
+                // province falls, so the break test must not swallow it. An
+                // earlier revision returned the break bonus alone and scored
+                // air at zero with Kudaka on the board.
+                const ctx = context({
+                    myCharacters: [body('kudaka', 4, 4), body('isawa-ujina', 1, 1)],
+                    opponentCharacters: [body('blocker', 3, 3)],
+                    hand: [character('feral-ningyo'), character('feral-ningyo')],
+                    targetStrength: 3,
+                    skillOf
+                });
+                expect(breakOn().ringPlanValue(ring('air'), ctx).element).toBe(1.5);
+                expect(breakOn().ringPlanValue(ring('void'), ctx).element).toBe(1);
+                // Water still earns the break bonus on the same board, and the
+                // two halves add rather than replace one another.
+                expect(breakOn().ringPlanValue(ring('water'), ctx).element).toBe(4);
+            });
+
+            it('stays silent with no legal target to measure against', function() {
+                const ctx = context({
+                    myCharacters: [body('kudaka', 4, 4)],
+                    opponentCharacters: [body('blocker', 3, 3)],
+                    hand: [character('feral-ningyo'), character('feral-ningyo')],
+                    skillOf
+                });
+                expect(breakOn().ringPlanValue(ring('water'), ctx).element).toBe(0);
+            });
+        });
+
+        it('hands the planner the element half only, so ring fate is not counted twice', function() {
+            const kudaka = context({ myCharacters: [character('kudaka')] });
+            expect(on().ringPlanEffectScore(ring('air', 3), kudaka)).toBe(15);
+            expect(on().ringPlanEffectScore(ring('earth', 3), kudaka)).toBe(0);
+        });
+    });
+
     it('uses forced Ujina on an enemy, falling back to the weakest own legal target', function() {
         const own = { id: 'young-philosopher', uuid: 'own', type: 'character', selectable: true, cost: 2 };
         const enemy = { id: 'doji-challenger', uuid: 'enemy', type: 'character', selectable: true, cost: 4 };

@@ -186,10 +186,30 @@ async function runGame(options = {}) {
         return parts.join('|');
     };
 
+    // Optional client-format replay capture. Off unless `options.record` is
+    // set, because a full state snapshot per step is expensive and every
+    // measurement script runs thousands of games. See `exportReplay.js`.
+    const record = options.record ? { states: [], viewer: options.record.viewer || names[0] } : null;
+    const snapshot = () => {
+        if(!record) {
+            return;
+        }
+        try {
+            record.states.push({
+                state: JSON.parse(JSON.stringify(game.getState(record.viewer))),
+                timestamp: Date.now()
+            });
+            game.recordHiddenInfoIfChanged();
+        } catch(error) {
+            record.error = record.error || String(error);
+        }
+    };
+
     let steps = 0;
     let lastSig = signature();
     let noProgress = 0;
     const startedAt = Date.now();
+    snapshot();
     // Wall-clock backstop. This is NOT the loop detector - real loops are caught
     // by the no-progress `stalled` check and by `maxSteps`. Its only job is to
     // stop one game hanging a batch. Because it is wall clock, it fires on games
@@ -223,6 +243,9 @@ async function runGame(options = {}) {
         steps++;
 
         const sig = signature();
+        if(record && sig !== lastSig) {
+            snapshot();
+        }
         if(sig === lastSig) {
             noProgress++;
             // Let any budget-exhaustion setTimeout(resumeTick) fire before
@@ -252,10 +275,21 @@ async function runGame(options = {}) {
         controller.tick = () => false;
     }
 
+    if(record) {
+        snapshot();
+        record.messages = (game.messages || []).slice();
+        record.hiddenInfo = (game.hiddenInfoLog || []).slice();
+        record.players = names.map((name) => {
+            const player = game.getPlayerByName(name);
+            return { name, faction: player?.faction?.name || player?.faction?.value || 'unknown' };
+        });
+    }
+
     const summary = reward.summary();
     reward.detach();
 
     return {
+        record,
         gameId: game.id,
         winner: state.winnerName,
         winReason: state.winReason,

@@ -31,6 +31,59 @@ describe('ConflictPhasePlanner', function() {
         ...extras
     });
 
+    describe('ring-conditional resources', function() {
+        // A body that only exists while one element is contested, and a Covert
+        // grant that is not a keyword on the card until that conflict is
+        // already running. Both are invisible to the board the rollout reads,
+        // so without these inputs it cannot tell that WATER is the declaration
+        // that reaches a break.
+        const ringPlan = (extras = {}) => input({
+            selfCharacters: [character('body', 4, 4)],
+            opponentCharacters: [character('blocker', 6, 6)],
+            selfOpportunities: { total: 1, military: 1, political: 0 },
+            rings: [ring('fire'), ring('water')],
+            opponentTargets: [target('their province', 3)],
+            ...extras
+        });
+        const attack = (plan) => plan.sequence.find((step) =>
+            step.actor === 'self' && step.action === 'attack');
+
+        it('leaves the rollout untouched when a deck publishes nothing', function() {
+            const bare = new ConflictPhasePlanner().plan(ringPlan());
+            const empty = new ConflictPhasePlanner().plan(ringPlan({
+                selfRingHandThreat: {}, selfRingCovert: {}
+            }));
+            expect(empty.score).toBe(bare.score);
+            expect(attack(empty)).toEqual(attack(bare));
+        });
+
+        it('credits a free body only to the ring that turns it on', function() {
+            const plan = new ConflictPhasePlanner().plan(ringPlan({
+                selfRingHandThreat: { water: { military: 6, political: 6 } }
+            }));
+            expect(attack(plan).ringElement).toBe('water');
+        });
+
+        it('locks a defender out only on the ring that grants Covert', function() {
+            const plan = new ConflictPhasePlanner().plan(ringPlan({
+                selfRingCovert: { water: 1 }
+            }));
+            expect(attack(plan).ringElement).toBe('water');
+        });
+
+        it('cannot lock out more defenders than it declared attackers', function() {
+            const many = ringPlan({
+                opponentCharacters: [character('a', 6, 6), character('b', 6, 6)],
+                selfRingCovert: { water: 5 }
+            });
+            // One attacker can carry one grant, so the second blocker still
+            // defends and the province survives.
+            const plan = new ConflictPhasePlanner().plan(many);
+            const step = attack(plan);
+            expect(step ? step.attackerUuids.length : 0).toBeLessThanOrEqual(1);
+        });
+    });
+
     it('preserves the other-axis specialist for the second conflict', function() {
         const plan = new ConflictPhasePlanner().plan(input({
             opponentTargets: [target('their province 1'), target('their province 2')]

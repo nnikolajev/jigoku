@@ -16,6 +16,15 @@ export interface StrongholdDefenseProfile {
     omniscientDefenderDisables: boolean;
     holdAllAgainstCovert: boolean;
     attackAllWhenOpponentHasNoConflict: boolean;
+    // When both strongholds are exposed the plan is to race. That is correct
+    // only if the opponent cannot answer: with a conflict opportunity left and
+    // enough ready skill to break OUR stronghold, spending every body on the
+    // race loses it by one tempo. The first-player token alternates
+    // unconditionally (`RegroupPhase.passFirstPlayer`), so the SECOND player at
+    // three-and-three wins by surviving the round and striking first in the
+    // next one — a round boundary the one-phase planner cannot see.
+    // False keeps the unconditional race.
+    raceRequiresSafety: boolean;
     // One turn before the stronghold is exposed, first player must not bow its
     // whole board while the opponent still has two conflict opportunities.
     preStrongholdDefenseEnabled: boolean;
@@ -39,6 +48,7 @@ export const STRONGHOLD_DEFENSE_DEFAULTS: StrongholdDefenseProfile = {
     omniscientDefenderDisables: false,
     holdAllAgainstCovert: true,
     attackAllWhenOpponentHasNoConflict: true,
+    raceRequiresSafety: false,
     preStrongholdDefenseEnabled: true,
     preStrongholdBrokenProvinceThreshold: 2,
     preStrongholdRequireFirstPlayer: true,
@@ -106,13 +116,20 @@ export class StrongholdDefenseTactics {
         }
 
         const threats = this.threats(input);
+        const axes = this.remainingAxes(input);
+        const disables = input.omniscient ? Math.max(0, Math.floor(Number(input.defenderDisables) || 0)) : 0;
+        const opponentConflictCount = Number(input.opponentConflictsRemaining);
         // Both players are one province from defeat. The bot has the current
         // conflict opportunity, so race for the enemy stronghold before the
         // opponent gets a counterattack.
         if(input.opponentStrongholdExposed) {
-            return this.result('last-conflict-all-in', [], true, 'stronghold-race-all-in', threats);
+            const opponentCanAnswer = this.profile.raceRequiresSafety &&
+                (!Number.isFinite(opponentConflictCount) || opponentConflictCount > 0) &&
+                !this.survives([], axes, threats, input.strongholdProvinceStrength, disables);
+            if(!opponentCanAnswer) {
+                return this.result('last-conflict-all-in', [], true, 'stronghold-race-all-in', threats);
+            }
         }
-        const opponentConflictCount = Number(input.opponentConflictsRemaining);
         if(this.profile.attackAllWhenOpponentHasNoConflict && Number.isFinite(opponentConflictCount) && opponentConflictCount <= 0) {
             return this.result('last-conflict-all-in', [], true, 'stronghold-last-conflict', threats);
         }
@@ -128,8 +145,6 @@ export class StrongholdDefenseTactics {
                 preStronghold ? 'two-broken-covert-risk' : 'stronghold-covert-risk', threats);
         }
 
-        const axes = this.remainingAxes(input);
-        const disables = input.omniscient ? Math.max(0, Math.floor(Number(input.defenderDisables) || 0)) : 0;
         const maxConfigured = input.omniscient ? this.profile.maxOmniscientDefenders : this.profile.maxFairDefenders;
         const maxDefenders = Math.min(input.myReady.length,
             Number.isFinite(maxConfigured) ? Math.max(0, Math.floor(maxConfigured)) : input.myReady.length);

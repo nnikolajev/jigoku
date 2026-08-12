@@ -40,6 +40,7 @@ import type { DuelBidContext, DuelBidProfile } from './DuelBidTactics';
 import { DrawBidTactics, LegacyDrawBidTactics } from './DrawBidTactics.js';
 import type { DrawBidContext, DrawBidPolicyVariant } from './DrawBidTactics';
 import { ShugenjaTactics } from './ShugenjaTactics.js';
+import type { ShugenjaRingPlanContext } from './ShugenjaTactics';
 import { RebirthTactics } from './RebirthTactics.js';
 import { DragonAttachmentTactics } from './DragonAttachmentTactics.js';
 import { StrongholdDefenseTactics } from './StrongholdDefenseTactics.js';
@@ -83,7 +84,9 @@ import {
     attackProvinceLists,
     brokenOuterProvinceCount,
     mustAttackStronghold,
+    PROVINCE_TARGETING_DEFAULTS,
     ProvinceTargetingTactics,
+    FaceupProvinceInfo,
     strongholdProvinceUnderAttack
 } from './ProvinceTargeting.js';
 
@@ -305,6 +308,9 @@ interface DecideContext {
     // Exact public printed character data and live honor-on-entry effects.
     // Board-aware seed uses this to compare board power and cheap persistence.
     dynastyCharacterInfo?: Record<string, DynastyCharacterInfo>;
+    // Public denial value per opponent province location: what breaking it
+    // would discard. Faceup dynasty cards only, so fair bots may use it.
+    opponentProvinceDenial?: Record<string, FaceupProvinceInfo>;
     // Printed fate cost of conflict cards in our hand by uuid. Player-state
     // summaries omit it; profiles use this to sequence cost reducers.
     conflictCosts?: Record<string, number>;
@@ -415,6 +421,7 @@ class JigokuBotPolicy {
     // The engine only fills skill/glory summaries for cards in play, so without
     // this every dynasty ranker reads `undefined` off a province card.
     private currentDynastyPrintedStats: Record<string, DynastyPrintedStats> | undefined;
+    private currentOpponentProvinceDenial: Record<string, FaceupProvinceInfo> | undefined;
     // The value-model view of the conflict window currently being decided.
     // Undefined outside a conflict window, which is what keeps the veto below
     // from firing on stale board state in a dynasty or action window.
@@ -573,6 +580,7 @@ class JigokuBotPolicy {
         this.currentDuelParticipantIaijutsuReady = context.duelParticipantIaijutsuReady;
         this.currentCharacterPrintedCosts = context.characterPrintedCosts;
         this.currentDynastyPrintedStats = context.dynastyCharacterInfo;
+        this.currentOpponentProvinceDenial = context.opponentProvinceDenial;
         this.currentConflictCosts = context.conflictCosts;
         this.currentDynastyDiscardBodies = context.dynastyDiscardBodies;
         this.currentHoldingStrengths = context.holdingStrengths;
@@ -2696,7 +2704,9 @@ class JigokuBotPolicy {
             profile,
             context.omniscient && profile.useOmniscientProvinceKnowledge !== false
                 ? context.omniscient.oppProvinces
-                : []
+                : [],
+            undefined,
+            context.opponentProvinceDenial || {}
         );
         const opportunities = (player: any) => freshPhase
             ? { total: 2, military: 1, political: 1 }
@@ -2705,10 +2715,22 @@ class JigokuBotPolicy {
                 military: Math.max(0, Number(player?.stats?.militaryRemaining) || 0),
                 political: Math.max(0, Number(player?.stats?.politicalRemaining) || 0)
             };
-        const threat = (hand: KnownCard[] | undefined, fate: number) => ({
-            military: hand ? estimateHandThreat(hand, fate, 'military').skill : 0,
-            political: hand ? estimateHandThreat(hand, fate, 'political').skill : 0
-        });
+        // Cards whose skill only exists while a particular ring is contested are
+        // reported to the planner per element instead. They must come OUT of the
+        // ring-blind estimate as well, or a water-only body is credited to every
+        // declaration the rollout considers.
+        const ringConditionalIds = new Set(shugenja && !this.currentRebirth
+            ? shugenja.ringConditionalHandIds()
+            : []);
+        const threat = (hand: KnownCard[] | undefined, fate: number) => {
+            const usable = hand && ringConditionalIds.size > 0
+                ? hand.filter((card) => !ringConditionalIds.has(String(card?.id || '')))
+                : hand;
+            return {
+                military: usable ? estimateHandThreat(usable, fate, 'military').skill : 0,
+                political: usable ? estimateHandThreat(usable, fate, 'political').skill : 0
+            };
+        };
         const forcedAttackerUuids = selfCharacters.filter((card) => card.inConflict).map((card) => card.uuid);
         const selfOpportunities = opportunities(me);
         // The deck proposes concrete declarations; the shared rollout below
@@ -2754,6 +2776,17 @@ class JigokuBotPolicy {
             opponentBrokenProvinces: brokenOuterProvinceCount(opponent),
             actor: freshPhase && !me?.firstPlayer ? 'opponent' : 'self',
             selfHandThreat: threat(context.ownConflictHand, Number(me?.stats?.fate) || 0),
+            // Element-gated resources the rollout cannot read off the board:
+            // free bodies still in hand, and a Covert grant that does not exist
+            // as a keyword until the qualifying conflict is already running.
+            // Empty unless a deck publishes them, which leaves the search
+            // bit-identical for every other profile.
+            selfRingHandThreat: shugenja && !this.currentRebirth
+                ? shugenja.ringConditionalHandSkill(me?.cardPiles?.hand || [])
+                : undefined,
+            selfRingCovert: shugenja && !this.currentRebirth
+                ? shugenja.ringConditionalCovert(this.myCharactersInPlay(me))
+                : undefined,
             // In fair mode the exact opponent hand is hidden, so the rollout
             // otherwise treats every under-defended board as a free win and
             // over-declares marginal / off-axis conflicts (measured: more
@@ -2841,7 +2874,8 @@ class JigokuBotPolicy {
             opponentOpportunities: opportunities(opponent),
             rings,
             selfTargets: this.conflictPlanningTargets(me, profile, [], context.strongholdProvinceStrength),
-            opponentTargets: this.conflictPlanningTargets(opponent, profile),
+            opponentTargets: this.conflictPlanningTargets(opponent, profile, [], undefined,
+                context.opponentProvinceDenial || {}),
             selfBrokenProvinces: brokenOuterProvinceCount(me),
             opponentBrokenProvinces: brokenOuterProvinceCount(opponent),
             actor: 'self',
@@ -2990,6 +3024,15 @@ class JigokuBotPolicy {
         dragon: DragonTactics | null = null, shugenja: ShugenjaTactics | null = null,
         duelist: DuelTactics | null = null,
         attachmentTower: DragonAttachmentTactics | null = null): number {
+        // The Shugenja ring plan replaces the generic fate tier, so subtracting
+        // that tier here would clamp every ring to the same value. Its element
+        // half is already the fate-free number this consumer wants.
+        const planEffect = shugenja && !this.currentRebirth
+            ? shugenja.ringPlanEffectScore(ring, this.shugenjaRingPlanContext(me, opponent))
+            : null;
+        if(planEffect !== null) {
+            return Math.max(0, Math.min(50, planEffect + this.ringElementBase(ring, me, opponent)));
+        }
         const fate = Math.max(0, Number(ring?.fate) || 0);
         const threshold = this.usesFateAwareEconomy() ? 1 : 2;
         const fateScore = fate >= threshold ? 1000 + fate * 100 : 0;
@@ -2997,13 +3040,18 @@ class JigokuBotPolicy {
             ring, me, opponent, dishonor, glory, dragon, shugenja, duelist, attachmentTower) - fateScore));
     }
 
+    // `denialByLocation` describes the OPPONENT's provinces, and both players'
+    // locations share a key space ('province 1'), so it is passed explicitly
+    // rather than read from state — the self-target call must not see it.
     private conflictPlanningTargets(player: any, profile: DeckProfile, known: any[] = [],
-        exactStrongholdStrength?: number): ConflictPlannerTarget[] {
+        exactStrongholdStrength?: number,
+        denialByLocation: Record<string, FaceupProvinceInfo> = {}): ConflictPlannerTarget[] {
         const targeting = new ProvinceTargetingTactics(profile.provinceTargeting);
         const ranked = targeting.rank(
             PROVINCE_KEYS.map((key) => player?.provinces?.[key] || [])
                 .concat([player?.strongholdProvince || []]),
-            known
+            known,
+            denialByLocation
         );
         const targets: ConflictPlannerTarget[] = [];
         for(const [priority, list] of ranked.entries()) {
@@ -3593,6 +3641,44 @@ class JigokuBotPolicy {
     // remain, dead otherwise. Air trails. The ring's displayed conflict type
     // is irrelevant — any ring can be flipped military/political by clicking
     // it again, which happens separately based on character strength.
+    /** Generic per-element ring value, before any fate pile or deck bonus. */
+    private ringElementBase(ring: any, me: any, opponent: any): number {
+        switch(ring.element) {
+            case 'void': {
+                const voidUseful = (opponent?.cardPiles?.cardsInPlay || []).some((card: any) =>
+                    card.type === 'character' && (Number(card.fate) || 0) > 0);
+                return voidUseful ? 50 : 10;
+            }
+            case 'earth': {
+                let base = 40;
+                if(this.currentOmniscient && this.currentDeckProfile.omniscientEarthRingThreatBonus > 0) {
+                    const militaryThreat = this.omniHandThreat(this.currentOmniscient, 'military').skill;
+                    const politicalThreat = this.omniHandThreat(this.currentOmniscient, 'political').skill;
+                    if(Math.max(militaryThreat, politicalThreat) > 0) {
+                        base += this.currentDeckProfile.omniscientEarthRingThreatBonus;
+                    }
+                }
+                return base;
+            }
+            case 'fire':
+                return 30;
+            case 'water': {
+                // Bowing only targets characters without fate, and only
+                // matters when the opponent has several ready bodies.
+                const bowTargets = (opponent?.cardPiles?.cardsInPlay || []).filter((card: any) =>
+                    card.type === 'character' && !card.bowed && (Number(card.fate) || 0) === 0).length;
+                const myBowed = this.myCharactersInPlay(me).some((card) => card.bowed);
+                const moreConflictsComing = (me?.stats?.conflictsRemaining ?? 0) >= 2;
+                if(bowTargets >= 2) {
+                    return 35;
+                }
+                return myBowed && moreConflictsComing ? 25 : 8;
+            }
+            default:
+                return 15;
+        }
+    }
+
     private ringScore(ring: any, me: any, opponent: any, dishonor: DishonorTactics | null = null, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, shugenja: ShugenjaTactics | null = null, duelist: DuelTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): number {
         const fate = Number(ring.fate) || 0;
         const fateThreshold = this.usesFateAwareEconomy() ? 1 : 2;
@@ -3604,46 +3690,7 @@ class JigokuBotPolicy {
             return fateComponent + 15 + dishonor.airRingBonus;
         }
 
-        let base;
-        switch(ring.element) {
-            case 'void': {
-                const voidUseful = (opponent?.cardPiles?.cardsInPlay || []).some((card: any) =>
-                    card.type === 'character' && (Number(card.fate) || 0) > 0);
-                base = voidUseful ? 50 : 10;
-                break;
-            }
-            case 'earth':
-                base = 40;
-                if(this.currentOmniscient && this.currentDeckProfile.omniscientEarthRingThreatBonus > 0) {
-                    const militaryThreat = this.omniHandThreat(this.currentOmniscient, 'military').skill;
-                    const politicalThreat = this.omniHandThreat(this.currentOmniscient, 'political').skill;
-                    if(Math.max(militaryThreat, politicalThreat) > 0) {
-                        base += this.currentDeckProfile.omniscientEarthRingThreatBonus;
-                    }
-                }
-                break;
-            case 'fire':
-                base = 30;
-                break;
-            case 'water': {
-                // Bowing only targets characters without fate, and only
-                // matters when the opponent has several ready bodies.
-                const bowTargets = (opponent?.cardPiles?.cardsInPlay || []).filter((card: any) =>
-                    card.type === 'character' && !card.bowed && (Number(card.fate) || 0) === 0).length;
-                const myBowed = this.myCharactersInPlay(me).some((card) => card.bowed);
-                const moreConflictsComing = (me?.stats?.conflictsRemaining ?? 0) >= 2;
-                if(bowTargets >= 2) {
-                    base = 35;
-                } else if(myBowed && moreConflictsComing) {
-                    base = 25;
-                } else {
-                    base = 8;
-                }
-                break;
-            }
-            default:
-                base = 15;
-        }
+        const base = this.ringElementBase(ring, me, opponent);
 
         // Glory decks steer toward the ring their BOARD exploits (Solemn
         // Scholar wants earth claimed, the void masters want void, the water
@@ -3714,8 +3761,56 @@ class JigokuBotPolicy {
             )
             : 0;
 
+        // Phoenix Shugenja's own model, when the deck profile turns it on. It
+        // REPLACES the generic fate tier and the flat per-card bonus, both of
+        // which are structurally unable to rank this deck's rings: the tier
+        // saturates on one fate, and `shugenjaBonus` is added after it. The
+        // element base is kept as a sub-fate tie-break.
+        // Not for the Fushicho rotation. It runs Kyuden Isawa too, so it
+        // resolves to the same archetype and would receive this plan from an
+        // injected arm — but its rings are steered by `RebirthTactics`, which
+        // the early return below would silently discard.
+        const ringPlan = shugenja && !this.currentRebirth
+            ? shugenja.ringPlanScore(ring, this.shugenjaRingPlanContext(me, opponent))
+            : null;
+        if(ringPlan !== null) {
+            return ringPlan + base;
+        }
+
         return fateComponent + base + gloryBonus + dragonBonus + shugenjaBonus + duelBonus +
             attachmentBonus + rebirthBonus + lionDuelistBonus + craneHonorBonus + lionHonorBonus;
+    }
+
+    private shugenjaRingPlanContext(me: any, opponent: any): ShugenjaRingPlanContext {
+        return {
+            myCharacters: this.myCharactersInPlay(me),
+            opponentCharacters: opponent?.cardPiles?.cardsInPlay || [],
+            hand: me?.cardPiles?.hand || [],
+            fate: Math.max(0, Number(me?.stats?.fate) || 0),
+            targetStrength: this.weakestLegalTargetStrength(opponent),
+            skillOf: (card: any, axis: 'military' | 'political') => this.skillValue(card, axis) || 0
+        };
+    }
+
+    /**
+     * Strength of the easiest province we may legally attack right now, which
+     * is the bar a break test has to clear. Follows the same legality rule as
+     * every other brain: outer provinces until three break, then the stronghold
+     * province only.
+     */
+    private weakestLegalTargetStrength(opponent: any): number {
+        const strengths = attackProvinceLists(opponent)
+            .map((list: any[]) => (list || []).find((card: any) =>
+                card && card.isProvince !== false &&
+                (card.isProvince || card.type === 'province') && !card.isBroken))
+            .filter((card: any) => !!card)
+            .map((card: any) => {
+                const stat = Number(card?.strengthSummary?.stat);
+                // A facedown province publishes no strength; use the shared
+                // unknown-strength assumption rather than treating it as free.
+                return Number.isFinite(stat) ? stat : PROVINCE_TARGETING_DEFAULTS.unknownStrength;
+            });
+        return strengths.length > 0 ? Math.min(...strengths) : 0;
     }
 
     // The side (military/political) to attack on. V1's rule is "wherever my own
@@ -3831,7 +3926,8 @@ class JigokuBotPolicy {
         }
         let candidateLists = targeting.rank(
             attackLists,
-            omni && profile.useOmniscientProvinceKnowledge !== false ? omni.oppProvinces : []
+            omni && profile.useOmniscientProvinceKnowledge !== false ? omni.oppProvinces : [],
+            this.currentOpponentProvinceDenial || {}
         );
         if(preferredLocation) {
             candidateLists = candidateLists.slice().sort((left, right) => {

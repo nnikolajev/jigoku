@@ -99,4 +99,67 @@ describe('ProvinceTargetingTactics', function() {
 
         expect(new ProvinceTargetingTactics(profile).rank([exposed, hidden])[0]).toBe(hidden);
     });
+
+    // Public-information targeting. Every input below is visible to both
+    // players, so these apply to the fair bot, unlike the `known` metadata.
+    describe('public information', function() {
+        const tuned = (overrides) => new ProvinceTargetingTactics({
+            ...PROVINCE_TARGETING_DEFAULTS,
+            abilityPriority: { ...PROVINCE_TARGETING_DEFAULTS.abilityPriority },
+            effectiveStrengthById: { ...PROVINCE_TARGETING_DEFAULTS.effectiveStrengthById },
+            priorityTierById: { ...PROVINCE_TARGETING_DEFAULTS.priorityTierById },
+            ...overrides
+        });
+
+        it('is inert at its defaults, so V1 ordering is unchanged', function() {
+            const hidden = [{ facedown: true, location: 'province 1' }];
+            const exposed = list('exposed', 'province 2', 4, 'none');
+            const denial = { 'province 1': { denial: 9, holdingStrength: 3 } };
+
+            expect(ids(new ProvinceTargetingTactics().rank([hidden, exposed], [], denial)))
+                .toEqual(ids(new ProvinceTargetingTactics().rank([hidden, exposed])));
+        });
+
+        it('prefers a revealed province: its reveal effect cannot spring', function() {
+            const hidden = [{ facedown: true, location: 'province 1' }];
+            const exposed = list('exposed', 'province 2', 5, 'none');
+
+            expect(tuned({ faceupProvinceDiscount: 99 }).rank([hidden, exposed])[0]).toBe(exposed);
+
+            // A small discount only breaks near-ties. A revealed 6 stays behind
+            // an unknown 4 at discount 1, and passes it at discount 3.
+            const tough = list('tough', 'province 2', 6, 'none');
+            expect(tuned({ faceupProvinceDiscount: 1 }).rank([hidden, tough])[0]).toBe(hidden);
+            expect(tuned({ faceupProvinceDiscount: 3 }).rank([hidden, tough])[0]).toBe(tough);
+        });
+
+        it('attacks the province holding an unbought character to discard it', function() {
+            const plain = [{ facedown: true, location: 'province 1' }];
+            const stacked = [{ facedown: true, location: 'province 2' }];
+            const denial = { 'province 2': { denial: 2.5, holdingStrength: 0 } };
+
+            expect(tuned({ faceupDynastyDenialWeight: 1 })
+                .rank([plain, stacked], [], denial)[0]).toBe(stacked);
+        });
+
+        it('reads a faceup holding bonus as strength on a province still facedown', function() {
+            const bare = [{ facedown: true, location: 'province 1' }];
+            const fortified = [{ facedown: true, location: 'province 2' }];
+            const denial = { 'province 2': { denial: 0, holdingStrength: 2 } };
+
+            expect(tuned({ faceupHoldingStrengthWeight: 1 })
+                .rank([bare, fortified], [], denial)[0]).toBe(bare);
+        });
+
+        it('does not double-count a holding already inside a revealed strength', function() {
+            const revealed = list('revealed', 'province 1', 4, 'none');
+            const bare = [{ facedown: true, location: 'province 2' }];
+            const denial = { 'province 1': { denial: 0, holdingStrength: 5 } };
+
+            // `strengthSummary` already carries the holding, so the revealed
+            // province stays at 4 and ties the unknown 4 on board order.
+            expect(ids(tuned({ faceupHoldingStrengthWeight: 1 })
+                .rank([revealed, bare], [], denial))).toEqual(['revealed', 'province 2']);
+        });
+    });
 });

@@ -471,6 +471,10 @@ class JigokuBotController {
                     // Exact public printed skills, ability density, and live
                     // honor-on-entry effects for board-aware dynasty valuation.
                     dynastyCharacterInfo: this.dynastyCharacterInfo(player),
+                    // Public denial value of each opponent province, for target
+                    // ordering: breaking one discards the faceup dynasty cards
+                    // waiting in it.
+                    opponentProvinceDenial: this.opponentFaceupDynastyDenial(player),
                     // Player-state hand summaries omit printed conflict-card
                     // costs. Deck profiles need these to sequence reducers.
                     conflictCosts: this.conflictCostsHint(player),
@@ -730,7 +734,7 @@ class JigokuBotController {
             'mulligan', 'honorRace', 'unicornReveal', 'provinceRevealResponse',
             'bidWar', 'lionDuelist', 'crabSacrifice', 'craneHonor', 'lionHonor',
             'strongholdBow', 'conflictRecursion', 'dynastyEvents', 'saveFatePass',
-            'aggressiveSpend'] as const) {
+            'aggressiveSpend', 'provinceTargeting'] as const) {
             if(sharedTop?.[key] || perDeck[key]) {
                 merged[key] = JigokuBotController.mergeTacticsProfile(
                     baseAny[key], sharedTop?.[key], perDeck[key]
@@ -1532,6 +1536,42 @@ class JigokuBotController {
         return locations.flatMap((location) => getDynastyCards.call(player, location) || [])
             .filter((card: any) => card?.uuid && card.cardData &&
                 typeof card.isFaceup === 'function' && card.isFaceup());
+    }
+
+    // What breaking each of the OPPONENT's provinces would deny them, keyed by
+    // province location. Faceup dynasty cards in a province are public
+    // information, so this is legal for a fair bot — unlike
+    // `OmniscientBotCapability.opponentProvinces`, which values the hidden
+    // stack too. Same per-card shape as that method so the two rigs agree.
+    // `holdingStrength` is separate from `denial` because the two pull opposite
+    // ways. A faceup holding is worth discarding, but its province-strength
+    // bonus also makes that province harder to break — and for a province still
+    // facedown, that bonus is the ONLY strength information either player has.
+    private opponentFaceupDynastyDenial(me: Player):
+        Record<string, { denial: number; holdingStrength: number }> | undefined {
+        const opp = (me as any).opponent as Player | undefined;
+        if(!opp) {
+            return undefined;
+        }
+        const result: Record<string, { denial: number; holdingStrength: number }> = {};
+        for(const card of this.faceupDynastyCards(opp)) {
+            const location = String(card.location || '');
+            if(!location) {
+                continue;
+            }
+            const entry = result[location] || (result[location] = { denial: 0, holdingStrength: 0 });
+            const type = typeof card.getType === 'function' ? card.getType() : card.type;
+            const military = Math.max(0, this.parseStat(card.cardData?.military) ?? 0);
+            const political = Math.max(0, this.parseStat(card.cardData?.political) ?? 0);
+            entry.denial += type === 'character' ? (military + political) * 0.25
+                : type === 'holding' ? 1
+                    : 1;
+            if(type === 'holding') {
+                entry.holdingStrength += Math.max(0,
+                    this.parseStat(card.cardData?.strength_bonus) ?? 0);
+            }
+        }
+        return Object.keys(result).length > 0 ? result : undefined;
     }
 
     // Printed fate cost of each face-up dynasty card in a province, keyed by

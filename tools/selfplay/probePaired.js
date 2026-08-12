@@ -38,11 +38,25 @@ const ARMS = process.env.ARMS || 'treated';
 const OUT = process.env.OUT || '';
 const WORKERS = Number(process.env.WORKERS || Math.max(1, require('os').cpus().length - 4));
 
+// ONLY=<csv of deck labels> keeps just the pairings where the TREATED seat
+// pilots one of those decks. A deck-scoped knob leaves every other pairing
+// bit-identical, so those games only dilute the headline percentages and cost
+// wall clock. This is shuffle-safe: the shuffle is `base + (i*100+j)*97`,
+// derived from the deck INDICES, so a pairing plays the same game whether or
+// not the rest of the list is present. Default (empty) is the full field.
+const ONLY = String(process.env.ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
+const unknown = ONLY.filter((label) => !DECK_LABELS.includes(label));
+if(unknown.length > 0) {
+    throw new Error(`ONLY names decks that do not exist: ${unknown.join(', ')}`);
+}
+// Seat 0 pilots deck i and seat 1 pilots deck j, so the filter follows SEAT.
+const treatedSeat = Number(process.env.SEAT || 0);
 const tasks = [];
 for(const base of BASES) {
     for(let i = 0; i < DECK_LABELS.length; i++) {
         for(let j = 0; j < DECK_LABELS.length; j++) {
-            if(i !== j) {
+            const treatedDeck = DECK_LABELS[treatedSeat === 1 ? j : i];
+            if(i !== j && (ONLY.length === 0 || ONLY.includes(treatedDeck))) {
                 tasks.push({ base: base, i: i, j: j });
             }
         }

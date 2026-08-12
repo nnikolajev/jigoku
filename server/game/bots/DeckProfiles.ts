@@ -1459,6 +1459,27 @@ const OVERRIDES: ProfileOverride[] = [
                     'shiba-tsukune'
                 ],
                 endHoldingLimit: { weak: 1, developing: 2, strong: 2 }
+            },
+            shugenja: {
+                ...SHUGENJA_DEFAULTS,
+                // The declaration ring is picked the way the deck is actually
+                // piloted: keep V1's fate-first tier, but let an element jump
+                // it when the free Feral Ningyo bodies and an Adept Covert
+                // lockout turn THIS declaration into a broken province, and add
+                // what claiming the ring pays on its own (Kudaka's air draw,
+                // Ujina's void, Prodigy/Tsuki on water) plus what the ring fate
+                // UNLOCKS from hand (Pacifism, Stolen Breath, a disguised
+                // Tadaka, Consumed by Five Fires against a fat board).
+                //
+                // MEASURED NULL, and shipped anyway as a fidelity choice: 105
+                // to / 106 away over 26 fresh bases (see
+                // docs/bot-v2-rejected-experiments.md). It behaves like the
+                // threshold it models — water declarations 100 -> 116, a bigger
+                // fate pile declined only 20 times per ~1000 — it just trades
+                // one win path for another. `ringPlanPlannerResources` stays
+                // off: publishing these to the phase rollout measured negative.
+                ringPlanEnabled: true,
+                ringPlanBreakAware: true
             }
         }
     },
@@ -2672,7 +2693,10 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     voidIds: [...override.apply.shugenja.voidIds],
                     disguiseTargets: { ...override.apply.shugenja.disguiseTargets },
                     spellPriority: [...override.apply.shugenja.spellPriority],
-                    protectedDiscardIds: [...override.apply.shugenja.protectedDiscardIds]
+                    protectedDiscardIds: [...override.apply.shugenja.protectedDiscardIds],
+                    ringPlanUnlockValues: { ...override.apply.shugenja.ringPlanUnlockValues },
+                    ringPlanFreeBodies: { ...override.apply.shugenja.ringPlanFreeBodies },
+                    ringPlanCovertSources: { ...override.apply.shugenja.ringPlanCovertSources }
                 };
             }
             if(override.apply.rebirth) {

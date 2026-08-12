@@ -6,8 +6,26 @@ import type DrawCard from './drawcard';
 import type { CardEffect } from './Effects/types';
 import type Game from './game';
 import type { GameAction } from './GameActions/GameAction';
-import * as GameActions from './GameActions/GameActions';
+import type * as GameActionsModule from './GameActions/GameActions';
 import type Player from './player';
+
+// `GameActions/GameActions` re-exports every action module, and those pull in
+// ring/card modules that extend this class — so importing it eagerly puts
+// GameObject inside a require cycle. Node resolves that cycle by handing the
+// second entrant a half-built `module.exports`, which surfaces as
+// "Class extends value [object Object] is not a constructor" the moment
+// GameObject or EffectSource is the ENTRY point rather than reached via
+// game.js. That is why `npx jasmine` on a single spec file could not load the
+// engine. It is only ever needed inside `allowGameAction`, so resolve it on
+// first use, after every module in the cycle has finished initialising.
+let gameActionsModule: typeof GameActionsModule | undefined;
+function gameActions(): typeof GameActionsModule {
+    if(!gameActionsModule) {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        gameActionsModule = require('./GameActions/GameActions');
+    }
+    return gameActionsModule as typeof GameActionsModule;
+}
 
 export class GameObject {
     declare public game: Game;
@@ -92,7 +110,7 @@ export class GameObject {
     }
 
     public allowGameAction(actionType: string, context = this.game.getFrameworkContext()) {
-        const gameActionFactory = GameActions[actionType];
+        const gameActionFactory = gameActions()[actionType];
         if(gameActionFactory) {
             const gameAction: GameAction = gameActionFactory();
             return gameAction.canAffect(this, context);

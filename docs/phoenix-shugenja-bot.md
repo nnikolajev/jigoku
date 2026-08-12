@@ -89,6 +89,69 @@ strongest legal enemy whenever possible. If the engine offers only Phoenix
 characters, it must remove the weakest own legal character instead of looping
 on Cancel.
 
+## Ring plan (injectable, off by default)
+
+V1 picks the declaration ring with `JigokuBotPolicy.ringScore`, where a ring
+holding any fate is worth `1000 + 100 x fate` and every per-card bonus is added
+*after* that tier. For this deck that ordering is structurally wrong, not merely
+mistuned: `ringCardBonus` is 18, so no value of it can ever outrank a one-fate
+pile, and the same deck's Offerings path already prices a live payoff at 100.
+
+Five recorded human games with this list (`game replays/phoenix shugenja`)
+disagreed with V1's ring on **14 of 25** attack declarations. The human's rings
+are not interchangeable, because both halves of a ring are worth something
+concrete here:
+
+- **Element.** `FeralNingyo` puts itself into play into the conflict from hand
+  at **no fate cost**, but only while water is contested — every copy in hand is
+  a free 3/2 body. `AdeptOfTheWaves` grants Covert for water conflicts until end
+  of phase, which removes their best defender and decides a conflict while
+  their board is narrow. `ProdigyOfTheWaves` readies itself once water is
+  claimed, which is a second conflict body. `Kudaka` pays 1 fate **and** 1 card
+  per air claim, twice a round. `AsakoTsuki` honors a scholar on a water claim.
+  Every one of the eight Adept Covert grants in those games was followed
+  immediately by a water declaration.
+- **Fate.** The attacker takes the pile at declaration, so it is spendable now —
+  but only for what it actually buys. Ring fate that crosses the cost of a lock
+  (Pacifism / Stolen Breath, 2 each), of Disguised Tadaka (five minus the
+  prepared base's printed cost) or of Consumed by Five Fires (5, and only worth
+  reaching while a Shugenja is out and five actionable enemy fate is there to
+  strip) is worth more than the same pile with nothing to spend it on.
+
+`ringPlanEnabled` replaces the generic fate tier for this deck with one scored
+in **fate-equivalents**: the ring's own fate, plus what that fate unlocks that
+we could not already afford, plus what contesting that element contributes. The
+generic element base is kept as a sub-fate tie-break so equal plans still order
+deterministically. Every weight is a profile field, so an arm is a JSON string:
+
+```powershell
+$env:CHANGE='{"deckProfileByArchetype":{"shugenja":{"shugenja":{"ringPlanEnabled":true}}}}'
+```
+
+The plan is skipped when `RebirthTactics` is active. The Fushicho rotation runs
+Kyuden Isawa too and so resolves to the same archetype, but its rings are
+steered by its own `ringBonus`, which this path would discard.
+
+Disabled by default, and `refactorIdentity.js` hashed identically
+(`cfa9c47963546588`) before and after the change, so V1's shipped behavior is
+untouched until an arm turns it on.
+
+**Measured null — do not ship it as it stands.** Pooled over 39 fresh bases and
+both seats, decided games split 167 to / 168 away (n=335, p=0.96). It is not
+inert: it flips 25% of this deck's games, takes water 42% more often and
+declines a larger fate pile 159 times per ~1000 declarations. A linear value per
+payoff simply is not the rule that beats fate-first here.
+
+Three further structures were built on top and are also null — giving the ring
+to the phase rollout (`conflictPlanning.applyRingPlan`), publishing the
+element-gated resources the rollout cannot see
+(`ringPlanPlannerResources` -> `selfRingHandThreat` / `selfRingCovert`), and the
+faithful threshold rule (`ringPlanBreakAware`: an element jumps the fate tier
+only when its free bodies and Covert lockout convert a miss into a break).
+Six arms, ~1000 decided games, nothing points anywhere. Every flag defaults
+off. Full census, per-seat splits and the conversion-vs-economy bug are in
+`bot-v2-rejected-experiments.md`.
+
 ## Implementation
 
 - `ShugenjaTactics.ts` owns ring bonuses, live Offerings tie priority,
@@ -96,7 +159,11 @@ on Cancel.
   Fushichō gating, spell/discard ordering, Display defense, and the conditional
   five-fate reserve. Its
   `togamaFateValue`, `immediateRingPayoffValue`, and
-  `displayRingMinimum` profile fields are injectable tuning knobs.
+  `displayRingMinimum` profile fields are injectable tuning knobs, as is the
+  whole `ringPlan*` group above (`ringPlanNingyoValue`, `ringPlanCovertValue`
+  and its `ringPlanCovertMaxOpponentBodies` board-width gate,
+  `ringPlanProdigyValue`, `ringPlanKudakaAirValue`, `ringPlanTsukiWaterValue`,
+  `ringPlanUjinaVoidValue`, and the `ringPlanUnlockValues` table).
 - `CardPlaybook.ts` contains the active/reaction metadata for the deck cards.
 - `DeckProfiles.ts` derives the sub-profile from Kyūden Isawa and parks Vassal
   Fields under the stronghold.

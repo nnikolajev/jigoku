@@ -150,6 +150,12 @@ async function runGame(options = {}) {
     if(options.onControllers) {
         options.onControllers(controllers);
     }
+    // Live-game hook for observers that must watch the engine itself rather
+    // than the bot's decisions (see test/helpers/effectpolarity.js). Called
+    // once the controllers exist and before the first tick.
+    if(options.onGame) {
+        options.onGame(game, names);
+    }
     const noProgressCap = options.noProgressCap || 400;
 
     // A signature of everything that changes when the game actually advances.

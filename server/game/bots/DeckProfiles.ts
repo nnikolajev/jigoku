@@ -310,6 +310,14 @@ export interface DeckProfile {
     // only single-action honor prompts reach those rankers and the card's own
     // handler owns the side split (ours honored, theirs dishonored).
     shamefulDisplaySplitSides: boolean;
+    // Master switch for the wrong-side polarity guards (2026-08-13). Ready and
+    // honor belong on our characters, bow and dishonor on theirs; eight cards
+    // were landing them on the wrong side while a legal correct-side target, or
+    // a decline, was on screen. Off restores the pre-fix behaviour EXACTLY, so
+    // an `off` arm measures what the fixes are worth. See
+    // `docs/bot-effect-polarity.md` and
+    // `test/server/integration/botpolarity*.spec.js`.
+    polarityGuards: boolean;
     // The honor decks rank honor targets from a printed priority list. A bowed
     // character, and one at home, contribute no skill, so during a live
     // conflict that list happily spends the token for zero swing. On, a ready
@@ -733,6 +741,7 @@ export const DEFAULT_PROFILE: DeckProfile = {
     honorRace: { ...DEFAULT_HONOR_RACE_LIMITS },
     dynastyPrintedStats: false,
     shamefulDisplaySplitSides: true,
+    polarityGuards: true,
     honorTargetLiveSwing: true,
     eleganceRequiresUse: true,
     bidWarAware: false,

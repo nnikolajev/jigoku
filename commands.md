@@ -219,6 +219,36 @@ node tools/selfplay/validateBotInteractions.js --decks Crab,Phoenix --seeds 3 --
 The audit detects repeated/no-progress clicks, short action cycles, unsupported
 prompts, decision-budget exhaustion, stalls, timeouts, and engine errors.
 
+## Effect polarity gate
+
+Ready and honor must land on OUR characters, bow and dishonor on THEIRS. The
+check knows nothing about individual cards, so a misconfigured card, a deck
+overlay hijacking another card's prompt, and a bot clicking the first selectable
+card all fail it the same way. Full method and the current exception list:
+`docs/bot-effect-polarity.md`.
+
+```powershell
+# every wrong-side landing, ignoring the curated lists (how a new list is built)
+$env:RAW='1'; $env:BASES='91001,92001,93001'; $env:WORKERS='14'; $env:OUT='polarity.json'
+node tools/selfplay/auditEffectPolarity.js
+
+# what is left after the exception list; must be zero
+Remove-Item Env:RAW; node tools/selfplay/auditEffectPolarity.js
+
+# replay one game from a violation's label and dump the bot's view at the prompt
+$env:CASE='92001|Crane|Unicorn'; $env:MATCH='select up to'; $env:SEAT='0'
+node tools/selfplay/replayPolarityCase.js
+```
+
+```text
+auditEffectPolarity.js  BASES ONLY RAW WORKERS OUT
+replayPolarityCase.js   CASE MATCH SEAT
+```
+
+The same invariant runs inside `npm test`
+(`test/server/integration/botpolarity*.spec.js`); `POLARITY_BASES`,
+`POLARITY_DECKS` and `POLARITY_FULL=1` widen the in-suite sweep.
+
 ## Other comparisons and diagnostics
 
 ```powershell
@@ -298,8 +328,12 @@ node tools/selfplay/matchPhoenixShugenja.js 40 3 --trace
   else 90000, as a wall-clock per-game backstop. It fires on games that are
   merely SLOW, so parallel callers must raise it; the parallel rigs default it
   to 180000.
+- `harness.js` also takes `options.onGame(game, names)`, called once the
+  controllers exist and before the first tick, for observers that must watch the
+  ENGINE rather than the bot's decisions (`test/helpers/effectpolarity.js`).
 - `_deckWorker.js`, `_roundRobinWorker.js`, `_seedRoundRobinWorker.js`,
-  `_omniscientRoundRobinWorker.js`, `_cardUsageWorker.js`, `_h2hWorker.js`, and
+  `_omniscientRoundRobinWorker.js`, `_cardUsageWorker.js`, `_h2hWorker.js`,
+  `_polarityWorker.js`, and
   `_probeWorker.js` are child workers; invoke their parent commands instead.
   `_h2hWorker.js` and `_probeWorker.js` return their payload on a single
   `@@RESULT@@`-prefixed stdout line because loop-guard logs share stdout.

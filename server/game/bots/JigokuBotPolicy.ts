@@ -409,6 +409,10 @@ class JigokuBotPolicy {
     // Asako Diplomat picks a target, THEN a separate honor/dishonor menu
     // opens (a new prompt signature) — remember which way the target went.
     private diplomatChoice: 'honor' | 'dishonor' = 'honor';
+    // Which side the Fire Ring target step aimed at. The follow-up menu labels
+    // its buttons with a card NAME, which both decks can share, so the side has
+    // to be carried rather than re-derived.
+    private fireRingTargetSide: 'own' | 'enemy' | null = null;
     private favorableGroundRetreatPending = false;
     // Clarity lasts until conflict end. Player summaries do not serialize the
     // lasting-effect source, so remember accepted targets and distribute later
@@ -1718,6 +1722,29 @@ class JigokuBotPolicy {
             if(readyButton && buttons.some((button) => String(button.text || '') === 'Bow')) {
                 return this.buttonDecision(readyButton, 'shugenja-ready');
             }
+        }
+
+        // The same two menus, field-wide. Both were gated behind a deck profile
+        // and every other deck fell through to the generic picker: the
+        // PhoenixPhoenix (rebirth) list runs Against the Waves and bowed its own
+        // Shugenja. Placed AFTER the gated copies above, so a gated deck still
+        // returns from its own branch and its ordering is unchanged.
+        //
+        // Against the Waves targets `controller: Players.Self`, so the chosen
+        // character is always ours and Ready is always the half worth taking.
+        const menuGuards = this.currentDeckProfile.polarityGuards !== false;
+        const readyHalf = buttons.find((button) => String(button.text || '') === 'Ready');
+        if(menuGuards && readyHalf && buttons.some((button) => String(button.text || '') === 'Bow')) {
+            return this.buttonDecision(readyHalf, 'ready-half-over-bow-own');
+        }
+        // Asako Diplomat's follow-up. `diplomatChoice` records which side the
+        // target step aimed at; honor is the default because the target step
+        // prefers one of ours.
+        const honorThis = buttons.find((button) => String(button.text || '') === 'Honor this character');
+        const dishonorThis = buttons.find((button) => String(button.text || '') === 'Dishonor this character');
+        if(menuGuards && honorThis && dishonorThis) {
+            const pick = this.diplomatChoice === 'dishonor' ? dishonorThis : honorThis;
+            return this.buttonDecision(pick, `polarity-choice-${this.diplomatChoice || 'honor'}`);
         }
 
         // Shameful Display's follow-up menu: honor one of the two selected
@@ -8668,7 +8695,17 @@ class JigokuBotPolicy {
             // Skirmisher, Stoic Gunso, Way of the Crab, Fulfill Your Duty,
             // Steadfast Witch Hunter and Tainted Hero all land here.
             if(actionNames.includes('sacrifice') && mine.length > 0) {
-                const fodder = crabSacrifice.pickSacrifice(mine, sacrificeCtx);
+                // Steadfast Witch Hunter readies a character with what it eats,
+                // and `ready` is only legal on a BOWED one. Eating our only
+                // bowed body leaves the follow-up prompt offering nothing but
+                // THEIR bowed characters, and the ready gets handed to the
+                // opponent. Keep one bowed body back to receive it.
+                const spare = this.currentDeckProfile.polarityGuards !== false &&
+                    sourceId === 'steadfast-witch-hunter' &&
+                    mine.filter((card) => card.bowed).length === 1
+                    ? mine.filter((card) => !card.bowed)
+                    : mine;
+                const fodder = crabSacrifice.pickSacrifice(spare.length > 0 ? spare : mine, sacrificeCtx);
                 if(fodder) {
                     this.lastSacrificedBody = fodder;
                     this.pendingSacrificeCostUuid = fodder.uuid || null;
@@ -9066,6 +9103,14 @@ class JigokuBotPolicy {
         // stage (before costs are paid); aborting always beats aiming an
         // effect at the wrong side of the board.
         const cancel = this.findButton(buttons, ['cancel']);
+        // A select prompt only grows a Done button once the selector is
+        // satisfied (`hasEnoughSelected`) or is optional, so Done is always a
+        // legal answer when it is on screen. That makes it the same kind of
+        // escape as Cancel for an "up to X" prompt: Kakita Yoshi dishonoring
+        // its THIRD target after both enemies are already picked had a Done
+        // sitting there and chose to dishonor one of ours instead.
+        const polarityGuards = this.currentDeckProfile.polarityGuards !== false;
+        const done = polarityGuards ? this.findButton(buttons, ['done']) : undefined;
 
         // Feeding an Army pays a deliberately harmful OWN-province cost. The
         // generic `break` polarity correctly aims ordinary break effects at
@@ -10026,13 +10071,18 @@ class JigokuBotPolicy {
             // is controller:self + Shugenja, so every selectable card is safe
             // even when a public-state adapter omitted owner metadata.
             const bowed = cards.filter((card) => card.bowed);
-            const legalOwnShugenja = bowed.length > 0 ? bowed : cards;
-            if(legalOwnShugenja.length > 0) {
+            const wavesPool = bowed.length > 0 ? bowed : (polarityGuards ? [] : cards);
+            if(wavesPool.length > 0) {
                 const pick = shugenja
-                    ? shugenja.pickTower(legalOwnShugenja, (card) => this.skillValue(card, skillType) || 0)
-                    : this.sortBySkillDesc(legalOwnShugenja, skillType)[0];
+                    ? shugenja.pickTower(wavesPool, (card) => this.skillValue(card, skillType) || 0)
+                    : this.sortBySkillDesc(wavesPool, skillType)[0];
                 return this.cardClickDecision(pick, 'waves-ready-bowed');
             }
+            // With no bowed Shugenja the only legal half of "bow OR ready" is
+            // BOW, and the target is ours by the card's own controller clause —
+            // so picking any of them bows our own body for nothing. The
+            // pre-cost check acts on this reason before "Pay costs first"
+            // removes the escape.
             if(cancel) {
                 return this.buttonDecision(cancel, 'cancel-wrong-side-target');
             }
@@ -10057,9 +10107,18 @@ class JigokuBotPolicy {
                 this.diplomatChoice = 'honor';
                 return this.cardClickDecision(personalHonor.pickOwnHonor(unhonored), 'diplomat-honor-own');
             }
-            if(theirs.length > 0) {
+            // An ALREADY dishonored enemy cannot take a second dishonor token,
+            // so the follow-up menu would offer only "Honor this character" and
+            // hand them the honor. Only aim at one that can still take it.
+            const dishonorable = polarityGuards
+                ? theirs.filter((card) => !card.isDishonored)
+                : theirs;
+            if(dishonorable.length > 0) {
                 this.diplomatChoice = 'dishonor';
-                return this.cardClickDecision(personalHonor.pickEnemyDishonor(theirs), 'diplomat-dishonor-enemy');
+                return this.cardClickDecision(personalHonor.pickEnemyDishonor(dishonorable), 'diplomat-dishonor-enemy');
+            }
+            if(polarityGuards && cancel) {
+                return this.buttonDecision(cancel, 'cancel-wrong-side-target');
             }
         }
         if(targetHint.sourceCardId === 'isawa-mori-seido' && glory) {
@@ -10110,6 +10169,12 @@ class JigokuBotPolicy {
             }
             if(promptTitle === 'Choose a character to dishonor' || menuTitle === 'Choose a character to dishonor') {
                 const pick = personalHonor.pickEnemyDishonor(theirs) ||
+                    // Same reasoning as the second SELECT pick: an own body
+                    // that is already honored only loses its token here,
+                    // where a clean one would become dishonored.
+                    (polarityGuards
+                        ? personalHonor.pickForcedOwnDishonor(mine.filter((card) => card.isHonored))
+                        : null) ||
                     personalHonor.pickForcedOwnDishonor(mine);
                 return pick ? this.cardClickDecision(pick, 'shameful-dishonor-enemy') : null;
             }
@@ -10120,12 +10185,30 @@ class JigokuBotPolicy {
                     return cancel ? this.buttonDecision(cancel, 'cancel-wrong-side-target') : null;
                 }
                 const unhonored = mine.filter((card) => !card.isHonored);
+                // Both halves inverted: nothing of ours can take the honor and
+                // nothing of theirs can take the dishonor, so whichever pair we
+                // pick the engine honors THEIR card and dishonors OURS. Cancel
+                // while the pre-cost check can still see this reason — once
+                // "Pay costs first" is clicked the prompt has no way out.
+                if(polarityGuards && unhonored.length === 0 && theirs.every((card) => card.isDishonored)) {
+                    return cancel ? this.buttonDecision(cancel, 'cancel-wrong-side-target') : null;
+                }
                 const ownPick = (unhonored.length > 0 ? pickOwnHonor(unhonored) : null) ||
                     pickOwnHonor(mine);
                 return this.cardClickDecision(ownPick, 'shameful-pick-own');
             }
+            // The second card takes the DISHONOR. An already-dishonored enemy
+            // cannot take a second token, so picking one inverts the whole
+            // card: the engine then offers the dishonor only on our own pick
+            // and the honor only on theirs. Measured landing both tokens on the
+            // wrong side in 18 games. When no enemy can still be dishonored,
+            // a second one of OURS is strictly better — the honor at least
+            // stays on our side, and an already-honored body only loses its
+            // token rather than becoming dishonored.
             const second = personalHonor.pickEnemyDishonor(theirs.filter((card) => !card.isDishonored)) ||
-                personalHonor.pickEnemyDishonor(theirs) ||
+                (polarityGuards
+                    ? personalHonor.pickForcedOwnDishonor(mine.filter((card) => card.isHonored))
+                    : personalHonor.pickEnemyDishonor(theirs)) ||
                 personalHonor.pickForcedOwnDishonor(mine);
             if(second) {
                 return this.cardClickDecision(second, 'shameful-pick-enemy');
@@ -10295,6 +10378,9 @@ class JigokuBotPolicy {
             if(cancel && targetHint.sourceIsMine) {
                 return this.buttonDecision(cancel, 'cancel-wrong-side-target');
             }
+            if(done) {
+                return this.buttonDecision(done, 'decline-rather-than-honor-enemy');
+            }
             const forcedEnemy = personalHonor.pickForcedEnemyHonor(theirs.filter((card) => !card.isHonored));
             if(forcedEnemy) {
                 return this.cardClickDecision(forcedEnemy, 'forced-honor-enemy-lowest-glory');
@@ -10322,6 +10408,9 @@ class JigokuBotPolicy {
             }
             if(cancel && targetHint.sourceIsMine) {
                 return this.buttonDecision(cancel, 'cancel-wrong-side-target');
+            }
+            if(done) {
+                return this.buttonDecision(done, 'decline-rather-than-dishonor-own');
             }
             const forcedOwn = personalHonor.pickForcedOwnDishonor(mine.filter((card) => !card.isDishonored));
             if(forcedOwn) {
@@ -10352,6 +10441,12 @@ class JigokuBotPolicy {
             if(cancel && targetHint.sourceIsMine) {
                 return this.buttonDecision(cancel, 'cancel-wrong-side-target');
             }
+            // Nothing of ours is bowed, so there is no ready worth having.
+            // Declining beats both fallbacks below (Asako Azunami's ready half
+            // is optional and was handing the opponent a body back).
+            if(done) {
+                return this.buttonDecision(done, 'decline-rather-than-ready-enemy');
+            }
             // Forced with nothing of ours bowed: readying an own ready body is a
             // harmless no-op; never hand the ready to the opponent.
             if(mine.length > 0) {
@@ -10365,8 +10460,13 @@ class JigokuBotPolicy {
             if(readyEnemy.length > 0) {
                 return this.cardClickDecision(readyEnemy[0], 'bow-enemy-ready');
             }
-            // No un-bowed enemy: fall through to the generic harmful path, which
-            // cancels our own optional ability rather than bow our own body.
+            // No un-bowed enemy left to bow. Decline while the prompt still
+            // allows it; otherwise fall through to the generic harmful path,
+            // which cancels our own optional ability rather than bow our own
+            // body.
+            if(done) {
+                return this.buttonDecision(done, 'decline-rather-than-bow-own');
+            }
         }
 
         if(sourceHint && (sourceHint.targetSide === 'self' || sourceHint.targetSide === 'enemy')) {
@@ -10487,20 +10587,24 @@ class JigokuBotPolicy {
                 // Dishonor decks flip the order: a dishonored enemy fights
                 // worse and bleeds its controller 1 honor when it dies.
                 if(dishonor?.preferDishonorEnemy() && enemyTargets.length > 0) {
+                    this.fireRingTargetSide = 'enemy';
                     return this.cardClickDecision(
                         personalHonor.pickEnemyDishonor(enemyTargets),
                         'fire-ring-dishonor-enemy'
                     );
                 }
                 if(ownTargets.length > 0) {
+                    this.fireRingTargetSide = 'own';
                     return this.cardClickDecision(personalHonor.pickOwnHonor(ownTargets), 'fire-ring-honor-own');
                 }
                 if(enemyTargets.length > 0) {
+                    this.fireRingTargetSide = 'enemy';
                     return this.cardClickDecision(
                         personalHonor.pickEnemyDishonor(enemyTargets),
                         'fire-ring-dishonor-enemy'
                     );
                 }
+                this.fireRingTargetSide = null;
                 return dontResolve ? this.buttonDecision(dontResolve, 'fire-ring-skip') : null;
             }
 
@@ -10518,6 +10622,21 @@ class JigokuBotPolicy {
             if(dontResolve) {
                 return this.buttonDecision(dontResolve, 'water-ring-skip');
             }
+            if(this.currentDeckProfile.polarityGuards === false) {
+                return null;
+            }
+            // Nothing useful and no way out: every remaining option readies one
+            // of THEIRS or bows one of OURS, because our board is all ready and
+            // theirs is all bowed. Returning null here dropped the prompt into
+            // the generic card-menu ranking, which bowed our best character.
+            // Take the cheapest of the bad options instead.
+            const leastHarm = mine.filter((card) => !card.bowed)
+                .concat(theirs.filter((card) => card.bowed))
+                .sort((a, b) => this.combinedSkillValue(a) - this.combinedSkillValue(b) ||
+                    String(a.uuid).localeCompare(String(b.uuid)));
+            if(leastHarm.length > 0) {
+                return this.cardClickDecision(leastHarm[0], 'water-ring-forced-least-harm');
+            }
             return null;
         }
 
@@ -10526,6 +10645,17 @@ class JigokuBotPolicy {
         const honorButtons = buttons.filter((button) => String(button.text || '').startsWith('Honor '));
         const dishonorButtons = buttons.filter((button) => String(button.text || '').startsWith('Dishonor '));
         if(honorButtons.length > 0 || dishonorButtons.length > 0) {
+            // The target step recorded which SIDE it aimed at. Trust that over
+            // the button text: the text carries a card NAME, and both decks can
+            // run the same card — a name collision made this honor the enemy's
+            // copy of a character we also control.
+            const ringGuards = this.currentDeckProfile.polarityGuards !== false;
+            if(ringGuards && this.fireRingTargetSide === 'own' && honorButtons.length > 0) {
+                return this.buttonDecision(honorButtons[0], 'fire-ring-honor');
+            }
+            if(ringGuards && this.fireRingTargetSide === 'enemy' && dishonorButtons.length > 0) {
+                return this.buttonDecision(dishonorButtons[0], 'fire-ring-dishonor');
+            }
             const myNames = new Set(this.myCharactersInPlay(me).map((card) => card.name));
             const honorOwn = honorButtons.find((button) => myNames.has(String(button.text).slice('Honor '.length)));
             const dishonorEnemy = dishonorButtons.find((button) => !myNames.has(String(button.text).slice('Dishonor '.length)));
@@ -10537,6 +10667,18 @@ class JigokuBotPolicy {
             }
             if(dishonorEnemy) {
                 return this.buttonDecision(dishonorEnemy, 'fire-ring-dishonor');
+            }
+            // Every remaining button would honor THEIR character or dishonor
+            // OURS. That happens when the target step picked one of ours whose
+            // honor turned out to be illegal (already honored, or a restriction
+            // on receiving the token), leaving only `Dishonor <our card>`.
+            // `Back` re-opens the target step, which re-picks the same card and
+            // loops — the attempted set is cleared when the prompt signature
+            // returns — so take the ring off the table instead. A skipped fire
+            // ring costs one token; dishonouring our own body costs more.
+            const skipRing = ringGuards ? this.findButton(buttons, ['don\'t resolve']) : undefined;
+            if(skipRing) {
+                return this.buttonDecision(skipRing, 'fire-ring-skip-wrong-side');
             }
             return this.buttonDecision(honorButtons[0] || dishonorButtons[0], 'fire-ring-choice');
         }

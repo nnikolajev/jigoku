@@ -735,7 +735,7 @@ class JigokuBotController {
             'bidWar', 'lionDuelist', 'crabSacrifice', 'craneHonor', 'lionHonor',
             'strongholdBow', 'conflictRecursion', 'dynastyEvents', 'saveFatePass',
             'aggressiveSpend', 'provinceTargeting', 'conflictDeckSafety',
-            'conflictTempo'] as const) {
+            'conflictTempo', 'unopposedWindow'] as const) {
             if(sharedTop?.[key] || perDeck[key]) {
                 merged[key] = JigokuBotController.mergeTacticsProfile(
                     baseAny[key], sharedTop?.[key], perDeck[key]

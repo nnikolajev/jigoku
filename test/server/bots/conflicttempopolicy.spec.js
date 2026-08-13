@@ -34,14 +34,17 @@ describe('ConflictTempoPolicy', function() {
             expect(DEFAULT_CONFLICT_TEMPO.readyLoopEnabled).toBe(false);
         });
 
-        // Ships field-wide at +0.32pp / p=0.009 over 4896 games and 9 bases.
-        // The three levers that measured null or negative stay off, and this
-        // pins that: re-enabling one is then a deliberate edit, not a drift.
-        it('ships the ready loop and nothing else', function() {
+        // The ready loop ships at +0.32pp / p=0.009 over 4896 games and 9 bases.
+        // `tradeDefenseWinOnly` ships on the OWNER'S CALL at a measured null
+        // (-0.18pp, p=0.84) so he can watch it in live play — same standing as
+        // `drawBidding.cardsOverHonor`. The two that measured negative or
+        // degenerate stay off, and this pins all of it: flipping one is then a
+        // deliberate edit, not a drift.
+        it('ships the ready loop plus the owner-requested defense stance', function() {
             expect(DEFAULT_PROFILE.conflictTempo.enabled).toBe(true);
             expect(DEFAULT_PROFILE.conflictTempo.readyLoopEnabled).toBe(true);
             expect(DEFAULT_PROFILE.conflictTempo.readyRingBonusPerSkill).toBe(4);
-            expect(DEFAULT_PROFILE.conflictTempo.tradeDefenseWinOnly).toBe(false);
+            expect(DEFAULT_PROFILE.conflictTempo.tradeDefenseWinOnly).toBe(true);
             expect(DEFAULT_PROFILE.conflictTempo.tradeAttackSendAll).toBe(false);
             expect(DEFAULT_PROFILE.conflictTempo.controlAttackKeepHome).toBe(0);
         });

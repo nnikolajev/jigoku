@@ -71,7 +71,7 @@ the whole build-out).
 | `strongBoardRatio` | 1.25 | 1.25 | ratio above which it reads `control` |
 | `bestBodyWeight` | 0 | 0 | how much of the best SINGLE body on each side enters the ratio; 0 = totals only |
 | `minBoardSkill` | 4 | 4 | skip the read while both boards are smaller than this (round one is noise) |
-| `tradeDefenseWinOnly` | false | false | **measured null** — on a losing board, size defenses `win-only` |
+| `tradeDefenseWinOnly` | false | **true** | measured **null** (−0.18pp, p=0.84), shipped on the owner's call — on a losing board, size defenses `win-only` |
 | `tradeMinOwnConflicts` | 1 | 1 | only trade while we still have a conflict to declare |
 | `tradeMaxOwnBrokenProvinces` | 2 | 2 | stop trading once the next break is the stronghold |
 | `tradeAttackSendAll` | false | false | **measured negative** — send every body on a losing board |
@@ -148,7 +148,16 @@ ScorpionBidWar is the only meaningfully negative deck and is inside noise at
 n=18; it was NOT scoped out, on the same reasoning that found no deck qualifying
 to disable `saveFatePass`. Revert the whole thing with `readyLoopEnabled: false`.
 
-## NULL: `tradeDefenseWinOnly` — and what it costs the standing theory
+## NULL, SHIPPED ANYWAY: `tradeDefenseWinOnly` — and what it costs the standing theory
+
+**Shipped field-wide on 2026-08-12 at the owner's request**, at a measured null,
+so he can watch the stance in live play. A null is not a negative and this is
+his own stated rule. **Do not cite it as a measured win, and do not silently
+revert it.** Same standing as `drawBidding.cardsOverHonor` and
+`bodyAdditionalFateSecondPlayer`. Revert with `tradeDefenseWinOnly: false`.
+
+Everything below is why it is a null, and stays true.
+
 
 On a losing board, concede a defense that cannot be won rather than bow bodies
 into it. **−0.18pp, p=0.84**, and *not* for want of reach: it diverges in 11656

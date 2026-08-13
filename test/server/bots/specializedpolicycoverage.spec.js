@@ -188,11 +188,16 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
         return spies;
     }
 
-    function expectComplete(spies) {
+    // A method that one policy deliberately DELEGATES is not dead code, and this
+    // guard exists to catch dead code. `delegated` names the exact policy labels
+    // allowed to miss a method, so opting out stays a visible, reasoned entry
+    // here rather than a silently weakened assertion.
+    function expectComplete(spies, delegated = {}) {
         for(const policyCase of POLICY_CASES) {
             const missing = [...spies.entries()]
                 .filter(([, coverage]) => !coverage.reachedBy.has(policyCase.label))
-                .map(([name]) => name);
+                .map(([name]) => name)
+                .filter((name) => !(delegated[name] || []).includes(policyCase.label));
             expect(missing)
                 .withContext(`specialized methods not reached through ${policyCase.label} policy execution`)
                 .toEqual([]);
@@ -1796,7 +1801,15 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
             targetHint: { sourceCardId: 'isawa-tadaka-2', sourceIsMine: true, gameActions: [] }
         });
 
-        expectComplete(spies);
+        // `disguisedCost` is only asked for by the free-conflict window
+        // (`UnopposedWindowPolicy`), and that window defers to the board-aware
+        // seed's own `playConflictCharactersAtHome` mechanism, which is a
+        // superset with a stricter safety test. Seed 3 therefore never reaches
+        // it BY DESIGN. Seeds 1 and 2 still must, which is what keeps this a
+        // real guard. See docs/bot-unopposed-window.md.
+        expectComplete(spies, {
+            disguisedCost: ['seed 3 board-aware', 'seed 3 board-aware omniscient']
+        });
     });
 
     it('holds Clarity of Purpose when no ready character participates through seeds 1, 2, and 3', function() {

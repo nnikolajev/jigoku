@@ -52,11 +52,22 @@ let change = '';
 for(const file of files) {
     const data = JSON.parse(fs.readFileSync(file, 'utf8'));
     change = change || data.change;
-    // The dump does not name its seat, so derive it: every treated winner label
-    // that differs from control tells us nothing, but the games list carries
-    // deckA/deckB and the probe only ever treats one of them. Fall back to the
-    // filename, which the sweep scripts label.
-    const seat = /seat1/i.test(file) ? 1 : 0;
+    // The treated seat decides which of `to`/`away` a flip counts as, and
+    // getting it wrong swaps EVERY game silently rather than failing. Newer
+    // dumps carry it; older ones only have the filename to go on, and a dump
+    // named `_s1` rather than `seat1` was once scored as seat 0 this way.
+    // Refuse to guess when the filename says nothing either.
+    let seat = data.seat;
+    if(seat === undefined) {
+        if(!/seat[01]|_s[01]\b|_s[01]\./i.test(file)) {
+            console.error(`cannot tell which seat ${file} treated: it predates the ` +
+                '`seat` field and its name does not say. Rerun probePaired.js, or ' +
+                'rename it to contain seat0/seat1.');
+            process.exit(1);
+        }
+        seat = /seat1|_s1/i.test(file) ? 1 : 0;
+    }
+    seat = Number(seat);
     seats.add(seat);
     const winner = `Seat${seat}`;
     for(const game of data.games) {

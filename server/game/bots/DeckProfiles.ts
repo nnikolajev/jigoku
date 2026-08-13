@@ -21,6 +21,8 @@ import type { DefenseCommitmentConfig } from './DefenseCommitmentPolicy';
 import type { ConflictDeclarationConfig } from './ConflictDeclarationPolicy';
 import { DEFAULT_CONFLICT_TEMPO } from './ConflictTempoPolicy.js';
 import type { ConflictTempoConfig } from './ConflictTempoPolicy';
+import { DEFAULT_UNOPPOSED_WINDOW } from './UnopposedWindowPolicy.js';
+import type { UnopposedWindowConfig } from './UnopposedWindowPolicy';
 import { DEFAULT_HONOR_RACE_LIMITS } from './CardPlaybook.js';
 import { DISHONOR_DEFAULTS } from './DishonorTactics.js';
 import type { DishonorProfile } from './DishonorTactics';
@@ -252,6 +254,13 @@ export interface DeckProfile {
     // to ready a bowed body, and how many bodies an attack keeps home.
     // `enabled: false` (the default) is V1 exactly.
     conflictTempo: Partial<ConflictTempoConfig>;
+    // The free-conflict window, owned by `UnopposedWindowPolicy`. A conflict
+    // opportunity we would otherwise PASS for lack of a ready attacker, against
+    // an enemy board that is entirely bowed, is an unopposed break if a body can
+    // be played from hand in the preConflict action window first. V1 never sees
+    // it: `estimateHandThreat` prices a hand only into the conflict already
+    // running. `enabled: false` (the default) is V1 exactly.
+    unopposedWindow: Partial<UnopposedWindowConfig>;
 
     // Honor is a win condition on both ends — 0 loses, 25 wins — and the bot
     // pays honor costs (Assassination is 3) with no budget at all outside the
@@ -663,14 +672,44 @@ export const DEFAULT_PROFILE: DeckProfile = {
     // inverting. Causally per deck: Unicorn +1.56pp (p=0.049), Lion +1.39pp
     // (p=0.039), Crab +1.22pp. Revert with `readyLoopEnabled: false`.
     //
-    // The other three levers in this policy stay OFF and are documented
-    // negatives -- see docs/bot-conflict-rules-from-replays.md rule 13.
+    // ALSO SHIPPED, on the owner's call and NOT as a measured win:
+    // `tradeDefenseWinOnly`. On a losing board, size defenses `win-only` --
+    // concede what cannot be won rather than bowing bodies into a
+    // prevent-break defense. This is his stated rule ("if I know defense is
+    // pointless I would rather lose 1 honor but make an attack myself") and it
+    // measured a clean **null: -0.18pp, p=0.84**, on a 5.82pp ceiling while
+    // diverging in 11656 windows across **94% of games**. Null, not negative,
+    // and he wants to watch it in live play. Do not cite it as a win; do not
+    // silently revert it. Revert with `tradeDefenseWinOnly: false`.
+    //
+    // The other two levers stay OFF: `tradeAttackSendAll` measured -0.49pp, and
+    // `controlAttackKeepHome: 1` is DEGENERATE with V1 (its `all-but-one`
+    // sizing already is `Math.max(1, totalEligible - 1)`), so it can only differ
+    // at 2+. See docs/bot-conflict-rules-from-replays.md rule 13.
     conflictTempo: {
         ...DEFAULT_CONFLICT_TEMPO,
         enabled: true,
         readyLoopEnabled: true,
-        readyRingBonusPerSkill: 4
+        readyRingBonusPerSkill: 4,
+        tradeDefenseWinOnly: true
     },
+    // SHIPPED ON, field-wide. A conflict opportunity the bot was about to throw
+    // away for lack of a ready attacker, against an enemy board that is entirely
+    // bowed, is an unopposed break if a body is played from hand in the
+    // preConflict action window first. V1 could not see it: `estimateHandThreat`
+    // prices a hand only into the conflict already RUNNING, so a body that
+    // matters at the next declaration is worth zero to it.
+    //
+    // Fires in only 0.4% of windows but **11.4% of games** -- about one free
+    // conflict every nine games -- and measured **+0.53pp (p<0.0001)** over 4896
+    // games on 9 independent bases, both seats, 106 flips toward the change
+    // against 54 away. All four cells positive (+0.92 / +0.31 search, +0.55 /
+    // +0.43 on six FRESH bases). Causally per deck: LionDuelist +2.08pp
+    // (p=0.004), Unicorn +1.39pp, CrabSacrifice +1.22pp, Dragon +1.22pp; no deck
+    // negative beyond noise. Revert with `enabled: false`.
+    //
+    // See docs/bot-unopposed-window.md.
+    unopposedWindow: { ...DEFAULT_UNOPPOSED_WINDOW, enabled: true },
     // SHIPPED ON. V1 used to choose the conflict axis from its own ready board
     // alone, ignoring the opponent's board even though that board is public and
     // the fair `ringScore` already reads it. Weight 1 subtracts the opponent's
@@ -728,6 +767,7 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         defenseTuning: { ...DEFAULT_PROFILE.defenseTuning },
         conflictDeclaration: { ...DEFAULT_PROFILE.conflictDeclaration },
         conflictTempo: { ...DEFAULT_PROFILE.conflictTempo },
+        unopposedWindow: { ...DEFAULT_PROFILE.unopposedWindow },
         fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },
         boardAwareDynasty: {
             ...DEFAULT_PROFILE.boardAwareDynasty,

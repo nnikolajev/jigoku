@@ -40,10 +40,18 @@ Ningyo arrive from hand for the break. Value is `max(branch)`, not the expected
 break — and bowing a STRONGER enemy body is itself the payoff when you are the
 weaker board.
 
-**Status: partly modelled.** The rollout bows defenders and keeps playing the
-phase, so the tempo half is priced. The other half — a free body arriving from
-hand at the NEXT conflict — is not; `handThreat` prices hand cards as one skill
-lump added to the CURRENT conflict.
+**Status: partly modelled, and the missing half is now half-solved.** The
+rollout bows defenders and keeps playing the phase, so the tempo half is priced.
+The other half — a free body arriving from hand at the NEXT conflict — is still
+absent from the PLANNER; `handThreat` prices hand cards as one skill lump added
+to the CURRENT conflict.
+
+What shipped instead is the cheap, unambiguous corner of it: rather than "what
+might my hand be worth at the next declaration", **"there is a conflict I am
+about to throw away, nothing of theirs is standing, and I am holding a body"**.
+See rule 16 and [`bot-unopposed-window.md`](bot-unopposed-window.md). The
+general version — valuing a hand body inside the declaration fork — remains
+open.
 
 ### 3. Last conflict of the phase: declare on the fattest ring even when hopeless
 
@@ -115,7 +123,10 @@ from a body that was not on the board when the first conflict was declared. Had
 they left one home, the line was Kyuden Isawa replaying Supernatural Storm plus
 Oracle of Stone to push the first attack through.
 
-**Status: not modelled.** Same missing input as rule 2.
+**Status: the second half now IS modelled.** The branch selection is not — that
+needs the same hand-value model rule 2 wants. But the thing that actually won
+this game, *play a body after the failed all-in and break with it unopposed*, is
+what `UnopposedWindowPolicy` does, and it measured **+0.53pp**. See rule 16.
 
 ### 7. At three provinces each, the first-player token decides the race
 
@@ -421,7 +432,13 @@ per deck, over all 4896 games: Unicorn **+1.56pp** (p=0.049), Lion **+1.39pp**
 not scoped out, on the same reasoning that found no deck qualifying to disable
 `saveFatePass`).
 
-**REJECTED: `tradeDefenseWinOnly`, and this one contradicts the human rule.**
+**NULL, SHIPPED ANYWAY (2026-08-12) at the owner's request** so the stance can
+be watched in live play — `tradeDefenseWinOnly: true`, field-wide on
+`DEFAULT_PROFILE.conflictTempo`. Null, not negative. Revert with
+`tradeDefenseWinOnly: false`. The measurement below stands unchanged and is the
+reason it is not claimed as a win.
+
+**Why it measured null, and this one contradicts the human rule.**
 It is not unreachable — it diverges in 11656 windows across **94% of games**,
 the widest reach of anything measured here — and lands at −0.18pp, p=0.84 on a
 5.82pp ceiling. That is the familiar shape of a decisive mechanism with no
@@ -504,6 +521,38 @@ TREATED seat pilots deck D was caused by the lever acting on deck D.
 `SEAT=1` dump so the probe's seat bias cancels the way it does in the
 head-to-head. Each deck row is still a small n and remains a hypothesis for a
 scoped arm, never a result on its own.
+
+### 16. A passed conflict with a body in hand is a free break (SHIPPED)
+
+> "If conflict still available, all enemy characters are bowed and there is a
+> character in hand the bot can play, then play it and declare a new conflict.
+> Be aware the character needs to be played in the action window BEFORE that
+> conflict, not during it... I don't expect this to occur very often but some
+> decks will trigger it."
+
+The deliberately simplified form of rules 2 and 6, and the one that could be
+built without an effect model for hand cards. `UnopposedWindowPolicy` is
+consulted FIRST in the preConflict action window (`ConflictPhase.ts:43,67`),
+ahead of every deck's own setup play — including the Dragon plan of spending
+those same dual-mode monks as attachments, because an attachment cannot be
+declared as an attacker.
+
+**Reach was the surprise.** It fires in 0.4% of windows, which sounds
+unmeasurable, but in **11.4% of games** — one free conflict roughly every nine
+games. The gate that closes it is almost always `defenders-ready` (58.9%), then
+`no-conflict-opportunity` (22.4%).
+
+**SHIPPED at +0.53pp (p<0.0001)**, 4896 games, 9 bases, both seats, 106 flips to
+the change against 54 away, all four cells positive and confirmation alone
++0.49pp on six fresh bases. Per deck: LionDuelist +2.08pp (p=0.004), Unicorn
++1.39pp, CrabSacrifice +1.22pp, Dragon +1.22pp; none negative beyond noise.
+Full knob table and population in
+[`bot-unopposed-window.md`](bot-unopposed-window.md).
+
+Worth stating next to rule 7 and rule 13, where the owner's reasoning measured
+NEGATIVE: this one transfers. The difference is that it is not a sizing
+judgement — it converts a conflict opportunity that was being discarded into a
+break, which is the one currency this engine actually pays out in.
 
 ## Open threads
 

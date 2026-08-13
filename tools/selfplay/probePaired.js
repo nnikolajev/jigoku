@@ -124,7 +124,15 @@ const runShard = (shard, idx) => new Promise((resolve, reject) => {
     console.log(`  CEILING: flipping ${pct(flipped)} of games caps the win-rate effect at ` +
         `${(50 * flipped / games.length).toFixed(2)}pp.`);
     if(OUT) {
-        fs.writeFileSync(OUT, JSON.stringify({ change: CHANGE, games: games, events: events }));
+        // `seat` is written because it CANNOT be recovered from the dump:
+        // telemetry records both players, so every dump contains Seat0 and Seat1
+        // events either way. Without it an analysis has to guess from the
+        // filename, and a dump named `_s1` instead of `seat1` is then scored as
+        // seat 0 — which silently swaps `to` and `away` on every one of its
+        // games rather than failing.
+        fs.writeFileSync(OUT, JSON.stringify({
+            change: CHANGE, seat: treatedSeat, bases: BASES, games: games, events: events
+        }));
         console.log(`\n-> ${OUT}`);
     }
 })().catch((e) => { console.error(e); process.exit(1); });

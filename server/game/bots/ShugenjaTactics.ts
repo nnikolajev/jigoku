@@ -646,6 +646,25 @@ export class ShugenjaTactics {
         })[0];
     }
 
+    /**
+     * What Tadaka actually costs right now. Disguised replaces a non-unique
+     * Shugenja and pays the DIFFERENCE, so his printed 5 is the wrong number
+     * whenever a legal base is standing: on a cost-3 Shugenja he costs 2, and he
+     * enters READY either way. Null when no affordable base exists, i.e. when
+     * the printed cost is the real one.
+     *
+     * Unlike `pickTadakaPlay` this asks nothing about the base's fate — it is a
+     * price, not a plan. The free-conflict window wants him as a body it can
+     * declare with, not as a tower being prepared.
+     */
+    disguisedCost(myCharacters: any[], availableFate: number): number | null {
+        const bases = (myCharacters || []).filter((card) =>
+            card.id && this.profile.disguiseTargets[card.id] !== undefined &&
+            availableFate >= Math.max(5 - this.profile.disguiseTargets[card.id], 0));
+        const base = this.pickDisguiseTarget(bases, availableFate);
+        return base ? Math.max(5 - this.profile.disguiseTargets[base.id], 0) : null;
+    }
+
     pickTadakaPlay(hand: any[], myCharacters: any[], availableFate: number): any {
         const tadaka = (hand || []).find((card) =>
             card.id === 'isawa-tadaka-2' && card.uuid && card.isPlayableByMe);

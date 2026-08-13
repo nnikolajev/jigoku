@@ -12,6 +12,7 @@ import type { DefenseCommitmentMode } from './DefenseCommitmentPolicy';
 import { ConflictDeclarationPolicy, recordAxisChoice } from './ConflictDeclarationPolicy.js';
 import { ConflictTempoPolicy, recordTempoRead } from './ConflictTempoPolicy.js';
 import type { ConflictTempoRead } from './ConflictTempoPolicy';
+import { UnopposedWindowPolicy, recordUnopposedWindow } from './UnopposedWindowPolicy.js';
 import { BotTelemetry } from './BotTelemetry.js';
 import type { DeckProfile } from './DeckProfiles';
 import type { FateAwareEconomyProfile } from './FateAwareEconomy';
@@ -509,6 +510,14 @@ class JigokuBotPolicy {
     private currentDeckProfile: DeckProfile = DEFAULT_PROFILE;
     // Cleared at the top of every decide() call; see `conflictTempoRead`.
     private tempoReadCache: Map<string, ConflictTempoRead> = new Map();
+    // The free-conflict window (`UnopposedWindowPolicy`). The counter is per
+    // ROUND, and the pending pair survives across prompts: clicking the card is
+    // one decide() call and answering its "as a character / as an attachment"
+    // menu is the next, so the choice has to be remembered between them.
+    private unopposedPlaysThisRound = 0;
+    private unopposedPlaysRound = 0;
+    private unopposedPendingId: string | null = null;
+    private unopposedPendingUuid: string | null = null;
     // Experimental fate-aware copy state. Generic policy never enters these
     // branches: FateAwareJigokuBotPolicy opts in through the protected hook.
     private fateAwareRoundNumber = 0;
@@ -1406,6 +1415,25 @@ class JigokuBotPolicy {
                 this.boardAwareHomeConflictCharacterUuid = null;
                 if(asCharacter) {
                     return this.buttonDecision(asCharacter, 'board-aware-play-at-home-as-character');
+                }
+            }
+            // A body played to take a free unopposed conflict has to enter as a
+            // CHARACTER — an attachment cannot be declared as an attacker — so
+            // this sits ahead of the Dragon attachment preference below. Tadaka
+            // is left alone: his Disguised play is also a character, and it is
+            // the cheaper one.
+            if(this.unopposedPendingUuid &&
+                (!context.playCardId || context.playCardId === this.unopposedPendingId) &&
+                !buttons.some((button) => /with disguise/i.test(String(button.text || '')))) {
+                const asCharacter = buttons.find((button) => {
+                    const text = String(button.text || '').toLowerCase();
+                    return text.includes('as a character') || text === 'play this character' ||
+                        (text.startsWith('play ') && !text.includes('attachment'));
+                });
+                this.unopposedPendingId = null;
+                this.unopposedPendingUuid = null;
+                if(asCharacter) {
+                    return this.buttonDecision(asCharacter, 'unopposed-window-play-as-character');
                 }
             }
             // Dragon plays its dual-mode monks (Ancient Master, Tattooed
@@ -3928,6 +3956,91 @@ class JigokuBotPolicy {
         return result;
     }
 
+    /**
+     * The free-conflict window (`UnopposedWindowPolicy`).
+     *
+     * Consulted from the preConflict action window only. Returns the hand card
+     * to play, or null. The caller is responsible for the click; this records
+     * the pending id/uuid so the follow-up "as a character / as an attachment"
+     * menu resolves to CHARACTER even for a deck whose profile prefers the
+     * attachment mode — an attachment cannot declare a conflict.
+     */
+    private unopposedWindowPlay(playerState: any, me: any, conflictCosts?: Record<string, number>,
+        legalDirectCardUuids?: Record<string, true>, handStats?: HandStats,
+        shugenja: ShugenjaTactics | null = null): any {
+        const policy = new UnopposedWindowPolicy(this.currentDeckProfile.unopposedWindow);
+        if(!policy.settings.enabled) {
+            return null;
+        }
+        if(this.unopposedPlaysRound !== this.currentRoundNumber) {
+            this.unopposedPlaysRound = this.currentRoundNumber;
+            this.unopposedPlaysThisRound = 0;
+        }
+        const opponent = this.opponentPlayer(playerState, me);
+        const availableFate = Math.max(0, Number(me?.stats?.fate) || 0);
+        const theirs = this.myCharactersInPlay(opponent);
+        const hand = me?.cardPiles?.hand || [];
+        // Tadaka's printed 5 is the wrong price while a Disguise base stands.
+        const disguisedCost = shugenja ? shugenja.disguisedCost(this.myCharactersInPlay(me), availableFate) : null;
+        const candidates = hand
+            .filter((card: any) => card?.uuid && card?.id && card.type === 'character' &&
+                card.isPlayableByMe &&
+                this.isDirectCardLegal(card, legalDirectCardUuids) &&
+                !this.isAttempted('cardClicked', [card.uuid]) &&
+                !this.failedPlayCards.has(card.uuid) &&
+                !this.isCancelVetoed(card.id))
+            .map((card: any) => {
+                const stats = handStats?.[card.uuid];
+                const printed = conflictCosts &&
+                    Object.prototype.hasOwnProperty.call(conflictCosts, card.uuid)
+                    ? Math.max(0, Number(conflictCosts[card.uuid]) || 0)
+                    // An unknown cost is treated as exactly affordable rather
+                    // than free: the engine still refuses an unpayable play, and
+                    // `failedPlayCards` stops the retry loop.
+                    : availableFate;
+                return {
+                    uuid: String(card.uuid),
+                    id: String(card.id),
+                    military: Math.max(0, Number(stats?.military ?? this.skillValue(card, 'military')) || 0),
+                    political: Math.max(0, Number(stats?.political ?? this.skillValue(card, 'political')) || 0),
+                    cost: card.id === 'isawa-tadaka-2' && disguisedCost !== null
+                        ? Math.min(printed, disguisedCost)
+                        : printed
+                };
+            });
+        const input = {
+            myConflictsRemaining: Math.max(0, Number(me?.stats?.conflictsRemaining) || 0),
+            militaryRemaining: Number.isFinite(Number(me?.stats?.militaryRemaining))
+                ? Number(me?.stats?.militaryRemaining) : undefined,
+            politicalRemaining: Number.isFinite(Number(me?.stats?.politicalRemaining))
+                ? Number(me?.stats?.politicalRemaining) : undefined,
+            opponentReady: theirs.filter((card: any) => !card.bowed).length,
+            opponentInPlay: theirs.length,
+            myReady: this.readyCharacters(me).length,
+            availableFate,
+            playsThisRound: this.unopposedPlaysThisRound,
+            candidates
+        };
+        const result = policy.read(input);
+        recordUnopposedWindow(input, result, {
+            seat: String(me?.name || ''),
+            round: this.currentRoundNumber
+        });
+        if(!result.play) {
+            return null;
+        }
+        const card = hand.find((entry: any) => entry?.uuid === result.play.uuid);
+        if(!card) {
+            return null;
+        }
+        this.unopposedPlaysThisRound += 1;
+        if(policy.settings.overrideAttachmentPlans) {
+            this.unopposedPendingId = String(card.id);
+            this.unopposedPendingUuid = String(card.uuid);
+        }
+        return card;
+    }
+
     // The side (military/political) to attack on. V1's rule is "wherever my own
     // ready characters carry the most skill"; `ConflictDeclarationPolicy` can
     // additionally subtract what the opponent has ready to meet it, which is
@@ -6263,6 +6376,30 @@ class JigokuBotPolicy {
 
     private actionWindowDecision(playerState: any, me: any, buttons: any[], profile: DeckProfile = DEFAULT_PROFILE, cardHint?: CardHintLookup, dishonor: DishonorTactics | null = null, dynastyCosts?: Record<string, number>, conflictCosts?: Record<string, number>, lion: LionTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, opponentConflictDeck: KnownCard[] = [], omni?: Omniscient, legalDirectCardUuids?: Record<string, true>, mulligan: MulliganTactics = new MulliganTactics(profile.mulligan), provinceIdsByLocation?: Record<string, string>, decisionContext: DecideContext = {}, glory: GloryTactics | null = null, dragon: DragonTactics | null = null): BotDecision | null {
         const pass = this.findButton(buttons, ['pass']);
+
+        // The free-conflict window, FIRST in this method on purpose. A conflict
+        // opportunity that would otherwise be passed for lack of a ready
+        // attacker, against a board that is entirely bowed, is an unopposed
+        // break — and it outranks every deck's own setup play, including the
+        // Dragon plan of spending these cards as attachments. Gated off by
+        // default (`unopposedWindow.enabled`), so V1 never reaches it.
+        //
+        // The board-aware seed already owns this decision through
+        // `playConflictCharactersAtHome`, with a stricter test (the new body
+        // must beat every visible ready defender by itself, and optionally
+        // break). Defer to it rather than shadow it: that mechanism is a
+        // superset here, and the win-rate measurement behind this policy was
+        // taken on V1, which does not have it.
+        const boardAwareOwnsHomeBodies = this.usesBoardAwareDynastyEconomy() &&
+            profile.boardAwareDynasty.playConflictCharactersAtHome;
+        if(me?.phase === 'conflict' && !playerState?.conflict?.attackingPlayerId &&
+            !boardAwareOwnsHomeBodies) {
+            const freeBody = this.unopposedWindowPlay(playerState, me, conflictCosts,
+                legalDirectCardUuids, decisionContext.handStats, shugenja);
+            if(freeBody) {
+                return this.cardClickDecision(freeBody, 'unopposed-window-body');
+            }
+        }
 
         // Gossip is most valuable before either side commits to a conflict. It
         // is played only when its follow-up can name a strategically meaningful

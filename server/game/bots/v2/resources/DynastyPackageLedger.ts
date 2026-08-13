@@ -1,3 +1,6 @@
+// Tracks a chosen dynasty package across the prompts that execute it, so the
+// second half of a two-card buy is not re-decided (and re-priced) after the
+// first card is already paid for.
 import type { BotActionCandidate } from '../model/Candidate';
 import type { PlanningState } from '../model/PlanningState';
 import type { JointResourcePlan, ResourcePackage } from './ResourcePackagePlanner';

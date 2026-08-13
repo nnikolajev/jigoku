@@ -1,9 +1,6 @@
 const JigokuBotController = require('../../../build/server/game/bots/JigokuBotController.js');
 const JigokuBotPolicy = require('../../../build/server/game/bots/JigokuBotPolicy.js');
 const FateAwareJigokuBotPolicy = require('../../../build/server/game/bots/FateAwareJigokuBotPolicy.js');
-const LmStudioClient = require('../../../build/server/game/bots/llm/LmStudioClient.js').default;
-const DeckHintService = require('../../../build/server/game/bots/llm/DeckHintService.js').default;
-const { validateCardHint } = require('../../../build/server/game/bots/llm/CardHints.js');
 const { getPlaybookEntry, deriveDeckStrategy } = require('../../../build/server/game/bots/CardPlaybook.js');
 const { profileFromStrategy, resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
 
@@ -4644,83 +4641,7 @@ describe('Jigoku heuristic bot', function() {
         expect(runner).toHaveBeenCalledWith('cardClicked', 'Jigoku Bot', ['enemy-3']);
     });
 
-    describe('LLM harness', function() {
-        it('extracts JSON from model output with think blocks and prose', function() {
-            const parsed = LmStudioClient.extractJson('<think>\nhmm, removal...\n</think>\nSure! Here is the analysis:\n{"targetSide": "enemy", "priority": 8}');
-            expect(parsed.targetSide).toBe('enemy');
-            expect(parsed.priority).toBe(8);
-            expect(() => LmStudioClient.extractJson('no json here')).toThrow();
-        });
-
-        it('validates and defaults malformed card hints', function() {
-            const hint = validateCardHint({ useWhen: 'nonsense', conflictTypes: ['military', 'bogus'], priority: 42 }, 'card-1');
-            expect(hint.useWhen).toBe('always');
-            expect(hint.conflictTypes).toEqual(['military']);
-            expect(hint.priority).toBe(10);
-            expect(hint.targetSide).toBe('either');
-            expect(validateCardHint(null, 'card-1')).toBe(null);
-        });
-
-        it('analyzes a deck through the client and reuses the disk cache', async function() {
-            const cacheDir = require('path').join(require('os').tmpdir(), 'jigoku-bot-hints-spec-' + Date.now());
-            const client = {
-                model: 'stub',
-                chatJson: jasmine.createSpy('chatJson').and.returnValue(Promise.resolve({
-                    useWhen: 'attacked', targetSide: 'enemy', targetPreference: 'most-fate', priority: 7, conflictTypes: [], summary: 'strip fate'
-                }))
-            };
-            const service = new DeckHintService(client, { cacheDir: cacheDir });
-            await service.analyzeCards([{ id: 'meditations-on-the-tao', name: 'Meditations on the Tao', type: 'province', text: '...' }]);
-            expect(service.getHint('meditations-on-the-tao').targetSide).toBe('enemy');
-            expect(client.chatJson).toHaveBeenCalledTimes(1);
-
-            // Second service with a dead client must load from cache only.
-            const deadClient = { model: 'stub', chatJson: () => Promise.reject(new Error('down')) };
-            const cachedService = new DeckHintService(deadClient, { cacheDir: cacheDir });
-            await cachedService.analyzeCards([{ id: 'meditations-on-the-tao', name: 'Meditations on the Tao', type: 'province' }]);
-            expect(cachedService.getHint('meditations-on-the-tao').priority).toBe(7);
-
-            require('fs').rmSync(cacheDir, { recursive: true, force: true });
-        });
-
-        it('marks a fully analyzed deck by deck key and skips it next game', async function() {
-            const cacheDir = require('path').join(require('os').tmpdir(), 'jigoku-bot-deck-spec-' + Date.now());
-            const deckKey = 'https://www.emeralddb.org/api/decklists/e3feb31b';
-            const cards = [{ id: 'card-a', name: 'A', type: 'event' }, { id: 'card-b', name: 'B', type: 'event' }];
-            const client = {
-                model: 'stub',
-                chatJson: () => Promise.resolve({ useWhen: 'always', targetSide: 'self', targetPreference: 'any', priority: 5, conflictTypes: [], summary: '' })
-            };
-            const service = new DeckHintService(client, { cacheDir: cacheDir });
-            expect(service.hasCompleteDeck(deckKey, cards)).toBe(false);
-            await service.analyzeCards(cards, deckKey);
-
-            // Fresh service (new game): manifest + per-card cache cover the
-            // whole deck without touching the model.
-            const deadClient = { model: 'stub', chatJson: () => Promise.reject(new Error('down')) };
-            const nextGame = new DeckHintService(deadClient, { cacheDir: cacheDir });
-            expect(nextGame.hasCompleteDeck(deckKey, cards)).toBe(true);
-            expect(nextGame.getHint('card-a').priority).toBe(5);
-
-            // A changed deck (extra card) is not considered complete.
-            expect(nextGame.hasCompleteDeck(deckKey, cards.concat({ id: 'card-c', name: 'C', type: 'event' }))).toBe(false);
-
-            require('fs').rmSync(cacheDir, { recursive: true, force: true });
-        });
-
-        it('warns once and stops analysis when LM Studio is down', async function() {
-            const warnings = [];
-            const deadClient = { model: 'stub', chatJson: () => Promise.reject(new Error('fetch failed')) };
-            const service = new DeckHintService(deadClient, {
-                cacheDir: require('path').join(require('os').tmpdir(), 'jigoku-bot-hints-void-' + Date.now()),
-                onWarn: (message) => warnings.push(message)
-            });
-            await service.analyzeCards([{ id: 'a', name: 'A', type: 'event' }, { id: 'b', name: 'B', type: 'event' }]);
-            expect(warnings.length).toBe(1);
-            expect(warnings[0]).toContain('LM Studio unavailable');
-            expect(service.hintCount).toBe(0);
-        });
-
+    describe('card hint gating', function() {
         it('gates and orders conflict-window hand plays by card hints', function() {
             const handCard = (uuid, id) => ({ uuid: uuid, id: id, name: uuid, type: 'event', location: 'hand', isPlayableByMe: true });
             const hints = {
@@ -4897,122 +4818,6 @@ describe('Jigoku heuristic bot', function() {
             // most-fate preference beats the harmful-strongest default.
             expect(decision.args[0]).toBe('enemy-fat');
         });
-
-        it('consults the LLM on ambiguous target prompts and falls back on timeout', async function() {
-            const makeConsultSetup = (consultant, llmConfig) => {
-                const prompt = {
-                    promptTitle: 'Mystery Prompt',
-                    menuTitle: 'Choose a card somehow',
-                    selectCard: true,
-                    buttons: []
-                };
-                const card = (uuid) => ({ uuid: uuid, name: uuid, type: 'character', location: 'play area', selectable: true });
-                const state = {
-                    players: {
-                        'Jigoku Bot': Object.assign({ name: 'Jigoku Bot', cardPiles: { cardsInPlay: [card('pick-a'), card('pick-b')] } }, prompt)
-                    }
-                };
-                const player = makePlayer(prompt, [{ uuid: 'pick-a' }, { uuid: 'pick-b' }]);
-                const game = makeGame(player, state);
-                // Consults only fire on ability-target prompts (a target hint
-                // exists) whose effect no heuristic could classify.
-                game.pipeline = {
-                    length: 1,
-                    getCurrentStep: () => ({
-                        properties: { gameAction: [{ name: 'applyLastingEffect' }] },
-                        context: { player: { name: 'Human' } },
-                        activeCondition: () => true
-                    })
-                };
-                const calls = [];
-                const runner = jasmine.createSpy('runner').and.callFake((command, name, args) => {
-                    calls.push(args[0]);
-                    const done = { buttons: [] };
-                    player.currentPrompt = () => done;
-                    game.getState = () => ({ players: { 'Jigoku Bot': done } });
-                    return true;
-                });
-                const controller = new JigokuBotController(
-                    game,
-                    { playerName: 'Jigoku Bot', seed: 'x', llm: llmConfig },
-                    runner,
-                    { consultant: consultant }
-                );
-                return { controller, runner, calls };
-            };
-
-            // Consultant answers: its pick is used.
-            const answering = { chooseTarget: () => Promise.resolve('pick-b') };
-            const okSetup = makeConsultSetup(answering, { enabled: false, consultTimeoutMs: 200 });
-            okSetup.controller.tick();
-            await new Promise((resolve) => setTimeout(resolve, 20));
-            expect(okSetup.calls).toEqual(['pick-b']);
-
-            // Consultant hangs: heuristic fallback fires after the timeout.
-            const hanging = { chooseTarget: () => new Promise(() => {}) };
-            const timeoutSetup = makeConsultSetup(hanging, { enabled: false, consultTimeoutMs: 30 });
-            timeoutSetup.controller.tick();
-            await new Promise((resolve) => setTimeout(resolve, 700));
-            expect(timeoutSetup.calls.length).toBe(1);
-        });
-
-        it('consults the LLM on guessed target polarity but not on classified actions', async function() {
-            const makeSetup = (gameActionName, sourcePlayerName, consultant) => {
-                const prompt = { promptTitle: 'Banzai!', menuTitle: 'Choose a character', selectCard: true, buttons: [] };
-                const card = (uuid, mil) => ({
-                    uuid: uuid, name: uuid, type: 'character', location: 'play area', selectable: true,
-                    militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
-                });
-                const state = {
-                    players: {
-                        'Jigoku Bot': Object.assign({ name: 'Jigoku Bot', cardPiles: { cardsInPlay: [card('own-2', 2)] } }, prompt),
-                        'Human': { name: 'Human', cardPiles: { cardsInPlay: [card('enemy-5', 5)] } }
-                    }
-                };
-                const player = makePlayer(prompt, [{ uuid: 'own-2' }, { uuid: 'enemy-5' }]);
-                const game = makeGame(player, state);
-                game.pipeline = {
-                    length: 1,
-                    getCurrentStep: () => ({
-                        properties: { gameAction: [{ name: gameActionName }] },
-                        context: { player: { name: sourcePlayerName } },
-                        activeCondition: () => true
-                    })
-                };
-                const calls = [];
-                const runner = jasmine.createSpy('runner').and.callFake((command, name, args) => {
-                    calls.push(args[0]);
-                    const done = { buttons: [] };
-                    player.currentPrompt = () => done;
-                    game.getState = () => ({ players: { 'Jigoku Bot': done } });
-                    return true;
-                });
-                const controller = new JigokuBotController(
-                    game,
-                    { playerName: 'Jigoku Bot', seed: 'x', llm: { enabled: false, consultTimeoutMs: 200 } },
-                    runner,
-                    { consultant: consultant }
-                );
-                return { controller, calls };
-            };
-
-            // Unclassified lasting effect from the bot's own card: the guessed
-            // buff pick is overridden by the consult answer.
-            const consultant = { chooseTarget: jasmine.createSpy('chooseTarget').and.returnValue(Promise.resolve('enemy-5')) };
-            const guessedSetup = makeSetup('applyLastingEffect', 'Jigoku Bot', consultant);
-            guessedSetup.controller.tick();
-            await new Promise((resolve) => setTimeout(resolve, 20));
-            expect(consultant.chooseTarget).toHaveBeenCalled();
-            expect(guessedSetup.calls).toEqual(['enemy-5']);
-
-            // Classified harmful action: heuristics know the answer, no consult.
-            const idleConsultant = { chooseTarget: jasmine.createSpy('chooseTarget') };
-            const classifiedSetup = makeSetup('bow', 'Jigoku Bot', idleConsultant);
-            classifiedSetup.controller.tick();
-            await new Promise((resolve) => setTimeout(resolve, 20));
-            expect(idleConsultant.chooseTarget).not.toHaveBeenCalled();
-            expect(classifiedSetup.calls).toEqual(['enemy-5']);
-        });
     });
 
     it('clicks a selectable facedown opponent province in a card ability prompt', function() {
@@ -5129,7 +4934,7 @@ describe('Jigoku heuristic bot', function() {
             };
             const controller = new JigokuBotController(
                 game,
-                { playerName: 'Jigoku Bot', seed: seed, llm: { enabled: false } },
+                { playerName: 'Jigoku Bot', seed: seed },
                 runner
             );
 
@@ -5200,7 +5005,7 @@ describe('Jigoku heuristic bot', function() {
             };
             const controller = new JigokuBotController(
                 game,
-                { playerName: 'Jigoku Bot', seed: seed, llm: { enabled: false } },
+                { playerName: 'Jigoku Bot', seed: seed },
                 runner
             );
 

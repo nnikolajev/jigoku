@@ -1,3 +1,10 @@
+// The gate that decides whether V2's answer replaces V1's.
+//
+// V2 does not simply play its own best candidate: it must clear a margin and
+// produce an `OverrideProof` naming the reason. This is deliberate
+// conservatism — the measured result is that autonomous V2 divergence
+// collapses win rate, so the engine is built to defer. `V2OverrideReason` is
+// the closed list of situations it is allowed to disagree in.
 import type { CandidateVeto, BotActionCandidate } from './model/Candidate';
 import type { PlanningState } from './model/PlanningState';
 import type { CharacterRef } from './model/References';

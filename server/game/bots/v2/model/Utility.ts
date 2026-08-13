@@ -1,3 +1,8 @@
+// The multi-component utility vector every candidate is scored into.
+//
+// Deliberately a VECTOR, not a scalar: tempo, material and honor are not
+// commensurable until a weight set says so, and the weights are per-deck.
+// `scalarUtility` collapses it only at the final comparison.
 export const UTILITY_COMPONENTS = [
     'terminal', 'strongholdSafety', 'provinceTempo', 'conflictOutcome', 'ringValue',
     'boardNow', 'boardFuture', 'fate', 'cards', 'honor', 'conflictDeckSafety',

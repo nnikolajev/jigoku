@@ -1,4 +1,9 @@
-// Conflict action sequencing for Bot V2.
+// SHARED (V1 + V2). Lived under `v2/` until 2026-08-13; moved to `shared/`
+// once measurement showed V1 imports it at RUNTIME, so it was never
+// experimental. Changing it changes the shipping bot — prove any edit
+// bit-identical with `tools/selfplay/refactorIdentity.js`.
+//
+// Conflict action sequencing, shared by Bot V1 and Bot V2.
 //
 // V1 answers "which card do I play next?" with a fixed pipeline: fire every
 // board ability, then sort the hand by deck comparators and playbook priority,

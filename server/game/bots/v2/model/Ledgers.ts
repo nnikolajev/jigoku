@@ -1,3 +1,9 @@
+// Per-scope usage accounting: what has already been spent or triggered.
+//
+// Once-per-round and once-per-conflict limits, and delayed effects that have
+// been set up but not yet fired. Ledgers are replaced rather than mutated
+// (`recordUsage` returns a new one) so a speculative search branch cannot
+// leak its bookkeeping into a sibling branch.
 import type { MacroProgress } from './Macro';
 import type { GameScopeRef } from './References';
 import { immutable } from './Stable';

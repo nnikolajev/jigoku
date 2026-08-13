@@ -112,7 +112,7 @@ import {
     RUSH_CONFLICT_PHASE_PLANNER
 } from './ConflictPhasePlanner.js';
 import type { ConflictPhasePlannerProfile } from './ConflictPhasePlanner';
-import type { ConflictActionProfile } from './v2/ConflictActionPlanner';
+import type { ConflictActionProfile } from './shared/ConflictActionPlanner';
 import { DEFAULT_CONFLICT_INTENTS } from './DeckConflictIntents.js';
 import type {
     ConflictIntentProfile,

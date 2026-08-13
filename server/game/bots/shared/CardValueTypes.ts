@@ -1,12 +1,15 @@
-// Shared vocabulary for Bot V2's context-aware card values.
+// SHARED (V1 + V2). Lived under `v2/` until 2026-08-13; moved to `shared/`
+// once measurement showed V1 imports it at RUNTIME, so it was never
+// experimental. Changing it changes the shipping bot — prove any edit
+// bit-identical with `tools/selfplay/refactorIdentity.js`.
+//
+// Shared vocabulary for the context-aware card values.
 //
 // The per-card models in `CardValueModel` and the duel/dishonor models in
 // `DuelValueModel` both need the same primitives — "is this body actually
 // contributing", "what has the opponent sunk into it", "what is its glory". They
 // live here so the two modules can share them without importing each other.
 //
-// V2 ONLY. None of this is reachable from V1, which stays frozen as the
-// measurement control.
 
 import { getCardModel } from '../DeckAnalysis.js';
 import { getPlaybookEntry } from '../CardPlaybook.js';
@@ -192,6 +195,9 @@ export function contributesToConflict(card: ValuedCharacter | undefined): boolea
     return !!card && !!card.inConflict && !card.bowed;
 }
 
+// Skill on one axis, preferring the live summary and falling back to the
+// card model. A bowed character still reports its printed skill here —
+// callers apply the bowed-contributes-nothing rule themselves.
 export function skillOf(card: ValuedCharacter | undefined, type: 'military' | 'political'): number {
     if(!card) {
         return 0;
@@ -205,6 +211,7 @@ export function conflictSkillOf(card: ValuedCharacter | undefined, type: 'milita
     return contributesToConflict(card) ? skillOf(card, type) : 0;
 }
 
+// Glory, from the card model when the serialized state omits it.
 export function gloryOf(card: ValuedCharacter | undefined): number {
     const printed = card?.id ? getCardModel(card.id) : undefined;
     const live = Number(card?.glory);
@@ -216,6 +223,8 @@ export function gloryOf(card: ValuedCharacter | undefined): number {
     return printed ? 1 : 0;
 }
 
+// Printed cost. The serialized player state does not carry it, so this
+// falls back to the card model and then to the context's cost map.
 export function printedCost(
     card: { id?: string; uuid?: string; printedCost?: number | null } | undefined,
     ctx?: CardValueContext
@@ -280,6 +289,7 @@ export function towerCharacter(
         String(a.uuid).localeCompare(String(b.uuid)))[0];
 }
 
+// Skill an attachment adds on one axis, direct bonus first then model.
 export function attachmentSkill(attachment: ValuedAttachment, type: 'military' | 'political'): number {
     const direct = type === 'political' ? attachment.politicalBonus : attachment.militaryBonus;
     if(Number.isFinite(Number(direct))) {
@@ -371,10 +381,12 @@ export function persistentSkillValue(
     return Math.round(bonus * bearerLifetimeConflicts(bearer, ctx) * weight * 10) / 10;
 }
 
+// Case-insensitive trait test.
 export function hasTrait(card: ValuedCharacter, trait: string): boolean {
     return (card.traits || []).some((value) => String(value).toLowerCase() === trait);
 }
 
+// Only the characters actually in the conflict.
 export function participating(list: ValuedCharacter[]): ValuedCharacter[] {
     return list.filter((card) => !!card.inConflict);
 }
@@ -389,6 +401,7 @@ export function strongestContributor(
         String(a.uuid).localeCompare(String(b.uuid)))[0];
 }
 
+// Card name to the id slug the playbook and card model are keyed by.
 export function slugFromCardName(name: string): string {
     return String(name || '').toLowerCase().trim()
         .replace(/[’']/g, '')

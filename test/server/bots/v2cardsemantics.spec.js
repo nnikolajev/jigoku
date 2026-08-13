@@ -53,13 +53,10 @@ describe('V2 card semantics', function() {
         expect(composite.actions[0].effects.map((effect) => effect.kind)).toEqual(['bow', 'move']);
     });
 
-    it('adapts existing V1 analysis conservatively and reports explicit fallback coverage', function() {
+    it('adapts existing V1 analysis conservatively', function() {
         const registry = new CardSemanticRegistry();
         expect(registry.get('fine-katana')).toEqual(jasmine.objectContaining({ cardId: 'fine-katana', source: 'card-playbook', confidence: 0.6 }));
-        expect(registry.coverage(['fine-katana', 'unmodeled-card'])).toEqual([
-            jasmine.objectContaining({ cardId: 'fine-katana', status: 'low-confidence', v1Fallback: true }),
-            { cardId: 'unmodeled-card', status: 'unknown', confidence: 0, source: undefined, v1Fallback: true }
-        ]);
+        expect(registry.get('unmodeled-card')).toBeUndefined();
     });
 
     it('enriches candidates with immutable effects, costs, limits, stacking, and provenance', function() {

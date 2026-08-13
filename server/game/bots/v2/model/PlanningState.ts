@@ -1,3 +1,11 @@
+// The immutable board projection V2 plans against.
+//
+// Not the engine's state and not the serialised player state: a normalised,
+// frozen view with every value the planner needs already resolved (projected
+// skill, attachments, province strength, ring state). Built by
+// `PerspectiveSnapshotBuilder`, which is also where the information mode
+// (fair vs omniscient) is applied — so a fair planner physically cannot read
+// what it should not know.
 import type { BotInformationMode } from '../../BotEngine';
 import type { BotIntent } from './Intent';
 import type { PlanningLedgers } from './Ledgers';

@@ -382,35 +382,18 @@ export class CrabSacrificeTactics {
 
     // ---- identity ---------------------------------------------------------
 
-    isBerserker(card: any): boolean {
-        return hasTrait(card, 'berserker') ||
-            (!!card?.id && this.profile.berserkerIds.includes(card.id));
-    }
-
+    // Is this a card that can SPEND a body as a cost? The deck's whole engine
+    // is matching fodder to outlets.
     isOutlet(card: any): boolean {
         return !!card?.id && this.profile.sacrificeOutletIds.includes(card.id);
     }
 
+    // A character that multiplies a sacrifice's payoff.
     isDoubler(card: any): boolean {
         return !!card?.id && this.profile.doublingCharacterIds.includes(card.id);
     }
 
-    isButcher(card: any): boolean {
-        return !!card?.id && this.profile.butcherIds.includes(card.id);
-    }
-
-    desiredAdditionalFate(cardId?: string): number | null {
-        if(!cardId || !Object.prototype.hasOwnProperty.call(this.profile.additionalFateByCharacterId, cardId)) {
-            return null;
-        }
-        return Math.max(0, numberOr(this.profile.additionalFateByCharacterId[cardId], 0));
-    }
-
-    isDire(card: any): boolean {
-        return !!card?.id && this.profile.direCharacterIds.includes(card.id) &&
-            (Number(card.fate) || 0) === 0;
-    }
-
+    // Fodder tier: lower is more expendable. Tier decides which body pays.
     tierOf(card: any): number {
         const id = card?.id;
         if(id && this.profile.sacrificeTier1.includes(id)) {
@@ -553,34 +536,9 @@ export class CrabSacrificeTactics {
         return breaks || flips;
     }
 
+    // Skill this outlet returns for one body.
     outletPayoff(cardId: string): number {
         return numberOr(this.profile.pumpValueById[cardId], 0);
-    }
-
-    /**
-     * Is spending a body here actually profitable? A live save does NOT make it
-     * free — cancelling the leave-play cancels the whole ability, because every
-     * outlet in this deck pays the body as a cost. See `saveInversion`.
-     */
-    sacrificeWorthIt(card: any, payoff: number, ctx: SacrificeContext): boolean {
-        if(!card) {
-            return false;
-        }
-        return this.sacrificeCost(card, ctx) <= payoff;
-    }
-
-    /**
-     * Should a save (Iron Mine / Reprieve / Ceaseless Duty) be fired on THIS
-     * leave-play? Never for a body we are ourselves spending as a sacrifice
-     * cost: the save cancels the cost, the cost was then not paid, and the
-     * ability we were paying for does not happen. The holding is spent for
-     * nothing. Saves exist here to answer the OPPONENT's removal.
-     */
-    shouldSaveLeavingCard(card: any, ownSacrificeCostUuid?: string): boolean {
-        if(!card) {
-            return false;
-        }
-        return !ownSacrificeCostUuid || card.uuid !== ownSacrificeCostUuid;
     }
 
     // ---- Fifth Tower Watch -------------------------------------------------
@@ -620,24 +578,6 @@ export class CrabSacrificeTactics {
 
     // ---- Way of the Crab ---------------------------------------------------
 
-    /**
-     * We sacrifice a Crab; they must sacrifice a character of their choosing —
-     * so they will pick their worst. It is only worth a card when their WORST
-     * body is still worth more than our fodder, which is what makes it a tower
-     * answer: against a board of one big character they have no cheap out.
-     */
-    wayOfTheCrabValue(opponentCharacters: any[], axis: Axis): number {
-        const theirs = (opponentCharacters || []).filter(Boolean);
-        if(theirs.length === 0) {
-            return 0;
-        }
-        // They sacrifice their least valuable body.
-        const worst = theirs
-            .slice()
-            .sort((left, right) => skillOf(left, axis) - skillOf(right, axis) || byUuid(left, right))[0];
-        return skillOf(worst, axis) + (Number(worst.fate) || 0) * this.profile.sacrificeFateWeight;
-    }
-
     // ---- buff steering -----------------------------------------------------
 
     /**
@@ -649,6 +589,7 @@ export class CrabSacrificeTactics {
         return this.isDoubler(card) ? this.profile.doublingBuffBonus : 0;
     }
 
+    // Which ready participant receives the pump.
     pickBuffTarget(participants: any[], axis: Axis): any {
         return (participants || [])
             .filter((card) => card && !card.bowed)
@@ -660,35 +601,6 @@ export class CrabSacrificeTactics {
 
     // ---- Mercenary Company -------------------------------------------------
 
-    /**
-     * "Your opponent may move 1 fate from their pool to this character. If they
-     * do, they gain control of it." Answered from EITHER side of the table: the
-     * value is the body, the price is one fate.
-     */
-    shouldTakeMercenaryControl(card: any, myFate: number, axis: Axis): boolean {
-        if(!card || !this.profile.mercenaryTakeoverIds.includes(card.id)) {
-            return false;
-        }
-        if(myFate - 1 < this.profile.mercenaryMinimumFateAfterTakeover) {
-            return false;
-        }
-        return skillOf(card, axis) >= this.profile.mercenaryTakeoverValue ||
-            skillOf(card, 'military') >= this.profile.mercenaryTakeoverValue;
-    }
-
     // ---- Tainted Hero ------------------------------------------------------
 
-    /**
-     * Tainted Hero cannot be declared at all until its own Action blanks its
-     * text, and that Action costs a friendly body. 6 military for a Tier 1
-     * body is the deck's best rate, but it must happen BEFORE declaration.
-     */
-    shouldBlankTaintedHero(spareBodies: any[], ctx: SacrificeContext): boolean {
-        const usable = (spareBodies || []).filter(Boolean);
-        if(usable.length < this.profile.taintedHeroMinimumSpareBodies) {
-            return false;
-        }
-        const pick = this.pickSacrifice(usable, ctx);
-        return !!pick;
-    }
 }

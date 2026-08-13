@@ -85,18 +85,24 @@ export class DragonAttachmentTactics {
         this.profile = profile;
     }
 
+    // Is this a body the deck wants to stack attachments onto?
     isTowerCharacter(cardId: string | undefined): boolean {
         return !!cardId && this.profile.towerCharacters.includes(cardId);
     }
 
+    // Do we still lack the target number of tower bodies? This deck's whole
+    // plan needs a bearer before its attachments are worth anything.
     needsTower(board: any[]): boolean {
         return (board || []).filter((card) => this.isTowerCharacter(card.id)).length < this.profile.towerTargetCount;
     }
 
+    // Is a tower already present in the given card list?
     hasVisibleTower(cards: any[]): boolean {
         return (cards || []).some((card) => this.isTowerCharacter(card.id));
     }
 
+    // Keep a revealed dynasty card during a province refresh only while we
+    // still need a tower and this card is one.
     shouldKeepDynasty(cardId: string | undefined, board: any[]): boolean {
         return this.needsTower(board) && this.isTowerCharacter(cardId);
     }
@@ -108,6 +114,7 @@ export class DragonAttachmentTactics {
         return !!card && !this.isTowerCharacter(card.id);
     }
 
+    // Buy the best affordable tower. Returns null once we have enough.
     pickDynastyTower(playable: any[], costs: Record<string, number>, fate: number, board: any[]): any {
         if(!this.needsTower(board)) {
             return null;
@@ -121,6 +128,8 @@ export class DragonAttachmentTactics {
                 String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
+    // Buy a non-tower body, up to the profile's support quota — the tower
+    // needs a board around it or it just gets outnumbered.
     pickSupportCharacter(playable: any[], costs: Record<string, number>, fate: number, board: any[], maxCost = Number.POSITIVE_INFINITY): any {
         const supportCount = (board || []).filter((card) =>
             card.type === 'character' && !this.isTowerCharacter(card.id)).length;
@@ -139,6 +148,8 @@ export class DragonAttachmentTactics {
                 rank(a.id) - rank(b.id) || String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
+    // Extra fate on a tower so it survives long enough to be worth its
+    // attachments. Null for anything that is not a tower.
     desiredAdditionalFate(cardId: string | undefined, fate: number, playCost?: number): number | null {
         if(!this.isTowerCharacter(cardId)) {
             return null;
@@ -147,22 +158,28 @@ export class DragonAttachmentTactics {
         return Math.min(available, this.profile.towerFateMax);
     }
 
+    // Is this one of the deck's tracked attachments?
     isAttachment(cardId: string | undefined): boolean {
         return !!cardId && this.profile.attachments.includes(cardId);
     }
 
+    // Restricted attachments are capped per character by the game rules.
     isRestricted(cardId: string | undefined): boolean {
         return !!cardId && this.profile.restrictedAttachments.includes(cardId);
     }
 
+    // May more than one copy sit on the same bearer?
     canStackAttachment(cardId: string | undefined): boolean {
         return !!cardId && this.profile.stackableAttachments.includes(cardId);
     }
 
+    // Weapon attachments — the ones Niten cares about.
     isWeapon(cardId: string | undefined): boolean {
         return !!cardId && this.profile.weaponAttachments.includes(cardId);
     }
 
+    // Hold a weapon in hand rather than attaching it now, so a ready Niten
+    // can use it later. Gated on the profile flag.
     shouldHoldWeapon(cardId: string | undefined, myCharacters: any[], yokuniCopiedNiten = false): boolean {
         if(!this.profile.holdWeaponsForReadyNiten || !this.isWeapon(cardId)) {
             return false;
@@ -175,24 +192,30 @@ export class DragonAttachmentTactics {
         return carriers.length > 0 && carriers.every((card) => !card.bowed);
     }
 
+    // How many restricted attachments this bearer already carries.
     restrictedCount(card: any): number {
         return (card?.attachments || []).filter((attachment: any) =>
             this.isRestricted(attachment.id)).length;
     }
 
+    // The legal restricted limit for this bearer: 3 for a Dragon character,
+    // 2 otherwise.
     restrictedCap(card: any): number {
         return card?.id && this.profile.dragonCharacters.includes(card.id) ? 3 : 2;
     }
 
+    // How many weapons this bearer already carries.
     weaponCount(card: any): number {
         return (card?.attachments || []).filter((attachment: any) =>
             this.isWeapon(attachment.id)).length;
     }
 
+    // Does this bearer already have that specific attachment?
     hasAttachment(card: any, attachmentId: string): boolean {
         return (card?.attachments || []).some((attachment: any) => attachment.id === attachmentId);
     }
 
+    // Rank within the deck's attachment preference order; higher is better.
     attachmentPriority(cardId: string | undefined): number {
         if(!cardId) {
             return 0;
@@ -201,6 +224,7 @@ export class DragonAttachmentTactics {
         return index < 0 ? 0 : this.profile.attachmentPriority.length - index;
     }
 
+    // Best attachment to play, by priority then cost then uuid.
     pickAttachment(cards: any[]): any {
         return (cards || []).slice().sort((a, b) =>
             this.attachmentPriority(b.id) - this.attachmentPriority(a.id) ||
@@ -208,6 +232,7 @@ export class DragonAttachmentTactics {
             String(a.uuid || '').localeCompare(String(b.uuid || '')))[0] || null;
     }
 
+    // Worst attachment — for costs and discards where we choose what to lose.
     pickLeastValuable(cards: any[]): any {
         return (cards || []).slice().sort((a, b) =>
             this.attachmentPriority(a.id) - this.attachmentPriority(b.id) ||
@@ -215,6 +240,8 @@ export class DragonAttachmentTactics {
             String(a.uuid || '').localeCompare(String(b.uuid || '')))[0] || null;
     }
 
+    // Which character's abilities Yokuni should copy, ranked by the profile's
+    // copy-priority list and falling back to the supplied scorer.
     pickYokuniCopy(friendlyCards: any[], enemyCards: any[] = [], priorityOf: (card: any) => number = () => 0): any {
         const rank = (id: string) => {
             const index = this.profile.yokuniCopyPriority.indexOf(id);
@@ -239,6 +266,8 @@ export class DragonAttachmentTactics {
                 String(a.uuid || '').localeCompare(String(b.uuid || '')))[0] || null;
     }
 
+    // Which of our characters this attachment goes on, respecting the
+    // restricted cap, stacking rules and any preferred bearer.
     pickAttachmentTarget(mine: any[], attachmentId: string | undefined, preferredBearerUuid?: string, yokuniCopiedNiten = false): any {
         if(!this.isAttachment(attachmentId)) {
             return null;
@@ -314,6 +343,9 @@ export class DragonAttachmentTactics {
         })[0] || null;
     }
 
+    // Extra ring value specific to this deck — notably Water while Inventive
+    // Mirumoto is out and an attachment sits in the conflict discard to
+    // return.
     ringBonus(element: string, board: any[], conflictDiscard: any[] = []): number {
         if(element === 'water' && (board || []).some((card) => card.id === 'inventive-mirumoto') &&
             (conflictDiscard || []).some((card) => this.isAttachment(card.id))) {
@@ -333,11 +365,14 @@ export class DragonAttachmentTactics {
         return 0;
     }
 
+    // Which of our characters is wearing the Daimyo's Favor, since its action
+    // is paid from the bearer.
     daimyoFavorBearerUuid(source: any, myCharacters: any[]): string | undefined {
         return (myCharacters || []).find((character) =>
             (character.attachments || []).some((attachment: any) => attachment.uuid === source?.uuid))?.uuid;
     }
 
+    // The attachment worth playing at the Favor's reduced cost.
     pickDaimyoReducedAttachment(hand: any[], myCharacters: any[], bearerUuid: string | undefined, conflictCosts?: Record<string, number>, yokuniCopiedNiten = false): any {
         if(!bearerUuid) {
             return null;
@@ -353,6 +388,8 @@ export class DragonAttachmentTactics {
                 String(a.uuid || '').localeCompare(String(b.uuid || '')))[0] || null;
     }
 
+    // Fire the Favor only while its bearer is ready and there is an
+    // attachment worth the discount.
     shouldUseDaimyoFavor(source: any, ctx: any): boolean {
         if(source?.bowed) {
             return false;

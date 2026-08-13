@@ -206,10 +206,6 @@ export class DuelBidTactics {
         };
     }
 
-    chooseBid(context: DuelBidContext, roll = 0.5): number {
-        return this.analyze(context, roll).selectedBid;
-    }
-
     shouldContest(context: DuelBidContext): boolean {
         const analysis = this.analyze(context, 0.5);
         return Math.max(...analysis.bids.map((bid) => bid.modeledWinProbability)) >=

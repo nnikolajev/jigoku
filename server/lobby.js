@@ -309,8 +309,7 @@ class Lobby {
             difficulty: botDetails.difficulty || 'mvp',
             policy: botDetails.policy,
             omniscient: botDetails.omniscient === true,
-            trace: botDetails.trace !== false,
-            llm: botDetails.llm || env.botLlm
+            trace: botDetails.trace !== false
         };
         const botUser = buildBotUser(botConfig);
 

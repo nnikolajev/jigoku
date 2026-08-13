@@ -1,3 +1,7 @@
+// Legitimate opponent inference: hypotheses built only from public evidence.
+//
+// Cards seen played, provinces revealed, deck composition, fate and honor
+// totals. Never the actual hand — that is `ExactInformationProvider`.
 import type { PlanningState } from '../model/PlanningState';
 import type { ProvinceLocation } from '../model/References';
 import { immutable, stableHash } from '../model/Stable';

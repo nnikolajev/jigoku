@@ -98,11 +98,6 @@ describe('LionDuelistTactics', function() {
             expect(pick.uuid).toBe('idle');
         });
 
-        it('declines when every legal body is already bowed or fighting', function() {
-            const bowed = character({ id: 'a', uuid: 'bowed', military: 5, bowed: true });
-            expect(tactics.shouldUseStronghold([bowed], 'military')).toBe(false);
-        });
-
         it('prefers the body with the most investment sunk into it', function() {
             const plain = character({ id: 'a', uuid: 'plain', military: 4 });
             const invested = character({ id: 'b', uuid: 'invested', military: 3, fate: 2 });
@@ -250,13 +245,11 @@ describe('LionDuelistTactics', function() {
         it('nets off the skill lost when the source bows to pay', function() {
             const source = character({ uuid: 'src', military: 4, inConflict: true });
             expect(tactics.recursionGain([big], 'military', source)).toBe(1);
-            expect(tactics.shouldRecur([big], 'military', source)).toBe(false);
         });
 
         it('pays nothing when the source is at home', function() {
             const source = character({ uuid: 'src', military: 4 });
             expect(tactics.recursionGain([big], 'military', source)).toBe(5);
-            expect(tactics.shouldRecur([big], 'military', source)).toBe(true);
         });
     });
 
@@ -378,36 +371,6 @@ describe('LionDuelistTactics', function() {
                 'blade-of-10-000-battles']) {
                 expect(getPlaybookEntry(id).abilityValue).withContext(id).toBe(true);
             }
-        });
-    });
-
-    describe('dynasty events', function() {
-        const veterans = { id: 'honored-veterans', uuid: 'hv', type: 'event' };
-        const season = { id: 'a-season-of-war', uuid: 'sw', type: 'event' };
-        const freshBushi = character({
-            id: 'kitsu-motso', uuid: 'new', traits: ['bushi'], glory: 2, new: true,
-            glorySummary: { stat: 2 }
-        });
-
-        it('plays Honored Veterans for a Bushi bought this phase', function() {
-            const pick = tactics.pickDynastyEvent([veterans], { hv: 0 }, 5, [freshBushi], 0);
-            expect(pick && pick.card.id).toBe('honored-veterans');
-        });
-
-        it('holds it with no newly played, unhonored, glory-bearing Bushi', function() {
-            const stale = Object.assign({}, freshBushi, { new: false });
-            expect(tactics.pickDynastyEvent([veterans], { hv: 0 }, 5, [stale], 0)).toBeNull();
-            const honored = Object.assign({}, freshBushi, { isHonored: true });
-            expect(tactics.pickDynastyEvent([veterans], { hv: 0 }, 5, [honored], 0)).toBeNull();
-        });
-
-        it('rerolls with A Season of War only once the provinces are spent', function() {
-            expect(tactics.pickDynastyEvent([season], { sw: 1 }, 5, [], 0).card.id).toBe('a-season-of-war');
-            expect(tactics.pickDynastyEvent([season], { sw: 1 }, 5, [], 3)).toBeNull();
-        });
-
-        it('never offers an event it cannot pay for', function() {
-            expect(tactics.pickDynastyEvent([season], { sw: 4 }, 1, [], 0)).toBeNull();
         });
     });
 

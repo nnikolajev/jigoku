@@ -1,3 +1,10 @@
+// A machine-readable model of what a card does, for cards V2 can price.
+//
+// This is the wall the whole V2 program hit: the registry falls back to V1's
+// `CardPlaybook` for anything it has no model of, and coverage never got high
+// enough for the planner to reason about a real hand — see
+// `docs/bot-v2-rejected-experiments.md` on card-value gating. `confidence` is
+// how much the planner is allowed to trust an entry.
 import { getPlaybookEntry } from '../../CardPlaybook.js';
 import { getCardModel } from '../../DeckAnalysis.js';
 import type { ActionTag, BotActionCandidate, UsageLimit } from '../model/Candidate';
@@ -202,11 +209,6 @@ export default class CardSemanticRegistry {
         });
     }
 
-    effectsFor(cardId: string | undefined, state: PlanningState, candidate: BotActionCandidate,
-        targets: readonly TargetRef[] = candidate.targets): readonly EffectDescriptor[] {
-        return this.project(cardId, state, candidate, targets)?.effects || [];
-    }
-
     enrich(state: PlanningState, candidate: BotActionCandidate): BotActionCandidate {
         // Buying a dynasty card is not that card's printed action. Its board and
         // persistence value belongs to joint resource planning, not action semantics.
@@ -236,21 +238,4 @@ export default class CardSemanticRegistry {
         }) as BotActionCandidate;
     }
 
-    coverage(cardIds: readonly string[]): readonly SemanticCoverageEntry[] {
-        return [...new Set(cardIds)].sort().map((cardId) => {
-            const model = this.get(cardId);
-            return {
-                cardId,
-                status: !model ? 'unknown' : model.confidence < 0.7 ? 'low-confidence' : 'supported',
-                confidence: model?.confidence || 0,
-                source: model?.source,
-                v1Fallback: true
-            };
-        });
-    }
-
-    hash(cardIds?: readonly string[]): string {
-        const ids = cardIds ? [...new Set(cardIds)].sort() : [...this.models.keys()].sort();
-        return stableHash(ids.map((id) => this.get(id)));
-    }
 }

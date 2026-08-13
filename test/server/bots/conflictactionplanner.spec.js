@@ -2,7 +2,7 @@
 const {
     planConflictActions,
     DEFAULT_CONFLICT_ACTION_PROFILE
-} = require('../../../build/server/game/bots/v2/ConflictActionPlanner.js');
+} = require('../../../build/server/game/bots/shared/ConflictActionPlanner.js');
 
 function action(key, overrides) {
     return Object.assign({ key, cost: 0, selfSkill: 0, opponentSkill: 0 }, overrides);

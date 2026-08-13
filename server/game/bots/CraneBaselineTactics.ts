@@ -94,10 +94,6 @@ export interface GossipChoiceContext {
 export class CraneBaselineTactics {
     constructor(private profile: CraneBaselineProfile) {}
 
-    isBaselineDeck(cardIds: Set<string>): boolean {
-        return this.profile.markerCards.every((id) => cardIds.has(id));
-    }
-
     // Both players know the submitted deck list in L5R. Group printed copies
     // from that public list and score only those actual conflict cards. Seed 3
     // then adds its legal information advantage: exact hand, affordability,
@@ -147,6 +143,8 @@ export class CraneBaselineTactics {
         return best && score(best) >= this.profile.gossipMinimumScore ? best.card : null;
     }
 
+    // Which single character attacks alone, more cautiously into a province
+    // that is still facedown.
     pickSoloAttacker(candidates: any[], facedownProvince: boolean): any | null {
         const ready = candidates.filter((card) => !card.bowed);
         if(facedownProvince) {
@@ -181,17 +179,22 @@ export class CraneBaselineTactics {
             String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
+    // Fate to hold back in dynasty so the opening five-cost champion arrives
+    // with two fate on it rather than bare.
     desiredDynastyFateReserve(round: number): number {
         // Do not underfund the opening five-cost champion: seven starting fate
         // should become cost 5 + 2 fate, matching the deck's persistence plan.
         return round >= this.profile.boardFloorRound ? this.profile.dynastyFateReserve : 0;
     }
 
+    // Brash Samurai's honor only pays when it is the lone, unhonored
+    // participant.
     shouldUseBrashSamurai(ctx: any): boolean {
         const mine = (ctx.myCharacters || []).filter((card: any) => card.inConflict);
         return mine.length === 1 && mine[0].id === this.profile.soloHonorId && !mine[0].isHonored;
     }
 
+    // Doji Challenger needs us attacking with a conflict still to come.
     shouldUseDojiChallenger(ctx: any): boolean {
         if(!ctx.amAttacker || (ctx.conflictsRemaining || 0) < 1) {
             return false;
@@ -204,6 +207,7 @@ export class CraneBaselineTactics {
         return challenger && futureThreat && !ctx.losing && (ctx.strengthNeeded ?? 0) <= 0;
     }
 
+    // Switch axis when the other one is where we are actually ahead.
     shouldSwitchConflictType(ctx: any): boolean {
         const own = (ctx.myCharacters || []).filter((card: any) => card.inConflict);
         const enemy = (ctx.opponentCharacters || []).filter((card: any) => card.inConflict);
@@ -223,6 +227,8 @@ export class CraneBaselineTactics {
         return margin(other) > margin(ctx.conflictType);
     }
 
+    // Court Games honors a participant — worth it only with an unhonored,
+    // glory-bearing body in the conflict.
     shouldHonorWithCourtGames(ctx: any, gloryOf: (card: any) => number = (card) =>
         Math.max(0, Number(card?.glorySummary?.stat ?? card?.glory) || 0)): boolean {
         const own = (ctx.myCharacters || []).filter((card: any) => card.inConflict && !card.isHonored);
@@ -234,6 +240,7 @@ export class CraneBaselineTactics {
         return !!ownBest && (!enemyBest || gloryOf(ownBest) + savvyBonus + nobleSetup >= gloryOf(enemyBest));
     }
 
+    // Who to honor first in a chain: unhonored, highest glory.
     pickHonorChainTarget(cards: any[], gloryOf: (card: any) => number = (card) =>
         Math.max(0, Number(card?.glorySummary?.stat ?? card?.glory) || 0)): any | null {
         return cards.filter((card) => !card.isHonored).sort((a, b) =>

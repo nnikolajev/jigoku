@@ -257,6 +257,9 @@ export class ShugenjaTactics {
         this.profile = profile;
     }
 
+    // Extra value this deck gets from claiming a specific element, beyond the
+    // ring's printed effect: Water/Air/Void ids in hand or play that only turn
+    // on under that element.
     ringBonus(element: string, myCharacters: any[], hand: any[]): number {
         const wanted = element === 'water' ? this.profile.waterIds
             : element === 'air' ? this.profile.airIds
@@ -525,6 +528,9 @@ export class ShugenjaTactics {
             Math.max(5 - this.profile.disguiseTargets[card.id], 0)));
     }
 
+    // Board-aware ring order for Offerings. Fate is deliberately NOT part of
+    // the sort — the caller compares fate first and uses this only to break a
+    // tie between rings carrying the same pile.
     offeringsRingPriority(rings: any[], myCharacters: any[], opponentCharacters: any[]): any[] {
         // Generate this list from the live board every time Offerings reveals.
         // Fate is deliberately absent: caller first compares fate, then uses
@@ -534,11 +540,15 @@ export class ShugenjaTactics {
             this.immediateRingScore(String(a?.element || ''), myCharacters, opponentCharacters));
     }
 
+    // Togama takes the ring's fate as well as its effect, so its score is the
+    // pile (weighted) plus the immediate board value of the element.
     togamaRingScore(ring: any, myCharacters: any[], opponentCharacters: any[]): number {
         return (Number(ring?.fate) || 0) * this.profile.togamaFateValue +
             this.immediateRingScore(String(ring?.element || ''), myCharacters, opponentCharacters);
     }
 
+    // Display of Power is one-shot per conflict, so it is only spent on an
+    // element whose immediate board effect clears the profile's bar.
     shouldUseDisplayForRing(element: string, myCharacters: any[], opponentCharacters: any[]): boolean {
         return this.immediateRingScore(element, myCharacters, opponentCharacters) >=
             this.profile.displayRingMinimum;
@@ -573,14 +583,19 @@ export class ShugenjaTactics {
             waterEffectValue + (fallback[element] ?? 0);
     }
 
+    // Trait test by card id. Public bot state omits printed traits, which is
+    // why this deck identifies its own Shugenja by a stable id list.
     isShugenja(card: any): boolean {
         return !!card?.id && this.profile.shugenjaIds.includes(card.id);
     }
 
+    // Is this a body worth stacking fate and attachments onto?
     isPracticalTower(card: any): boolean {
         return !!card?.id && this.profile.towerIds.includes(card.id);
     }
 
+    // Choose the body to invest in: a listed tower first, then raw skill,
+    // with a uuid tie-break so the pick is deterministic.
     pickTower(cards: any[], skillOf: (card: any) => number): any {
         if(!cards || cards.length === 0) {
             return null;
@@ -603,6 +618,9 @@ export class ShugenjaTactics {
         })[0];
     }
 
+    // Which in-play character to disguise Tadaka onto. Only bases in the
+    // profile table qualify, and only when we can still afford the reduced
+    // cost (5 minus the base's discount).
     pickDisguiseTarget(cards: any[], availableFate = Number.POSITIVE_INFINITY): any {
         const candidates = (cards || []).filter((card) =>
             card.id && this.profile.disguiseTargets[card.id] !== undefined &&
@@ -657,6 +675,10 @@ export class ShugenjaTactics {
      * price, not a plan. The free-conflict window wants him as a body it can
      * declare with, not as a tower being prepared.
      */
+    // UNREACHABLE FROM SEED 3 BY DESIGN: the unopposed window defers to seed
+    // 3's playConflictCharactersAtHome, so this is never consulted there. That
+    // is intentional and carries a `delegated` entry in
+    // test/server/bots/specializedpolicycoverage.spec.js.
     disguisedCost(myCharacters: any[], availableFate: number): number | null {
         const bases = (myCharacters || []).filter((card) =>
             card.id && this.profile.disguiseTargets[card.id] !== undefined &&
@@ -665,6 +687,8 @@ export class ShugenjaTactics {
         return base ? Math.max(5 - this.profile.disguiseTargets[base.id], 0) : null;
     }
 
+    // Play Isawa Tadaka 2 from hand, once. Returns null if a copy is already
+    // in play — the second is dead.
     pickTadakaPlay(hand: any[], myCharacters: any[], availableFate: number): any {
         const tadaka = (hand || []).find((card) =>
             card.id === 'isawa-tadaka-2' && card.uuid && card.isPlayableByMe);
@@ -681,6 +705,8 @@ export class ShugenjaTactics {
         return base && (Number(base.fate) || 0) >= 2 ? tadaka : null;
     }
 
+    // Buy a dynasty character specifically to be a disguise BASE for a Tadaka
+    // still sitting in hand. Only fires while that Tadaka exists.
     pickTadakaSetupCharacter(cards: any[], hand: any[], dynastyCosts: Record<string, number>, availableFate: number): any {
         if(!(hand || []).some((card) => card.id === 'isawa-tadaka-2')) {
             return null;
@@ -699,6 +725,8 @@ export class ShugenjaTactics {
             String(a.uuid || '').localeCompare(String(b.uuid || '')))[0] || null;
     }
 
+    // Fushicho returns a 5-cost character from the dynasty discard; this
+    // finds the best one there, or null if the discard has none.
     pickFushichoTarget(cards: any[]): any {
         const fiveCostCharacters = (cards || []).filter((card) =>
             card.type === 'character' && this.printedCostOf(card) === 5);
@@ -710,25 +738,33 @@ export class ShugenjaTactics {
             String(a.uuid || '').localeCompare(String(b.uuid || '')))[0];
     }
 
+    // Play it only when it has something to bring back.
     shouldPlayFushicho(dynastyDiscard: any[]): boolean {
         return !!this.pickFushichoTarget(dynastyDiscard);
     }
 
+    // A character already blanked by Pacifism or Stolen Breath is not worth
+    // spending Five Fires on.
     isFiveFiresNeutralized(card: any): boolean {
         return (card?.attachments || []).some((attachment: any) =>
             attachment.id === 'pacifism' || attachment.id === 'stolen-breath');
     }
 
+    // Characters Five Fires can actually take fate from: fate > 0 and not
+    // already neutralized.
     fiveFiresTargets(cards: any[]): any[] {
         return (cards || []).filter((card) =>
             card.type === 'character' && (Number(card.fate) || 0) > 0 && !this.isFiveFiresNeutralized(card));
     }
 
+    // Total fate available across those targets — the card needs 5 to be worth
+    // its own cost.
     fiveFiresTargetFate(cards: any[]): number {
         return this.fiveFiresTargets(cards)
             .reduce((total, card) => total + (Number(card.fate) || 0), 0);
     }
 
+    // Most fate first, then most skill, then uuid for determinism.
     pickFiveFiresTarget(cards: any[], skillOf: (card: any) => number = () => 0): any {
         return this.fiveFiresTargets(cards).slice().sort((a, b) =>
             (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
@@ -736,6 +772,8 @@ export class ShugenjaTactics {
             String(a.uuid || '').localeCompare(String(b.uuid || '')))[0] || null;
     }
 
+    // Full play gate: 5 fate available, a Shugenja in play, and at least 5
+    // fate sitting on legal targets. Below any of those the card is a loss.
     pickFiveFiresPlay(hand: any[], myCharacters: any[], opponentCharacters: any[], availableFate: number): any {
         if(availableFate < 5 ||
             !(myCharacters || []).some((card) => this.isShugenja(card)) ||
@@ -746,6 +784,7 @@ export class ShugenjaTactics {
             card.id === 'consumed-by-five-fires' && card.uuid && card.isPlayableByMe) || null;
     }
 
+    // Lowest-value card, for costs and discards that let us choose.
     pickWeakest(cards: any[]): any {
         if(!cards || cards.length === 0) {
             return null;
@@ -766,6 +805,7 @@ export class ShugenjaTactics {
             : (Number(card.cost) || 0);
     }
 
+    // Rank Spell events by this deck's preference order.
     pickSpell(cards: any[]): any {
         if(!cards || cards.length === 0) {
             return null;
@@ -779,6 +819,8 @@ export class ShugenjaTactics {
             String(a.uuid || '').localeCompare(String(b.uuid || '')))[0];
     }
 
+    // Spell selection restricted to what Kyuden's action can pay for and what
+    // the shared play-intent filter still allows.
     pickKyudenSpell(cards: any[], playCtx: any): any {
         const fate = Number(playCtx?.fate) || 0;
         const sharedPlayIntent = playCtx?.canPlayConflictCard;
@@ -795,11 +837,14 @@ export class ShugenjaTactics {
         }));
     }
 
+    // Discard for Kyuden's cost, protecting the ids we never want to lose and
+    // falling back to the weakest card if everything is protected.
     pickKyudenDiscard(cards: any[]): any {
         const unprotected = (cards || []).filter((card) => !this.profile.protectedDiscardIds.includes(card.id));
         return this.pickWeakest(unprotected.length > 0 ? unprotected : cards);
     }
 
+    // Are we holding a Display of Power line worth reserving fate for?
     hasDisplayPlan(me: any): boolean {
         const fate = Number(me?.stats?.fate) || 0;
         if(fate < 2) {
@@ -811,6 +856,8 @@ export class ShugenjaTactics {
         return hand.some((card: any) => card.id === 'display-of-power');
     }
 
+    // Is there any action worth keeping fate and a window open for? This is
+    // the gate that stops the deck passing a window it could still use.
     hasStrategicAction(me: any, opponent: any, conflictType?: string, canPlayConflictCard?: (card: any) => boolean, conflictCosts?: Record<string, number>): boolean {
         const fate = Number(me?.stats?.fate) || 0;
         const hand = me?.cardPiles?.hand || [];
@@ -850,6 +897,8 @@ export class ShugenjaTactics {
             (card.id === 'asako-togama' && card.inConflict));
     }
 
+    // Kyuden's action is only worth its cost when a Spell it can fuel is
+    // actually in hand or discard.
     shouldUseKyuden(playCtx: any): boolean {
         const hand = playCtx?.hand || [];
         const discard = playCtx?.conflictDiscard || [];
@@ -861,10 +910,14 @@ export class ShugenjaTactics {
         return !!this.pickKyudenSpell(discard, playCtx);
     }
 
+    // Fate floor for spending in the pre-conflict window rather than saving
+    // it for the conflict itself.
     canPlayPreConflict(myFate: number): boolean {
         return myFate >= this.profile.preConflictMinFate;
     }
 
+    // Fate to hold back rather than spend in dynasty. Once a two-fate disguise
+    // base is prepared this protects Tadaka's cost.
     desiredFateReserve(me: any, opponent: any): number {
         const mine = me?.cardPiles?.cardsInPlay || [];
         const hand = me?.cardPiles?.hand || [];
@@ -898,6 +951,8 @@ export class ShugenjaTactics {
         return Math.max(tadakaReserve, fiveFiresReserve);
     }
 
+    // Extra fate to place on a freshly bought character so it can serve as a
+    // disguise base later. Null for anything that is not such a base.
     desiredAdditionalFate(cardId: string | undefined, hand: any[], availableFate: number, playCost?: number): number | null {
         if(!cardId || this.profile.disguiseTargets[cardId] === undefined ||
             !(hand || []).some((card) => card.id === 'isawa-tadaka-2')) {

@@ -272,25 +272,31 @@ export class LionDuelistTactics {
 
     // ---- identity ---------------------------------------------------------
 
+    // A body worth stacking fate and attachments onto.
     isTower(card: any): boolean {
         return !!card?.id && this.profile.towerCharacters.includes(card.id);
     }
 
+    // Commander by trait or by profile id list — several cards key off it.
     isCommander(card: any): boolean {
         return this.hasTrait(card, 'commander') ||
             (!!card?.id && this.profile.commanderCharacters.includes(card.id));
     }
 
+    // Champion by trait or id. Champions are exempt from the stronghold bow,
+    // which is why this is a separate predicate.
     isChampion(card: any): boolean {
         return this.hasTrait(card, 'champion') ||
             (!!card?.id && this.profile.championCharacters.includes(card.id));
     }
 
+    // Bushi by trait or id; public bot state omits printed traits.
     isBushi(card: any): boolean {
         return this.hasTrait(card, 'bushi') ||
             (!!card?.id && this.profile.bushiCharacters.includes(card.id));
     }
 
+    // Per-character extra-fate table. Null means the generic economy decides.
     desiredAdditionalFate(cardId?: string): number | null {
         if(!cardId || !Object.prototype.hasOwnProperty.call(this.profile.additionalFateByCharacterId, cardId)) {
             return null;
@@ -300,6 +306,8 @@ export class LionDuelistTactics {
 
     // ---- Kyuden Ikoma -----------------------------------------------------
 
+    // Enemy characters Kyuden Ikoma's bow may legally target — Champions are
+    // excluded by the card.
     strongholdBowCandidates(opponentCharacters: any[], axis: Axis): any[] {
         return (opponentCharacters || [])
             .filter((card) => card && !this.isChampion(card))
@@ -310,14 +318,11 @@ export class LionDuelistTactics {
             .filter((card) => this.bodyValue(card, axis) >= this.profile.strongholdBowMinimumSkill);
     }
 
+    // Best of those candidates on the conflict's axis.
     pickStrongholdBowTarget(opponentCharacters: any[], axis: Axis): any | null {
         const candidates = this.strongholdBowCandidates(opponentCharacters, axis);
         return candidates.slice().sort((left, right) =>
             this.bodyValue(right, axis) - this.bodyValue(left, axis) || byUuid(left, right))[0] || null;
-    }
-
-    shouldUseStronghold(opponentCharacters: any[], axis: Axis): boolean {
-        return !!this.pickStrongholdBowTarget(opponentCharacters, axis);
     }
 
     // ---- Frostbitten Crossing --------------------------------------------
@@ -353,6 +358,7 @@ export class LionDuelistTactics {
         return total;
     }
 
+    // Which enemy attachment to strip, and from whom.
     pickStripTarget(
         mine: any[],
         theirs: any[],
@@ -443,6 +449,8 @@ export class LionDuelistTactics {
         return -winDeficit >= skill + this.profile.motsoSafeLeadMargin;
     }
 
+    // Pull a ready enemy body that is NOT already in the conflict into it, so
+    // it bows for nothing.
     pickDragTarget(opponentCharacters: any[], axis: Axis): any | null {
         return (opponentCharacters || [])
             .filter((card) => card && !card.bowed && !card.inConflict &&
@@ -462,6 +470,7 @@ export class LionDuelistTactics {
             numberOr(card?.fate, 0) * this.profile.recursionFateWeight;
     }
 
+    // Best character to return from the discard on the conflict's axis.
     pickRecursionTarget(bodies: any[], axis: Axis): any | null {
         return (bodies || [])
             .filter((card) => card?.type === 'character' || card?.type === undefined)
@@ -480,12 +489,10 @@ export class LionDuelistTactics {
         return skillOf(best, axis) - paid;
     }
 
-    shouldRecur(bodies: any[], axis: Axis, source?: any): boolean {
-        return this.recursionGain(bodies, axis, source) >= this.profile.recursionMinimumSkill;
-    }
-
     // ---- Matsu Agetoki ----------------------------------------------------
 
+    // Strength to plan against, using the profile's assumption for a province
+    // that is still facedown.
     provinceStrength(province: any, effectiveStrengthById: Record<string, number>): number {
         if(province?.facedown || province?.faceup === false) {
             return this.profile.facedownProvinceAssumedStrength;
@@ -539,11 +546,14 @@ export class LionDuelistTactics {
 
     // ---- Akodo Zentaro ----------------------------------------------------
 
+    // What a holding is worth to us, from the profile table with a default.
     holdingValue(card: any): number {
         const known = Number(this.profile.holdingValueById[String(card?.id || '')]);
         return Number.isFinite(known) ? known : this.profile.holdingDefaultValue;
     }
 
+    // Which holding Zentaro should hit, subject to a minimum value so the
+    // ability is not wasted on a cheap one.
     pickHoldingTarget(holdings: any[]): any | null {
         return (holdings || [])
             .filter((card) => this.holdingValue(card) >= this.profile.zentaroMinimumHoldingValue)
@@ -565,11 +575,13 @@ export class LionDuelistTactics {
 
     // ---- attachments ------------------------------------------------------
 
+    // Position in the deck's attachment preference order; lower is better.
     attachmentRank(cardId: string | undefined): number {
         const index = this.profile.attachmentRanking.indexOf(String(cardId || ''));
         return index < 0 ? this.profile.attachmentRanking.length : index;
     }
 
+    // Which attachment to fetch, by that ranking.
     pickForgeAttachment(cards: any[]): any | null {
         const ranked = (cards || []).filter((card) => card?.id)
             .sort((left, right) => this.attachmentRank(left.id) - this.attachmentRank(right.id) ||
@@ -577,6 +589,7 @@ export class LionDuelistTactics {
         return ranked[0] || (cards || [])[0] || null;
     }
 
+    // Position in the deck's key-character order; lower is better.
     keyRank(card: any): number {
         const index = this.profile.keyCharacters.indexOf(String(card?.id || ''));
         return index < 0 ? this.profile.keyCharacters.length : index;
@@ -593,39 +606,14 @@ export class LionDuelistTactics {
 
     // ---- duels ------------------------------------------------------------
 
+    // Which skill a given duel source duels on. Null when the card is not a
+    // duel source for this deck.
     duelAxis(sourceCardId: string | undefined): Axis | null {
         const axis = this.profile.duelAxes[String(sourceCardId || '')];
         return axis === 'military' || axis === 'political' ? axis : null;
     }
 
     // ---- dynasty events ---------------------------------------------------
-
-    // `board` is what we control in play; `card.new` marks a body bought this
-    // phase, which is exactly Honored Veterans' printed condition.
-    pickDynastyEvent(
-        playable: any[],
-        costs: Record<string, number>,
-        fate: number,
-        board: any[],
-        ownProvinceCardCount: number
-    ): { card: any; reason: string } | null {
-        const affordable = (card: any) => numberOr(costs?.[card?.uuid], 0) <= fate;
-
-        const veterans = (playable || []).find((card) =>
-            card?.id === 'honored-veterans' && affordable(card));
-        if(veterans && (board || []).some((card) => card?.new && this.isBushi(card) &&
-            !card.isHonored && gloryOf(card) >= this.profile.honoredVeteransMinimumGlory)) {
-            return { card: veterans, reason: 'lion-duelist-play-honored-veterans' };
-        }
-
-        const season = (playable || []).find((card) =>
-            card?.id === 'a-season-of-war' && affordable(card));
-        if(season && ownProvinceCardCount <= this.profile.seasonOfWarMaxUsefulProvinceCards &&
-            fate >= this.profile.seasonOfWarMinimumFate) {
-            return { card: season, reason: 'lion-duelist-play-season-of-war' };
-        }
-        return null;
-    }
 
     // ---- axis payoff ------------------------------------------------------
 

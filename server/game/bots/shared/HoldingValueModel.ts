@@ -1,3 +1,8 @@
+// SHARED (V1 + V2). Lived under `v2/` until 2026-08-13; moved to `shared/`
+// once measurement showed V1 imports it at RUNTIME, so it was never
+// experimental. Changing it changes the shipping bot — prove any edit
+// bit-identical with `tools/selfplay/refactorIdentity.js`.
+//
 // What a HOLDING is worth, for the cards that spend one.
 //
 // Several effects pay for themselves with a holding we control — Kaiu Siege
@@ -16,7 +21,6 @@
 //   2. Its ongoing ability, which strength_bonus does not capture at all —
 //      River of the Last Stand is +0 strength and still a real card.
 //
-// V2 ONLY. V1 stays frozen as the measurement control.
 
 import { PROVINCE_STRENGTH_SCORE, stayReadyValue } from './CardValueTypes.js';
 import { blocked, hold } from './CardValueTypes.js';

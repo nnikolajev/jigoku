@@ -301,12 +301,7 @@ describe('V2 deck synergy contributors', function() {
             for(const informationMode of ['fair', 'omniscient']) {
                 for(const [deckName, loadDeck] of Object.entries(DECK_LOADERS)) {
                     const cards = deckEntries(loadDeck()).map((entry) => entry.card);
-                    const ids = cards.map((card) => card.id);
-                    const coverage = semantics.coverage(ids);
                     const label = `seed=${seed}/${informationMode}/${deckName}`;
-                    expect(coverage.length).withContext(`${label} semantic coverage`).toBe(new Set(ids).size);
-                    expect(coverage.every((entry) => entry.v1Fallback === true))
-                        .withContext(`${label} explicit V1 fallback`).toBeTrue();
                     for(const card of cards.filter(expectedAbility)) {
                         const live = { uuid: `live:${card.id}`, id: card.id, name: card.name, type: card.type,
                             side: card.side, location: 'play area', selectable: true, attachments: [] };

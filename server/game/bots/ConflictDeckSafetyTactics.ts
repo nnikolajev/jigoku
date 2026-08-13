@@ -1,3 +1,16 @@
+/**
+ * Stops the bot decking itself out.
+ *
+ * Running the conflict deck empty is not a soft cost in this game: the refill
+ * costs honor every time, and a few opposing cards force extra draws on top of
+ * the mandatory one. So an OPTIONAL draw is not free late — it can be the
+ * difference between losing on honor and not. This module prices remaining
+ * cards against the honor those forced draws will cost and answers one
+ * question for the policy: may we spend `n` more cards on optional effects?
+ *
+ * `forcedDrawsByOpponentCardId` / `forcedHonorLossByOpponentCardId` are the
+ * per-card tables of what the OPPONENT's board will take from us.
+ */
 export interface ConflictDeckSafetyProfile {
     enabled: boolean;
     mandatoryDrawCards: number;

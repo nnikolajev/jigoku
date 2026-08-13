@@ -1,4 +1,9 @@
-// Context-aware card values for Bot V2.
+// SHARED (V1 + V2). Lived under `v2/` until 2026-08-13; moved to `shared/`
+// once measurement showed V1 imports it at RUNTIME, so it was never
+// experimental. Changing it changes the shipping bot — prove any edit
+// bit-identical with `tools/selfplay/refactorIdentity.js`.
+//
+// Context-aware card values, shared by Bot V1 and Bot V2.
 //
 // `DeckAnalysis` already carries a `swing` per card, but it is a flat constant:
 // Assassination is worth 4 whether it kills a participating 5-skill defender or
@@ -17,8 +22,6 @@
 // in `DuelValueModel`. Both are re-exported here so this module stays the single
 // import for callers.
 //
-// V2 ONLY. Putting these into `CardPlaybook.conflictContribution` would change
-// V1, which is frozen as the measurement control.
 
 import { getCardModel } from '../DeckAnalysis.js';
 import { isNegativeAttachmentId } from '../AttachmentControlTactics.js';
@@ -217,10 +220,14 @@ export const reactionTrace: Record<string, { fired: number; skipped: number; unk
  */
 let reactionProbe: ((cardId: string, outcome: string, detail: string) => void) | null = null;
 
+// Install a probe that records reaction outcomes. Used by the self-play
+// tools to measure how often a modelled reaction actually fires.
 export function setReactionProbe(probe: typeof reactionProbe): void {
     reactionProbe = probe;
 }
 
+// Report one reaction outcome to the installed probe. No-op when none is
+// installed, so this costs nothing in a live game.
 export function trackReaction(
     cardId: string,
     outcome: 'fired' | 'skipped' | 'unknown',
@@ -634,6 +641,9 @@ export const REACTION_ONLY_CARDS: ReadonlySet<string> = new Set([
     'for-greater-glory', 'feeding-an-army'
 ]);
 
+// Is this card priced at all? Callers must branch on this rather than
+// treating a null value as zero — see the card-value gating result in
+// docs/bot-v2-rejected-experiments.md.
 export function hasCardValueModel(cardId: string | undefined): boolean {
     return !!cardId && Object.prototype.hasOwnProperty.call(CARD_VALUE_MODEL, cardId);
 }
@@ -644,10 +654,13 @@ export function hasCardValueModel(cardId: string | undefined): boolean {
  */
 let valueProbe: ((cardId: string, value: CardValue) => void) | null = null;
 
+// Install a probe over every valuation, for offline analysis.
 export function setCardValueProbe(probe: typeof valueProbe): void {
     valueProbe = probe;
 }
 
+// Price one card against the live board. Null means UNPRICED, not
+// worthless.
 export function valueCard(cardId: string | undefined, ctx: CardValueContext): CardValue | null {
     if(!hasCardValueModel(cardId)) {
         return null;

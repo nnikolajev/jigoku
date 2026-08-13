@@ -1,3 +1,8 @@
+// Assigns each character a ROLE for the phase before any conflict is sized.
+//
+// A body can be an attacker, a defender, a movement or ready source, or held
+// back for a tower. Deciding roles up front is what stops the phase spending
+// on conflict one the body conflict three depended on.
 import type { PlanConstraint, ResourceReservation } from '../model/Intent';
 import type { CharacterProjection, PlanningState } from '../model/PlanningState';
 import type { ConflictType } from '../model/References';

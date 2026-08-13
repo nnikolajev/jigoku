@@ -1,4 +1,4 @@
-const M = require('../../../build/server/game/bots/v2/CardValueModel.js');
+const M = require('../../../build/server/game/bots/shared/CardValueModel.js');
 
 function holding(id, strengthBonus, provinceBroken = false) {
     return { id, strengthBonus, provinceBroken };

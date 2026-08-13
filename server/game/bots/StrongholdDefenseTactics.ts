@@ -1,3 +1,17 @@
+/**
+ * How hard to defend once the stronghold province itself is under attack.
+ *
+ * This is the one place where over-defending is right. Everywhere else in this
+ * bot, defense sizing has measured as a free parameter or worse — six separate
+ * levers that defend MORE all lost win rate (see `docs/bot-conflict-tempo.md`).
+ * The stronghold is different because a break ends the game, so the usual
+ * trade ("a ready body next conflict beats a marginal win now") has no next
+ * conflict to trade for. `last-conflict-all-in` is exactly that case.
+ *
+ * `skillBuffer` is extra skill beyond strict prevention; note that zero still
+ * keeps the attack strictly below strength + defense, because a TIE at the
+ * break threshold breaks a province in Jigoku.
+ */
 export type StrongholdDefenseAxis = 'military' | 'political';
 
 export interface StrongholdDefenseProfile {

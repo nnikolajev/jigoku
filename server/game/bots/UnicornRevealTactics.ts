@@ -1,3 +1,18 @@
+/**
+ * Two related things, both about province information.
+ *
+ * `ProvinceRevealResponseTactics` answers a province reveal for ANY deck: the
+ * generic "they just flipped something, does it change our attack" reaction.
+ *
+ * `UnicornRevealTactics` is the Unicorn reveal-engine overlay, and it inverts
+ * the normal targeting instinct: this deck prefers a still-HIDDEN province
+ * even when it is stronger, because flipping it grows Shiro Shinjo and turns
+ * on Scouted Terrain. `ProvinceKnowledge` / `ProvinceKnowledgeSnapshot` are
+ * the fair (not omniscient) view — what the bot could legitimately have
+ * observed being revealed.
+ *
+ * See `docs/unicorn-reveal-bot.md`.
+ */
 import type { ProvinceAbilityClass } from './ProvinceTargeting';
 
 export interface ProvinceKnowledge {
@@ -128,6 +143,8 @@ const characterValue = (card: any): number =>
 export class ProvinceRevealResponseTactics {
     constructor(public readonly profile: ProvinceRevealResponseProfile = PROVINCE_REVEAL_RESPONSE_DEFAULTS) {}
 
+    // What revealing this card is worth, from the profile table with a
+    // generic fallback.
     value(card: any): number {
         const exact = Number(this.profile.onRevealValueById[String(card?.id || '')]);
         if(Number.isFinite(exact)) {
@@ -137,6 +154,7 @@ export class ProvinceRevealResponseTactics {
         return Number(this.profile.fallbackValueByAbility[ability]) || 0;
     }
 
+    // Choice forced by Aranat, excluding the stronghold province.
     pickAgainstAranat(cards: any[]): any | null {
         return cards
             .filter((card) => !card?.selected && card?.location !== 'stronghold province')
@@ -150,18 +168,19 @@ export class ProvinceRevealResponseTactics {
 export class UnicornRevealTactics {
     constructor(public readonly profile: UnicornRevealProfile = UNICORN_REVEAL_DEFAULTS) {}
 
+    // How many of their outer provinces we have already seen.
     opponentFaceupNonStronghold(snapshot?: ProvinceKnowledgeSnapshot): number {
         return snapshot?.opponent.filter((province) => province.faceup && !province.stronghold).length || 0;
     }
 
-    opponentFacedownNonStronghold(snapshot?: ProvinceKnowledgeSnapshot): number {
-        return snapshot?.opponent.filter((province) => !province.faceup && !province.stronghold && !province.broken).length || 0;
-    }
-
+    // All four outer provinces revealed — the reveal engine has nothing left
+    // to flip.
     allOpponentOuterRevealed(snapshot?: ProvinceKnowledgeSnapshot): boolean {
         return this.opponentFaceupNonStronghold(snapshot) >= 4;
     }
 
+    // Scouted Terrain needs unrevealed provinces to pay off, so it is gated on
+    // the snapshot rather than on fate alone.
     shouldPlayScoutedTerrain(
         snapshot: ProvinceKnowledgeSnapshot | undefined,
         fate: number,
@@ -172,6 +191,8 @@ export class UnicornRevealTactics {
             opponentCompletedConflicts >= this.profile.scoutedMinimumOpponentCompletedConflicts;
     }
 
+    // Layer this deck's Good Omen consideration on top of the generic draw
+    // bid, from round 2 onward.
     adjustDrawBid(baseBid: number, roundNumber: number, hand: any[]): number {
         if(roundNumber <= 1 || !hand.some((card) => card?.id === this.profile.goodOmenCardId)) {
             return baseBid;
@@ -179,6 +200,7 @@ export class UnicornRevealTactics {
         return Math.max(1, baseBid - this.profile.laterRoundGoodOmenBidReduction);
     }
 
+    // Per-character extra-fate table; null defers to the generic economy.
     desiredAdditionalFate(cardId?: string): number | null {
         if(!cardId || !Object.prototype.hasOwnProperty.call(this.profile.additionalFateByCharacterId, cardId)) {
             return null;
@@ -186,23 +208,28 @@ export class UnicornRevealTactics {
         return Math.max(0, Number(this.profile.additionalFateByCharacterId[cardId]) || 0);
     }
 
+    // Most valuable character overall, by combined skill, fate and cost.
     pickStrongestCharacter(cards: any[]): any | null {
         return cards.filter((card) => card?.type === 'character')
             .sort((left, right) => characterValue(right) - characterValue(left) ||
                 String(left?.uuid || '').localeCompare(String(right?.uuid || '')))[0] || null;
     }
 
+    // Best ready participant to buff on the military axis.
     pickMilitaryBuffTarget(cards: any[]): any | null {
         return cards.filter((card) => card?.type === 'character' && card.inConflict && !card.bowed)
             .sort((left, right) => rawSkill(right, 'military') - rawSkill(left, 'military') ||
                 characterValue(right) - characterValue(left))[0] || null;
     }
 
+    // Best non-unique ready body for Outflank.
     pickOutflankTarget(cards: any[]): any | null {
         return cards.filter((card) => card?.type === 'character' && !card.bowed && !card.isUnique)
             .sort((left, right) => characterValue(right) - characterValue(left))[0] || null;
     }
 
+    // Which province to flip — this deck wants provinces revealed, so a
+    // still-hidden one can outrank a weaker faceup one.
     pickRevealTarget(cards: any[]): any | null {
         const candidates = cards.filter((card) => card?.type === 'province' || card?.isProvince || card?.facedown);
         return candidates.sort((left, right) => {
@@ -224,6 +251,7 @@ export class UnicornRevealTactics {
         })[0] || null;
     }
 
+    // Per-card trigger conditions for the deck's reveal payoffs.
     shouldTrigger(cardId: string, opponentFate: number, snapshot?: ProvinceKnowledgeSnapshot): boolean {
         if(cardId === 'way-station-trader') {
             return opponentFate >= 1;

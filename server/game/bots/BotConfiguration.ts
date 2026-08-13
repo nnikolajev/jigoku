@@ -1,3 +1,15 @@
+/**
+ * Resolves the four INDEPENDENT axes of a bot seat into one identity, and
+ * hashes it.
+ *
+ * Engine version, strategy seed, information mode and deck profile vary
+ * separately — an omniscient seed-3 V1 bot on the Crab profile is a different
+ * opponent from a fair seed-3 V1 bot on the same profile. Benchmarks are keyed
+ * by all four, so `configurationHash` (a stable, key-order-independent SHA-256
+ * prefix) is what lets a recorded win rate be matched to the bot that produced
+ * it. Change any axis and the hash changes, which is the point: a stale
+ * benchmark stops matching instead of silently mislabelling the new bot.
+ */
 import { createHash } from 'crypto';
 import type { BotEngineVersion, BotInformationMode, BotTraceLevel } from './BotEngine';
 import type { JigokuBotConfig } from './JigokuBotConfig';

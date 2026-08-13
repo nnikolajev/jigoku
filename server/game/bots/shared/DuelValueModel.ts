@@ -1,4 +1,9 @@
-// Duel and dishonor values for Bot V2.
+// SHARED (V1 + V2). Lived under `v2/` until 2026-08-13; moved to `shared/`
+// once measurement showed V1 imports it at RUNTIME, so it was never
+// experimental. Changing it changes the shipping bot — prove any edit
+// bit-identical with `tools/selfplay/refactorIdentity.js`.
+//
+// Duel and dishonor values, shared by Bot V1 and Bot V2.
 //
 // Every duel card in the pool asks the same three questions, so they are asked
 // once here instead of seven times:
@@ -14,7 +19,6 @@
 // functions below supply the SHAPE of their duel's outcome; the shared model
 // turns that shape into a number.
 //
-// V2 ONLY. V1 stays frozen as the measurement control.
 
 import { getCardModel } from '../DeckAnalysis.js';
 import {

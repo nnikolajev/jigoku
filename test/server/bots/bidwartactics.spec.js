@@ -159,29 +159,6 @@ describe('BidWarTactics', function() {
         it('reads no gap before the dials are shown', function() {
             expect(tactics.dialDifference(0, 0)).toBe(0);
             expect(tactics.dialDifference(5, undefined)).toBe(0);
-            expect(tactics.makeAnOpeningValue(5, 0)).toBe(0);
-        });
-
-        it('prices Make an Opening off the absolute difference', function() {
-            expect(tactics.makeAnOpeningValue(5, 1)).toBe(4);
-            expect(tactics.makeAnOpeningValue(1, 5)).toBe(4);
-            // Dead on a tie, and below the threshold on a gap of one.
-            expect(tactics.makeAnOpeningValue(3, 3)).toBe(0);
-            expect(tactics.makeAnOpeningValue(3, 2)).toBe(0);
-        });
-
-        it('prices Regal Bearing off THEIR dial only', function() {
-            expect(tactics.regalBearingDraw(5)).toBe(4);
-            expect(tactics.regalBearingDraw(2)).toBe(0);
-            expect(tactics.regalBearingDraw(undefined)).toBe(0);
-        });
-
-        it('needs a strictly higher dial AND a dishonored participant to swim', function() {
-            const dishonored = [character({ id: 'a', inConflict: true, isDishonored: true })];
-            expect(tactics.canSwim(5, 1, dishonored)).toBe(true);
-            expect(tactics.canSwim(1, 5, dishonored)).toBe(false);
-            expect(tactics.canSwim(3, 3, dishonored)).toBe(false);
-            expect(tactics.canSwim(5, 1, [character({ id: 'a', inConflict: true })])).toBe(false);
         });
 
         it('swaps dials to turn on I Can Swim when we bid low', function() {
@@ -199,7 +176,6 @@ describe('BidWarTactics', function() {
         it('readies a bowed dishonored body worth standing up', function() {
             const board = [character({ id: 'shadow-stalker', bowed: true, isDishonored: true, military: 2, political: 0 })];
             expect(tactics.shouldUseStronghold(board, 5, true)).toBe(true);
-            expect(tactics.pickStrongholdReadyTarget(board, 5).id).toBe('shadow-stalker');
         });
 
         it('does not bow the stronghold with nothing dishonored, or nothing bowed', function() {
@@ -211,13 +187,6 @@ describe('BidWarTactics', function() {
             )).toBe(false);
         });
 
-        it('prefers the bowed dishonored body with the most skill', function() {
-            const board = [
-                character({ id: 'small', uuid: 'u1', bowed: true, isDishonored: true, military: 2, political: 0 }),
-                character({ id: 'big', uuid: 'u2', bowed: true, isDishonored: true, military: 3, political: 4 })
-            ];
-            expect(tactics.pickStrongholdReadyTarget(board, 5).id).toBe('big');
-        });
     });
 
     describe('Upholding Authority hand strip', function() {

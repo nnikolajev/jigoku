@@ -1,4 +1,9 @@
-// Protection, reinforcement and siege values for Bot V2.
+// SHARED (V1 + V2). Lived under `v2/` until 2026-08-13; moved to `shared/`
+// once measurement showed V1 imports it at RUNTIME, so it was never
+// experimental. Changing it changes the shipping bot — prove any edit
+// bit-identical with `tools/selfplay/refactorIdentity.js`.
+//
+// Protection, reinforcement and siege values, shared by Bot V1 and Bot V2.
 //
 // Three effects that are not skill and are easy to underprice:
 //
@@ -11,7 +16,6 @@
 //     adding that much skill, so it is reported as `provinceStrengthDelta` and
 //     the break math treats the two identically.
 //
-// V2 ONLY. V1 stays frozen as the measurement control.
 
 import {
     blocked,

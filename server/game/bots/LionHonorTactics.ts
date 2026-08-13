@@ -379,19 +379,10 @@ export class LionHonorTactics {
 
     // ---- the race ----------------------------------------------------------
 
+    // Are we near the 25-honor win? Once true the deck stops trading honor
+    // for board and just races.
     honorWinClose(myHonor: number): boolean {
         return numberOr(myHonor, 0) >= this.profile.honorWinCloseThreshold;
-    }
-
-    honorToVictory(myHonor: number): number {
-        return Math.max(0, this.profile.honorVictoryTarget - numberOr(myHonor, 0));
-    }
-
-    canSpendHonor(myHonor: number, cost: number): boolean {
-        if(cost <= 0) {
-            return true;
-        }
-        return numberOr(myHonor, 0) - cost > this.profile.honorSpendFloor;
     }
 
     // ---- ring steering -----------------------------------------------------
@@ -419,12 +410,15 @@ export class LionHonorTactics {
 
     // ---- conflict axis -----------------------------------------------------
 
+    // Standing preference for the political axis, where this deck's honor
+    // gain lives.
     politicalAxisBonus(): number {
         return this.profile.politicalAxisBonus;
     }
 
     // ---- fate investment ---------------------------------------------------
 
+    // Per-character extra-fate table; null defers to the generic economy.
     desiredAdditionalFate(cardId?: string): number | null {
         if(!cardId || !Object.prototype.hasOwnProperty.call(this.profile.additionalFateByCharacterId, cardId)) {
             return null;
@@ -585,12 +579,9 @@ export class LionHonorTactics {
 
     // ---- Kenson no Gakka ---------------------------------------------------
 
-    isHonorProvince(provinceId?: string): boolean {
-        return !!provinceId && provinceId === this.profile.honorProvinceId;
-    }
-
     // ---- Implacable Magistrate ---------------------------------------------
 
+    // Magistrate by card id — several of the deck's effects key off the trait.
     isMagistrate(card: any): boolean {
         return !!card?.id && this.profile.magistrateCardIds.includes(card.id);
     }
@@ -636,6 +627,7 @@ export class LionHonorTactics {
 
     // ---- Under Amaterasu's Gaze --------------------------------------------
 
+    // Is this a Battlefield attachment, for Chronicler of Conquests?
     isBattlefieldAttachment(cardId?: string): boolean {
         return !!cardId && this.profile.battlefieldAttachmentCardIds.includes(cardId);
     }
@@ -661,14 +653,6 @@ export class LionHonorTactics {
         };
         return pool.slice().sort((a, b) => rank(a) - rank(b) ||
             (b.inConflict ? 1 : 0) - (a.inConflict ? 1 : 0) || byUuid(a, b))[0] || null;
-    }
-
-    /** Is a Battlefield already in play (Chronicler of Conquests' condition)? */
-    battlefieldInPlay(cards: any[]): boolean {
-        return (cards || []).some((card) =>
-            this.profile.battlefieldCardIds.includes(String(card?.id || '')) ||
-            (card?.attachments || []).some((attachment: any) =>
-                this.profile.battlefieldCardIds.includes(String(attachment?.id || ''))));
     }
 
     // ---- Procedural Interference -------------------------------------------

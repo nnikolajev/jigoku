@@ -1,3 +1,9 @@
+// Constructors for the common card shapes, so a routine card is one line.
+//
+// `bow`, `ready`, `skill`, `movement` and friends bake in the correct target
+// side — `bow` takes an enemy character, `ready` takes our own — which makes
+// the polarity invariant hold by construction for every card declared
+// through them.
 import type {
     CardSemanticModel,
     CostSemantic,

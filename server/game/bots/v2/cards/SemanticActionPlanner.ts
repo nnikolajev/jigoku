@@ -1,3 +1,8 @@
+// Turns modelled cards in hand and in play into playable candidates.
+//
+// Expands each `ActionSemantic` against the current board: legal targets,
+// affordable costs, timing that matches this prompt. Cards with no semantic
+// model produce nothing here and are left to V1.
 import { candidateId, type BotActionCandidate } from '../model/Candidate';
 import type { ActionMacro } from '../model/Macro';
 import type { AttachmentProjection, CharacterProjection, PlanningState } from '../model/PlanningState';

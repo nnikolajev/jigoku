@@ -1,0 +1,36 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": [
+    "index.js",
+    "server/index.js",
+    "server/gamenode/index.ts",
+    "server/api/**/*.{ts,js}",
+    "test/**/*.spec.{ts,js}",
+    "tools/**/*.js"
+  ],
+  "ignorePatterns": [
+    "build/**",
+    "graphify-out/**",
+    "test/json/**",
+    "test/fixtures/**",
+    "tools/selfplay/out/**",
+    "tools/selfplay/fixtures/**"
+  ],
+  "dynamicallyLoaded": [
+    "server/game/cards/**/*.ts"
+  ],
+  "boundaries": {
+    "zones": {
+      "bot-v1": ["server/game/bots"],
+      "bot-shared": ["server/game/bots/shared"],
+      "bot-v2": ["server/game/bots/v2"],
+      "game": ["server/game"]
+    },
+    "rules": {
+      "bot-v1": ["bot-shared", "game"],
+      "bot-shared": ["game"],
+      "bot-v2": ["bot-shared", "bot-v1", "game"],
+      "game": []
+    }
+  }
+}

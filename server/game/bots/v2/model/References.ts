@@ -1,3 +1,6 @@
+// V2 planning domain: opaque identifiers and the game's closed vocabularies
+// (rings, conflict types, province slots). Kept separate so the rest of the
+// planner refers to a character by ref rather than by carrying a live card.
 export type PlayerId = string;
 export type CardInstanceId = string;
 export type ProvinceLocation = 'province 1' | 'province 2' | 'province 3' | 'province 4' | 'stronghold province';

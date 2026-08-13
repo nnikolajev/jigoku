@@ -1,3 +1,9 @@
+// What the bot is TRYING to do, above the level of a single click.
+//
+// `OBJECTIVE_PRIORITY` is an ordered list, so objectives compare by rank
+// rather than by tuned weight. An intent may reserve resources
+// (`ResourceReservation`) to stop a later, locally-attractive candidate from
+// spending the fate or the body an already-chosen plan depends on.
 import type { TargetRef } from './References';
 
 export const OBJECTIVE_PRIORITY = [

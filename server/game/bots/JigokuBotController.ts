@@ -1,16 +1,37 @@
+/**
+ * Drives a bot seat: turns engine prompts into commands, and stops the bot
+ * getting stuck.
+ *
+ * The policy is pure — state in, one click out. Everything awkward about
+ * living inside a real game lives here instead:
+ *
+ * - **The tick loop.** One `tick` answers up to `maxDecisionsPerTick` prompts,
+ *   because a dynasty phase or a conflict resolution is a long solo chain. If
+ *   the budget runs out mid-chain nothing else would re-tick the seat, so the
+ *   controller schedules its own follow-up.
+ * - **Extra state the serialised player state does not carry.** Printed costs,
+ *   target hints (which game actions the current prompt will resolve, so the
+ *   policy can aim them), holding strengths, base skills. These are read off
+ *   live card objects and passed down in the decide context.
+ * - **Rejected commands.** An illegal click is recorded and the loop continues
+ *   for card clicks (the policy remembers what it attempted and proposes
+ *   something else) but breaks for buttons, which would repeat verbatim.
+ * - **Loop-stall protection.** Repeated identical exhaustion signatures trip a
+ *   forced-progress valve rather than hanging the game.
+ *
+ * The engine itself is chosen by `BotEngineRouter`; this class only knows the
+ * `BotEngine` interface.
+ */
 import JigokuBotPolicy from './JigokuBotPolicy.js';
 import BotEngineRouter from './BotEngineRouter.js';
 import { resolveBotIdentity } from './BotConfiguration.js';
 import type { ResolvedBotIdentity } from './BotConfiguration';
 import type { BotDecision, BotEngine, MenuCardInfo } from './BotEngine';
-import LmStudioClient from './llm/LmStudioClient.js';
-import DeckHintService from './llm/DeckHintService.js';
-import LiveConsultant from './llm/LiveConsultant.js';
 import { getPlaybookEntry, deriveDeckStrategy } from './CardPlaybook.js';
 import type { DeckStrategy } from './CardPlaybook';
 import { resolveDeckProfile } from './DeckProfiles.js';
 import type { DeckProfile } from './DeckProfiles';
-import { applyV2DeckProfile } from './v2/V2DeckProfiles.js';
+import { applyV2DeckProfile } from './shared/V2DeckProfiles.js';
 import type { DuelBidContext } from './DuelBidTactics';
 import type { DrawBidContext } from './DrawBidTactics';
 import type { DynastyCharacterInfo } from './BoardAwareDynastyTactics';
@@ -69,11 +90,7 @@ class JigokuBotController {
     private engine: BotEngine;
     private readonly identity: ResolvedBotIdentity;
     private ticking = false;
-    private hintService?: DeckHintService;
-    private consultant?: LiveConsultant;
     private onStateChange?: () => void;
-    private consultPending: string | null = null;
-    private warmupStarted = false;
     private recentExhaustSignatures: string[] = [];
     private consecutiveExhaustions = 0;
     private deckStrategy?: DeckStrategy;
@@ -87,8 +104,6 @@ class JigokuBotController {
 
     constructor(private game: Game, readonly config: JigokuBotConfig, private runCommand: CommandRunner,
         services: {
-            hintService?: DeckHintService;
-            consultant?: LiveConsultant;
             onStateChange?: () => void;
             omniscientCapability?: OmniscientBotCapability;
         } = {}) {
@@ -101,20 +116,6 @@ class JigokuBotController {
         this.onStateChange = services.onStateChange;
         (this.game as any).on?.(EventNames.OnInitiateAbilityEffects, (event: any) =>
             this.recordDisplayOfPowerInitiated(event));
-
-        if(config.llm?.enabled) {
-            const client = new LmStudioClient({ baseUrl: config.llm.baseUrl, model: config.llm.model });
-            this.hintService = services.hintService || new DeckHintService(client, {
-                cacheDir: config.llm.cacheDir,
-                onWarn: (message) => this.game.addMessage(`${config.playerName}: ${message}`)
-            });
-            if(config.llm.liveConsult) {
-                this.consultant = services.consultant || new LiveConsultant(client);
-            }
-        } else {
-            this.hintService = services.hintService;
-            this.consultant = services.consultant;
-        }
     }
 
     // Information access is independent from seed-selected strategy.
@@ -377,12 +378,7 @@ class JigokuBotController {
         if(this.ticking) {
             return false;
         }
-        if(this.consultPending) {
-            logger.info(`Bot ${this.config.playerName} tick skipped, consult pending for '${this.consultPending}'`);
-            return false;
-        }
 
-        this.ensureWarmup();
         this.ticking = true;
         let acted = false;
         let exhaustedBudget = false;
@@ -429,13 +425,12 @@ class JigokuBotController {
                     playCost: this.currentPlayCost(player),
                     playCardId: this.currentPlayCardId(player),
                     handStats: this.handStatsHint(player),
-                    // Hand-written playbook knowledge outranks the cached LLM
-                    // analysis for the same card — except for entries scoped to a
-                    // deck this one is not, which fall through to the analysis
-                    // exactly as they did before the entry existed.
+                    // The hand-written playbook is the only source of per-card
+                    // advice. An entry scoped to a deck this one is not returns
+                    // undefined, and the policy falls back to its generic
+                    // handling for that card.
                     cardHint: (cardId: string) =>
-                        getPlaybookEntry(cardId, this.currentDeckStrategy(player)) ||
-                        this.hintService?.getHint(cardId),
+                        getPlaybookEntry(cardId, this.currentDeckStrategy(player)),
                     strategy: this.currentDeckStrategy(player),
                     profile: this.decisionProfile(player),
                     opponentConflictDeck: this.opponentConflictDeck(player),
@@ -511,18 +506,6 @@ class JigokuBotController {
                     if(['cardClicked', 'ringClicked', 'facedownCardClicked'].includes(decision.command)) {
                         continue;
                     }
-                    break;
-                }
-
-                // An ability-target pick that came from an assumption instead
-                // of knowledge — the generic 'choose-card' fall-through or a
-                // 'guessed-' polarity — goes to the LLM (async) with the
-                // heuristic pick as the timeout fallback. Prompts without a
-                // target hint (setup, province order, ...) and picks backed by
-                // classified actions or card hints skip the model round trip.
-                const consultable = decision.reason === 'choose-card' || decision.reason.startsWith('guessed-');
-                if(this.consultant && targetHint && decision.command === 'cardClicked' && consultable) {
-                    this.startConsult(player, beforePrompt, decision);
                     break;
                 }
 
@@ -744,164 +727,6 @@ class JigokuBotController {
         }
         return merged as DeckProfile;
     }
-
-    // Kick off deck analysis on the first tick after the game initialises.
-    // Fire-and-forget: hints fill in progressively while the game runs.
-    private ensureWarmup(): void {
-        if(this.warmupStarted || !this.hintService) {
-            return;
-        }
-        const player = this.player;
-        const allCards: any[] = (this.game as any).allCards || [];
-        if(!player || allCards.length === 0) {
-            return;
-        }
-        this.warmupStarted = true;
-
-        // Cards with a hand-written playbook entry never need model analysis.
-        const cards = allCards
-            .filter((card: any) => card.owner === player && card.cardData?.id &&
-                !getPlaybookEntry(card.cardData.id, this.currentDeckStrategy(player)))
-            .map((card: any) => ({
-                id: card.cardData.id,
-                name: card.cardData.name,
-                type: card.getType(),
-                text: card.cardData.text,
-                cost: card.cardData.cost,
-                military: card.cardData.military,
-                political: card.cardData.political,
-                militaryBonus: card.cardData.military_bonus,
-                politicalBonus: card.cardData.political_bonus,
-                strength: card.cardData.strength,
-                element: card.cardData.element
-            }));
-        if(cards.length === 0) {
-            return;
-        }
-
-        const model = this.config.llm?.model || 'local model';
-        const deckKey = this.config.deckId;
-
-        // Fully analyzed deck (manifest keyed by import URL / deck id): load
-        // everything from cache with zero model traffic.
-        if(deckKey && this.hintService.hasCompleteDeck(deckKey, cards)) {
-            this.game.addMessage(`${this.config.playerName} card hints loaded from cache (${cards.length} cards, no analysis needed)`);
-            logger.info(`Bot ${this.config.playerName} deck '${deckKey}' fully cached, skipping analysis`);
-            return;
-        }
-
-        const prep = this.hintService.prepare(cards);
-        if(prep.pending.length === 0) {
-            this.game.addMessage(`${this.config.playerName} card hints loaded from cache (${prep.cached} cards, no analysis needed)`);
-            logger.info(`Bot ${this.config.playerName} all ${prep.cached} cards cached, skipping analysis`);
-            // Backfill the deck manifest so the next game takes the fast path.
-            this.hintService.analyzeCards(cards, deckKey).catch(() => {});
-            return;
-        }
-
-        this.game.addMessage(`${this.config.playerName} is analyzing ${prep.pending.length} new deck cards with ${model} (${prep.cached} already cached; runs in background)`);
-        logger.info(`Bot ${this.config.playerName} deck analysis started: ${prep.pending.length} pending, ${prep.cached} cached, model ${model}`);
-        this.hintService.analyzeCards(cards, deckKey).then((stats) => {
-            logger.info(`Bot ${this.config.playerName} deck analysis finished: ${JSON.stringify(stats)}`);
-            if(!stats.stopped) {
-                const skipped = stats.skipped > 0 ? `, ${stats.skipped} skipped` : '';
-                this.game.addMessage(`${this.config.playerName} card analysis ready: ${stats.analyzed} analyzed, ${stats.fromCache} from cache${skipped}`);
-            }
-        }).catch((err) => {
-            logger.error(`Bot ${this.config.playerName} deck analysis crashed: ${err?.stack || err}`);
-        });
-    }
-
-
-    private startConsult(player: Player, prompt: any, fallback: BotDecision): void {
-        const signature = `${prompt?.promptTitle || ''}|${prompt?.menuTitle || ''}`;
-        this.consultPending = signature;
-
-        const state = this.game.getState(player.name);
-        const me = state?.players?.[player.name];
-        const candidates = this.consultCandidates(state, me);
-        const question = `${prompt?.promptTitle || ''} — ${prompt?.menuTitle || ''}`.trim();
-        const timeoutMs = this.config.llm?.consultTimeoutMs || 120000;
-
-        logger.info(`Bot ${this.config.playerName} consulting LLM for '${question}' (${candidates.length} candidates)`);
-        const timeout = new Promise<string | null>((resolve) => setTimeout(() => resolve(null), timeoutMs + 500));
-        const consult = this.consultant.chooseTarget(question, this.consultSummary(state, me), candidates, timeoutMs)
-            .catch((err) => {
-                logger.info(`Bot ${this.config.playerName} consult failed (${err?.message || err}), using heuristic fallback`);
-                return null;
-            });
-
-        Promise.race([consult, timeout]).then((uuid) => {
-            this.consultPending = null;
-            try {
-                logger.info(`Bot ${this.config.playerName} consult result: ${uuid || 'fallback'}`);
-                const current = this.player?.currentPrompt();
-                const currentSignature = `${current?.promptTitle || ''}|${current?.menuTitle || ''}`;
-                if(currentSignature !== signature) {
-                    // The prompt changed while we were thinking; just resume.
-                    this.resumeTick();
-                    return;
-                }
-
-                const decision: BotDecision = uuid
-                    ? { command: 'cardClicked', args: [uuid], target: uuid, reason: 'llm-consult' }
-                    : fallback;
-                const accepted = this.executeDecision(decision);
-                if(!accepted) {
-                    logger.info(`Bot ${this.config.playerName} consult decision not accepted: ${decision.command} ${JSON.stringify(decision.args)}`);
-                }
-                if(accepted) {
-                    this.game.continue();
-                }
-                this.resumeTick();
-            } catch(err: any) {
-                // An engine error here must never silently freeze the seat.
-                logger.error(`Bot ${this.config.playerName} consult resolution failed: ${err?.stack || err}`);
-                setTimeout(() => this.resumeTick(), 10);
-            }
-        }).catch((err: any) => {
-            this.consultPending = null;
-            logger.error(`Bot ${this.config.playerName} consult chain failed: ${err?.stack || err}`);
-            setTimeout(() => this.resumeTick(), 10);
-        });
-    }
-
-    private consultCandidates(state: any, me: any): any[] {
-        const myUuids = new Set(this.findVisibleCards(me).map((card) => card.uuid));
-        return this.findVisibleCards(state)
-            .filter((card) => card.selectable && card.uuid)
-            .map((card) => ({
-                uuid: card.uuid,
-                name: card.name,
-                type: card.type,
-                side: myUuids.has(card.uuid) ? 'mine' : 'theirs',
-                military: card.militarySkillSummary?.stat,
-                political: card.politicalSkillSummary?.stat,
-                fate: card.fate,
-                bowed: card.bowed,
-                inConflict: card.inConflict
-            }));
-    }
-
-    private consultSummary(state: any, me: any): any {
-        const players = state?.players || {};
-        const opponentName = Object.keys(players).find((name) => players[name] !== me);
-        const opponent = opponentName ? players[opponentName] : null;
-        const conflict = state?.conflict;
-        return {
-            phase: me?.phase,
-            round: (this.game as any).roundNumber,
-            conflict: conflict && conflict.type ? {
-                type: conflict.type,
-                attackerSkill: conflict.attackerSkill,
-                defenderSkill: conflict.defenderSkill,
-                botIsAttacker: conflict.attackingPlayerId === me?.id
-            } : null,
-            bot: { honor: me?.stats?.honor, fate: me?.stats?.fate, prompt: me?.promptTitle, menu: me?.menuTitle },
-            opponent: opponent ? { honor: opponent.stats?.honor, fate: opponent.stats?.fate } : null
-        };
-    }
-
 
     executeDecision(decision: BotDecision): boolean {
         const player = this.player;

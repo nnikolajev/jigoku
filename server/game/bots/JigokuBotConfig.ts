@@ -1,12 +1,12 @@
-export interface JigokuBotLlmConfig {
-    enabled?: boolean;
-    baseUrl?: string;
-    model?: string;
-    liveConsult?: boolean;
-    consultTimeoutMs?: number;
-    cacheDir?: string;
-}
-
+/**
+ * The configuration a bot seat is created with, and the bot's fake lobby user.
+ *
+ * Every field is optional except `playerName` and every default reproduces
+ * frozen V1, so an omitted config is a shipping bot. The `*Variant` unions all
+ * carry a `legacy` value that preserves pre-refactor behaviour: those exist so
+ * a paired A/B can measure one subsystem without reverting the rest of the
+ * bot, not because anything still runs them by default.
+ */
 export type JigokuBotPolicyVariant = 'generic' | 'fate-aware' | 'board-aware';
 export type JigokuBotDrawBidPolicyVariant = 'adaptive' | 'legacy';
 export type JigokuBotMulliganPolicyVariant = 'adaptive' | 'legacy';
@@ -49,7 +49,6 @@ export interface JigokuBotConfig {
     // Lookahead is shared by every seed. Legacy preserves the former greedy
     // conflict declaration path for paired A/B evaluation.
     conflictPlanningPolicy?: JigokuBotConflictPlanningPolicyVariant;
-    llm?: JigokuBotLlmConfig;
 }
 
 export function buildBotUser(config: JigokuBotConfig): any {

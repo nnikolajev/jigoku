@@ -1,3 +1,14 @@
+/**
+ * Unicorn: cavalry movement, Gaijin attachments and ready effects.
+ *
+ * The clan's edge is putting a body where it was not when the conflict was
+ * declared, so most of this profile prices MOVEMENT — whether moving in is
+ * worth the card, which bodies benefit from a move bonus, and when a
+ * ready effect beats holding the trigger.
+ *
+ * `UNICORN_DEFAULTS` is also imported by V2's `DeckSynergies`, which is why
+ * this module counts as shared surface even though it is V1 tactics.
+ */
 export interface UnicornProfile {
     movementCardIds: string[];
     gaijinCardIds: string[];
@@ -56,11 +67,15 @@ export interface UnicornMoveContext {
 export class UnicornTactics {
     constructor(public readonly profile: UnicornProfile = UNICORN_DEFAULTS) {}
 
+    // Participant count, preferring the exact value the controller supplies
+    // and falling back to counting the serialized board.
     effectiveParticipantCount(exact: number | undefined, characters: any[]): number {
         return Number.isFinite(exact) ? Math.max(Number(exact), 0) :
             characters.filter((card) => card.inConflict).length;
     }
 
+    // Is any movement effect actually available right now? Everything else
+    // here is worthless without one.
     hasMoveSource(strongholdCards: any[], hand: any[], characters: any[],
         barchaReadyBearerUuids?: Record<string, true>): boolean {
         const enabled = new Set(this.profile.movementCardIds);
@@ -72,6 +87,7 @@ export class UnicornTactics {
                 (card.attachments || []).some((attachment: any) => attachment.id === 'adorned-barcha'));
     }
 
+    // Cavalry by the controller-supplied uuid set or by trait.
     isCavalry(card: any, cavalryUuids?: Record<string, true>): boolean {
         return !!card?.uuid && (!!cavalryUuids?.[card.uuid] || (card.traits || []).includes('cavalry'));
     }
@@ -104,10 +120,13 @@ export class UnicornTactics {
         return false;
     }
 
+    // A bowed body contributes 0 skill, so moving it in is pointless unless
+    // something will ready it.
     canContributeAfterMove(card: any, ctx: UnicornMoveContext): boolean {
         return !card?.bowed || this.hasReadyFollowUp(card, ctx);
     }
 
+    // Skill this character would add if moved in, after that bowed check.
     projectedMoveSkill(card: any, ctx: UnicornMoveContext): number {
         if(!card || !this.canContributeAfterMove(card, ctx)) {
             return 0;
@@ -115,6 +134,8 @@ export class UnicornTactics {
         return Math.max(ctx.skillOf(card), 0) + (ctx.hasMotoStables ? this.profile.stablesMoveBonus : 0);
     }
 
+    // Full swing including any Barcha bow on the opposing side — moving in
+    // can subtract from them as well as add to us.
     projectedMoveSwing(card: any, ctx: UnicornMoveContext): number {
         const moveSkill = this.projectedMoveSkill(card, ctx);
         if(!card || !ctx.barchaReadyBearerUuids?.[card.uuid]) {
@@ -160,6 +181,7 @@ export class UnicornTactics {
         return score;
     }
 
+    // Best legal body to move into the conflict.
     pickMoveTarget(ctx: UnicornMoveContext): any | null {
         const legal = ctx.characters.filter((card) => !card.inConflict &&
             (!ctx.requireCavalry || this.isCavalry(card, ctx.cavalryUuids)) &&
@@ -170,6 +192,7 @@ export class UnicornTactics {
             String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
+    // Is the resulting swing worth the movement card?
     shouldUseMove(ctx: UnicornMoveContext): boolean {
         const target = this.pickMoveTarget(ctx);
         if(!target) {
@@ -181,6 +204,8 @@ export class UnicornTactics {
             target.id === 'twilight-rider';
     }
 
+    // Order attackers for declaration and name the one being held back to move
+    // in later — the deck's edge is arriving after the defenders commit.
     orderDeclarationCandidates(cards: any[], ctx: UnicornMoveContext): { ordered: any[]; mover: any | null } {
         const barchaBearer = ctx.characters.filter((card) =>
             !!ctx.barchaReadyBearerUuids?.[card.uuid])
@@ -207,17 +232,21 @@ export class UnicornTactics {
         return { ordered, mover };
     }
 
+    // Honor a participating character, highest glory first.
     pickOutskirtsHonorTarget(characters: any[], skillOf: (card: any) => number): any | null {
         return characters.filter((card) => card.inConflict && !card.honored)
             .sort((a, b) => this.glory(b) - this.glory(a) ||
                 skillOf(b) - skillOf(a))[0] || null;
     }
 
+    // Ready the most valuable bowed body.
     pickTwilightReadyTarget(characters: any[], skillOf: (card: any) => number): any | null {
         return characters.filter((card) => card.bowed)
             .sort((a, b) => skillOf(b) - skillOf(a))[0] || null;
     }
 
+    // Bearer for an attachment, aware of cavalry, the strength still needed to
+    // break, and who will be ready after moving.
     pickAttachmentTarget(cardId: string, characters: any[], skillOf: (card: any) => number,
         cavalryUuids?: Record<string, true>, strengthNeeded?: number | null,
         readyAfterMoveUuids?: Record<string, true>): any | null {
@@ -242,6 +271,8 @@ export class UnicornTactics {
             (Number(b.fate) || 0) - (Number(a.fate) || 0))[0] || null;
     }
 
+    // Skill a card contributes to a challenge, which scales with the number of
+    // other participants.
     challengeSkill(card: any, participantCount: number, skillOf: (card: any) => number): number {
         return Math.max(skillOf(card), 0) + Math.max(participantCount - 1, 0);
     }

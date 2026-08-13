@@ -1,3 +1,9 @@
+// What a card DOES, in planner terms rather than engine terms.
+//
+// The engine resolves effects through its own event pipeline; V2 needs to
+// price them before committing, so it needs a declarative description it can
+// simulate. `EffectDuration` matters as much as the effect itself: a
+// conflict-scoped buff and a round-scoped one are worth different amounts.
 import type { ConflictType, ProvinceLocation, RingElement, TargetRef } from './References';
 
 export type EffectDuration = 'immediate' | 'conflict' | 'phase' | 'round' | 'while-attached' | 'delayed';

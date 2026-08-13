@@ -163,9 +163,11 @@ province targeting won or tied most tested matchups, so no sample-driven deck
 exception was added. Named reports live under `tools/selfplay/out/` with the
 `province-defense-final-` and `profile-ab-` prefixes.
 
-With a local LM Studio server configured (`bot.llm`), the bot additionally analyzes its deck's card text into per-card hints and can consult the model live on ambiguous target prompts — see `heuristic-bot-llm.md`.
-
-Planned improvements live in `heuristic-bot-roadmap.md` (in-play abilities, scored-candidate policy).
+Per-card advice comes from one source: the hand-written playbook in
+`CardPlaybook.ts`, read through the `cardHint(cardId)` callback. An LM Studio
+integration used to supply hints for cards with no playbook entry; it was
+removed on 2026-08-13 (no seed selected it, and the playbook had long since
+outgrown it). See `bot-dead-code-removed.md`.
 
 The policy remembers which cards/rings it already clicked for the current prompt (keyed by prompt title) so rejected or toggling clicks cannot loop; when every candidate has been attempted it falls back to a button or reports the prompt as unsupported. The dedup key is *normalized* — the live conflict skill totals (`Attacker: 4 Defender: 5`) and the ring element/type in a conflict title (`Political Fire Conflict`) are stripped — because those flip on every legal-but-idle ring toggle or reversible ability, and left in they would wipe the attempted-set before the bot exhausts its options and reaches its own pass fall-back. As a last-resort backstop the controller watches for the same normalized prompt surviving several full decision budgets (whether the budget landed moves or only produced rejected ones) and then force-clicks Pass/Done (`forceProgress`), so a seat can never freeze the game in a decision loop — this replaced the old behavior of logging and giving up.
 

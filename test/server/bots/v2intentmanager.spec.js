@@ -91,7 +91,6 @@ describe('V2 intent management', function() {
             expect(transition.macro.step.id).toBe(stepId);
             manager.completeMacroStep(stepId);
         }
-        expect(manager.activeIntent.id).toBe(intent.id);
     });
 
     it('expires intents on phase transitions and invalidates rejected or mismatched macros', function() {
@@ -112,6 +111,5 @@ describe('V2 intent management', function() {
         expect(mismatch.retained).toBeFalse();
         expect(mismatch.invalidationReason).toBe('macro-mismatch');
         expect(macroManager.invalidate('command-rejected')).toBe('command-rejected');
-        expect(macroManager.activeIntent).toBeUndefined();
     });
 });

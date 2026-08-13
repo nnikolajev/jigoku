@@ -1,3 +1,10 @@
+// Collects every action the bot could take this prompt, from all proposers.
+//
+// Contributors (semantic action planner, attacker/participant set planners,
+// resource package planner, deck synergies) each return candidates for the
+// same state; the registry merges and de-duplicates them. V1's own decision
+// is injected as a candidate too, so the comparison V2 makes is always
+// "is anything strictly better than what V1 would have clicked".
 import type { BotDecision, BotDecisionInput } from '../BotEngine';
 import type {
     BotActionCandidate,

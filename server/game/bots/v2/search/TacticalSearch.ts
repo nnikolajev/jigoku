@@ -1,3 +1,9 @@
+// Bounded lookahead over candidate lines, with opponent responses.
+//
+// Expands our candidate, applies the plausible answers from the information
+// provider, and scores the resulting state. `TacticalSearchLimits` bounds it
+// hard — this runs inside a live decision, and the measured benefit never
+// justified a deep search.
 import type { BotActionCandidate } from '../model/Candidate';
 import type { PlanningState } from '../model/PlanningState';
 import type { PlayerId } from '../model/References';

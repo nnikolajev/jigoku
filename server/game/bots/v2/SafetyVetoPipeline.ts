@@ -1,3 +1,10 @@
+// Removes candidates that are legal but self-harming, after scoring.
+//
+// A veto is a hard filter rather than a penalty, because the failures it
+// catches are the ones no weight should be able to outvote — aiming a harmful
+// effect at our own board, spending a reserved resource, breaking our own
+// province. Compare `test/helpers/effectpolarity.js`, which enforces the same
+// polarity invariant on V1 during real games.
 import type { BotActionCandidate, CandidateVeto } from './model/Candidate';
 import type { EffectDescriptor } from './model/Effects';
 import type { PlanningState } from './model/PlanningState';

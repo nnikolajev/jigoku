@@ -61,6 +61,5 @@ describe('V2 planning eligibility and immutable projection cache', function() {
         expect(builds).toBe(2);
         expect(Object.isFrozen(first.value)).toBeTrue();
         expect(Object.isFrozen(first.value.nested)).toBeTrue();
-        expect(cache.size).toBe(2);
     });
 });

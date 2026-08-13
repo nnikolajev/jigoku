@@ -1,3 +1,8 @@
+// Advances an in-flight `ActionMacro` one prompt at a time.
+//
+// Checks the live prompt against the step's expectation before answering; a
+// mismatch means the board moved and the macro is aborted per its
+// `MacroAbortPolicy` rather than clicking blind.
 import type { ActionMacro, MacroProgress, SemanticMacroStep, StateFingerprint } from './model/Macro';
 import type { PlanningState } from './model/PlanningState';
 import { immutable } from './model/Stable';

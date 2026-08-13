@@ -1,3 +1,9 @@
+// Builds the immutable `PlanningState` from the live serialised state.
+//
+// This is where the INFORMATION MODE is applied, and applying it here rather
+// than at each read site is the point: a fair snapshot simply does not contain
+// the opponent's hand, so no downstream planner can accidentally consult it.
+// An omniscient seat gets the exact values from the same builder.
 import type { BotDecisionInput, BotInformationMode } from '../BotEngine';
 import { emptyLedgers, resetLedgers, type PlanningLedgers } from './model/Ledgers';
 import type {

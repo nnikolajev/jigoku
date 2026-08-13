@@ -57,7 +57,7 @@ const GameFlowWrapper = require('../../test/helpers/gameflowwrapper.js');
 const DeckBuilder = require('../../test/helpers/deckbuilder.js');
 const JigokuBotController = require('../../build/server/game/bots/JigokuBotController.js');
 const ConflictFlow = require('../../build/server/game/gamesteps/conflict/conflictflow.js');
-const CardValueModel = require('../../build/server/game/bots/v2/CardValueModel.js');
+const CardValueModel = require('../../build/server/game/bots/shared/CardValueModel.js');
 const { GameModes } = require('../../build/server/GameModes.js');
 
 const deckBuilder = new DeckBuilder();
@@ -170,8 +170,7 @@ async function playOut(flow, scenario) {
         omniscient: false,
         engineVersion: seats[i] || 'v1',
         v2Mode: seats[i] === 'v2' ? 'pass-through' : undefined,
-        v2Profile: (scenario.v2Profiles || [])[i],
-        llm: { enabled: false }
+        v2Profile: (scenario.v2Profiles || [])[i]
     }, runCommand));
 
     const stopAfterRound = (game.roundNumber || 1) + (scenario.rounds || 1) - 1;

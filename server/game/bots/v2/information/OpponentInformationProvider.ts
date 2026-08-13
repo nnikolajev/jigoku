@@ -1,3 +1,8 @@
+// The interface both information providers implement, plus the hypothesis
+// model — what the opponent MIGHT hold and how they might answer.
+//
+// Making this an interface with a fair and an exact implementation is what
+// keeps "how strong is the bot" and "how much does it see" independent axes.
 import type { BotActionCandidate } from '../model/Candidate';
 import type { PlanningState } from '../model/PlanningState';
 import type { ProvinceLocation } from '../model/References';

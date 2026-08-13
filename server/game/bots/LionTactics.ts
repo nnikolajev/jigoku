@@ -76,32 +76,40 @@ export class LionTactics {
         this.profile = profile;
     }
 
+    // Two extra fate on a tower body, none on anything else.
     desiredAdditionalFate(cardId: string | undefined): number {
         return !!cardId && this.profile.towerCharacters.includes(cardId) ? 2 : 0;
     }
 
+    // A body worth investing fate and attachments in.
     isTower(card: any): boolean {
         return !!card?.id && this.profile.towerCharacters.includes(card.id);
     }
 
+    // Cheap bodies — the swarm, and the fodder for sacrifice costs.
     isCheap(card: any): boolean {
         return !!card?.id && this.profile.cheapCharacters.includes(card.id);
     }
 
+    // Bushi by card id; public bot state omits printed traits.
     isBushi(card: any): boolean {
         return !!card?.id && this.profile.bushiCharacters.includes(card.id);
     }
 
+    // Use the stronghold's ready only when a listed target is actually bowed.
     shouldReadyWithStronghold(myCharacters: any[]): boolean {
         return myCharacters.some((card) =>
             card.bowed && card.id && this.profile.strongholdReadyTargets.includes(card.id));
     }
 
+    // Feeding the Army pays off only with enough cheap bodies on the board.
     shouldUseFeedingArmy(myCharacters: any[]): boolean {
         return myCharacters.filter((card) => this.isCheap(card) || card.id === 'matsu-beiona').length >=
             this.profile.feedingArmyMinimum;
     }
 
+    // Per-province trigger conditions — e.g. Dishonorable Assault needs a
+    // card in hand and an undishonored, glory-bearing enemy participant.
     shouldUseProvince(cardId: string, myCharacters: any[], opponentCharacters: any[], hand: any[]): boolean {
         if(cardId === 'dishonorable-assault') {
             return hand.length > 0 && opponentCharacters.some((card) =>
@@ -114,6 +122,8 @@ export class LionTactics {
         return true;
     }
 
+    // The dynasty buy for this deck: prefers a tower while affordable, then
+    // fills out the swarm.
     pickDynastyCard(cards: any[], costs: Record<string, number>, fate: number, board: any[]): any | null {
         const costOf = (card: any) => costs[card.uuid] ?? 0;
         const affordable = (card: any, extra = 0) => fate >= costOf(card) + extra;
@@ -160,6 +170,7 @@ export class LionTactics {
         return fate >= 2 ? cards.find((card) => card.id === 'a-season-of-war') || null : null;
     }
 
+    // Best investment target: listed towers first, then glory, then skill.
     pickTower(cards: any[], skill: (card: any) => number): any | null {
         return cards.slice().sort((a, b) =>
             (this.isTower(b) ? 1 : 0) - (this.isTower(a) ? 1 : 0) ||
@@ -167,11 +178,14 @@ export class LionTactics {
             String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
+    // Who to ready — the profile's strong ready targets first, otherwise the
+    // best tower available.
     pickReadyTarget(cards: any[], skill: (card: any) => number): any | null {
         const preferred = cards.filter((card) => card.id && this.profile.strongReadyTargets.includes(card.id));
         return this.pickTower(preferred.length > 0 ? preferred : cards, skill);
     }
 
+    // Cheapest acceptable body to pay a sacrifice cost with.
     pickCheapSacrifice(cards: any[], skill: (card: any) => number): any | null {
         const cheap = cards.filter((card) => this.isCheap(card));
         const pool = cheap.length > 0 ? cheap : cards;
@@ -180,6 +194,8 @@ export class LionTactics {
             String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
+    // Elegant Tessen's bearer, which needs printed costs the serialized state
+    // omits — hence the extra map.
     pickTessenTarget(
         cards: any[],
         skill: (card: any) => number,
@@ -190,6 +206,8 @@ export class LionTactics {
         return this.pickTower(cheapBowed, skill);
     }
 
+    // Is this character carrying True Strike Kenjutsu, and therefore able to
+    // start its duel?
     trueStrikeSourceId(card: any): string | null {
         return (card?.attachments || []).some((attachment: any) =>
             attachment?.id === this.profile.trueStrikeAttachmentId)
@@ -197,6 +215,8 @@ export class LionTactics {
             : null;
     }
 
+    // Who to attach True Strike Kenjutsu to, respecting the per-character
+    // copy cap.
     pickTrueStrikeTarget(cards: any[], baseMilitaryByUuid?: Record<string, number>): any | null {
         const candidates = cards.filter((card) =>
             this.attachmentCopyCount(card, this.profile.trueStrikeAttachmentId) <
@@ -208,6 +228,8 @@ export class LionTactics {
             String(a.uuid || '').localeCompare(String(b.uuid || '')))[0] || null;
     }
 
+    // Whether the duel is actually favourable. It is decided on BASE military,
+    // not current skill, which is why the base-military map is passed in.
     shouldStartTrueStrikeDuel(
         source: any,
         opponentCharacters: any[],
@@ -226,6 +248,7 @@ export class LionTactics {
         return sourceSkill - strongestOpponent >= this.profile.trueStrikeMinimumBaseLead;
     }
 
+    // Which enemy character to duel, preferring ready ones.
     pickTrueStrikeOpponent(cards: any[], baseMilitaryByUuid?: Record<string, number>): any | null {
         const ready = cards.filter((card) => !card.bowed);
         const pool = ready.length > 0 ? ready : cards;
@@ -234,6 +257,7 @@ export class LionTactics {
             String(a.uuid || '').localeCompare(String(b.uuid || '')))[0] || null;
     }
 
+    // Attachment to play during setup, before any conflict exists to aim it.
     pickSetupAttachment(
         cards: any[],
         myCharacters: any[],
@@ -264,6 +288,7 @@ export class LionTactics {
         })[0] || null;
     }
 
+    // Which attachment to fetch with a forge effect, by the profile ranking.
     pickForgeAttachment(cards: any[]): any {
         const ranking = this.profile.forgeAttachmentRanking;
         const ranked = cards

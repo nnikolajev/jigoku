@@ -1,3 +1,9 @@
+// The defender-side counterpart of `AttackerSetPlanner`: which bodies answer
+// a declared conflict.
+//
+// Defense SIZING is settled as a free parameter in BOTH directions — six
+// measured levers, none positive. A defensive idea needs a mechanism that is
+// not sizing. See `docs/bot-conflict-tempo.md`.
 import { conflictCommitmentCost } from '../BoardValue.js';
 import { candidateId, type BotActionCandidate } from '../model/Candidate';
 import type { EffectDescriptor } from '../model/Effects';

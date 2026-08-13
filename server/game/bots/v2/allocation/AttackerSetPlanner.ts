@@ -1,3 +1,8 @@
+// Chooses which characters attack a given conflict.
+//
+// NOTE: `applyAttackerPlan` is ALREADY SHIPPED IN V1 (2026-07-31, `true` in
+// both planner profiles, live on 60.4% of attack-sizing decisions). Do not
+// "port V2's attacker allocation" again — see CLAUDE.md.
 import { characterMaterialValue } from '../BoardValue.js';
 import { candidateId, type BotActionCandidate } from '../model/Candidate';
 import type { EffectDescriptor } from '../model/Effects';

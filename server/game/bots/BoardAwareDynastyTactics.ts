@@ -223,6 +223,9 @@ const liveSkill = (card: any, axis: 'military' | 'political'): number => {
 export class BoardAwareDynastyTactics {
     constructor(readonly profile: BoardAwareDynastyProfile = DEFAULT_BOARD_AWARE_DYNASTY) {}
 
+    // One character's contribution to board strength: primary skill plus a
+    // discounted secondary, so a two-axis body is worth more than a one-axis
+    // body of the same total.
     characterPower(card: any): number {
         const military = liveSkill(card, 'military');
         const political = liveSkill(card, 'political');
@@ -232,11 +235,14 @@ export class BoardAwareDynastyTactics {
             (card?.attachments || []).length * this.profile.attachmentPower;
     }
 
+    // Summed power of a whole board — the quantity seed 3 compares sides on.
     boardPower(cards: any[]): number {
         return (cards || []).filter((card) => card?.type === 'character')
             .reduce((sum, card) => sum + this.characterPower(card), 0);
     }
 
+    // What buying this card would add, including fate persistence, ability
+    // value and glory.
     candidatePower(card: any, info: DynastyCharacterInfo, preferred = false): number {
         const primary = Math.max(info.military, info.political);
         const secondary = Math.min(info.military, info.political);
@@ -251,6 +257,8 @@ export class BoardAwareDynastyTactics {
             (this.profile.characterValueById[card?.id] || 0);
     }
 
+    // The seed-3 read of the dynasty phase: our power against theirs, the
+    // spend cap for this round, and how urgent the board is.
     analyze(context: BoardAwareDynastyContext): BoardAwareDynastyAnalysis {
         const ownPower = this.boardPower(context.ownBoard);
         const opponentPower = this.boardPower(context.opponentBoard);
@@ -343,6 +351,9 @@ export class BoardAwareDynastyTactics {
         };
     }
 
+    // Extra fate to place, from that analysis. Note the shipped early-round
+    // fate floor (saveFatePass.setupRounds = [1,2,3]) interacts with this —
+    // see docs/bot-save-fate-pass.md.
     desiredAdditionalFate(card: any, info: DynastyCharacterInfo,
         analysis: BoardAwareDynastyAnalysis): number {
         const cost = info.cost;
@@ -378,6 +389,9 @@ export class BoardAwareDynastyTactics {
                 : this.profile.towerAdditionalFateLate;
     }
 
+    // INERT FOR V1. Measured unreachable in shipping play despite passing
+    // specs; a full measurement cycle was spent before that was noticed. Do
+    // not tune this expecting a win-rate effect. See CLAUDE.md.
     choose<T extends { uuid?: string; id?: string }>(context: BoardAwareDynastyContext<T>): BoardAwareDynastyDecision<T> {
         const analysis = this.analyze(context);
         const pass = (reason: string): BoardAwareDynastyDecision<T> => ({

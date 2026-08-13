@@ -1,3 +1,17 @@
+/**
+ * The wire contract between a bot engine and the controller that drives it.
+ *
+ * A `BotDecision` is one CLICK, not a plan: the six `BotCommandName` values are
+ * exactly the commands `GameServer` accepts from a bot seat, so anything an
+ * engine wants to do it must express as a sequence of clicks a human could
+ * have made. That constraint is the whole reason the bot cannot cheat the
+ * engine — it goes through the same prompt pipeline as a player.
+ *
+ * `BotDecisionInput` carries the serialised player state plus a context bag the
+ * controller fills from live game objects the serialised state omits (printed
+ * costs, target hints, the card playbook lookup). Both V1 (`V1PolicyAdapter`)
+ * and V2 (`v2/V2BotEngine`) implement `BotEngine`; `BotEngineRouter` picks one.
+ */
 export type BotEngineVersion = 'v1' | 'v2';
 export type BotInformationMode = 'fair' | 'omniscient';
 export type BotTraceLevel = 'production' | 'benchmark' | 'research';

@@ -1,3 +1,17 @@
+// Bot V2's entry point — MEASUREMENT INFRASTRUCTURE, not a shipping opponent.
+//
+// `server/lobby.js` pins `engineVersion: 'v1'`, so nothing here ever answers a
+// live game. V2 exists as the A/B rig: `--v2-profile` / `V2PROFILE` injects a
+// profile into ONE seat, paired against a V1 control on identical shuffles.
+// Read `docs/bot-v2.md` before changing anything in this directory, and
+// `docs/bot-v2-rejected-experiments.md` before proposing a new mechanism —
+// every V2-native mechanism measured to date lost games.
+//
+// The decision path: eligibility -> snapshot -> candidates -> utility ->
+// safety veto -> optional tactical search -> high-confidence override. V2
+// only overrides V1 when the override policy can prove a margin; anything it
+// declines falls through to frozen V1, which is why a V2 seat cannot be worse
+// than V1 by construction.
 import type { BotDecision, BotDecisionInput, BotEngine, BotEngineDecisionTrace } from '../BotEngine';
 import type { JigokuBotConfig } from '../JigokuBotConfig';
 import CandidateRegistry from './CandidateRegistry.js';

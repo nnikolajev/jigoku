@@ -1,3 +1,21 @@
+/**
+ * Plans the WHOLE conflict phase as a sequence, not one conflict at a time.
+ *
+ * A greedy bot declares the best-looking conflict, then discovers it has no
+ * bodies left for the second. This planner rolls the phase forward instead:
+ * it enumerates declaration options (axis, ring, attacker set, province),
+ * scores each resulting board with a discounted value, and picks the sequence
+ * with the best total. `maxDepth` bounds the rollout; `discount` prices a
+ * later conflict below an equal one now.
+ *
+ * Per-deck knowledge does NOT live here — a deck contributes declaration and
+ * defense proposals through `DeckConflictIntents`, which this module scores
+ * inside the same rollout. See `docs/conflict-phase-lookahead-bot.md` and
+ * `docs/bot-v2-deck-tuning.md`.
+ *
+ * CAUTION: `planDefense` is NOT reached from the V1 adapter. It has passing
+ * specs and is still inert in shipping play — see CLAUDE.md.
+ */
 export type ConflictAxis = 'military' | 'political';
 export type ConflictPlanningPolicyVariant = 'lookahead' | 'legacy';
 
@@ -577,6 +595,10 @@ export class ConflictPhasePlanner {
      * the phase played out with those bodies bowed, which is exactly the
      * "defend or keep the board for my counter-attack" trade.
      */
+    // INERT FOR V1. Nothing on the V1 adapter path reaches planDefense; its
+    // specs pass anyway, which is exactly how a full measurement cycle was
+    // wasted on the equally-inert BoardAwareDynastyTactics.choose. Check the
+    // mechanism is reachable BEFORE improving it. See CLAUDE.md.
     planDefense(input: ConflictPhasePlannerInput, live: LiveConflictAgainstSelf,
         options: ConflictDefenseOption[] = []): ConflictDefensePlan {
         const committed = new Set(live.committedDefenderUuids || []);

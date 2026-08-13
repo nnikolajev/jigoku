@@ -65,5 +65,6 @@ their filenames, but current commands and configuration use seed 3.
 Standard `winRates.js` and `botRoundRobin.js` runs store current seed-3 results
 in `jigoku-client/client/botBenchmarkResults.json`.
 
-Cross-seed audit commands and the 2026-07-21 results are documented in
-[`seed3-cross-seed-audit-2026-07-21.md`](seed3-cross-seed-audit-2026-07-21.md).
+Cross-seed audit commands live in `tools/selfplay/` (`compareDynastySeeds.js`,
+`botSeedRoundRobin.js`); the dated 2026-07-21 result sheet was removed in the
+2026-08-13 cleanup.

@@ -1,4 +1,4 @@
-import type { CardHint } from './llm/CardHints';
+import type { CardHint } from './CardHintTypes';
 import { getCardModel } from './DeckAnalysis.js';
 import { isNegativeAttachmentId } from './AttachmentControlTactics.js';
 
@@ -433,6 +433,8 @@ const HONOR_COST: Record<string, number> = {
     'thunder-guard-elite': 1
 };
 
+// Honor a card costs to play, 0 when it costs none. The bot must not spend
+// into a loss, so this is checked before every honor-priced play.
 export function honorCostOf(cardId: string | undefined): number {
     return cardId ? (HONOR_COST[cardId] || 0) : 0;
 }
@@ -5485,6 +5487,13 @@ export const DECK_SCOPED_PLAYBOOK_ENTRIES: Readonly<Record<string, readonly (key
     'before-the-throne': ['craneHonor', 'lionHonor']
 });
 
+// The playbook lookup the whole bot reads per-card advice through.
+//
+// A deck-scoped entry only applies to that deck: asking for it from any
+// other strategy returns undefined and the policy falls back to its
+// generic handling. This is the single source of per-card knowledge —
+// the LLM hint service that used to back-fill unmodelled cards was
+// removed on 2026-08-13 (see docs/bot-dead-code-removed.md).
 export function getPlaybookEntry(
     cardId: string | undefined,
     strategy?: DeckStrategy

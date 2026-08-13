@@ -75,6 +75,8 @@ export const PERSONAL_HONOR_DEFAULTS: PersonalHonorProfile = {
 export class PersonalHonorTactics {
     constructor(private profile: PersonalHonorProfile) {}
 
+    // Glory a card carries, preferring the live summary. Glory is what an
+    // honor token is actually worth, so it drives every pick here.
     gloryValue(card: any): number {
         const summary = Number(card?.glorySummary?.stat);
         if(Number.isFinite(summary)) {
@@ -84,6 +86,7 @@ export class PersonalHonorTactics {
         return Number.isFinite(printed) ? Math.max(printed, 0) : 0;
     }
 
+    // Which of OUR characters to honor: highest glory gains the most.
     pickOwnHonor(cards: any[]): any | null {
         return cards.slice().sort((a, b) =>
             this.gloryValue(b) - this.gloryValue(a) ||
@@ -136,6 +139,8 @@ export class PersonalHonorTactics {
             (Number(card?.fate) || 0) <= rules.maximumRecipientFate);
     }
 
+    // When an effect forces us to dishonor our own, take the character that
+    // wants it (Scorpion) first, otherwise the one that loses least.
     pickForcedOwnDishonor(cards: any[]): any | null {
         const reversed = cards.filter((card) => this.prefersDishonor(card) && !card?.isDishonored);
         if(reversed.length > 0) {
@@ -155,6 +160,8 @@ export class PersonalHonorTactics {
         )[0] || null;
     }
 
+    // Which enemy character to dishonor — the one whose glory loss hurts them
+    // most, weighted by whether it is in the live conflict.
     pickEnemyDishonor(cards: any[], conflict?: PersonalHonorConflict | null): any | null {
         if(cards.length === 0) {
             return null;
@@ -174,6 +181,7 @@ export class PersonalHonorTactics {
         return this.rankEnemyDishonor(cards, conflict?.axis)[0];
     }
 
+    // When forced to honor THEIRS, give it to the lowest-glory body.
     pickForcedEnemyHonor(cards: any[]): any | null {
         return cards.slice().sort((a, b) =>
             this.gloryValue(a) - this.gloryValue(b) ||
@@ -184,6 +192,9 @@ export class PersonalHonorTactics {
         )[0] || null;
     }
 
+    // For a combined honor/dishonor prompt: is honoring ours worth more than
+    // dishonoring theirs? Getting this backwards is the defect class the
+    // polarity gate watches for — see docs/bot-honor-token-targeting.md.
     shouldHonorOwn(ownCards: any[], enemyCards: any[], ownValueBonus = 0): boolean {
         const own = this.pickOwnHonor(ownCards);
         if(!own) {

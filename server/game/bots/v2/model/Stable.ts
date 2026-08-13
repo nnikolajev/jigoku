@@ -1,3 +1,10 @@
+// Order-independent serialisation, hashing and deep-freezing.
+//
+// V2 caches projections by state hash, so two logically equal states must
+// serialise identically regardless of key order — `stableValue` sorts keys
+// recursively. `immutable`/`deepFreeze` then make a cached projection
+// physically unmodifiable, which is what stops one candidate's evaluation
+// from mutating the state the next candidate sees.
 import { createHash } from 'crypto';
 
 export type JsonPrimitive = string | number | boolean | null;

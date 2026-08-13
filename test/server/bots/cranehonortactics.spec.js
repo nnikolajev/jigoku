@@ -156,16 +156,6 @@ describe('CraneHonorTactics', function() {
         });
     });
 
-    describe('Festival for the Fortunes', function() {
-        const unhonored = (n) => Array.from({ length: n }, (_, i) => ({ uuid: `u${i}` }));
-
-        it('needs a wide board AND a board lead — it honors THEIR characters too', function() {
-            expect(tactics.shouldPlayFestival(unhonored(4), unhonored(2))).toBe(true);
-            expect(tactics.shouldPlayFestival(unhonored(4), unhonored(4))).toBe(false);
-            expect(tactics.shouldPlayFestival(unhonored(2), [])).toBe(false);
-        });
-    });
-
     describe('Elegance and Grace', function() {
         it('picks at most 2 bowed honored characters inside the printed-cost cap', function() {
             const cards = [

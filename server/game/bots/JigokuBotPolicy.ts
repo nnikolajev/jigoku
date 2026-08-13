@@ -1,6 +1,45 @@
+/**
+ * The V1 bot's decision function: one prompt in, one click out.
+ *
+ * This is the base class of the seed chain (`FateAware` then `BoardAware`
+ * extend it — see `V1PolicyAdapter`), and it is the largest file in the bot
+ * by a wide margin. The shape is deliberate rather than accidental: the engine
+ * asks the bot arbitrary, weakly-typed prompts ("Choose a character", "Pay
+ * costs", "Any interrupts?"), and `decideForPrompt` dispatches on the prompt
+ * and menu TITLE because that is the only thing every prompt reliably has.
+ *
+ * ## Reading order
+ *
+ *   `decide`               per-decision setup: resolve the deck profile,
+ *                          reset per-decision caches, then delegate.
+ *   `decideForPrompt`      the title dispatch. Long by nature; each branch is
+ *                          one kind of prompt.
+ *   `conflictWindowDecision`, `actionWindowDecision`, `conflictDeclarationDecision`,
+ *   `defenderDecision`, `ringDecision`, `cardDecision`, `polarityTargetDecision`
+ *                          the per-window handlers the dispatch lands in.
+ *
+ * ## Where per-deck knowledge lives
+ *
+ * NOT here. A deck contributes through `DeckProfiles` (data) and a tactics
+ * class (`DishonorTactics`, `CrabSacrificeTactics`, ...), constructed at the
+ * top of `decideForPrompt` and null for every other deck. Per-card knowledge
+ * comes from `CardPlaybook` through the `cardHint(cardId)` callback.
+ *
+ * ## Invariants worth knowing before editing
+ *
+ * - Randomness goes through `SeededRandom`, never `Math.random`: self-play
+ *   seeds the shuffle through `Math.random` and the policy through the seed,
+ *   and `tools/selfplay/refactorIdentity.js` relies on the two staying apart.
+ * - Harmful effects (bow, dishonor) must land on THEIR cards and helpful ones
+ *   (ready, honor) on OURS. This is enforced during real games by
+ *   `test/helpers/effectpolarity.js`, not by review. See
+ *   `docs/bot-effect-polarity.md`.
+ * - Behaviour changes need a measurement, not a spec. See the `/roundrobin`
+ *   skill and `docs/bot-v2-rejected-experiments.md` before adding a lever.
+ */
 import SeededRandom from './SeededRandom.js';
 import type { MenuCardInfo } from './BotEngine';
-import type { CardHint } from './llm/CardHints';
+import type { CardHint } from './CardHintTypes';
 import type { DeckStrategy } from './CardPlaybook';
 import { banzaiRecurAllowed, honorCostOf, honorSpendingAllowed } from './CardPlaybook.js';
 import type { KnownCard, Omniscient } from './DeckAnalysis';
@@ -65,14 +104,14 @@ import BoardAwareDynastyTactics from './BoardAwareDynastyTactics.js';
 import type { DynastyCharacterInfo, DynastyHandCard } from './BoardAwareDynastyTactics';
 import ConflictDeckSafetyTactics from './ConflictDeckSafetyTactics.js';
 import ConflictPhasePlanner from './ConflictPhasePlanner.js';
-import { planConflictActions, DEFAULT_CONFLICT_ACTION_PROFILE } from './v2/ConflictActionPlanner.js';
-import type { ConflictAction } from './v2/ConflictActionPlanner';
+import { planConflictActions, DEFAULT_CONFLICT_ACTION_PROFILE } from './shared/ConflictActionPlanner.js';
+import type { ConflictAction } from './shared/ConflictActionPlanner';
 import {
     valueCard, voiceOfHonorValue, defendYourHonorValue, insultToInjuryValue,
     incomingEventValue, trackReaction, hasCardValueModel, REACTION_ONLY_CARDS,
     persistentSkillValue, towerCharacter, strongestContributor, participating
-} from './v2/CardValueModel.js';
-import type { CardValue, CardValueContext, HoldingInPlay, ValuedCharacter } from './v2/CardValueModel';
+} from './shared/CardValueModel.js';
+import type { CardValue, CardValueContext, HoldingInPlay, ValuedCharacter } from './shared/CardValueModel';
 import DeckConflictIntents from './DeckConflictIntents.js';
 import type {
     ConflictAxis,

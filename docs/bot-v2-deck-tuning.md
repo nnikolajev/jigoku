@@ -420,7 +420,7 @@ tiebreaker louder in the few near-ties where either choice was fine anyway.
 The ask was to stop playing conflict cards and card abilities in a hardcoded
 order: let each deck declare what it wants and what its cards are for, and have
 the generic layer choose the best ORDER and COMBINATION for the live fate and
-board. Built as `v2/ConflictActionPlanner.ts`, measured, **not shipped**.
+board. Built as `shared/ConflictActionPlanner.ts`, measured, **not shipped**.
 
 ### What it does
 
@@ -510,7 +510,7 @@ place and cost nothing while the flag is off.
 
 ## Card value model (`useCardValueModel` / `vetoDeadCards`) — built, and it does not pay
 
-`v2/CardValueModel` + `v2/DuelValueModel` price 22 conflict cards from the live
+`shared/CardValueModel` + `shared/DuelValueModel` price 22 conflict cards from the live
 board instead of the flat `DeckAnalysis.swing` constant: what Assassination
 actually removes, which attachment Let Go should strip, whether a duel is
 winnable, what a dishonor unlocks in hand. The models are correct and covered by

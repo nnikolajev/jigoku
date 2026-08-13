@@ -1,3 +1,8 @@
+// Per-stage timing across the V2 pipeline (`V2_PLANNER_STAGES`).
+//
+// The bot answers prompts inside a live game loop, so a planner stage that
+// grows quietly turns into game timeouts in self-play — which show up as
+// missing results, and those are not missing at random.
 export const V2_PLANNER_STAGES = [
     'v1-fallback',
     'eligibility',

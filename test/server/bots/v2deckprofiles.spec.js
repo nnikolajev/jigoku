@@ -3,7 +3,7 @@ const {
     applyV2DeckProfile,
     V2_BASE_OVERRIDE,
     V2_DECK_OVERRIDES
-} = require('../../../build/server/game/bots/v2/V2DeckProfiles.js');
+} = require('../../../build/server/game/bots/shared/V2DeckProfiles.js');
 const { DEFAULT_PROFILE, resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
 
 function clone(value) {

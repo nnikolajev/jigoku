@@ -77,6 +77,8 @@ export default class OmniscientBotCapability {
         return controlEffect && opposingTarget && !ownOnly;
     }
 
+    // Could this card remove a defender from the conflict? Used to price the
+    // threat sitting in a hand we are allowed to see.
     cardCanDisableDefender(card: any): boolean {
         return this.cardCanTargetOpponentWith(
             card,
@@ -85,10 +87,12 @@ export default class OmniscientBotCapability {
         );
     }
 
+    // Could this card bow one of our characters?
     cardCanBowOpponent(card: any): boolean {
         return this.cardCanTargetOpponentWith(card, new Set(['bow']), /\bbow\b/);
     }
 
+    // Collapse a live card into the model the policy reasons over.
     knownCard(card: any): KnownCard {
         const model = getCardModel(card.id);
         const data = card.cardData || {};
@@ -122,6 +126,7 @@ export default class OmniscientBotCapability {
         };
     }
 
+    // Does the opponent have a bow available against a participant right now?
     opponentParticipantCanBow(me: Player): boolean {
         const opp = (me as any).opponent as Player | undefined;
         const cards: any[] = typeof (opp as any)?.cardsInPlay?.toArray === 'function'
@@ -189,6 +194,9 @@ export default class OmniscientBotCapability {
         return count;
     }
 
+    // The whole hidden-information view: exact hand, exact province strengths
+    // and the derived threat matrix. Returns undefined when the capability is
+    // off, which is how every fair seat gets nothing.
     build(me: Player): Omniscient | undefined {
         if(!this.enabled) {
             return undefined;
@@ -217,6 +225,7 @@ export default class OmniscientBotCapability {
         };
     }
 
+    // Analyse the opponent deck once per game, lazily on first use.
     ensureDeckAnalyzed(me: Player): void {
         if(this.deckAnalysisChecked || !this.enabled) {
             return;

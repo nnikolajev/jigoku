@@ -1,8 +1,7 @@
 const { emptyLedgers } = require('../../../build/server/game/bots/v2/model/Ledgers.js');
 const CharacterAllocator = require('../../../build/server/game/bots/v2/allocation/CharacterAllocator.js').default;
-const ActionTimingEvaluator = require('../../../build/server/game/bots/v2/allocation/ActionTimingEvaluator.js').default;
 
-describe('V2 character allocation and action timing', function() {
+describe('V2 character allocation', function() {
     function character(id, military, political, options = {}) {
         return {
             instanceId: id, cardId: options.cardId || id, controllerId: options.controllerId || 'Bot', ownerId: options.controllerId || 'Bot',
@@ -98,25 +97,5 @@ describe('V2 character allocation and action timing', function() {
         expect(['tower', 'current-attack']).toContain(towerAssignment.primary);
         if(towerAssignment.primary === 'current-attack') expect(towerAssignment.secondary.length).toBeGreaterThan(0);
         expect(['movement-source', 'ready-source']).toContain(cavalryAssignment.primary);
-    });
-
-    it('values opponent commitment, prevention, pass initiative, and minimum sufficient actions', function() {
-        const allocation = new CharacterAllocator().allocate(state([character('a', 4, 2), character('b', 2, 4)]));
-        const candidate = (id, kind, effects) => ({
-            id, kind, targets: [], commandPreview: { command: 'menuButton', args: [id], target: id }, costs: {}, effects,
-            prerequisites: [], tags: [], limits: [], uncertainty: 0, confidence: 1, proposer: 'fixture'
-        });
-        const pass = candidate('pass', 'pass', []);
-        const exact = candidate('exact', 'conflict-card', [{ kind: 'skill', military: 2 }]);
-        const excess = candidate('excess', 'conflict-card', [{ kind: 'skill', military: 6 }]);
-        const prevention = candidate('prevent', 'interrupt', [{ kind: 'prevention', event: 'bow' }]);
-        const timing = new ActionTimingEvaluator();
-        const timingState = state([character('a', 4, 2)]);
-        timingState.conflict = { ...timingState.conflict, attackerSkill: 4 };
-        const pressured = timing.rank(timingState, [pass, excess, exact, prevention], allocation, 5);
-        expect(pressured.findIndex((entry) => entry.candidate.id === 'exact')).toBeLessThan(pressured.findIndex((entry) => entry.candidate.id === 'excess'));
-        expect(pressured.find((entry) => entry.candidate.id === 'prevent').timingScore).toBe(4);
-        const uncommitted = timing.rank(state([character('a', 4, 2)]), [pass], allocation, 0);
-        expect(uncommitted[0].reasons).toContain('pressure-opponent-to-commit');
     });
 });

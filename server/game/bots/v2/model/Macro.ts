@@ -1,3 +1,10 @@
+// A multi-prompt sequence executed as one decision.
+//
+// Playing a card is rarely one click: source, mode, target, cost,
+// confirmation. A macro records the intended whole sequence plus the state
+// fingerprint it was planned against, so `MacroExecutor` can detect the board
+// changing underneath it and abort per `MacroAbortPolicy` rather than
+// blundering through the remaining steps.
 import type { BotCommandName } from '../../BotEngine';
 
 export type MacroStepKind = 'source' | 'mode' | 'target' | 'cost' | 'confirmation' | 'command';

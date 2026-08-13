@@ -1,3 +1,10 @@
+// Holds the bot's current objective across prompts, and expires it.
+//
+// Without this, each prompt is decided independently and a plan that spans
+// several clicks (reserve fate, then buy, then attach) is abandoned halfway.
+// Intents are scoped (`game` / `round` / `phase` / `conflict` / `macro`) and
+// expire when their scope ends or when the board diverges from the state they
+// were planned against.
 import type { ActionMacro, MacroProgress } from './model/Macro';
 import type {
     BotIntent,
@@ -170,10 +177,6 @@ export default class IntentManager {
     private macro?: ActionMacro;
     private macroProgress?: MacroProgress;
     private readonly macroExecutor = new MacroExecutor();
-
-    get activeIntent(): BotIntent | undefined {
-        return this.current;
-    }
 
     get hasActiveMacro(): boolean {
         return !!this.macro && !!this.macroProgress;

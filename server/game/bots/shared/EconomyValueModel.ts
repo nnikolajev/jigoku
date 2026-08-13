@@ -1,4 +1,9 @@
-// Economy, tempo and resource-denial values for Bot V2.
+// SHARED (V1 + V2). Lived under `v2/` until 2026-08-13; moved to `shared/`
+// once measurement showed V1 imports it at RUNTIME, so it was never
+// experimental. Changing it changes the shipping bot — prove any edit
+// bit-identical with `tools/selfplay/refactorIdentity.js`.
+//
+// Economy, tempo and resource-denial values, shared by Bot V1 and Bot V2.
 //
 // These nine cards had no value signal at all — no model, no curated `swing`, no
 // `conflictContribution` — so any planner saw `null` and skipped them. They are
@@ -10,7 +15,6 @@
 // choice to price: Levy (which resource to drain), Rebuild (which holding to
 // install) and Gossip (which card to forbid).
 //
-// V2 ONLY. V1 stays frozen as the measurement control.
 
 import { blocked, hold, printedCost, PROVINCE_STRENGTH_SCORE, skillOf } from './CardValueTypes.js';
 import type { CardValue, CardValueContext } from './CardValueTypes';

@@ -84,6 +84,7 @@ export class DragonTactics {
         return keepers * this.profile.voidRecursionBonus;
     }
 
+    // Several Dragon cards require a participating Monk, so this gates them.
     hasParticipatingMonk(myCharacters: any[]): boolean {
         const monkIds = new Set([
             'ancient-master', 'teacher-of-empty-thought', 'togashi-acolyte',
@@ -128,10 +129,14 @@ export class DragonTactics {
         return cardsPlayed >= 5 || !waitForFateBonus;
     }
 
+    // Can we still hit a cards-played threshold this conflict? The deck's
+    // payoffs count cards, so a threshold we cannot reach is worth nothing
+    // and the cards are better held.
     canReachTarget(cardsPlayed: number, playableCards: number, target: number): boolean {
         return target > cardsPlayed && cardsPlayed + playableCards >= target;
     }
 
+    // Would playing this card put fate on a ring?
     cardCanCreateRingFate(card: any, myCharacters: any[]): boolean {
         if(this.profile.ringFateProducerCards.includes(card?.id)) {
             return true;
@@ -152,10 +157,12 @@ export class DragonTactics {
             traits.some((trait: string) => trait.toLowerCase() === 'kiho' || trait.toLowerCase() === 'kihō');
     }
 
+    // Same question across a whole hand.
     canCreateRingFate(playableCards: any[], myCharacters: any[]): boolean {
         return playableCards.some((card) => this.cardCanCreateRingFate(card, myCharacters));
     }
 
+    // May we spend past the normal card budget to reach a count threshold?
     allowsCardCountOvercommit(): boolean {
         return this.profile.allowCardCountOvercommit;
     }
@@ -169,6 +176,7 @@ export class DragonTactics {
         return ranked[0] || null;
     }
 
+    // Best bearer for Way of the Dragon, by the profile ranking.
     pickWayCharacter(mine: any[]): any {
         const ranking = this.profile.wayTargets;
         const ranked = mine
@@ -178,6 +186,8 @@ export class DragonTactics {
         return ranked[0] || null;
     }
 
+    // How often the bearer's Way ability may fire — the usage ledger needs the
+    // period, not just a boolean.
     wayAbilityPeriod(card: any): 'round' | 'conflict' | null {
         if(!card?.id || !this.hasWayOfTheDragon(card)) {
             return null;
@@ -185,14 +195,18 @@ export class DragonTactics {
         return this.profile.wayAbilityPeriods[card.id] || null;
     }
 
+    // Is Way of the Dragon attached to this character?
     hasWayOfTheDragon(card: any): boolean {
         return (card?.attachments || []).some((attachment: any) => attachment.id === 'way-of-the-dragon');
     }
 
+    // Keep this character on a province refresh rather than discarding it.
     shouldPreserveProvinceCharacter(card: any): boolean {
         return !!card?.id && this.profile.towerCharacters.includes(card.id);
     }
 
+    // Extra fate per character; Togashi Mitsu 2 gets a large reserve because
+    // the deck's card engine runs through him.
     desiredAdditionalFate(cardId: string | undefined, printedCost: number | undefined): number | null {
         if(cardId === 'togashi-mitsu-2') {
             return 4;
@@ -203,6 +217,7 @@ export class DragonTactics {
         return null;
     }
 
+    // Which card Ancient Master should fetch, by a fixed preference order.
     pickAncientMasterCard(cards: any[]): any {
         const ranking = [
             'togashi-acolyte', 'hurricane-punch', 'void-fist',

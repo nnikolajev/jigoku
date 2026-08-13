@@ -1,3 +1,9 @@
+// Applies `EffectDescriptor`s to a `PlanningState` to get the projected board.
+//
+// Pure and immutable: returns a new frozen state, never mutates the input, so
+// a search branch cannot corrupt its siblings. This is the model V2 plans
+// against — it is NOT the real engine, and divergence between the two is the
+// usual cause of a plan that looked good and did not happen.
 import type { BotActionCandidate } from '../model/Candidate';
 import type { EffectDescriptor } from '../model/Effects';
 import type {

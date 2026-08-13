@@ -306,6 +306,7 @@ export class RebirthTactics {
 
     // ---- Fushicho engine -------------------------------------------------
 
+    // Phoenix character by clan/id, for effects restricted to them.
     isPhoenixCharacter(card: any): boolean {
         if(card?.type && card.type !== 'character') {
             return false;
@@ -341,6 +342,8 @@ export class RebirthTactics {
             cost * this.profile.recursionCostWeight;
     }
 
+    // Best body to return from the dynasty discard, excluding anything a
+    // unique copy already in play would make illegal.
     pickRecursionTarget(discardBodies: any[], myCharacters: any[] = []): any {
         const legal = this.recursionTargets(discardBodies, myCharacters);
         if(legal.length === 0) {
@@ -462,18 +465,6 @@ export class RebirthTactics {
             guarded * this.profile.unclaimedGuardPenalty;
     }
 
-    /** Ethereal Dreamer picks a ring at conflict-phase start and gets +2/+2
-     *  while it is contested — so it wants whichever ring we will contest. */
-    pickDreamerRing(rings: any[], myCharacters: any[], hand: any[], baseScore: (ring: any) => number): any {
-        if(!rings || rings.length === 0) {
-            return null;
-        }
-        return rings.slice().sort((a, b) =>
-            (baseScore(b) + this.ringBonus(String(b?.element || ''), myCharacters, hand)) -
-            (baseScore(a) + this.ringBonus(String(a?.element || ''), myCharacters, hand)) ||
-            String(a?.element || '').localeCompare(String(b?.element || '')))[0];
-    }
-
     // ---- Ancestral Shrine ------------------------------------------------
 
     /** Rings worth returning to the unclaimed pool for 1 honor each. Freeing a
@@ -499,10 +490,6 @@ export class RebirthTactics {
         }
         return claimedByMe.filter((ring) =>
             !(this.profile.shrineProtectClaimedPayoffs && payoffWants(String(ring.element || ''))));
-    }
-
-    shouldUseAncestralShrine(rings: any[], myCharacters: any[], myHonor: number): boolean {
-        return this.shrineReturnRings(rings, myCharacters, myHonor).length > 0;
     }
 
     // ---- Isawa Tsuke -----------------------------------------------------
@@ -610,6 +597,7 @@ export class RebirthTactics {
         return best;
     }
 
+    // Shugenja by trait, falling back to the id list when traits are absent.
     isShugenja(card: any): boolean {
         const traits = card?.traits;
         if(Array.isArray(traits)) {
@@ -635,6 +623,8 @@ export class RebirthTactics {
         return score(best) >= this.profile.wayOfPhoenixMinValue ? best : null;
     }
 
+    // Way of the Phoenix needs the right ring state and enemy board to be
+    // worth its cost.
     shouldPlayWayOfThePhoenix(
         rings: any[],
         opponentCharacters: any[],
@@ -646,27 +636,6 @@ export class RebirthTactics {
     }
 
     // ---- Retire to the Brotherhood --------------------------------------
-
-    /** The stronghold province wipes every fateless character on BOTH boards
-     *  and refills each side from the top of its deck. Our bodies are fateless
-     *  by design, so the wipe costs us nothing we were not already spending and
-     *  hands Fushicho a full discard; theirs are usually paid for. */
-    shouldFloodForRetire(input: {
-        strongholdProvinceId?: string;
-        strongholdRevealed?: boolean;
-        myBrokenProvinces?: number;
-        myCharacters?: any[];
-    }): boolean {
-        if(input.strongholdProvinceId !== 'retire-to-the-brotherhood' || input.strongholdRevealed) {
-            return false;
-        }
-        if((input.myBrokenProvinces ?? 0) < 3) {
-            return false;
-        }
-        const fateless = (input.myCharacters || [])
-            .filter((card) => card?.type === 'character' && fateOf(card) === 0).length;
-        return fateless >= this.profile.retireFloodMinZeroFateBodies;
-    }
 
     // ---- Inferno Guard Invoker ------------------------------------------
 
@@ -710,6 +679,8 @@ export class RebirthTactics {
             uuidOf(a).localeCompare(uuidOf(b)))[0];
     }
 
+    // Honor the participant that gains the most, subject to a minimum glory
+    // so the trigger is not wasted.
     pickBentenHonorTarget(myParticipants: any[]): any {
         const eligible = (myParticipants || []).filter((card) =>
             !card?.isHonored && gloryOf(card) >= this.profile.bentenMinGloryGain);
@@ -721,20 +692,9 @@ export class RebirthTactics {
             uuidOf(a).localeCompare(uuidOf(b)))[0];
     }
 
-    /** Only spend the card when the honor is worth more than the skill the bow
-     *  costs — a bowed participant contributes 0 (`conflict.ts:474`). */
-    bentenNetGain(myCharacters: any[], myParticipants: any[], axis: Axis, skillOf: (card: any, axis: Axis) => number): number {
-        const bow = this.pickBentenBow(myCharacters);
-        const honor = this.pickBentenHonorTarget(myParticipants);
-        if(!bow || !honor) {
-            return 0;
-        }
-        const cost = bow.inConflict && !bow.bowed ? skillOf(bow, axis) : 0;
-        return gloryOf(honor) - cost;
-    }
-
     // ---- dynasty searches ------------------------------------------------
 
+    // How much this deck wants a given card out of a search effect.
     searchValue(card: any): number {
         return card?.id ? (this.profile.searchValueById[card.id] ?? 0) : 0;
     }

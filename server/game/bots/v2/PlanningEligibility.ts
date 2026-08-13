@@ -1,3 +1,8 @@
+// Decides whether V2 plans this prompt at all, or hands it straight to V1.
+//
+// V2 is not a full replacement engine — it opts IN to the decisions it models
+// and delegates the rest. Everything that reaches the fallback is answered by
+// frozen V1, which is why a V2 seat is never worse than V1 by construction.
 import type { BotDecisionInput } from '../BotEngine';
 
 export interface PlanningEligibilityResult {

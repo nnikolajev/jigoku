@@ -1,3 +1,7 @@
+// Shared plumbing for both information providers: card normalisation,
+// opponent lookup, and `responsePackages` — the set of answers the opponent
+// could plausibly have to a candidate, used to price a plan against a
+// defended board rather than an empty one.
 import type { BotActionCandidate } from '../model/Candidate';
 import { candidateId } from '../model/Candidate';
 import type { EffectDescriptor } from '../model/Effects';

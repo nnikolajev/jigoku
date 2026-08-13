@@ -1,3 +1,19 @@
+/**
+ * Builds the frozen V1 policy for a seat and adapts it to the `BotEngine`
+ * interface.
+ *
+ * `createV1Policy` is where a strategy seed becomes a class. The three
+ * player-facing seeds map to a subclass chain, each adding to the one before:
+ *
+ *   seed 2 -> `JigokuBotPolicy`            generic heuristic ("dynasty focused")
+ *   seed 1 -> `FateAwareJigokuBotPolicy`   + fate economy            ("mixed")
+ *   seed 3 -> `BoardAwareJigokuBotPolicy`  + board-aware dynasty development
+ *
+ * An explicit `config.policy` overrides the seed mapping; that path exists for
+ * controlled comparisons, not for the lobby. Note that seed 1 is the DEFAULT
+ * and is NOT the base class — a change made in `JigokuBotPolicy` reaches all
+ * three seeds, a change in `FateAware` reaches seeds 1 and 3 only.
+ */
 import JigokuBotPolicy from './JigokuBotPolicy.js';
 import FateAwareJigokuBotPolicy from './FateAwareJigokuBotPolicy.js';
 import BoardAwareJigokuBotPolicy from './BoardAwareJigokuBotPolicy.js';

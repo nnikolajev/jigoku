@@ -1,3 +1,9 @@
+// Scores candidates into the multi-component `UtilityVector`, then ranks.
+//
+// `semanticCandidateOrderKey` gives a deterministic tie-break: equal-utility
+// candidates must sort identically across runs or self-play stops being
+// reproducible. Weights come from the deck's V2 profile, so an A/B arm is a
+// JSON string rather than an edit.
 import type { BotActionCandidate } from './model/Candidate';
 import type { PlanConstraint } from './model/Intent';
 import type { PlanningState } from './model/PlanningState';

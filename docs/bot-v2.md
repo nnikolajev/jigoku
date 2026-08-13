@@ -24,8 +24,34 @@ method needs.
   and arm-vs-arm deltas are attributable to the injected profile alone.
 - **Instrumentation.** Typed card semantics, the value models, the shadow
   engine, and the trace levels are all retained as analysis tools. `v2/cards`
-  and `v2/CardValueModel` price cards that V1 only sees as a flat constant,
+  and `shared/CardValueModel` price cards that V1 only sees as a flat constant,
   which is how "is this card dead?" questions get answered.
+
+## Directory boundary (2026-08-13)
+
+`v2/` used to hold modules V1 imported at runtime, which made "is this
+experimental?" a judgement call on every file. Those modules were misfiled, not
+experimental, and now live in `shared/`:
+
+| Zone | Files | LOC | Rule |
+|---|---|---|---|
+| `bots/*.ts` (V1) | 52 | ~36k | ships; may import `shared/`, never `v2/` |
+| `bots/shared/` | 8 | ~3.1k | **used by both engines — editing it changes the shipping bot** |
+| `bots/v2/` | 42 | ~8.6k | measurement only; may import `shared/` and V1 |
+
+`shared/` is `CardValueModel`, `CardValueTypes`, `ConflictActionPlanner`,
+`V2DeckProfiles` and the Duel / Economy / Holding / Support value models.
+Despite its name `applyV2DeckProfile` runs on **every** seat, V1 included — it
+is what merges an injected `--v2-profile` arm into a resolved deck profile.
+
+The one permitted V1→`v2/` import is `BotEngineRouter.ts`, which constructs the
+engine. Anything else is a boundary violation and `npx fallow dead-code` fails
+on it — the rule is encoded in `.fallowrc.json` under `boundaries`, so this
+cannot silently regress.
+
+Because `shared/` is load-bearing for live play, prove any edit to it
+behaviour-neutral with `tools/selfplay/refactorIdentity.js` on several bases
+before assuming it is safe.
 
 A V2 run with no injected profile now measures **bit-identical to V1 on 9 of 10
 decks** (Phoenix differs only by its retained `applyIntentPlan` entry). That

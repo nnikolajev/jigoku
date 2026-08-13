@@ -91,8 +91,7 @@ function makeController(game, playerName, seed, trace = false,
             deckProfileId: engineOptions.deckProfileId,
             traceLevel: engineOptions.traceLevel,
             experiments: engineOptions.experiments,
-            v2Profile: engineOptions.v2Profile,
-            llm: { enabled: false }
+            v2Profile: engineOptions.v2Profile
         },
         runCommand
     );

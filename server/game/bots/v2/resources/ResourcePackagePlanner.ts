@@ -1,3 +1,9 @@
+// Plans fate and cards as PACKAGES rather than per-purchase.
+//
+// Buying two 3-cost bodies and buying one 3-cost body with 3 extra fate are
+// different plans with the same price; a per-decision evaluator cannot see the
+// difference because it never considers the pair. `ResourceArchetype` selects
+// which packages a deck cares about.
 import type { BotActionCandidate, CandidateAnnotation } from '../model/Candidate';
 import type { ResourceReservation } from '../model/Intent';
 import type { PlanningState } from '../model/PlanningState';

@@ -165,6 +165,8 @@ export class DuelTactics {
         return total;
     }
 
+    // Iaijutsu Master changes the duel maths, so its readiness is checked
+    // separately from the bearer's.
     hasReadyIaijutsuMaster(card: any, readyByCharacterUuid?: Record<string, boolean>): boolean {
         const attached = (card?.attachments || []).some((attachment: any) =>
             attachment.id === 'iaijutsu-master');
@@ -175,6 +177,8 @@ export class DuelTactics {
         return liveReady !== false;
     }
 
+    // Would our challenger actually win this duel? The whole deck turns on
+    // not starting duels it loses.
     canBeat(
         challenger: any,
         target: any,
@@ -300,14 +304,17 @@ export class DuelTactics {
             String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
+    // A key character worth investing in.
     isTowerCharacter(cardId: string | undefined): boolean {
         return !!cardId && this.profile.keyCharacters.includes(cardId);
     }
 
+    // A body expected to survive long enough to justify extra fate.
     isDurableCharacter(cardId: string | undefined): boolean {
         return !!cardId && this.profile.durableCharacters.includes(cardId);
     }
 
+    // Still short of the profile's tower quota?
     needsTower(board: any[]): boolean {
         return board.filter((card) => this.isTowerCharacter(card.id)).length < this.profile.towerTargetCount;
     }
@@ -354,6 +361,7 @@ export class DuelTactics {
         return null;
     }
 
+    // Is a durable body available among these cards?
     hasVisibleTower(playable: any[]): boolean {
         return playable.some((card) => this.isDurableCharacter(card.id));
     }
@@ -375,11 +383,14 @@ export class DuelTactics {
                 String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
+    // Keep on a province refresh: a needed tower, or the first Iron Crane
+    // Legion.
     shouldKeepDynasty(cardId: string | undefined, board: any[]): boolean {
         return (this.needsTower(board) && this.isTowerCharacter(cardId)) ||
             (cardId === 'iron-crane-legion' && !board.some((card) => card.id === 'iron-crane-legion'));
     }
 
+    // Extra fate for durable bodies only.
     desiredAdditionalFate(cardId: string | undefined, fate: number, playCost?: number): number | null {
         if(!this.isDurableCharacter(cardId)) {
             return null;
@@ -418,6 +429,8 @@ export class DuelTactics {
             String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
+    // Which character to hit with a Noble Sacrifice-style effect: most fate
+    // first, since that is what the effect wastes.
     pickNobleVictim(cards: any[], valueOf: (card: any) => number): any {
         return cards.slice().sort((a, b) =>
             (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
@@ -426,10 +439,12 @@ export class DuelTactics {
             String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
 
+    // An attachment meant for the tower rather than a generic body.
     isTowerAttachment(cardId: string | undefined): boolean {
         return !!cardId && this.profile.towerAttachments.includes(cardId);
     }
 
+    // Restricted attachments already on this bearer, against the rules cap.
     restrictedCount(card: any): number {
         return (card.attachments || []).filter((attachment: any) =>
             this.profile.restrictedAttachments.includes(attachment.id)).length;

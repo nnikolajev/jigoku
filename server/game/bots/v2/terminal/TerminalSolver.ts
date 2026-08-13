@@ -1,3 +1,10 @@
+// Exact solver for positions that are actually about to end.
+//
+// When the stronghold is exposed, honor is at a terminal value, or a deck is
+// about to run out, heuristics are the wrong tool — the position is small
+// enough to solve. `TerminalStatus` distinguishes a forced win from merely
+// avoiding a forced loss, which is the only place in the bot where the answer
+// is proved rather than scored.
 import type { BotActionCandidate } from '../model/Candidate';
 import type { CharacterProjection, PlanningState, ProvinceProjection } from '../model/PlanningState';
 import type { ConflictType, PlayerId } from '../model/References';

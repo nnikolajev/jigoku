@@ -1,3 +1,8 @@
+// The omniscient counterpart: reads the opponent's true hand and provinces.
+//
+// Only reachable when the seat is explicitly configured omniscient. Same
+// interface as `FairInformationProvider`, so nothing downstream knows which
+// one it is talking to.
 import type { PlanningState } from '../model/PlanningState';
 import { immutable, stableHash } from '../model/Stable';
 import { normalizeCard, opponentId, responsePackages } from './InformationHelpers.js';

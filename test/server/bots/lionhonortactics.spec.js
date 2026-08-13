@@ -267,9 +267,6 @@ describe('LionHonorTactics', function() {
 
     describe('Kenson no Gakka', function() {
         it('names the honor province, which becomes the stronghold province', function() {
-            expect(tactics.isHonorProvince('kenson-no-gakka')).toBe(true);
-            expect(tactics.isHonorProvince('the-art-of-war')).toBe(false);
-            expect(tactics.isHonorProvince(undefined)).toBe(false);
             // The wide defense its "honor each defending character" reaction
             // wants comes free from the generic stronghold-defense rule; a
             // per-province defense buffer measured bit-identical at 0, 2 and 4
@@ -318,12 +315,6 @@ describe('LionHonorTactics', function() {
             expect(tactics.pickBattlefieldProvince([broken, art]).id).toBe('the-art-of-war');
         });
 
-        it('detects a Battlefield in play through a province attachment', function() {
-            expect(tactics.battlefieldInPlay([{ id: 'x', attachments: [{ id: 'under-amaterasu-s-gaze' }] }]))
-                .toBe(true);
-            expect(tactics.battlefieldInPlay([{ id: 'exposed-courtyard' }])).toBe(true);
-            expect(tactics.battlefieldInPlay([{ id: 'x', attachments: [] }])).toBe(false);
-        });
     });
 
     describe('Procedural Interference', function() {
@@ -413,7 +404,6 @@ describe('LionHonorTactics', function() {
             const source = character('kitsu-spiritcaller', { military: 1, inConflict: true });
             const body = character('body', { military: 4 });
             expect(recursion.gain([body], 'military', source)).toBe(3);
-            expect(recursion.shouldRecur([body], 'military', source)).toBe(true);
         });
     });
 });

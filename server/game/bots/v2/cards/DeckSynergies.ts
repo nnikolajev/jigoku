@@ -1,3 +1,10 @@
+// Cross-card relationships a per-card model cannot express.
+//
+// A card can be worth far more with a specific partner in play (a bow enabler
+// plus a payoff, a movement source plus a body). `DeckSynergyArchetype` names
+// the recognised deck shapes, and the edges adjust utility when both ends are
+// present. Imports the `*_DEFAULTS` constants from the V1 tactics modules so
+// the two engines classify decks the same way.
 import { DRAGON_ATTACHMENT_DEFAULTS } from '../../DragonAttachmentTactics.js';
 import { DRAGON_DEFAULTS } from '../../DragonTactics.js';
 import { DUEL_DEFAULTS } from '../../DuelTactics.js';
@@ -402,10 +409,6 @@ export default class DeckSynergyContributor {
             fateReserve: active.reduce((maximum, profile) => Math.max(maximum, profile.fateReserve || 0), 0),
             conflictCardReserve: active.reduce((maximum, profile) => Math.max(maximum, profile.conflictCardReserve || 0), 0)
         }) as DeckSynergyContribution;
-    }
-
-    profileIds(context: DeckSynergyContext): readonly DeckSynergyArchetype[] {
-        return inferredProfileIds(context);
     }
 
     defenderResponseReserve(context: DeckSynergyContext): number {

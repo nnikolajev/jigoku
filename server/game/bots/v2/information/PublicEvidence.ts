@@ -1,3 +1,7 @@
+// Extracts the publicly-observable facts from the serialised player state.
+//
+// The single chokepoint for "what may a fair bot know about the opponent",
+// which is what makes the fair/omniscient split auditable.
 import type { PublicOpponentEvidence } from './OpponentInformationProvider';
 
 function cards(value: any): any[] {

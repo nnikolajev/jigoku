@@ -1,3 +1,8 @@
+// Memoises expensive per-state projections within one decision.
+//
+// Keyed by (namespace, state hash) and freezes what it stores. The namespace
+// matters: card semantics and opponent information are computed from the same
+// state but must not share entries.
 import { deepFreeze } from './model/Stable';
 
 export type ProjectionCacheKind = 'card-semantics' | 'opponent-information';
@@ -31,7 +36,4 @@ export default class ProjectionCache {
         return { value, hit: false };
     }
 
-    get size(): number {
-        return this.values.size;
-    }
 }

@@ -1,3 +1,6 @@
+// The hand-authored `CardSemanticModel` table: V2's equivalent of
+// `CardPlaybook`, but describing effects declaratively so they can be
+// simulated rather than merely gated on.
 import type { CardSemanticModel } from './CardSemantics';
 import { boundedDynamicEvaluator } from './CardSemantics';
 import {

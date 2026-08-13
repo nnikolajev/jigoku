@@ -218,6 +218,8 @@ export interface HandDiscardOption {
 
 const HAND_COUNT_SUFFIX = /\s\((\d+)\)\s*$/;
 
+// Read the card ids out of a hand-discard prompt's buttons, so the choice
+// can be made on card identity rather than button text.
 export function parseHandDiscardOptions(buttons: any[]): HandDiscardOption[] {
     const options: HandDiscardOption[] = [];
     for(const button of buttons || []) {
@@ -239,20 +241,6 @@ export function parseHandDiscardOptions(buttons: any[]): HandDiscardOption[] {
 
 export class BidWarTactics {
     constructor(private profile: BidWarProfile) {}
-
-    get honorCeiling(): number {
-        return this.profile.honorCeiling;
-    }
-
-    // Gate for every ability that PAYS honor. Duty saves the LAST honor, not
-    // every point of it, so the floor still exists.
-    canPayHonor(myHonor: number): boolean {
-        return myHonor > this.profile.honorFloor;
-    }
-
-    inBand(myHonor: number): boolean {
-        return myHonor <= this.profile.honorCeiling;
-    }
 
     // ---- draw bidding -----------------------------------------------------
 
@@ -310,6 +298,8 @@ export class BidWarTactics {
 
     // ---- dial-difference cards -------------------------------------------
 
+    // Absolute gap between the two honor dials, 0 while either is unknown.
+    // Several of this deck's cards are priced off exactly this.
     dialDifference(myBid?: number, opponentBid?: number): number {
         const mine = Number(myBid);
         const theirs = Number(opponentBid);
@@ -317,37 +307,6 @@ export class BidWarTactics {
             return 0;
         }
         return Math.abs(mine - theirs);
-    }
-
-    // Make an Opening applies -X/-X where X is the absolute difference, so it
-    // is a debuff on THEIR participant and it is dead at X = 0.
-    makeAnOpeningValue(myBid?: number, opponentBid?: number): number {
-        const difference = this.dialDifference(myBid, opponentBid);
-        return difference >= this.profile.makeAnOpeningMinDifference ? difference : 0;
-    }
-
-    // I Can Swim needs our dial strictly higher AND a dishonored enemy
-    // participant. Unknown dials keep the card in hand rather than burning it
-    // on a cancel.
-    canSwim(myBid: number | undefined, opponentBid: number | undefined, opponentCharacters: any[]): boolean {
-        const mine = Number(myBid);
-        const theirs = Number(opponentBid);
-        if(!Number.isFinite(mine) || !Number.isFinite(theirs) || mine <= theirs) {
-            return false;
-        }
-        return (opponentCharacters || []).some((card) => card?.inConflict && card?.isDishonored);
-    }
-
-    // Regal Bearing sets our dial to 1 and draws |1 - theirBid|. It needs a
-    // participating Courtier and a political conflict; both are checked by the
-    // engine, so this only prices the draw.
-    regalBearingDraw(opponentBid?: number): number {
-        const theirs = Number(opponentBid);
-        if(!Number.isFinite(theirs) || theirs <= 0) {
-            return 0;
-        }
-        const draw = Math.abs(1 - theirs);
-        return draw >= this.profile.regalBearingMinDraw ? draw : 0;
     }
 
     // Social Puppeteer swaps the dials for the rest of the round. Worth the
@@ -412,27 +371,10 @@ export class BidWarTactics {
         });
     }
 
-    // Ready the bowed dishonored body with the most skill to recover; fall back
-    // to a ready participant for the band bonus.
-    pickStrongholdReadyTarget(cards: any[], myHonor: number): any | null {
-        const dishonored = (cards || []).filter((card) => card?.isDishonored);
-        const bowed = dishonored.filter((card) => card?.bowed)
-            .filter((card) => this.combinedSkill(card) >= this.profile.strongholdReadyMinSkill)
-            .sort((a, b) => this.combinedSkill(b) - this.combinedSkill(a) ||
-                this.uuid(a).localeCompare(this.uuid(b)));
-        if(bowed.length > 0) {
-            return bowed[0];
-        }
-        if(myHonor > this.profile.honorCeiling) {
-            return null;
-        }
-        return dishonored.filter((card) => card?.inConflict)
-            .sort((a, b) => this.combinedSkill(b) - this.combinedSkill(a) ||
-                this.uuid(a).localeCompare(this.uuid(b)))[0] || null;
-    }
-
     // ---- Bayushi Kachiko: playing out of the opponent's discard -----------
 
+    // Is Bayushi Kachiko 2 in a political conflict? Her ability only exists
+    // there.
     kachikoParticipating(myCharacters: any[], conflictType: string): boolean {
         return conflictType === 'political' && (myCharacters || []).some((card) =>
             card?.id === 'bayushi-kachiko-2' && card?.inConflict);
@@ -475,12 +417,6 @@ export class BidWarTactics {
             });
     }
 
-    kachikoDesiredAdditionalFate(cardId?: string): number | null {
-        return !!cardId && this.profile.kachikoImportantCharacterIds.includes(cardId)
-            ? this.profile.kachikoAdditionalFate
-            : null;
-    }
-
     // ---- Upholding Authority ---------------------------------------------
 
     // "Discard any number of copies of that card" — so the real question is
@@ -502,6 +438,8 @@ export class BidWarTactics {
         return perCopy + extraCopies * perCopy * this.profile.handDiscardCopyWeight;
     }
 
+    // Which card to give up to a forced hand discard, using the deck's own
+    // card-power ranking.
     pickHandDiscard(
         buttons: any[],
         power: (cardId: string) => BidWarCardPower | undefined,
@@ -540,10 +478,6 @@ export class BidWarTactics {
         return !!card?.id && this.profile.reverseHonorCardIds.includes(card.id);
     }
 
-    get reverseHonorCardIds(): readonly string[] {
-        return this.profile.reverseHonorCardIds;
-    }
-
     // ---- Acclaimed Geisha House ------------------------------------------
 
     // Cost: dishonor a friendly participant. That is nearly free with Sadako
@@ -580,6 +514,7 @@ export class BidWarTactics {
             .sort((a, b) => skill(b) - skill(a) || this.uuid(a).localeCompare(this.uuid(b)))[0] || null;
     }
 
+    // Set up Elegant Tessen on the right bearer ahead of the conflict.
     pickTessenSetup(
         hand: any[],
         myCharacters: any[],
@@ -629,11 +564,6 @@ export class BidWarTactics {
     }
 
     // ---- Alibi Artist -----------------------------------------------------
-
-    shouldDig(myHonor: number, myHandCount: number): boolean {
-        return myHonor <= this.profile.honorCeiling &&
-            myHandCount <= this.profile.alibiMaxHandCount;
-    }
 
     // ---- shared helpers ---------------------------------------------------
 

@@ -1,3 +1,10 @@
+// SHARED (V1 + V2). Despite the name, `applyV2DeckProfile` is called from
+// `JigokuBotController` on every seat, V1 included: it merges the optional
+// injected profile overrides into the resolved deck profile.
+//
+// That injection is the A/B mechanism — `--v2-profile` / `V2PROFILE` puts an
+// arm into ONE seat as a JSON string, so an experiment never needs a code
+// edit. See the `/roundrobin` skill.
 import type { DeckProfile } from '../DeckProfiles';
 import type { ConflictPhasePlannerProfile } from '../ConflictPhasePlanner';
 import type { ConflictIntentProfile } from '../DeckConflictIntents';

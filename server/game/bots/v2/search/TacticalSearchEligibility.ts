@@ -1,3 +1,7 @@
+// Decides whether a prompt is worth searching at all.
+//
+// Search is the most expensive thing V2 does and is worthless on the many
+// prompts with one sensible answer, so this gate runs first.
 import type { PlanningEligibilityResult } from '../PlanningEligibility';
 import type { BotActionCandidate } from '../model/Candidate';
 import type { PlanningState } from '../model/PlanningState';

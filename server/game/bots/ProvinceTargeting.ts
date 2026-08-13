@@ -1,3 +1,19 @@
+/**
+ * Chooses which province to attack, and in what order over a game.
+ *
+ * Three broken provinces open the stronghold (`BROKEN_PROVINCES_TO_ATTACK_STRONGHOLD`),
+ * so target ORDER is a whole-game plan rather than a per-conflict pick. The
+ * ranking prefers Eminent (faceup by rule, therefore usually deliberately
+ * weak) and low effective strength.
+ *
+ * `effectiveStrengthById` is where printed strength lies: Public Forum
+ * prevents its own first break, so one conquest there really costs two
+ * strength-3 breaks. That table adjusts target ORDER only — it never touches
+ * the engine's live break calculation.
+ *
+ * Fair bots must estimate a facedown province through `unknownStrength`; an
+ * omniscient seat supplies the true value via `KnownProvinceTarget`.
+ */
 const OUTER_PROVINCE_KEYS = ['one', 'two', 'three', 'four'];
 
 export const BROKEN_PROVINCES_TO_ATTACK_STRONGHOLD = 3;

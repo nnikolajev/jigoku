@@ -1,3 +1,9 @@
+// The per-decision record: what V2 considered, what it scored, whether it
+// disagreed with V1 and why.
+//
+// This is how a V2 arm is DIAGNOSED rather than merely measured — a win-rate
+// number says whether a lever worked, the trace says what it actually did.
+// Compare `BotTelemetry`, which is V1's equivalent sink.
 import type { BotDecision } from '../../BotEngine';
 import type { V2OverrideReason } from '../HighConfidenceOverridePolicy';
 import type { BotActionCandidate, CandidateVeto } from '../model/Candidate';

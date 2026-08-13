@@ -323,18 +323,6 @@ export class CraneHonorTactics {
         return numberOr(myHonor, 0) >= this.profile.honorWinCloseThreshold;
     }
 
-    honorToVictory(myHonor: number): number {
-        return Math.max(0, this.profile.honorVictoryTarget - numberOr(myHonor, 0));
-    }
-
-    /** Voluntary honor payment guard, on top of the shared honorRace limits. */
-    canSpendHonor(myHonor: number, cost: number): boolean {
-        if(cost <= 0) {
-            return true;
-        }
-        return numberOr(myHonor, 0) - cost > this.profile.honorSpendFloor;
-    }
-
     // ---- ring steering -----------------------------------------------------
 
     /**
@@ -500,17 +488,6 @@ export class CraneHonorTactics {
         )[0] || null;
     }
 
-    /**
-     * Festival for the Fortunes honors EVERY character, theirs included, so it
-     * only pays while we field more bodies than they do.
-     */
-    shouldPlayFestival(myCharacters: any[], opponentCharacters: any[]): boolean {
-        const mine = (myCharacters || []).filter((card) => card && !card.isHonored);
-        const theirs = (opponentCharacters || []).filter((card) => card && !card.isHonored);
-        return mine.length >= this.profile.festivalMinimumTargets &&
-            mine.length - theirs.length >= this.profile.festivalMinimumBoardLead;
-    }
-
     /** Elegance and Grace: up to 2 honored characters, 6 printed cost total. */
     eleganceTargets(myCharacters: any[], printedCosts?: Record<string, number>): any[] {
         const bowed = (myCharacters || []).filter((card) => card && card.bowed && card.isHonored);
@@ -531,11 +508,6 @@ export class CraneHonorTactics {
             }
         }
         return picked;
-    }
-
-    shouldPlayElegance(myCharacters: any[], printedCosts?: Record<string, number>): boolean {
-        return this.eleganceTargets(myCharacters, printedCosts).length >=
-            this.profile.eleganceMinimumTargets;
     }
 
     // ---- Way of the Chrysanthemum ------------------------------------------
@@ -646,7 +618,4 @@ export class CraneHonorTactics {
 
     // ---- Driven by Courage -------------------------------------------------
 
-    isAirProvince(provinceId?: string): boolean {
-        return !!provinceId && this.profile.airProvinceIds.includes(provinceId);
-    }
 }

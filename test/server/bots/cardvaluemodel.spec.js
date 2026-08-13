@@ -1,5 +1,5 @@
 
-const M = require('../../../build/server/game/bots/v2/CardValueModel.js');
+const M = require('../../../build/server/game/bots/shared/CardValueModel.js');
 
 function chr(overrides) {
     return Object.assign({

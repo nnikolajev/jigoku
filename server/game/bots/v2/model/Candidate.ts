@@ -1,3 +1,9 @@
+// One thing the bot could do, described before it is chosen.
+//
+// A candidate carries its command preview (what click it becomes), what it
+// costs, what it requires, how often it may be used, and how confident the
+// proposer is. Proposers contribute candidates; `UtilityEvaluator` scores
+// them; `SafetyVetoPipeline` can remove them.
 import type { BotCommandName, BotDecision } from '../../BotEngine';
 import type { ActionMacro } from './Macro';
 import type { EffectDescriptor } from './Effects';

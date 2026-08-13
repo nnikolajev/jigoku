@@ -113,17 +113,22 @@ export const STRONGHOLD_BOW_DEFAULTS: StrongholdBowProfile = {
 export class StrongholdBowTactics {
     constructor(public readonly profile: StrongholdBowProfile) {}
 
+    // Champion by trait or profile id. Champions are excluded from several
+    // targeting effects by their printed text.
     isChampion(card: any): boolean {
         return hasTrait(card, 'champion') ||
             (!!card?.id && this.profile.championCharacterIds.includes(card.id));
     }
 
+    // What a body is worth to its owner: skill on the axis, plus the fate and
+    // attachments already sunk into it.
     bodyValue(card: any, axis: Axis): number {
         return skillOf(card, axis) + numberOr(card?.fate, 0) * 2 +
             (card?.attachments || []).length * 2 +
             (this.profile.towerCharacterIds.includes(String(card?.id || '')) ? 2 : 0);
     }
 
+    // Legal targets, Champions removed.
     candidates(opponentCharacters: any[], axis: Axis): any[] {
         return (opponentCharacters || [])
             .filter((card) => card && !this.isChampion(card))
@@ -132,6 +137,7 @@ export class StrongholdBowTactics {
             .filter((card) => this.bodyValue(card, axis) >= this.profile.minimumSkill);
     }
 
+    // Highest-value legal target, with a uuid tie-break for determinism.
     pickTarget(opponentCharacters: any[], axis: Axis): any | null {
         return this.candidates(opponentCharacters, axis).slice()
             .sort((left, right) => this.bodyValue(right, axis) - this.bodyValue(left, axis) ||
@@ -161,10 +167,12 @@ export const CONFLICT_RECURSION_DEFAULTS: ConflictRecursionProfile = {
 export class ConflictRecursionTactics {
     constructor(public readonly profile: ConflictRecursionProfile) {}
 
+    // Is this card one of the recursion sources this profile knows about?
     isSource(cardId: string | undefined): boolean {
         return !!cardId && this.profile.sourceCardIds.includes(cardId);
     }
 
+    // Recursion value of a body: axis skill plus weighted glory.
     score(card: any, axis: Axis): number {
         return skillOf(card, axis) +
             gloryOf(card) * this.profile.gloryWeight +
@@ -189,9 +197,6 @@ export class ConflictRecursionTactics {
         return skillOf(best, axis) - paid;
     }
 
-    shouldRecur(bodies: any[], axis: Axis, source?: any): boolean {
-        return this.gain(bodies, axis, source) >= this.profile.minimumSkill;
-    }
 }
 
 // ---- dynasty EVENTS ------------------------------------------------------
@@ -234,10 +239,13 @@ export const DYNASTY_EVENT_DEFAULTS: DynastyEventProfile = {
 export class DynastyEventTactics {
     constructor(public readonly profile: DynastyEventProfile) {}
 
+    // Bushi by trait, plus any deck-specific ids the caller adds.
     isBushi(card: any, extraBushiIds: readonly string[] = []): boolean {
         return hasTrait(card, 'bushi') || (!!card?.id && extraBushiIds.includes(card.id));
     }
 
+    // The shared dynasty pick used by decks that have no special rule of
+    // their own: affordability first, then the caller's ranking.
     pick(input: {
         playable: any[];
         costs: Record<string, number>;

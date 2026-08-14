@@ -909,6 +909,11 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // element is revealed. Free fate, always fire. All five elements get an
     // entry so any deck's role works (Unicorn/Crab/Crane run air, Scorpion
     // runs earth).
+    //
+    // FALLBACK ONLY since 2026-08-13: the engine resolves these without a
+    // prompt (`optionSettings.autoTriggerRoleAbilities`, forced on for bot
+    // users in `JigokuBotConfig.buildBotUser`), so the bot no longer sees the
+    // window. Kept so the ranking is still correct if the option is ever off.
     'seeker-of-air': entry('seeker-of-air', {
         priority: 8,
         summary: 'gain 1 fate when an own air province is revealed'
@@ -3303,6 +3308,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     }),
 
     // ---- keeper roles (mirror the seeker entries: free fate reactions) ----
+    // Also fallback-only - the engine auto-resolves these, see the seeker block.
     'keeper-of-air': entry('keeper-of-air', {
         priority: 8,
         summary: 'gain 1 fate after winning an air conflict on defense'

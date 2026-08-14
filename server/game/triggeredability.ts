@@ -14,6 +14,7 @@ interface TriggeredAbilityProperties {
     aggregateWhen?: AggregateWhen;
     anyPlayer?: boolean;
     collectiveTrigger?: boolean;
+    autoResolve?: boolean;
     [key: string]: any;
 }
 
@@ -56,6 +57,12 @@ class TriggeredAbility extends CardAbility {
     aggregateWhen?: AggregateWhen;
     anyPlayer: boolean;
     collectiveTrigger: boolean;
+    /**
+     * Marks an optional reaction which is free, targetless and strictly
+     * beneficial, so that a triggered ability window may resolve it without
+     * prompting the controller. Opt-in per card - see the Seeker/Keeper roles.
+     */
+    autoResolve: boolean;
     events: RegisteredEvent[] | null = null;
 
     constructor(game: Game, card: BaseCard, abilityType: AbilityTypes, properties: TriggeredAbilityProperties) {
@@ -65,6 +72,21 @@ class TriggeredAbility extends CardAbility {
         this.anyPlayer = !!properties.anyPlayer;
         this.abilityType = abilityType;
         this.collectiveTrigger = !!properties.collectiveTrigger;
+        this.autoResolve = !!properties.autoResolve;
+    }
+
+    /**
+     * True when this ability may be resolved without prompting its controller.
+     * The card has to opt in via `autoResolve`, and the ability must have no
+     * targets and no cost, so that resolving it needs no further decisions.
+     */
+    canAutoResolve(): boolean {
+        return (
+            this.autoResolve &&
+            this.targets.length === 0 &&
+            this.cost.length === 0 &&
+            this.abilityType === AbilityTypes.Reaction
+        );
     }
 
     meetsRequirements(context: TriggeredAbilityContext, ignoredRequirements: string[] = []): string {

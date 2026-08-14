@@ -589,18 +589,18 @@ describe('conflict phase', function() {
                     expect(this.isawaKaede.bowed).toBe(true);
                 });
 
-                it('the defending player should be able to trigger Keeper of Void', function() {
+                it('the defending player should trigger Keeper of Void', function() {
+                    let fate = this.player2.fate;
                     this.noMoreActions();
-                    this.keeperOfVoid = this.player2.findCardByName('keeper-of-void');
-                    expect(this.player2).toHavePrompt('Triggered Abilities');
-                    expect(this.player2).toBeAbleToSelect(this.keeperOfVoid);
-
+                    // Keeper of Void auto-triggers - see
+                    // optionSettings.autoTriggerRoleAbilities.
+                    expect(this.player2.fate).toBe(fate + 1);
+                    expect(this.getChatLogs(10)).toContain('player2 uses Keeper of Void to gain 1 fate');
                 });
 
                 describe('if the defending player wins', function() {
                     beforeEach(function() {
                         this.noMoreActions();
-                        this.player2.clickCard('keeper-of-void');
                     });
 
                     it('player2 should have won the conflict', function() {

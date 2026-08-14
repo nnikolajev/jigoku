@@ -15,7 +15,8 @@ const defaultOptionSettings = {
     disableCardStats: false,
     showStatusInSidebar: false,
     sortHandByName: false,
-    showRingEffects: false
+    showRingEffects: false,
+    autoTriggerRoleAbilities: true
 };
 
 const defaultSettings = {
@@ -58,6 +59,7 @@ type User = {
             showStatusInSidebar: boolean;
             sortHandByName: boolean;
             showRingEffects: boolean;
+            autoTriggerRoleAbilities: boolean;
         }>;
         timerSettings: Partial<{
             events: boolean;

@@ -190,6 +190,8 @@ export interface TriggeredAbilityWhenProps extends AbilityProps<TriggeredAbility
     when: WhenType;
     collectiveTrigger?: boolean;
     anyPlayer?: boolean;
+    /** Resolve without prompting - free, targetless, always-taken reactions only. */
+    autoResolve?: boolean;
     target?: TriggeredAbilityTarget & TriggeredAbilityTarget;
     targets?: TriggeredAbilityTargets;
     handler?: (context: TriggeredAbilityContext) => void;

@@ -60,7 +60,11 @@ export function buildBotUser(config: JigokuBotConfig): any {
             disableGravatar: true,
             timerSettings: {},
             windowTimer: false,
-            optionSettings: {}
+            optionSettings: {
+                // Free role reactions (Seeker/Keeper fate) resolve without a
+                // prompt, so the bot never has to spend a decision on them.
+                autoTriggerRoleAbilities: true
+            }
         },
         promptedActionWindows: {
             dynasty: true,

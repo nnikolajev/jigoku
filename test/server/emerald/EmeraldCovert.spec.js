@@ -230,6 +230,7 @@ describe('Covert - Emerald Bug Checking', function() {
         });
 
         it('Reactions to declaration', function() {
+            let fate = this.player2.fate;
             this.noMoreActions();
             this.player1.clickRing('air');
             this.player1.clickCard(this.shameful);
@@ -238,9 +239,9 @@ describe('Covert - Emerald Bug Checking', function() {
             this.player1.clickPrompt('Initiate Conflict');
             this.player1.clickCard(this.sotorii);
 
-            expect(this.player2).toHavePrompt('Triggered Abilities');
-            expect(this.player2).toBeAbleToSelect(this.sov);
-            this.player2.clickCard(this.sov);
+            // Seeker of Void auto-triggers on the province reveal - see
+            // optionSettings.autoTriggerRoleAbilities.
+            expect(this.player2.fate).toBe(fate + 1);
             expect(this.player2).toHavePrompt('Choose defenders');
         });
 

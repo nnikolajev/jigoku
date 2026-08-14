@@ -7,12 +7,14 @@ class TriggeredAbilityWindow extends ForcedTriggeredAbilityWindow {
     complete: boolean;
     prevPlayerPassed: boolean;
     resolvedAbilitiesPerPlayer: Record<string, Array<{ ability: any; event: any }>>;
+    autoResolvedAbilities: Set<any>;
 
     constructor(game: any, abilityType: AbilityTypes, window: any, eventsToExclude: any[] = []) {
         super(game, abilityType, window, eventsToExclude);
         this.complete = false;
         this.prevPlayerPassed = false;
         this.resolvedAbilitiesPerPlayer = {};
+        this.autoResolvedAbilities = new Set();
     }
 
     showBluffPrompt(player: Player): boolean {
@@ -86,8 +88,34 @@ class TriggeredAbilityWindow extends ForcedTriggeredAbilityWindow {
 
         // Filter choices for current player, and prompt
         this.choices = this.choices.filter(context => context.player === this.currentPlayer && context.ability.isInValidLocation(context));
+
+        // Free, targetless reactions the player always triggers (the Seeker and
+        // Keeper roles) resolve without a prompt unless the player asked to be
+        // prompted for everything.
+        const autoChoice = this.getAutoResolveChoice();
+        if(autoChoice) {
+            this.autoResolvedAbilities.add(autoChoice.ability);
+            this.resolveAbility(autoChoice);
+            return false;
+        }
+
         this.promptBetweenSources(this.choices);
         return false;
+    }
+
+    /**
+     * Returns the first choice for the current player which can be resolved
+     * without asking them anything, or undefined when there is none.
+     */
+    getAutoResolveChoice(): any {
+        if(this.currentPlayer.optionSettings.autoTriggerRoleAbilities === false) {
+            return undefined;
+        }
+        return this.choices.find(context =>
+            !this.autoResolvedAbilities.has(context.ability) &&
+            typeof context.ability.canAutoResolve === 'function' &&
+            context.ability.canAutoResolve()
+        );
     }
 
     postResolutionUpdate(resolver: any): void {

@@ -17,6 +17,7 @@ single-base measurement has produced false positives here.
 | [bot-v2.md](bot-v2.md) | **REFERENCE** — why V2 exists (measurement rig, not an opponent) and the V1/shared/V2 boundary |
 | [deck-profiles.md](deck-profiles.md) | **REFERENCE** — how per-deck knowledge is injected as data instead of branches |
 | [implementing-cards.md](implementing-cards.md) | **REFERENCE** — writing a card in the game engine (not bot-specific) |
+| [auto-triggered-role-reactions.md](auto-triggered-role-reactions.md) | **SHIPPED** — Seeker/Keeper fate reactions resolve without a prompt (not bot-specific) |
 | [bot-dead-code-removed.md](bot-dead-code-removed.md) | **HISTORY** — what the 2026-08-13 cleanup deleted and why it was unreachable |
 
 ## V1 subsystems

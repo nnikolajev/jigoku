@@ -74,9 +74,8 @@ describe('Aranat', function() {
                 this.player2.clickCard(this.rallyToTheCause);
                 this.player2.clickCard(this.pilgrimage);
                 this.player2.clickPrompt('Done');
-                expect(this.player2).toHavePrompt('Triggered Abilities');
-                expect(this.player2).toBeAbleToSelect('seeker-of-water');
-                this.player2.clickCard('seeker-of-water');
+                // Seeker of Water auto-triggers on the reveal - see
+                // optionSettings.autoTriggerRoleAbilities.
                 expect(this.player2.fate).toBe(player2Fate + 1);
                 expect(this.player2).toHavePrompt('Play cards from provinces');
                 expect(this.aranat.fate).toBe(1);

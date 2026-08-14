@@ -10,6 +10,10 @@ export function createKeeperRole(id: string, element: Elements) {
         setupCardAbilities() {
             this.reaction({
                 title: 'Gain 1 fate',
+                // Free, targetless, strictly beneficial: players always trigger
+                // it, so it is eligible for auto-resolution. See
+                // `optionSettings.autoTriggerRoleAbilities`.
+                autoResolve: true,
                 when: {
                     afterConflict: (event, context) =>
                         (event.conflict as Conflict).elements.some((el) => this.hasTrait(el)) &&
@@ -33,6 +37,8 @@ export function createSeekerRole(id: string, element: Elements) {
         setupCardAbilities() {
             this.reaction({
                 title: 'Gain 1 fate',
+                // See the Keeper role above.
+                autoResolve: true,
                 when: {
                     onCardRevealed: (event, context) =>
                         event.card.controller === context.player &&

@@ -1,0 +1,1207 @@
+{
+    "$comment": "Tolerated pre-existing anti-slop findings. Regenerate with `npm run anti-slop:baseline` only after reviewing the diff. Never add entries by hand to silence new code.",
+    "upstream": "dmmulroy/anti-slop@6d538555cb151d4121ed51a27db81890eacf8ae9",
+    "targets": [
+        "server",
+        "test",
+        "tools"
+    ],
+    "generatedAt": "2026-08-20",
+    "total": 1234,
+    "totalsByRule": {
+        "require-safety-comment-for-type-assertion": 805,
+        "no-runtime-typeof": 244,
+        "no-known-value-widening": 79,
+        "no-unsafe-dictionary-type": 48,
+        "no-shape-in-symbol-names": 24,
+        "no-conditional-empty-object-spread": 21,
+        "no-unknown-parameters": 11,
+        "no-widen-then-assert": 1,
+        "no-chained-type-assertions": 1
+    },
+    "files": {
+        "server/db.js": {
+            "no-runtime-typeof": 1
+        },
+        "server/env.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/ErrorMonitoring.ts": {
+            "no-unsafe-dictionary-type": 1
+        },
+        "server/game/AbilityContext.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/AbilityTargets/AbilityTargetAbility.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/AbilityTargets/AbilityTargetCard.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/AbilityTargets/AbilityTargetElementSymbol.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/AbilityTargets/AbilityTargetRing.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/AbilityTargets/AbilityTargetSelect.ts": {
+            "no-runtime-typeof": 5
+        },
+        "server/game/AbilityTargets/AbilityTargetToken.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/baseability.ts": {
+            "no-unsafe-dictionary-type": 3,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/BaseAction.ts": {
+            "no-known-value-widening": 1,
+            "no-unsafe-dictionary-type": 2
+        },
+        "server/game/basecard.ts": {
+            "no-chained-type-assertions": 1,
+            "no-known-value-widening": 2,
+            "require-safety-comment-for-type-assertion": 33
+        },
+        "server/game/bots/AttachmentControlTactics.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/bots/BoardAwareDynastyTactics.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/bots/BotConfiguration.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/bots/BotTelemetry.ts": {
+            "no-unsafe-dictionary-type": 2,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/bots/CardPlaybook.ts": {
+            "no-known-value-widening": 3,
+            "no-runtime-typeof": 5,
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/bots/ConflictDeclarationPolicy.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/bots/ConflictPhasePlanner.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/bots/CrabSacrificeTactics.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 6
+        },
+        "server/game/bots/DeckAnalysis.ts": {
+            "no-known-value-widening": 2,
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/bots/DeckProfiles.ts": {
+            "no-conditional-empty-object-spread": 1
+        },
+        "server/game/bots/DragonTactics.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/bots/DrawBidTactics.ts": {
+            "no-known-value-widening": 1,
+            "no-unknown-parameters": 1,
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/bots/DuelBidTactics.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/bots/DynastyAbilityValue.ts": {
+            "no-known-value-widening": 1,
+            "no-runtime-typeof": 1
+        },
+        "server/game/bots/JigokuBotConfig.ts": {
+            "no-unsafe-dictionary-type": 1
+        },
+        "server/game/bots/JigokuBotController.ts": {
+            "no-conditional-empty-object-spread": 5,
+            "no-known-value-widening": 9,
+            "no-runtime-typeof": 64,
+            "no-unsafe-dictionary-type": 1,
+            "no-widen-then-assert": 1,
+            "require-safety-comment-for-type-assertion": 96
+        },
+        "server/game/bots/JigokuBotPolicy.ts": {
+            "no-known-value-widening": 4,
+            "no-runtime-typeof": 15,
+            "no-unsafe-dictionary-type": 7,
+            "require-safety-comment-for-type-assertion": 27
+        },
+        "server/game/bots/LionDuelistTactics.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/bots/OmniscientBotCapability.ts": {
+            "no-runtime-typeof": 12,
+            "require-safety-comment-for-type-assertion": 20
+        },
+        "server/game/bots/RebirthTactics.ts": {
+            "no-known-value-widening": 2,
+            "no-runtime-typeof": 1
+        },
+        "server/game/bots/shared/CardValueModel.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/bots/shared/ConflictActionPlanner.ts": {
+            "no-known-value-widening": 1
+        },
+        "server/game/bots/shared/DuelValueModel.ts": {
+            "no-known-value-widening": 3,
+            "no-shape-in-symbol-names": 6
+        },
+        "server/game/bots/shared/V2DeckProfiles.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/bots/SharedCardTactics.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/bots/ShugenjaTactics.ts": {
+            "no-known-value-widening": 5,
+            "no-runtime-typeof": 3
+        },
+        "server/game/bots/StrongholdDefenseTactics.ts": {
+            "no-known-value-widening": 1
+        },
+        "server/game/bots/UnicornRevealTactics.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/bots/UnicornTactics.ts": {
+            "no-known-value-widening": 1
+        },
+        "server/game/bots/v2/allocation/AttackerSetPlanner.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/bots/v2/allocation/CharacterAllocator.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/bots/v2/allocation/ParticipantSetPlanner.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/bots/v2/BoardValue.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/bots/v2/CandidateRegistry.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 8
+        },
+        "server/game/bots/v2/cards/CardSemantics.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/bots/v2/cards/DeckSynergies.ts": {
+            "require-safety-comment-for-type-assertion": 6
+        },
+        "server/game/bots/v2/cards/SemanticActionPlanner.ts": {
+            "require-safety-comment-for-type-assertion": 5
+        },
+        "server/game/bots/v2/HighConfidenceOverridePolicy.ts": {
+            "no-runtime-typeof": 3,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/bots/v2/information/ExactInformationProvider.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/bots/v2/information/FairInformationProvider.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/bots/v2/information/InformationHelpers.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/bots/v2/information/OpponentInformationProvider.ts": {
+            "no-unsafe-dictionary-type": 1
+        },
+        "server/game/bots/v2/information/PublicEvidence.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/bots/v2/IntentManager.ts": {
+            "no-known-value-widening": 10,
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/bots/v2/MacroExecutor.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/bots/v2/model/Ledgers.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/bots/v2/model/Stable.ts": {
+            "no-runtime-typeof": 2,
+            "no-unsafe-dictionary-type": 1,
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/bots/v2/model/Utility.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/bots/v2/PerspectiveSnapshotBuilder.ts": {
+            "no-runtime-typeof": 4,
+            "require-safety-comment-for-type-assertion": 5
+        },
+        "server/game/bots/v2/ProjectionCache.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/bots/v2/resources/ResourcePackagePlanner.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/bots/v2/SafetyVetoPipeline.ts": {
+            "require-safety-comment-for-type-assertion": 5
+        },
+        "server/game/bots/v2/search/EffectSimulator.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/bots/v2/search/TacticalSearch.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/bots/v2/terminal/TerminalSolver.ts": {
+            "no-known-value-widening": 5,
+            "require-safety-comment-for-type-assertion": 6
+        },
+        "server/game/bots/v2/tracing/PlannerProfiler.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/bots/v2/tracing/V2Trace.ts": {
+            "no-unsafe-dictionary-type": 2
+        },
+        "server/game/bots/v2/UtilityEvaluator.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/bots/v2/V2BotEngine.ts": {
+            "no-known-value-widening": 1,
+            "no-runtime-typeof": 1,
+            "no-unknown-parameters": 1,
+            "no-unsafe-dictionary-type": 1,
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/CardAbility.ts": {
+            "no-known-value-widening": 1,
+            "no-runtime-typeof": 3,
+            "no-unsafe-dictionary-type": 1,
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/CardAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/CardPackUtil.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/01-Core/_createRoles.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/01-Core/TheArtOfPeace.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/01-Core/Tranquility.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/01-Core/WayOfThePhoenix.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/02.3-ItFC/WarDogMaster.ts": {
+            "no-runtime-typeof": 2
+        },
+        "server/game/cards/04.1-BotK/SoshiShadowshaper.ts": {
+            "no-shape-in-symbol-names": 1
+        },
+        "server/game/cards/04.2-TL/UpholdingAuthority.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/04.3-TFW/InsultToInjury.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/04.3-TFW/SadaneStudent.ts": {
+            "no-known-value-widening": 1,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/06-CotE/IllustriousForge.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/06-CotE/KakitaToshimoko.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/06-CotE/MagnificentTriumph.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/06-CotE/StoriedDefeat.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/09.5-aCF/HenshinMysteries.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/09.6-SD/KakitasFinalStance.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/11-DoR/ThirdWhiskerWarrens.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/12-SoW/FuchiMura.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/14.1-RaW/PledgeOfLoyalty.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/14.6-Atonement/FireAndOil.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/15.1-TL/SelfUnderstanding.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/15.2-HiF/ShapeTheFlesh.ts": {
+            "no-shape-in-symbol-names": 2
+        },
+        "server/game/cards/16-UFLS-Oni/UndeadHorror.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/cards/16-UFLS/SpellScroll.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/cards/18.1-EL01/Crab/DeployedGarrison.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/18.1-EL01/Crab/WarCry.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/18.1-EL01/Dragon/DragonsClaw.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/18.1-EL01/Dragon/MirumotoRei.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/cards/18.1-EL01/Dragon/TogashiTsurumi.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/18.1-EL01/Neutral/EmpressRetainer.ts": {
+            "no-unknown-parameters": 1
+        },
+        "server/game/cards/18.1-EL01/Phoenix/RiddlesOfTheHenshin.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/18.1-EL01/Unicorn/TheEastWind.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/18.2-EL02/Unicorn/Naginata.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Crab/EarnestSculptor.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/19.1-AS01/Crab/ProtectedMerchant.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Crane/DaidojiAhma.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Crane/DesperateAide.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/19.1-AS01/Crane/StormFromSakkaku.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Dragon/KitsukiSeiji.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/cards/19.1-AS01/Dragon/NamelessBrother.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Dragon/VillageDoshin.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Lion/CornerThePrey.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Neutral/ToConnectThePeople.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/19.1-AS01/Neutral/ToGovernTheLand.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/19.1-AS01/Neutral/ToShowThePath.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Neutral/WritOfSanctification.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/19.1-AS01/Neutral/WritOfSurvey.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Phoenix/CeremonialRobes.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Phoenix/ParanoidHososhi.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/cards/19.1-AS01/Phoenix/ShibasOath.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/19.1-AS01/Scorpion/DisloyalOathkeeper.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Scorpion/IllusionaryDecoy.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Scorpion/KagiNawa.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Unicorn/Retribution.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/19.1-AS01/Unicorn/WhispersOfTheLordsOfDeath.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Crab/Coward.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Crab/EarthsStagnation.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Crab/MasterOfBindings.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/20-Core2/Crab/TillTheLastOneFalls.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Crab/WardOfEarthenThorns.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Crab/WrathstormDancer.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Crab/YuaTheOnibaba.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/20-Core2/Crane/CollectorOfFavors.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Crane/DaidojiAkikore.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Crane/DestinyRevealed.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/20-Core2/Crane/KakitaRusumi.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Crane/PatronOfTheTradingCouncil.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Crane/PromisingKohai.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Crane/ShowMeYourStance.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Dragon/BitingSteel.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/cards/20-Core2/Dragon/IndomitableWill.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Dragon/LetHimGoBy.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Dragon/MirumotoRei2.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Dragon/ToStormAFortress.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Dragon/TwoHands.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/20-Core2/Lion/AkodoYoshitsune.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Lion/ALegionOfOne.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Lion/AMatsuProvesTheirWorth.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Lion/CounselFromYumeDo.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Lion/DeclarationOfDominion.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/20-Core2/Lion/ForGreaterGlory.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Lion/IkomaYumiko.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Lion/LiaisonToTheAncestors.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Lion/MagariYari.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/cards/20-Core2/Lion/MatsuNobuiko.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Lion/ReadyForBattle.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Lion/StandYourGround.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Lion/WiseQuartermaster.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Neutral/AllDistancesAreOne.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/cards/20-Core2/Neutral/CompetingInterests.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Neutral/EaglesRestPeak.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Neutral/RediscoveredShrine.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Neutral/SeppunRyo.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Phoenix/AsakoKousuke.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Phoenix/DrawingTheVoid.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Phoenix/EnforcePropriety.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Phoenix/KaitoYoshiaki.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Phoenix/KinutanukiYoite.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/20-Core2/Phoenix/PalaceOfKnowledge.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Phoenix/ReligiousConclave.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Phoenix/SilentSuburb.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Scorpion/AwakeTheFearfulHeart.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Scorpion/BackhandedCompliment2.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Scorpion/HeirOfTheSerpent.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Scorpion/ShosuroHiroyuki.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/cards/20-Core2/Scorpion/ShosuroTechnique.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Scorpion/SpiderwebPassage.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Unicorn/_makeTwin.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Unicorn/DayOfBrotherHorse.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/20-Core2/Unicorn/DiplomatOfTheSteppes.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Unicorn/Hayate.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Unicorn/MotoOktai.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Unicorn/PassionatePoet.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Unicorn/ShinjoIsamu.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Unicorn/Spyglass2.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Unicorn/StarlitSkies.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Unicorn/TheSunWillRiseAgain.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/20-Core2/Unicorn/TheVoidOfWar.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/21-UEE/Crab/YasukiYoshi.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/21-UEE/Crane/TruthBurnsThroughLies.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/21-UEE/Dragon/KitsukiSano.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/21-UEE/Dragon/TranquilOverlookDojo.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/21-UEE/Lion/SenseisHeirloom.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/21-UEE/Lion/SteadfastOrator.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/21-UEE/Neutral/LightningAscends.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/21-UEE/Neutral/TributeToANewDawn.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/21-UEE/Unicorn/UnderTheNewMoon.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/22-SoD/Crab/CaretakerOfTheDeadEyes.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/22-SoD/Crane/ExcellenceAttained.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/22-SoD/Phoenix/SongOftheEmptyCity.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/22-SoD/Phoenix/VengefulKami.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/cards/22-SoD/Scorpion/BayushiRumormonger.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/22-SoD/Scorpion/Pressure.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/cards/AshigaruRecruit.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/ShibaGuardian.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/cards/SpiritOfTheRiver.ts": {
+            "no-known-value-widening": 1
+        },
+        "server/game/CardSelector.ts": {
+            "no-known-value-widening": 1,
+            "no-unsafe-dictionary-type": 1
+        },
+        "server/game/CardSelectors/BaseCardSelector.ts": {
+            "no-runtime-typeof": 2,
+            "no-unsafe-dictionary-type": 1
+        },
+        "server/game/chatcommands.ts": {
+            "require-safety-comment-for-type-assertion": 12
+        },
+        "server/game/conflict.ts": {
+            "no-runtime-typeof": 2,
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/CostReducer.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/Costs.ts": {
+            "no-runtime-typeof": 2,
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/costs/MetaActionCost.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/costs/ReduceableFateCost.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/Deck.ts": {
+            "require-safety-comment-for-type-assertion": 9
+        },
+        "server/game/drawcard.ts": {
+            "no-known-value-widening": 7,
+            "no-runtime-typeof": 6,
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/Duel.ts": {
+            "no-runtime-typeof": 3,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/DuelHelper.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/dynastycardaction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/EffectEngine.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/effects.ts": {
+            "no-known-value-widening": 1,
+            "no-unsafe-dictionary-type": 1
+        },
+        "server/game/Effects/DetachedEffect.ts": {
+            "no-unsafe-dictionary-type": 1
+        },
+        "server/game/Effects/DynamicEffect.ts": {
+            "no-runtime-typeof": 2,
+            "no-unsafe-dictionary-type": 1
+        },
+        "server/game/Effects/Effect.ts": {
+            "no-runtime-typeof": 1,
+            "no-unsafe-dictionary-type": 1
+        },
+        "server/game/Effects/EffectBuilder.ts": {
+            "no-runtime-typeof": 5,
+            "no-unknown-parameters": 1
+        },
+        "server/game/Effects/EffectValue.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/Effects/GainAbility.ts": {
+            "no-known-value-widening": 1,
+            "no-unsafe-dictionary-type": 1,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/Effects/GainAllAbilitiesDynamic.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/Effects/Library/cardCannot.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/Effects/PlayerEffect.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/Effects/restriction.ts": {
+            "no-known-value-widening": 1,
+            "no-runtime-typeof": 2
+        },
+        "server/game/Effects/StaticEffect.ts": {
+            "no-known-value-widening": 2,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/Effects/SuppressEffect.ts": {
+            "no-runtime-typeof": 1,
+            "no-unknown-parameters": 1
+        },
+        "server/game/EffectSource.ts": {
+            "no-unsafe-dictionary-type": 1,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/EventRegistrar.ts": {
+            "no-runtime-typeof": 2,
+            "no-unknown-parameters": 1
+        },
+        "server/game/Events/EventWindow.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/game.ts": {
+            "no-runtime-typeof": 1,
+            "no-unsafe-dictionary-type": 7,
+            "require-safety-comment-for-type-assertion": 15
+        },
+        "server/game/GameActions/AttachAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/CancelAction.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/CardGameAction.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/GameActions/ChooseGameAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/ChosenDiscardAction.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/GameActions/ChosenReturnToDeckAction.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/GameActions/ClaimRingAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/ConditionalAction.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/GameActions/DeckSearchAction.ts": {
+            "no-runtime-typeof": 4,
+            "no-unknown-parameters": 2,
+            "require-safety-comment-for-type-assertion": 7
+        },
+        "server/game/GameActions/DetachAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/DiscardCardAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/DiscardStatusAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/DishonorProvinceAction.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/GameActions/DuelAction.ts": {
+            "no-runtime-typeof": 2,
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/FateBidAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/FillProvinceAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/GainStatusTokenAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/GameAction.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/GloryCountAction.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/GameActions/HandlerAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/HonorBidAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/IfAbleAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/JointGameAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/JointGameContextAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/LastingEffectAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/LastingEffectCardAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/LastingEffectRingAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/LookAtAction.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/LoseFateAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/MatchingDiscardAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/MenuPromptAction.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/GameActions/ModifyBidAction.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/GameActions/MoveCardAction.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/GameActions/MoveToConflictAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/MoveTokenAction.ts": {
+            "require-safety-comment-for-type-assertion": 5
+        },
+        "server/game/GameActions/MultipleContextGameAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/MultipleGameAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/PlaceCardUnderneathAction.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/GameActions/PlaceFateAction.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/GameActions/PlaceFateAttachmentAction.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/GameActions/PlaceFateRingAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/PlayCardAction.ts": {
+            "require-safety-comment-for-type-assertion": 6
+        },
+        "server/game/GameActions/PutInProvinceAction.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/GameActions/PutIntoPlayAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/RandomDiscardAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/RefillFaceupAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/RemoveFateAction.ts": {
+            "require-safety-comment-for-type-assertion": 5
+        },
+        "server/game/GameActions/RemoveFromGameAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/ResolveAbilityAction.ts": {
+            "require-safety-comment-for-type-assertion": 6
+        },
+        "server/game/GameActions/ResolveElementAction.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/ReturnToDeckAction.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/GameActions/RevealAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/SelectCardAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/SelectRingActions.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/GameActions/SelectTokenAction.ts": {
+            "require-safety-comment-for-type-assertion": 5
+        },
+        "server/game/GameActions/SequentialAction.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/GameActions/SequentialContextAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameActions/SetDialAction.ts": {
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/GameActions/ShuffleDeckAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/TakeControlAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/TakeFateRingAction.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/GameActions/TakeRingAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameActions/TransferFateAction.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/GameActions/TransferHonorAction.ts": {
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/GameActions/TriggerAbilityAction.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GameChat.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/GameMode.ts": {
+            "no-known-value-widening": 4,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/GameObject.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/GamePipeline.ts": {
+            "no-runtime-typeof": 2
+        },
+        "server/game/gamesteps/actionwindow.ts": {
+            "no-runtime-typeof": 2
+        },
+        "server/game/gamesteps/conflict/attackersMatrix.ts": {
+            "require-safety-comment-for-type-assertion": 7
+        },
+        "server/game/gamesteps/conflict/conflictactionwindow.ts": {
+            "no-known-value-widening": 1
+        },
+        "server/game/gamesteps/conflict/conflictflow.ts": {
+            "no-runtime-typeof": 2,
+            "no-unsafe-dictionary-type": 1,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/gamesteps/conflict/initiateconflictprompt.ts": {
+            "no-known-value-widening": 1,
+            "require-safety-comment-for-type-assertion": 6
+        },
+        "server/game/gamesteps/conflict/selectdefendersprompt.ts": {
+            "no-known-value-widening": 1
+        },
+        "server/game/gamesteps/DynastyPhase.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/gamesteps/forcedtriggeredabilitywindow.ts": {
+            "require-safety-comment-for-type-assertion": 5
+        },
+        "server/game/gamesteps/handlermenuprompt.ts": {
+            "no-runtime-typeof": 2,
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/gamesteps/honorbidprompt.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/game/gamesteps/selectcardprompt.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/gamesteps/selectringprompt.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/gamesteps/setup/mulliganconflictprompt.ts": {
+            "require-safety-comment-for-type-assertion": 8
+        },
+        "server/game/gamesteps/setup/mulligandynastyprompt.ts": {
+            "require-safety-comment-for-type-assertion": 9
+        },
+        "server/game/gamesteps/setup/setupprovincesprompt.ts": {
+            "no-unsafe-dictionary-type": 1,
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/gamesteps/SetupPhase.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/gamesteps/SimultaneousEffectWindow.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/gamesteps/triggeredabilitywindow.ts": {
+            "no-runtime-typeof": 1,
+            "require-safety-comment-for-type-assertion": 3
+        },
+        "server/game/gamesteps/UiPrompt.ts": {
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "server/game/loader.ts": {
+            "no-known-value-widening": 1,
+            "no-unsafe-dictionary-type": 1
+        },
+        "server/game/PlayAttachmentAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/PlayAttachmentToRingAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/PlayDisguisedCharacterAction.ts": {
+            "require-safety-comment-for-type-assertion": 1
+        },
+        "server/game/player.ts": {
+            "no-known-value-widening": 1,
+            "no-unsafe-dictionary-type": 4,
+            "require-safety-comment-for-type-assertion": 44
+        },
+        "server/game/ProvinceCard.ts": {
+            "no-conditional-empty-object-spread": 1,
+            "no-known-value-widening": 2
+        },
+        "server/game/ring.ts": {
+            "no-unsafe-dictionary-type": 1
+        },
+        "server/game/ThenAbility.ts": {
+            "no-runtime-typeof": 4,
+            "no-unsafe-dictionary-type": 1,
+            "require-safety-comment-for-type-assertion": 4
+        },
+        "server/game/triggeredability.ts": {
+            "no-unsafe-dictionary-type": 1
+        },
+        "server/game/TriggeredAbilityContext.ts": {
+            "no-unknown-parameters": 1
+        },
+        "server/game/Utils/helpers.ts": {
+            "no-runtime-typeof": 1
+        },
+        "server/gamenode/GameServer.ts": {
+            "require-safety-comment-for-type-assertion": 9
+        },
+        "server/gamenode/WsSocket.ts": {
+            "no-unknown-parameters": 1
+        },
+        "server/lobby.js": {
+            "no-runtime-typeof": 1
+        },
+        "server/util.ts": {
+            "no-unknown-parameters": 1,
+            "require-safety-comment-for-type-assertion": 2
+        },
+        "test/helpers/effectpolarity.js": {
+            "no-runtime-typeof": 1
+        },
+        "test/server/bots/cardplaybookeventpricing.spec.js": {
+            "no-runtime-typeof": 1
+        },
+        "test/server/bots/jigokuheuristicbot.spec.js": {
+            "no-runtime-typeof": 2
+        },
+        "test/server/bots/specializedpolicycoverage.spec.js": {
+            "no-conditional-empty-object-spread": 4,
+            "no-runtime-typeof": 2
+        },
+        "test/server/bots/v2tacticaloverrides.spec.js": {
+            "no-conditional-empty-object-spread": 5
+        },
+        "test/server/cards/04.1-BotK/SoshiShadowshaper.spec.js": {
+            "no-shape-in-symbol-names": 10
+        },
+        "test/server/cards/15.2-HiF/ShapeTheFlesh.spec.js": {
+            "no-shape-in-symbol-names": 5
+        },
+        "tools/selfplay/_cardUsageWorker.js": {
+            "no-runtime-typeof": 1
+        },
+        "tools/selfplay/analyzeDuelBids.js": {
+            "no-runtime-typeof": 1
+        },
+        "tools/selfplay/analyzePolicyGame.js": {
+            "no-runtime-typeof": 1
+        },
+        "tools/selfplay/auditBotRegret.js": {
+            "no-runtime-typeof": 2
+        },
+        "tools/selfplay/botRoundRobin.js": {
+            "no-conditional-empty-object-spread": 1
+        },
+        "tools/selfplay/cardLab.js": {
+            "no-runtime-typeof": 3
+        },
+        "tools/selfplay/cardUsageAudit.js": {
+            "no-runtime-typeof": 1
+        },
+        "tools/selfplay/compareBotVersions.js": {
+            "no-runtime-typeof": 1
+        },
+        "tools/selfplay/exportReplay.js": {
+            "no-runtime-typeof": 2
+        },
+        "tools/selfplay/harness.js": {
+            "no-runtime-typeof": 3
+        },
+        "tools/selfplay/interactionAudit.js": {
+            "no-runtime-typeof": 11
+        },
+        "tools/selfplay/standardBenchmark.js": {
+            "no-conditional-empty-object-spread": 4,
+            "no-runtime-typeof": 1
+        },
+        "tools/selfplay/tuneBotV2.js": {
+            "no-runtime-typeof": 2
+        }
+    }
+}

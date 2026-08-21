@@ -61,6 +61,18 @@ export interface UnicornRevealProfile {
     scoutedTerrainCardId: string;
     scoutedTerrainCost: number;
     scoutedMinimumOpponentCompletedConflicts: number;
+    // Characters whose printed skill IS the fate left in our pool (Yoritomo).
+    // Bought out of an opening 6-fate pool they arrive as a vanilla 3/3 tower
+    // on an empty board, which is the opposite of what the reveal engine wants
+    // early: several bodies, several declarations, several flips.
+    fateScalingCharacterIds: string[];
+    // Fate that must remain in the pool AFTER paying the cost and the extra
+    // fate this deck puts on the body. Below it, the buy is declined.
+    fateScalingMinimumPoolAfterPlay: number;
+    // The gate lifts once this many of the opponent's outer provinces are
+    // faceup: at that point the board is wide enough, the pool is being fed by
+    // Shiro Shinjo, and one big body is the better use of the fate.
+    fateScalingWideBoardRevealedProvinces: number;
 }
 
 export const PROVINCE_REVEAL_RESPONSE_DEFAULTS: ProvinceRevealResponseProfile = {
@@ -127,7 +139,10 @@ export const UNICORN_REVEAL_DEFAULTS: UnicornRevealProfile = {
     laterRoundGoodOmenBidReduction: 1,
     scoutedTerrainCardId: 'scouted-terrain',
     scoutedTerrainCost: 4,
-    scoutedMinimumOpponentCompletedConflicts: 1
+    scoutedMinimumOpponentCompletedConflicts: 1,
+    fateScalingCharacterIds: ['yoritomo'],
+    fateScalingMinimumPoolAfterPlay: 2,
+    fateScalingWideBoardRevealedProvinces: 3
 };
 
 const rawSkill = (card: any, axis: 'military' | 'political'): number => {
@@ -249,6 +264,29 @@ export class UnicornRevealTactics {
             return textValue(right) - textValue(left) ||
                 String(left?.location || '').localeCompare(String(right?.location || ''));
         })[0] || null;
+    }
+
+    // Yoritomo's whole body is the fate we did NOT spend. Buying him down to
+    // an empty pool pays 5-6 fate for a 3/3, so decline while the pool cannot
+    // hold `fateScalingMinimumPoolAfterPlay` afterwards AND the reveal engine
+    // still wants width. `additionalFate` is what this deck would put on him;
+    // it is capped by what is actually left after the cost, the same way the
+    // additional-fate prompt caps it.
+    shouldPlayFateScalingCharacter(
+        cardId: string | undefined,
+        fate: number,
+        cost: number,
+        snapshot?: ProvinceKnowledgeSnapshot
+    ): boolean {
+        if(!cardId || !this.profile.fateScalingCharacterIds.includes(cardId)) {
+            return true;
+        }
+        if(this.opponentFaceupNonStronghold(snapshot) >= this.profile.fateScalingWideBoardRevealedProvinces) {
+            return true;
+        }
+        const afterCost = Math.max(0, (Number(fate) || 0) - Math.max(0, Number(cost) || 0));
+        const additional = Math.min(this.desiredAdditionalFate(cardId) ?? 0, afterCost);
+        return afterCost - additional >= this.profile.fateScalingMinimumPoolAfterPlay;
     }
 
     // Per-card trigger conditions for the deck's reveal payoffs.

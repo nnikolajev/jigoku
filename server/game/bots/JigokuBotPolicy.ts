@@ -7224,7 +7224,21 @@ class JigokuBotPolicy {
                 // engine cannot ride that loop until a deck runs out.
                 .filter((card: any) => card.id !== 'a-season-of-war' ||
                     !this.currentRebirth ||
-                    this.seasonOfWarUses < this.currentRebirth.profile.seasonOfWarMaxPerGame);
+                    this.seasonOfWarUses < this.currentRebirth.profile.seasonOfWarMaxPerGame)
+                // Yoritomo's skill IS the fate left in our pool, so an opening
+                // buy out of six fate puts a vanilla 3/3 on an empty board and
+                // leaves nothing for a second body. The reveal deck wants WIDTH
+                // early — more bodies, more declarations, more flips — so
+                // decline him until the pool survives the purchase, or until
+                // enough of their provinces are already faceup that the extra
+                // declarations no longer buy anything.
+                .filter((card: any) => !this.currentUnicornReveal ||
+                    this.currentUnicornReveal.shouldPlayFateScalingCharacter(
+                        card.id,
+                        Number(me?.stats?.fate) || 0,
+                        Number((dynastyCosts || {})[card.uuid]) || 0,
+                        this.currentProvinceKnowledge
+                    ));
 
             // Those Who Serve is a CONFLICT event played from HAND whose Action
             // is legal only during the dynasty phase: every character bought
@@ -10745,6 +10759,19 @@ class JigokuBotPolicy {
                 const sorted = this.sortByPreference(preferred, skillType, sourceHint.targetPreference);
                 return this.cardClickDecision(sorted[0], `hinted-target-${sourceHint.targetSide}`);
             }
+            // An opponent's FACEDOWN province is a legal target the bot cannot
+            // see: its summary carries no uuid, so it never reaches `theirs`.
+            // Border Fortress ("reveal a facedown province") therefore read as
+            // "no enemy target" while our OWN facedown provinces were
+            // selectable, cancelled, and after two cancels the source was
+            // cancel-vetoed for the round — the Action never fired at all.
+            // Click it by location, the way conflict declaration does.
+            if(sourceHint.targetSide === 'enemy') {
+                const facedownEnemy = this.facedownSelectableDecision(playerState, me, targetHint);
+                if(facedownEnemy) {
+                    return facedownEnemy;
+                }
+            }
             // No legal target on the intended side (e.g. Assassination with
             // only own cheap characters in the conflict): cancel the ability
             // rather than hit the wrong side; when forced, lose the least.
@@ -10789,6 +10816,14 @@ class JigokuBotPolicy {
         if(polarity === 'harmful') {
             if(theirs.length > 0) {
                 return this.cardClickDecision(this.sortBySkillDesc(theirs, skillType)[0], `${prefix}harm-opponent-card`);
+            }
+            // Same hidden-target blind spot as the hinted branch above: a
+            // harmful effect whose only enemy target is a facedown province
+            // sees an empty `theirs` and would cancel, or worse aim at our own
+            // board. Take the province by location first.
+            const facedownEnemy = this.facedownSelectableDecision(playerState, me, targetHint);
+            if(facedownEnemy) {
+                return facedownEnemy;
             }
             if(cancel && targetHint.sourceIsMine) {
                 return this.buttonDecision(cancel, 'cancel-wrong-side-target');

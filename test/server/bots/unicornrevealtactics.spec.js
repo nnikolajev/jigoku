@@ -157,4 +157,49 @@ describe('UnicornRevealTactics', function() {
         // Khanbulak Benefactor must stay at 0 to remain Dire.
         expect(UNICORN_REVEAL_DEFAULTS.additionalFateByCharacterId['khanbulak-benefactor']).toBe(0);
     });
+
+    describe('fate-scaling characters', function() {
+        const snapshot = (faceupOuter) => ({
+            self: [],
+            opponent: Array.from({ length: 4 }, (unused, index) => ({
+                location: `province ${index + 1}`,
+                owner: 'them',
+                faceup: index < faceupOuter,
+                broken: false,
+                stronghold: false
+            })),
+            opponentStrongholdAttackable: false,
+            combinedConflictSkills: false
+        });
+
+        it('declines Yoritomo out of an opening pool that cannot survive the buy', function() {
+            // Shiro Shinjo collects 6. Cost 5 plus the deck's 2 additional fate
+            // leaves nothing, so Yoritomo arrives as a vanilla 3/3 alone on the
+            // board — exactly what the reveal engine does not want early.
+            const tactics = new UnicornRevealTactics();
+            expect(tactics.shouldPlayFateScalingCharacter('yoritomo', 6, 5, snapshot(0))).toBe(false);
+            expect(tactics.shouldPlayFateScalingCharacter('yoritomo', 8, 5, snapshot(0))).toBe(false);
+            expect(tactics.shouldPlayFateScalingCharacter('yoritomo', 9, 5, snapshot(0))).toBe(true);
+        });
+
+        it('lifts the gate once enough of their provinces are already faceup', function() {
+            const tactics = new UnicornRevealTactics();
+            expect(tactics.shouldPlayFateScalingCharacter('yoritomo', 6, 5, snapshot(3))).toBe(true);
+        });
+
+        it('never gates a character that is not fate-scaling', function() {
+            const tactics = new UnicornRevealTactics();
+            expect(tactics.shouldPlayFateScalingCharacter('moto-horde', 6, 5, snapshot(0))).toBe(true);
+            expect(tactics.shouldPlayFateScalingCharacter(undefined, 0, 0, snapshot(0))).toBe(true);
+        });
+
+        it('keeps the gate injectable', function() {
+            const tactics = new UnicornRevealTactics({
+                ...UNICORN_REVEAL_DEFAULTS,
+                fateScalingCharacterIds: [],
+                fateScalingMinimumPoolAfterPlay: 99
+            });
+            expect(tactics.shouldPlayFateScalingCharacter('yoritomo', 6, 5, snapshot(0))).toBe(true);
+        });
+    });
 });

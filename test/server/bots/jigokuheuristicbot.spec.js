@@ -2216,6 +2216,54 @@ describe('Jigoku heuristic bot', function() {
         expect(decision.args).toEqual(['province 1', 'Human', true]);
     });
 
+    it('reveals the opposing facedown province rather than cancelling an enemy-side reveal', function() {
+        // A facedown province the bot does not control carries no uuid in its
+        // view, so it never reaches the "enemy targets" list. Border Fortress
+        // therefore looked like "no legal target on the intended side" while
+        // our OWN facedown provinces were selectable, cancelled, and after the
+        // second cancel the source was cancel-vetoed for the rest of the round.
+        const state = {
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    id: 'bot',
+                    promptTitle: 'Border Fortress',
+                    menuTitle: 'Choose a province',
+                    buttons: [{ text: 'Cancel', arg: 'cancel' }],
+                    cardPiles: { cardsInPlay: [], hand: [] },
+                    provinces: {
+                        one: [{
+                            id: 'ancestral-lands', uuid: 'own-province', type: 'province',
+                            isProvince: true, facedown: true, location: 'province 1',
+                            selectable: true, controller: { name: 'Jigoku Bot' }
+                        }],
+                        two: [], three: [], four: []
+                    }
+                },
+                'Human': {
+                    name: 'Human',
+                    id: 'human',
+                    provinces: {
+                        one: [{ facedown: true, location: 'province 1', selectable: true }],
+                        two: [], three: [], four: []
+                    },
+                    strongholdProvince: []
+                }
+            }
+        };
+
+        const decision = new JigokuBotPolicy('border-fortress-reveal').decide(state, 'Jigoku Bot', {
+            targetHint: {
+                gameActions: ['reveal'], sourceIsMine: true,
+                sourceType: 'province', sourceCardId: 'border-fortress'
+            },
+            cardHint: (id) => id === 'border-fortress' ? { targetSide: 'enemy' } : undefined
+        });
+
+        expect(decision.command).toBe('facedownCardClicked');
+        expect(decision.args).toEqual(['province 1', 'Human', true]);
+    });
+
     it('attacks the stronghold instead of the fourth outer province after 3 breaks', function() {
         const brokenProvince = (location) => ({
             isProvince: true, type: 'province', location: location, isBroken: true

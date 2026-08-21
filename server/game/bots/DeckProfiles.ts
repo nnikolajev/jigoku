@@ -1520,6 +1520,7 @@ const OVERRIDES: ProfileOverride[] = [
                 redirectSourceIds: [...UNICORN_REVEAL_DEFAULTS.redirectSourceIds],
                 firstConflictCharacterIds: [...UNICORN_REVEAL_DEFAULTS.firstConflictCharacterIds],
                 unrevealedProvinceAttackerIds: [...UNICORN_REVEAL_DEFAULTS.unrevealedProvinceAttackerIds],
+                fateScalingCharacterIds: [...UNICORN_REVEAL_DEFAULTS.fateScalingCharacterIds],
                 additionalFateByCharacterId: { ...UNICORN_REVEAL_DEFAULTS.additionalFateByCharacterId },
                 provinceTextPriorityById: { ...UNICORN_REVEAL_DEFAULTS.provinceTextPriorityById }
             }
@@ -2606,6 +2607,7 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     redirectSourceIds: [...override.apply.unicornReveal.redirectSourceIds],
                     firstConflictCharacterIds: [...override.apply.unicornReveal.firstConflictCharacterIds],
                     unrevealedProvinceAttackerIds: [...override.apply.unicornReveal.unrevealedProvinceAttackerIds],
+                    fateScalingCharacterIds: [...override.apply.unicornReveal.fateScalingCharacterIds],
                     additionalFateByCharacterId: {
                         ...override.apply.unicornReveal.additionalFateByCharacterId
                     },

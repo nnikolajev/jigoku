@@ -272,6 +272,81 @@ node tools/selfplay/validateBotInteractions.js --decks UnicornReveal --opponents
 node tools/selfplay/auditCards.js --decks UnicornReveal --seeds 1,2,3 --opponents all --modes fair --games 3 --workers 12 --out tools/selfplay/out/ur-cardaudit
 ```
 
+## Two defects found in a live replay (2026-08-21)
+
+Both came out of one human game (Unicorn Reveal bot vs a Phoenix human) and
+both were verified against the running self-play harness before and after the
+fix, on twelve games per opponent across Phoenix, CraneHonor, Lion and Crab.
+
+### Border Fortress never fired its Action
+
+**Symptom.** The bot defended a conflict at Border Fortress, the province
+message said it was breaking, and the bot passed the window without using
+"reveal a facedown province" — free value, on the deck whose entire engine is
+province reveals.
+
+**Cause, and it is a general one.** A province the bot does not control is
+serialized *without a uuid* while it is facedown (`basecard.getSummary` hides
+the uuid of any card the active player may not look at). `cardDecision` builds
+its "their cards" list from `findVisibleCards`, which requires a uuid, so an
+opponent's facedown province can never appear in `theirs`. Border Fortress
+carries `targetSide: 'enemy'`, so the hinted-target branch saw an empty enemy
+list next to two selectable *own* facedown provinces, cancelled — and after the
+second cancel `cancelledSources` cancel-vetoed `border-fortress` for the rest
+of the round, so the Action was dead from its first attempt onward.
+
+`facedownSelectableDecision` already existed for exactly this case (conflict
+declaration clicks a hidden province by `[location, controller, true]`), but it
+was only reachable when the selectable set was *completely* empty — which for
+this deck only happened once all of our own provinces were already faceup or
+broken. That is why it fired at all in the baseline instead of never.
+
+**Fix.** Try the facedown-by-location click before cancelling, in the
+`targetSide === 'enemy'` branch and in the generic harmful-polarity branch.
+Both are guarded by "an opposing facedown province is selectable in this very
+prompt", so they cannot fire on any other shape of prompt.
+
+| Border Fortress reveals per 12 games | before | after |
+|---|---:|---:|
+| vs Phoenix | 11 | 31 |
+| vs CraneHonor | 11 | 31 |
+| vs Lion | 11 | 29 |
+| vs Crab | 11 | 26 |
+
+### Yoritomo bought out of an empty opening pool
+
+**Symptom.** Round 1, Shiro Shinjo collects 6, and the bot spent all of it on
+Yoritomo (cost 5 plus 1 additional fate). Yoritomo's printed X is *the fate left
+in our pool*, so he arrived as a vanilla 3/3, alone on the board, with nothing
+left for a second body — on a deck that wants width early, because every extra
+declaration is another province flipped.
+
+**Fix.** `UnicornRevealTactics.shouldPlayFateScalingCharacter` filters him out
+of the dynasty `playable` list while the pool cannot survive the purchase. The
+gate is three knobs on `UnicornRevealProfile`, so it is an A/B arm rather than
+an edit:
+
+- `fateScalingCharacterIds` (`['yoritomo']`) — characters whose skill IS the
+  pool.
+- `fateScalingMinimumPoolAfterPlay` (`2`) — fate that must remain after the cost
+  AND the deck's own additional fate (`additionalFateByCharacterId.yoritomo`,
+  measured at 2 and left alone: cutting it to 0 lost 5.00pp).
+- `fateScalingWideBoardRevealedProvinces` (`3`) — the gate lifts once this many
+  of their outer provinces are faceup, because at that point the extra
+  declarations no longer buy flips and one big body is the better use.
+
+He is **deferred, not abandoned**: an unplayed dynasty card stays faceup in its
+province, so the next dynasty phase buys him with the pool banked. Over 36 games
+(six opponents x six games) he was offered in 24 games and bought in 18 of them
+(75%), never below 9 fate, earliest round 2. The baseline bought him in 24 of 28
+offered games (86%) — including three round-1 buys at 6 fate, which is the
+replay case.
+
+Win rate was not measured for either: the owner's call was that both are
+behaviour fixes whose win-rate effect sits in the noise floor, and the
+acceptance test was behavioural (Border Fortress must fire; Yoritomo must still
+be bought).
+
 ## Open leads
 
 Ranked by the size of the hole they would close, not by confidence:

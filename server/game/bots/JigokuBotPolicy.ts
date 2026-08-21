@@ -2454,6 +2454,42 @@ class JigokuBotPolicy {
         });
     }
 
+    // Rank ENEMY characters for a fixed-size fate strip. Taking one fate off a
+    // four-fate body buys nothing this game; taking the last fate off a
+    // one-fate body discards the character (and its attachments) in the fate
+    // phase. So the lowest fate goes first. A 0-fate candidate can only reach
+    // such a prompt when the source kills outright instead of removing fate
+    // (`RemoveFateAction.canAffect` rejects a 0-fate target), so it sorts
+    // first. Ties go to the biggest body — of two characters that die, kill
+    // the one that was worth more. `type` null ranks on both axes, for prompts
+    // that carry no conflict axis (the void ring resolves outside a conflict).
+    private sortByFateStripValue(cards: any[], type: string | null): any[] {
+        const skillOf = (card: any) => type === null
+            ? this.combinedSkillValue(card)
+            : (this.skillValue(card, type) || 0);
+        return cards.slice().sort((a, b) => {
+            const fateDiff = (Number(a.fate) || 0) - (Number(b.fate) || 0);
+            if(fateDiff !== 0) {
+                return fateDiff;
+            }
+            const skillDiff = skillOf(b) - skillOf(a);
+            return skillDiff !== 0 ? skillDiff : String(a.uuid).localeCompare(String(b.uuid));
+        });
+    }
+
+    // Only for prompts whose ONLY harmful action is the fate strip. A source
+    // that also bows, dishonors or discards wants the biggest body and keeps
+    // the skill ordering.
+    private prefersFateStrip(actionNames: string[]): boolean {
+        if(this.currentDeckProfile.fateRemovalKillFirst === false) {
+            return false;
+        }
+        if(!actionNames.includes('removeFate')) {
+            return false;
+        }
+        return !actionNames.some((name) => name !== 'removeFate' && HARMFUL_ACTIONS.has(name));
+    }
+
     // Floor the additional-fate answer during the save-fate profile's setup
     // rounds. Only ever raises: a deck that already banks two fate on a tower
     // keeps its own number. The floor overrides the economy's budget cap on
@@ -9830,8 +9866,14 @@ class JigokuBotPolicy {
             // EXACTLY as many targets as honor was bid, so this must keep
             // producing enemy bodies until the count is met — never our own.
             if(targetHint.sourceCardId === 'isawa-tsuke-2' && actionNames.includes('removeFate')) {
-                const ranked = rebirth.tsukeTargets(theirs, (card) =>
+                const eligible = rebirth.tsukeTargets(theirs, (card) =>
                     Math.max(liveSkillOf(card, 'military'), liveSkillOf(card, 'political')));
+                // Same list (so the honor bid, which counts it, is unchanged),
+                // re-ordered kill-first: each point of honor strips exactly one
+                // fate, so the bodies that actually die come first.
+                const ranked = this.prefersFateStrip(actionNames)
+                    ? this.sortByFateStripValue(eligible, axis)
+                    : eligible;
                 const next = ranked.find((card) => !card.selected &&
                     !this.isAttempted('cardClicked', [card.uuid]));
                 if(next) {
@@ -10788,7 +10830,13 @@ class JigokuBotPolicy {
             // conflict — aim at ready ones whenever any exist.
             const preferred = sourceHint.targetSide === 'self' ? this.preferReady(mine) : theirs;
             if(preferred.length > 0) {
-                const sorted = this.sortByPreference(preferred, skillType, sourceHint.targetPreference);
+                // A fate strip aimed at the opponent ignores the printed
+                // preference: Meditations on the Tao and Kuni Ritsuko both
+                // carried `most-fate`, which chips the body that needed the
+                // most chipping. Kill-first instead.
+                const sorted = sourceHint.targetSide === 'enemy' && this.prefersFateStrip(actionNames)
+                    ? this.sortByFateStripValue(preferred, skillType)
+                    : this.sortByPreference(preferred, skillType, sourceHint.targetPreference);
                 return this.cardClickDecision(sorted[0], `hinted-target-${sourceHint.targetSide}`);
             }
             // An opponent's FACEDOWN province is a legal target the bot cannot
@@ -10847,7 +10895,10 @@ class JigokuBotPolicy {
         const prefix = guessed ? 'guessed-' : '';
         if(polarity === 'harmful') {
             if(theirs.length > 0) {
-                return this.cardClickDecision(this.sortBySkillDesc(theirs, skillType)[0], `${prefix}harm-opponent-card`);
+                const ranked = this.prefersFateStrip(actionNames)
+                    ? this.sortByFateStripValue(theirs, skillType)
+                    : this.sortBySkillDesc(theirs, skillType);
+                return this.cardClickDecision(ranked[0], `${prefix}harm-opponent-card`);
             }
             // Same hidden-target blind spot as the hinted branch above: a
             // harmful effect whose only enemy target is a facedown province
@@ -10881,8 +10932,9 @@ class JigokuBotPolicy {
 
     // Ring effect resolutions target through cardCondition only (no game
     // action reaches the target hint), so aim them by prompt text: void
-    // strips fate from the opponent's fattest character (never its own —
-    // skipping is better), fire honors own / dishonors enemy, water bows the
+    // strips fate from the opponent's LOWEST-fate character, the one the
+    // single fate can finish off (never its own — skipping is better; see
+    // `fateRemovalKillFirst`), fire honors own / dishonors enemy, water bows the
     // opponent's strongest ready character or readies an own bowed one when
     // more conflicts remain, air weighs gaining 2 honor against taking 1.
     private ringResolutionDecision(playerState: any, me: any, promptTitle: string, menuTitle: string, buttons: any[], personalHonor: PersonalHonorTactics, dishonor: DishonorTactics | null = null): BotDecision | null {
@@ -10903,7 +10955,12 @@ class JigokuBotPolicy {
 
             if(menuTitle === 'Choose character to remove fate from') {
                 if(theirs.length > 0) {
-                    return this.cardClickDecision(byFateDesc(theirs)[0], 'void-ring-enemy-fate');
+                    // Kill-first: the lowest-fate enemy body is the one this
+                    // single fate can actually finish off.
+                    const ranked = this.currentDeckProfile.fateRemovalKillFirst === false
+                        ? byFateDesc(theirs)
+                        : this.sortByFateStripValue(theirs, null);
+                    return this.cardClickDecision(ranked[0], 'void-ring-enemy-fate');
                 }
                 if(dontResolve) {
                     // Stripping fate from our own character is worse than
@@ -10911,7 +10968,14 @@ class JigokuBotPolicy {
                     return this.buttonDecision(dontResolve, 'void-ring-skip');
                 }
                 if(mine.length > 0) {
-                    return this.cardClickDecision(byFateDesc(mine).reverse()[0], 'void-ring-forced-own');
+                    // Forced onto our own board (no decline button, no legal
+                    // enemy target). Hit our FATTEST body: it survives the
+                    // fate phase anyway, where our lowest-fate one would be
+                    // discarded outright.
+                    const forced = this.currentDeckProfile.fateRemovalKillFirst === false
+                        ? byFateDesc(mine).reverse()
+                        : byFateDesc(mine);
+                    return this.cardClickDecision(forced[0], 'void-ring-forced-own');
                 }
                 return null;
             }

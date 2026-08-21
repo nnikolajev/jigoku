@@ -1763,6 +1763,8 @@ describe('Jigoku heuristic bot', function() {
         const dontResolve = { text: 'Don\'t resolve', arg: 'dontResolve', uuid: 'skip' };
 
         it('void ring strips fate from the opponent, never its own character', function() {
+            // Kill-first: one fate off the 2-fate body changes nothing this
+            // game, while the 1-fate body is discarded in the fate phase.
             const policy = new JigokuBotPolicy('void-enemy');
             const decision = policy.decide(makeRingResolutionState(
                 'Choose character to remove fate from',
@@ -1770,7 +1772,7 @@ describe('Jigoku heuristic bot', function() {
                 [character('enemy-1', { fate: 1 }), character('enemy-2', { fate: 2 })],
                 [dontResolve]
             ), 'Jigoku Bot');
-            expect(decision.args[0]).toBe('enemy-2');
+            expect(decision.args[0]).toBe('enemy-1');
 
             // Only own characters legal: skip the ring instead of self-harm.
             const skip = new JigokuBotPolicy('void-skip');
@@ -1780,6 +1782,33 @@ describe('Jigoku heuristic bot', function() {
                 [],
                 [dontResolve]
             ), 'Jigoku Bot').target).toBe('Don\'t resolve');
+        });
+
+        it('void ring breaks a fate tie on the bigger body', function() {
+            const policy = new JigokuBotPolicy('void-tie');
+            const decision = policy.decide(makeRingResolutionState(
+                'Choose character to remove fate from',
+                [],
+                [
+                    character('enemy-small', { fate: 1 }),
+                    character('enemy-big', { fate: 1, militarySkillSummary: { stat: '6' } })
+                ],
+                [dontResolve]
+            ), 'Jigoku Bot');
+            expect(decision.args[0]).toBe('enemy-big');
+        });
+
+        it('void ring forced onto our own board hits the fattest body', function() {
+            // No decline button and no enemy target: our lowest-fate character
+            // would be discarded outright, the fattest one survives regardless.
+            const policy = new JigokuBotPolicy('void-forced');
+            const decision = policy.decide(makeRingResolutionState(
+                'Choose character to remove fate from',
+                [character('own-thin', { fate: 1 }), character('own-fat', { fate: 3 })],
+                [],
+                []
+            ), 'Jigoku Bot');
+            expect(decision.args[0]).toBe('own-fat');
         });
 
         it('fire ring honors own character, then the menu confirms it', function() {
@@ -4938,7 +4967,7 @@ describe('Jigoku heuristic bot', function() {
                     },
                     'Human': {
                         name: 'Human',
-                        cardPiles: { cardsInPlay: [character('enemy-strong', 6, 0), character('enemy-fat', 2, 3)] }
+                        cardPiles: { cardsInPlay: [character('enemy-strong', 6, 3), character('enemy-thin', 2, 1)] }
                     }
                 }
             };
@@ -4948,8 +4977,50 @@ describe('Jigoku heuristic bot', function() {
                 targetHint: { gameActions: ['removeFate'], sourceIsMine: true, sourceCardId: 'meditations-on-the-tao' },
                 cardHint: () => hint
             });
-            // most-fate preference beats the harmful-strongest default.
-            expect(decision.args[0]).toBe('enemy-fat');
+            // The hint takes the side (enemy, not our own 5-skill body); the
+            // fate strip then aims kill-first, overriding the printed
+            // `most-fate` preference, which would only have chipped the body
+            // that survives the fate phase anyway.
+            expect(decision.args[0]).toBe('enemy-thin');
+        });
+
+        it('aims an unhinted fate strip at the enemy body it can finish off', function() {
+            // Kuni Ritsuko's reaction reaches the generic harmful path with
+            // `removeFate` as its only action. Strongest-first would chip the
+            // 5-skill body that keeps two more fate; kill-first empties the
+            // one-fate body instead.
+            const character = (uuid, mil, fate) => ({
+                uuid: uuid, name: uuid, type: 'character', location: 'play area',
+                selectable: true, bowed: false, inConflict: true, fate: fate,
+                militarySkillSummary: { stat: String(mil) }, politicalSkillSummary: { stat: '0' }
+            });
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot',
+                        promptTitle: 'Kuni Ritsuko',
+                        menuTitle: 'Choose a character',
+                        selectCard: true,
+                        buttons: [],
+                        cardPiles: { cardsInPlay: [character('own-body', 3, 1)] }
+                    },
+                    'Human': {
+                        name: 'Human',
+                        cardPiles: { cardsInPlay: [character('enemy-strong', 5, 3), character('enemy-doomed', 2, 1)] }
+                    }
+                }
+            };
+            const decision = new JigokuBotPolicy('strip-generic').decide(state, 'Jigoku Bot', {
+                targetHint: { gameActions: ['removeFate'], sourceIsMine: true, sourceCardId: 'kuni-ritsuko' }
+            });
+            expect(decision.args[0]).toBe('enemy-doomed');
+
+            // A source that also bows wants the biggest body, not the
+            // cheapest kill: only a pure fate strip changes the ordering.
+            const combined = new JigokuBotPolicy('strip-combined').decide(state, 'Jigoku Bot', {
+                targetHint: { gameActions: ['removeFate', 'bow'], sourceIsMine: true, sourceCardId: 'kuni-ritsuko' }
+            });
+            expect(combined.args[0]).toBe('enemy-strong');
         });
     });
 

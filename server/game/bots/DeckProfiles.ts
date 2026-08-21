@@ -347,6 +347,18 @@ export interface DeckProfile {
     // `docs/bot-effect-polarity.md` and
     // `test/server/integration/botpolarity*.spec.js`.
     polarityGuards: boolean;
+    // Fate-strip targeting (2026-08-21). A source that removes a FIXED small
+    // amount of fate (the void ring, Kuni Ritsuko, Meditations on the Tao,
+    // Isawa Tsuke) was aiming at the opponent's FATTEST character, where one
+    // fate off a four-fate body changes nothing this game. On, it aims at the
+    // lowest-fate enemy body instead, because the character that loses its LAST
+    // fate is discarded in the fate phase. The engine already refuses a 0-fate
+    // target for `removeFate` itself (`RemoveFateAction.canAffect`), so a
+    // 0-fate candidate only appears when the source kills instead, and it
+    // sorts first. Never aims at our own board: the void ring declines the
+    // resolution rather than strip our own fate. `false` restores the
+    // pre-fix (highest-fate / highest-skill) ordering EXACTLY.
+    fateRemovalKillFirst: boolean;
     // The honor decks rank honor targets from a printed priority list. A bowed
     // character, and one at home, contribute no skill, so during a live
     // conflict that list happily spends the token for zero swing. On, a ready
@@ -774,6 +786,7 @@ export const DEFAULT_PROFILE: DeckProfile = {
     dynastyPrintedStats: false,
     shamefulDisplaySplitSides: true,
     polarityGuards: true,
+    fateRemovalKillFirst: true,
     honorTargetLiveSwing: true,
     eleganceRequiresUse: true,
     bidWarAware: false,

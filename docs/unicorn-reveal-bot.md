@@ -313,6 +313,43 @@ prompt", so they cannot fire on any other shape of prompt.
 | vs Lion | 11 | 29 |
 | vs Crab | 11 | 26 |
 
+### The same blind spot on every other reveal card (audited 2026-08-21)
+
+Fixing Border Fortress raised the obvious question: the deck runs five cards
+that reveal an opposing province. A full audit — every prompt in a Unicorn
+Reveal game where an opposing **facedown** province was selectable, ten
+opponents, sixty games — found the failure was **exactly** "a faceup opposing
+province was also selectable":
+
+| source | picks a hidden province when it is the only option | when a faceup one is also offered |
+|---|---|---|
+| Border Fortress | yes | n/a — its `cardCondition` is `isFacedown()` |
+| Iuchi Farseer | yes | n/a — restricted to "an opponent's facedown province" |
+| Chasing the Sun | yes | **no — took the faceup one, revealing nothing** |
+| Diversionary Maneuver | yes | **no** |
+| Overrun | never reached | **no — 10 of 10 prompts** |
+
+Chasing the Sun and Diversionary Maneuver both read "move the conflict ... and
+**reveal it, if able**"; moving onto an already-faceup province is the whole
+card wasted. Overrun's "dishonored token **and reveal it, if able**" loses half
+its text the same way.
+
+The cause is the same one as Border Fortress: hidden provinces carry no uuid, so
+they never reach the visible-card list. `UnicornRevealTactics.pickRevealTarget`
+already ranks hidden above faceup — it simply never receives a hidden province
+to rank. `preferFacedownRevealTarget` (new, default `true`) makes the
+by-location click win before that ranking is consulted, for every id in
+`revealSourceIds`.
+
+**Diversionary Maneuver needed a second fix.** It declares its game action at
+ABILITY level rather than on the target, so `currentTargetHint` returns
+`undefined` for its province chooser and no source-keyed branch can see it. That
+prompt is matched on its title instead (the prompt title is the source card's
+name, kebab-cased back into a card id).
+
+After both, the audit reads **zero missed flips** over sixty games and ten
+opponents. Every "reveal it, if able" now reveals something.
+
 ### Yoritomo bought out of an empty opening pool
 
 **Symptom.** Round 1, Shiro Shinjo collects 6, and the bot spent all of it on

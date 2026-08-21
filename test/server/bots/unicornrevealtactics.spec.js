@@ -158,6 +158,25 @@ describe('UnicornRevealTactics', function() {
         expect(UNICORN_REVEAL_DEFAULTS.additionalFateByCharacterId['khanbulak-benefactor']).toBe(0);
     });
 
+    it('prefers a still-hidden province for every reveal source', function() {
+        // Chasing the Sun, Diversionary Maneuver and Overrun all read "... and
+        // reveal it, if able" and all three also offer FACEUP opposing
+        // provinces. Only the faceup ones carry a uuid in the bot's view, so
+        // without this flag the pick landed on one of those and the reveal half
+        // of the card did nothing.
+        expect(UNICORN_REVEAL_DEFAULTS.preferFacedownRevealTarget).toBe(true);
+        expect(UNICORN_REVEAL_DEFAULTS.revealSourceIds).toEqual([
+            'border-fortress', 'iuchi-farseer', 'chasing-the-sun',
+            'diversionary-maneuver', 'overrun'
+        ]);
+        // pickRevealTarget already ranks hidden above faceup; it simply never
+        // receives a hidden province, which is why the flag is needed at all.
+        const tactics = new UnicornRevealTactics();
+        const faceup = { type: 'province', facedown: false, location: 'province 1' };
+        const hidden = { type: 'province', facedown: true, location: 'province 2' };
+        expect(tactics.pickRevealTarget([faceup, hidden])).toBe(hidden);
+    });
+
     describe('fate-scaling characters', function() {
         const snapshot = (faceupOuter) => ({
             self: [],

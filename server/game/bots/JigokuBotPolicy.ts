@@ -8870,6 +8870,25 @@ class JigokuBotPolicy {
             }
         }
 
+        // Hintless province chooser. Diversionary Maneuver declares its game
+        // action at ABILITY level, so its province target carries none and
+        // `currentTargetHint` drops the whole hint — the reveal branch above
+        // never sees it. The card is played to flip a HIDDEN province, and
+        // hidden provinces never reach `cards` because they carry no uuid, so
+        // without this the pick always lands on an already-faceup one and the
+        // "reveal it, if able" half of the card does nothing. Keyed on the
+        // prompt title, which is the source card's name.
+        const promptCardId = String(me?.promptTitle || '').toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        if(this.currentUnicornReveal?.profile.preferFacedownRevealTarget &&
+            title.includes('province') &&
+            this.currentUnicornReveal.profile.revealSourceIds.includes(promptCardId)) {
+            const hidden = this.facedownSelectableDecision(playerState, me, targetHint);
+            if(hidden) {
+                return hidden;
+            }
+        }
+
         const bySkill = this.sortBySkillDesc(cards, skillType);
         const preferred = cards.find((card) => title.includes('province') && card.type === 'province') ||
             cards.find((card) => title.includes('attacker') && card.type === 'character') ||
@@ -9306,6 +9325,19 @@ class JigokuBotPolicy {
             }
         }
         if(reveal && reveal.profile.revealSourceIds.includes(sourceId)) {
+            // A facedown opposing province carries no uuid, so it never reaches
+            // `theirs` and `pickRevealTarget`'s hidden-first ranking can only
+            // ever choose between provinces that are ALREADY faceup — on cards
+            // whose whole payoff is the flip. Take the hidden one first; this
+            // returns null on any prompt that offers no hidden province
+            // (including Diversionary Maneuver's character-move half), so the
+            // ranking below still decides those.
+            if(reveal.profile.preferFacedownRevealTarget) {
+                const hidden = this.facedownSelectableDecision(playerState, me, targetHint);
+                if(hidden) {
+                    return hidden;
+                }
+            }
             const target = reveal.pickRevealTarget(theirs);
             if(target) {
                 return this.cardClickDecision(target, `unicorn-reveal-${sourceId}-province`);

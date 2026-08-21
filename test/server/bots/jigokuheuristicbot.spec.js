@@ -3,6 +3,7 @@ const JigokuBotPolicy = require('../../../build/server/game/bots/JigokuBotPolicy
 const FateAwareJigokuBotPolicy = require('../../../build/server/game/bots/FateAwareJigokuBotPolicy.js');
 const { getPlaybookEntry, deriveDeckStrategy } = require('../../../build/server/game/bots/CardPlaybook.js');
 const { profileFromStrategy, resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
+const { UNICORN_REVEAL_DEFAULTS } = require('../../../build/server/game/bots/UnicornRevealTactics.js');
 
 describe('Jigoku heuristic bot', function() {
     function makePlayer(prompt, selectableCards = [], selectableRings = []) {
@@ -2262,6 +2263,90 @@ describe('Jigoku heuristic bot', function() {
 
         expect(decision.command).toBe('facedownCardClicked');
         expect(decision.args).toEqual(['province 1', 'Human', true]);
+    });
+
+    describe('reveal targets that are still facedown', function() {
+        // A province the bot does not control is serialized WITHOUT a uuid
+        // while it is facedown, so it can never reach the visible-card list
+        // these prompts pick from. Every "... and reveal it, if able" card in
+        // the Unicorn Reveal deck therefore resolved onto an already-faceup
+        // province and did nothing at all with its reveal half.
+        const revealProfile = () => ({
+            ...profileFromStrategy({}),
+            unicornReveal: UNICORN_REVEAL_DEFAULTS
+        });
+
+        const mixedProvinceState = (promptTitle, menuTitle) => ({
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    id: 'bot',
+                    promptTitle: promptTitle,
+                    menuTitle: menuTitle,
+                    buttons: [],
+                    cardPiles: { cardsInPlay: [], hand: [] },
+                    provinces: { one: [], two: [], three: [], four: [] }
+                },
+                'Human': {
+                    name: 'Human',
+                    id: 'human',
+                    provinces: {
+                        one: [{
+                            id: 'fertile-fields', uuid: 'their-faceup', type: 'province',
+                            isProvince: true, facedown: false, location: 'province 1',
+                            selectable: true, controller: { name: 'Human' }
+                        }],
+                        two: [{ facedown: true, location: 'province 2', selectable: true }],
+                        three: [], four: []
+                    },
+                    strongholdProvince: []
+                }
+            }
+        });
+
+        it('flips a hidden province instead of the visible one it can already see', function() {
+            const decision = new JigokuBotPolicy('overrun-reveal').decide(
+                mixedProvinceState('Overrun', 'Choose a province'),
+                'Jigoku Bot',
+                {
+                    profile: revealProfile(),
+                    targetHint: {
+                        gameActions: ['reveal'], sourceIsMine: true,
+                        sourceType: 'event', sourceCardId: 'overrun'
+                    },
+                    cardHint: (id) => id === 'overrun' ? { targetSide: 'enemy' } : undefined
+                }
+            );
+
+            expect(decision.command).toBe('facedownCardClicked');
+            expect(decision.args).toEqual(['province 2', 'Human', true]);
+        });
+
+        it('flips a hidden province on a chooser that carries no target hint at all', function() {
+            // Diversionary Maneuver declares its game action at ABILITY level,
+            // so its province target carries none and the controller drops the
+            // whole hint. The prompt title is the only surviving link to the
+            // source card.
+            const decision = new JigokuBotPolicy('diversionary-reveal').decide(
+                mixedProvinceState('Diversionary Maneuver', 'Choose a province'),
+                'Jigoku Bot',
+                { profile: revealProfile() }
+            );
+
+            expect(decision.command).toBe('facedownCardClicked');
+            expect(decision.args).toEqual(['province 2', 'Human', true]);
+        });
+
+        it('leaves the visible pick alone for a deck without the reveal profile', function() {
+            const decision = new JigokuBotPolicy('no-reveal-profile').decide(
+                mixedProvinceState('Diversionary Maneuver', 'Choose a province'),
+                'Jigoku Bot',
+                {}
+            );
+
+            expect(decision.command).toBe('cardClicked');
+            expect(decision.args[0]).toBe('their-faceup');
+        });
     });
 
     it('attacks the stronghold instead of the fourth outer province after 3 breaks', function() {

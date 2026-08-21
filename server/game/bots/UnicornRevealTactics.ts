@@ -44,6 +44,14 @@ export interface ProvinceRevealResponseProfile {
 export interface UnicornRevealProfile {
     preferOpponentStrongholdReveal: boolean;
     revealSourceIds: string[];
+    // Chasing the Sun, Diversionary Maneuver and Overrun all read "... and
+    // reveal it, if able", and all three offer FACEUP opposing provinces
+    // alongside facedown ones. Only the faceup ones carry a uuid in the bot's
+    // view, so the generic enemy-side pick always landed on one and the reveal
+    // half of the card did nothing at all. `pickRevealTarget` already ranks
+    // hidden above faceup; it simply never receives a hidden province. This
+    // makes the hidden one win before that ranking is reached.
+    preferFacedownRevealTarget: boolean;
     redirectSourceIds: string[];
     firstConflictCharacterIds: string[];
     unrevealedProvinceAttackerIds: string[];
@@ -104,6 +112,7 @@ export const UNICORN_REVEAL_DEFAULTS: UnicornRevealProfile = {
         'border-fortress', 'iuchi-farseer', 'chasing-the-sun',
         'diversionary-maneuver', 'overrun'
     ],
+    preferFacedownRevealTarget: true,
     redirectSourceIds: ['chasing-the-sun', 'diversionary-maneuver'],
     firstConflictCharacterIds: ['white-horde-vanguard'],
     // Every character here has a reveal-triggered reaction that needs it

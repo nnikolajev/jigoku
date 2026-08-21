@@ -25,6 +25,13 @@ function rng(seed) {
 
 const BASE = Number(process.env.BASE || 77001);
 const ENGINE = process.env.ENGINE || 'v1';
+// OMNI=1 runs the same slate with seat 0 omniscient. The fair slate cannot see
+// a change to the hidden-information path at all — every omniscient branch is
+// dormant in it — so a capability refactor needs this hash too.
+const OMNI = process.env.OMNI === '1';
+// PROFILE injects a deck-profile override into BOTH seats, so a knob set to its
+// OWN default can be asserted to be a no-op.
+const PROFILE = process.env.PROFILE ? JSON.parse(process.env.PROFILE) : undefined;
 
 (async () => {
     const lines = [];
@@ -38,7 +45,9 @@ const ENGINE = process.env.ENGINE || 'v1';
             deckA: getDeckLoader(DECK_LABELS[i])(),
             deckB: getDeckLoader(DECK_LABELS[j])(),
             engineVersions: [ENGINE, ENGINE],
-            v2Modes: ENGINE === 'v2' ? ['pass-through', 'pass-through'] : []
+            v2Modes: ENGINE === 'v2' ? ['pass-through', 'pass-through'] : [],
+            omniscient: [OMNI, false],
+            v2Profiles: PROFILE ? [PROFILE, PROFILE] : []
         });
         lines.push(`${DECK_LABELS[i]} vs ${DECK_LABELS[j]}  winner=${result.winner} ` +
             `rounds=${result.rounds} steps=${result.steps} reason=${result.winReason} ` +
@@ -47,5 +56,6 @@ const ENGINE = process.env.ENGINE || 'v1';
     for(const line of lines) {
         console.log(line);
     }
-    console.log(`SHA ${crypto.createHash('sha256').update(lines.join('\n')).digest('hex').slice(0, 16)}`);
+    console.log(`SHA ${crypto.createHash('sha256').update(lines.join('\n')).digest('hex').slice(0, 16)}` +
+        `  (engine=${ENGINE} omni=${OMNI ? 'seat0' : 'off'}${PROFILE ? ' profile=injected' : ''})`);
 })().catch((e) => { console.error(e); process.exit(1); });

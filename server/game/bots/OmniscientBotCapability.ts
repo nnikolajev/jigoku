@@ -1,4 +1,5 @@
 import { logger } from '../../logger.js';
+import { Locations } from '../Constants.js';
 import type Game from '../game';
 import type Player from '../player';
 import { buildHandThreatMatrix, getCardModel } from './DeckAnalysis.js';
@@ -13,6 +14,12 @@ import type { KnownCard, OmniProvince, Omniscient } from './DeckAnalysis';
  */
 export default class OmniscientBotCapability {
     private deckAnalysisChecked = false;
+    // `cardCanTargetOpponentWith` walks an ability tree and regexes the card
+    // text, and `build` runs it over every hidden card on EVERY decide tick.
+    // The answer is a property of the printed card, so cache it by id — but
+    // only for cards OUTSIDE play, whose abilities cannot have been rewritten
+    // by a live effect. An in-play card falls through and is recomputed.
+    private readonly targetingByCardId = new Map<string, boolean>();
 
     constructor(
         private game: Game,
@@ -26,6 +33,21 @@ export default class OmniscientBotCapability {
         }
         const parsed = Number.parseInt(String(value).replace(/^\+/, ''), 10);
         return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    private cachedTargeting(card: any, key: string, compute: () => boolean): boolean {
+        const id = String(card?.id || '');
+        if(id === '' || card?.location === Locations.PlayArea) {
+            return compute();
+        }
+        const cacheKey = `${id}|${key}`;
+        const cached = this.targetingByCardId.get(cacheKey);
+        if(cached !== undefined) {
+            return cached;
+        }
+        const computed = compute();
+        this.targetingByCardId.set(cacheKey, computed);
+        return computed;
     }
 
     private cardCanTargetOpponentWith(card: any, actions: Set<string>, textPattern: RegExp): boolean {
@@ -80,16 +102,17 @@ export default class OmniscientBotCapability {
     // Could this card remove a defender from the conflict? Used to price the
     // threat sitting in a hand we are allowed to see.
     cardCanDisableDefender(card: any): boolean {
-        return this.cardCanTargetOpponentWith(
+        return this.cachedTargeting(card, 'disable', () => this.cardCanTargetOpponentWith(
             card,
             new Set(['bow', 'sendHome', 'discardFromPlay', 'returnToHand', 'returnToDeck', 'removeFromGame']),
             /\bbow\b|send[^.]*\bhome\b|discard[^.]*character[^.]*from play|remove[^.]*character[^.]*from the conflict/
-        );
+        ));
     }
 
     // Could this card bow one of our characters?
     cardCanBowOpponent(card: any): boolean {
-        return this.cardCanTargetOpponentWith(card, new Set(['bow']), /\bbow\b/);
+        return this.cachedTargeting(card, 'bow', () =>
+            this.cardCanTargetOpponentWith(card, new Set(['bow']), /\bbow\b/));
     }
 
     // Collapse a live card into the model the policy reasons over.
@@ -126,12 +149,17 @@ export default class OmniscientBotCapability {
         };
     }
 
+    // Every card a side has on the table. One place does the live-pile unwrap so
+    // callers below reason over a plain array.
+    private cardsInPlay(player: Player | undefined): any[] {
+        const pile = (player as any)?.cardsInPlay;
+        return pile && typeof pile.toArray === 'function' ? pile.toArray() : [];
+    }
+
     // Does the opponent have a bow available against a participant right now?
     opponentParticipantCanBow(me: Player): boolean {
         const opp = (me as any).opponent as Player | undefined;
-        const cards: any[] = typeof (opp as any)?.cardsInPlay?.toArray === 'function'
-            ? (opp as any).cardsInPlay.toArray()
-            : [];
+        const cards = this.cardsInPlay(opp);
         return cards.some((card) => card?.type === 'character' && card.inConflict && !card.bowed && (
             this.cardCanBowOpponent(card) ||
             (card.attachments || []).some((attachment: any) => this.cardCanBowOpponent(attachment))
@@ -194,10 +222,24 @@ export default class OmniscientBotCapability {
         return count;
     }
 
+    // Ready bodies a side can still send into a conflict. A hand's threat is
+    // capped by whether its cards have anything to point at: with no ready body
+    // of their own a pump has no bearer, and with none of ours removal has no
+    // target. This mirrors `handThreatPreconditions` on the fair estimate.
+    private readyCount(player: Player | undefined): number {
+        return this.cardsInPlay(player)
+            .filter((card) => card?.type === 'character' && !card.bowed).length;
+    }
+
     // The whole hidden-information view: exact hand, exact province strengths
     // and the derived threat matrix. Returns undefined when the capability is
     // off, which is how every fair seat gets nothing.
-    build(me: Player): Omniscient | undefined {
+    //
+    // `realism` prices the opponent's hand the way the bot already prices its
+    // own — against their real honor and against the bodies actually on the
+    // table. Off (the default) keeps the honor-blind, board-blind matrix the
+    // shipped omniscient profiles were measured with.
+    build(me: Player, realism = false): Omniscient | undefined {
         if(!this.enabled) {
             return undefined;
         }
@@ -211,14 +253,22 @@ export default class OmniscientBotCapability {
         const unmodeledEvents = Array.from(new Set(
             oppHand.filter((card) => card.type === 'event' && !getCardModel(card.id)).map((card) => card.id)
         ));
+        // Honor is a real budget and it is exactly visible from this seat, so
+        // there is no reason to price an honor-costed trick as free.
+        const oppHonor = realism ? Math.max(0, Number((opp as any).honor) || 0) : undefined;
+        // Sides flip relative to the fair estimate: this matrix models THEIR
+        // hand, so their bodies are the friendly ones.
+        const board = realism
+            ? { friendlyParticipants: this.readyCount(opp), enemyParticipants: this.readyCount(me) }
+            : undefined;
         return {
             oppName: (opp as any).name,
             oppFate,
             oppHand,
             oppProvinces: this.opponentProvinces(opp),
             handThreatMatrix: {
-                military: buildHandThreatMatrix(oppHand, oppFate, 'military'),
-                political: buildHandThreatMatrix(oppHand, oppFate, 'political')
+                military: buildHandThreatMatrix(oppHand, oppFate, 'military', oppHonor, board),
+                political: buildHandThreatMatrix(oppHand, oppFate, 'political', oppHonor, board)
             },
             affordableDefenderDisables: this.affordableDefenderDisableCount(oppHand, oppFate),
             unmodeledEvents

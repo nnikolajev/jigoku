@@ -155,7 +155,13 @@ class JigokuBotController {
     }
 
     private buildOmniscient(me: Player) {
-        return this.omniscientCapability.build(me);
+        // `omniscientThreatRealism` decides whether the opponent's hand is
+        // priced against their real honor and the bodies actually on the table.
+        // Reading the profile here keeps the capability free of deck knowledge.
+        return this.omniscientCapability.build(
+            me,
+            this.decisionProfile(me)?.omniscientThreatRealism === true
+        );
     }
 
     // L5R deck lists are known information. Expose the opponent's complete

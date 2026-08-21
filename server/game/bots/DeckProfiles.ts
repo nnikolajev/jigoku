@@ -191,6 +191,35 @@ export interface DeckProfile {
                                              // known affordable response exists
     useOmniscientTokenDefense: boolean; // use exact hand to chump only when the
                                          // attack still cannot break
+    // The omniscient hand-threat matrix is built ONCE per decide tick, and it
+    // was built honor-blind and board-blind while the fair estimate right next
+    // to it (`handThreatPreconditions`, default true) is neither. So the cheat
+    // systematically OVER-prices the opponent's hand: Assassination reads as 4
+    // free skill at 0 honor, and a pump reads as skill with no body to carry
+    // it. Every broad omniscient lever ever rejected here failed by
+    // over-committing or over-conceding against exactly that inflated number.
+    // Turning this on prices the opponent's hand the way the bot already
+    // prices its own. Default false reproduces the measured behaviour.
+    omniscientThreatRealism: boolean;
+    // Choose the conflict axis by which one breaks the target province with the
+    // FEWEST bodies, not by which one is furthest ahead. Only decidable with
+    // exact information (true province strength, their real affordable answer),
+    // and it is the one omniscient lever whose payoff is a kept ready body
+    // rather than a bigger conflict win. Falls back to whatever axis rule the
+    // profile already used whenever neither axis breaks or both cost the same.
+    // Default false reproduces the measured behaviour.
+    omniscientCheapestBreakAxis: boolean;
+    // The conflict-phase rollout's model of what the opponent can answer with.
+    // Omniscience used to supply the exact number for FREE — no profile opted
+    // in — which made the rollout assume ~4 skill of answer in 74% of windows
+    // where a fair bot assumes zero, and only ever made it declare more
+    // cautiously. Measured 2026-08-21: turning it OFF is worth +1.55pp
+    // (p=0.0016, 3264 paired games over six bases, positive on three fresh
+    // bases). Now DEFAULT FALSE — the rollout uses the fair `fairDefenseBuffer`
+    // path on every seat. Set true to restore the old exact-threat behaviour.
+    // Unreachable for a fair bot either way: the branch requires
+    // `context.omniscient`. See docs/omniscient-bot.md.
+    omniscientPlannerHandThreat: boolean;
 
     // ---- defense ----
     defenseCommitment: DefenseCommitment;
@@ -656,6 +685,9 @@ export const DEFAULT_PROFILE: DeckProfile = {
     omniscientEarthRingThreatBonus: 0,
     omniscientAttackResponseBuffer: 0,
     useOmniscientTokenDefense: false,
+    omniscientThreatRealism: false,
+    omniscientCheapestBreakAxis: false,
+    omniscientPlannerHandThreat: false,
     defenseCommitment: 'prevent-break',
     spendCardsOnDefense: true,
     preventBreakAfterBrokenProvinces: 0,

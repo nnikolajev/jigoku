@@ -565,6 +565,10 @@ class JigokuBotPolicy {
     // branches: FateAwareJigokuBotPolicy opts in through the protected hook.
     private fateAwareRoundNumber = 0;
     private currentRoundNumber = 1;
+    // BotTelemetry is a global sink that records BOTH seats. Every omniscient
+    // event carries the seat name so a probe can attribute a firing to the
+    // treated side instead of counting the opponent's firings as its own.
+    private currentSeatName = '';
     private fateAwareDynastyStartFate: number | null = null;
     private fateAwareBoughtCharacter = false;
     private fateAwareBoughtCount = 0;
@@ -636,6 +640,7 @@ class JigokuBotPolicy {
         this.tempoReadCache.clear();
         this.currentRoundNumber = context.roundNumber ?? this.currentRoundNumber;
         this.currentOmniscient = context.omniscient;
+        this.currentSeatName = String(me?.name || botName || '');
         this.currentOpponentParticipantCanBow = !!context.opponentParticipantCanBow;
         this.currentOpponentDuelBidding = context.opponentDuelBidding;
         this.currentDuelParticipantIaijutsuReady = context.duelParticipantIaijutsuReady;
@@ -2844,12 +2849,40 @@ class JigokuBotPolicy {
                 ? hand.filter((card) => !ringConditionalIds.has(String(card?.id || '')))
                 : hand;
             const board = boardFor(side);
+            // Honor is a real budget, and an omniscient seat can read the
+            // opponent's exactly. Left undefined (honor-blind) the rollout
+            // prices Assassination as four free skill at zero honor, which is
+            // the same over-estimate the hand-threat matrix carried. Only the
+            // OPPONENT side is priced this way: our own honor already gates our
+            // plays downstream, and changing that is a different experiment.
+            const honorBudget = side === 'opponent' && profile.omniscientThreatRealism
+                ? Math.max(0, Number(opponent?.stats?.honor) || 0)
+                : undefined;
             return {
-                military: usable ? estimateHandThreat(usable, fate, 'military', undefined, board).skill : 0,
-                political: usable ? estimateHandThreat(usable, fate, 'political', undefined, board).skill : 0
+                military: usable ? estimateHandThreat(usable, fate, 'military', honorBudget, board).skill : 0,
+                political: usable ? estimateHandThreat(usable, fate, 'political', honorBudget, board).skill : 0
             };
         };
         const forcedAttackerUuids = selfCharacters.filter((card) => card.inConflict).map((card) => card.uuid);
+        // What the rollout believes the opponent can answer a declaration with.
+        // Omniscience supplies the exact number for free — there is no profile
+        // gate on it — so this is the cheat's largest field-wide effect, and it
+        // only ever makes the bot declare more cautiously. The fair fallback is
+        // `fairDefenseBuffer`, which defaults to 0 and is therefore usually
+        // undefined. `omniscientPlannerHandThreat` (default true) is the A/B.
+        const opponentHandThreat = context.omniscient && profile.omniscientPlannerHandThreat !== false
+            ? threat(context.omniscient.oppHand, context.omniscient.oppFate, 'opponent')
+            : (() => {
+                const buffer = Number(profile.conflictPlanning?.fairDefenseBuffer) || 0;
+                if(buffer <= 0) {
+                    return undefined;
+                }
+                const handSize = (opponent?.cardPiles?.hand || []).length;
+                const oppFate = Math.max(0, Number(opponent?.stats?.fate) || 0);
+                const answers = buffer * Math.min(handSize, oppFate + 1);
+                return answers > 0 ? { military: answers, political: answers } : undefined;
+            })();
+        this.recordPlannerThreat(me, opponent, context.omniscient, opponentHandThreat, profile);
         const selfOpportunities = opportunities(me);
         // The deck proposes concrete declarations; the shared rollout below
         // ranks them against each other AND against the generic lines, so the
@@ -2912,23 +2945,50 @@ class JigokuBotPolicy {
             // buffer from PUBLIC hand size and fate makes the planner assume the
             // opponent can answer, so it keeps to conflicts it can actually win
             // on its strong axis. Gated by profile; default (0) is unchanged V1.
-            opponentHandThreat: context.omniscient
-                ? threat(context.omniscient.oppHand, context.omniscient.oppFate, 'opponent')
-                : (() => {
-                    const buffer = Number(profile.conflictPlanning?.fairDefenseBuffer) || 0;
-                    if(buffer <= 0) {
-                        return undefined;
-                    }
-                    const handSize = (opponent?.cardPiles?.hand || []).length;
-                    const oppFate = Math.max(0, Number(opponent?.stats?.fate) || 0);
-                    const answers = buffer * Math.min(handSize, oppFate + 1);
-                    return answers > 0 ? { military: answers, political: answers } : undefined;
-                })(),
+            // NOTE: this is the ONE omniscient effect that is live for every
+            // deck — it needs no profile gate to reach the rollout — and it had
+            // never been A/B'd. It makes the omniscient rollout assume a real
+            // answer to every declaration, where the fair rollout assumes none
+            // unless `fairDefenseBuffer` is set (default 0, i.e. never). So the
+            // cheat's headline effect is mostly "declare more cautiously".
+            // `omniscientPlannerHandThreat` defaults true = the measured
+            // behaviour; an arm can set it false to hand the rollout back to
+            // the fair path and price that caution.
+            opponentHandThreat: opponentHandThreat,
             lockedAxis,
             lockedRingElement,
             lockedTargetLocation,
             forcedAttackerUuids
         });
+    }
+
+    // Census for the rollout's opponent-threat model. This is the ONE
+    // omniscient effect with no profile opt-in, so it is live in every
+    // omniscient game and its population is "every declaration". The fair value
+    // it replaces is almost always undefined (`fairDefenseBuffer` defaults 0),
+    // which is why `handicap` below is normally the whole exact number.
+    private recordPlannerThreat(me: any, opponent: any, omni: Omniscient | undefined,
+        applied: { military: number; political: number } | undefined,
+        profile: DeckProfile): void {
+        if(!BotTelemetry.enabled || !omni) {
+            return;
+        }
+        const buffer = Number(profile.conflictPlanning?.fairDefenseBuffer) || 0;
+        const handSize = (opponent?.cardPiles?.hand || []).length;
+        const oppFate = Math.max(0, Number(opponent?.stats?.fate) || 0);
+        const fair = buffer > 0 ? buffer * Math.min(handSize, oppFate + 1) : 0;
+        BotTelemetry.record('omni-use', () => ({
+            site: 'planner-threat',
+            seat: String(me?.name || ''),
+            round: this.currentRoundNumber,
+            gated: profile.omniscientPlannerHandThreat === false,
+            military: Math.max(0, Number(applied?.military) || 0),
+            political: Math.max(0, Number(applied?.political) || 0),
+            fair: fair,
+            diverged: profile.omniscientPlannerHandThreat !== false &&
+                (Math.max(0, Number(applied?.military) || 0) !== fair ||
+                    Math.max(0, Number(applied?.political) || 0) !== fair)
+        }));
     }
 
     /**
@@ -3323,12 +3383,47 @@ class JigokuBotPolicy {
                 // neutral-to-positive at N=100: Phoenix 40%->44%,
                 // CraneDuels 52%->52%. Kept - it exploits hand knowledge
                 // exactly where a human opponent differs from the bot.
+                const useOmniAxis = !!omni && profile.useOmniscientConflictAxis !== false;
+                // The cheapest-break rule runs BEFORE the advantage rule and
+                // only when it has an answer, so a deck that enables it still
+                // falls back to whichever axis rule its profile already used.
+                // A forced-military deck opts out: its axis is a deck rule.
+                const cheapestBreak = omni && profile.omniscientCheapestBreakAxis &&
+                    !profile.forceMilitaryConflict
+                    ? this.omniCheapestBreakAxis(me, opponent, omni)
+                    : undefined;
                 const preferredType = useTypePlan &&
                     lookahead?.action === 'attack' && lookahead.conflictType
                     ? lookahead.conflictType
-                    : omni && profile.useOmniscientConflictAxis !== false
-                        ? this.omniPreferredConflictType(me, opponent, omni, profile.forceMilitaryConflict)
-                        : this.preferredConflictType(me, opponent, profile);
+                    : cheapestBreak
+                        ? cheapestBreak.axis
+                        : useOmniAxis
+                            ? this.omniPreferredConflictType(me, opponent, omni!, profile.forceMilitaryConflict)
+                            : this.preferredConflictType(me, opponent, profile);
+                // What the hidden hand actually bought at this decision. The
+                // fair axis is recomputed only while a probe is attached, so
+                // this costs one boolean read in a normal game.
+                if(BotTelemetry.enabled && omni) {
+                    const fairAxis = this.preferredConflictType(me, opponent, profile);
+                    BotTelemetry.record('omni-use', () => ({
+                        site: 'axis',
+                        seat: String(me?.name || ''),
+                        round: this.currentRoundNumber,
+                        gated: !useOmniAxis && !profile.omniscientCheapestBreakAxis,
+                        planned: !!(useTypePlan && lookahead?.action === 'attack' && lookahead.conflictType),
+                        chosen: preferredType,
+                        fair: fairAxis,
+                        cheapestBreak: cheapestBreak ? cheapestBreak.axis : '',
+                        cheapestBreakBodies: cheapestBreak ? cheapestBreak.bodies : -1,
+                        cheapestBreakOther: cheapestBreak && Number.isFinite(cheapestBreak.other)
+                            ? cheapestBreak.other : -1,
+                        diverged: (useOmniAxis || !!cheapestBreak) && preferredType !== fairAxis,
+                        militaryThreat: this.omniHandThreat(omni, 'military').skill,
+                        politicalThreat: this.omniHandThreat(omni, 'political').skill,
+                        oppFate: omni.oppFate,
+                        oppHandSize: omni.oppHand.length
+                    }));
+                }
                 const preferredRemaining = preferredType === 'military'
                     ? Number(me?.stats?.militaryRemaining)
                     : Number(me?.stats?.politicalRemaining);
@@ -3580,7 +3675,13 @@ class JigokuBotPolicy {
                 defenseEstimate: defenseEstimate,
                 totalEligible: totalEligible,
                 attackCommitment: profile.attackCommitment,
-                finalStrongholdPush: finalStrongholdPush
+                finalStrongholdPush: finalStrongholdPush,
+                // Hidden-information contribution to THIS break target: the
+                // exact province strength that replaced the guess-4 fallback,
+                // and the bounded response buffer.
+                omni: !!omni,
+                omniResponseBuffer: knownResponseBuffer,
+                fairProvinceStrength: omni ? this.attackedProvinceStrength(opponent, 4) : provinceStrength
             }));
 
             if(profile.conflictPlanning?.applyPassPlan && lookahead?.action === 'pass' && committed.length === 0) {
@@ -4177,6 +4278,89 @@ class JigokuBotPolicy {
         return advantage('military') >= advantage('political') ? 'military' : 'political';
     }
 
+    // The TRUE strength of the cheapest province we may legally attack. The
+    // fair version above has to substitute `unknownStrength` for every
+    // face-down province; this seat can read the real number off the card.
+    private omniWeakestLegalTargetStrength(opponent: any, omni: Omniscient): number {
+        const strengths = attackProvinceLists(opponent)
+            .map((list: any[]) => (list || []).find((card: any) =>
+                card && card.isProvince !== false &&
+                (card.isProvince || card.type === 'province' || card.facedown) && !card.isBroken))
+            .filter((card: any) => !!card)
+            .map((card: any) => {
+                const match = omni.oppProvinces.find((province) =>
+                    province.location && province.location === card.location);
+                const stat = Number(card?.strengthSummary?.stat);
+                return match ? match.strength
+                    : Number.isFinite(stat) ? stat : PROVINCE_TARGETING_DEFAULTS.unknownStrength;
+            });
+        return strengths.length > 0 ? Math.min(...strengths) : 0;
+    }
+
+    /**
+     * Axis choice by CHEAPEST guaranteed break.
+     *
+     * `omniPreferredConflictType` maximises raw advantage, which is the right
+     * question when no break is on offer and the wrong one when two are: once
+     * an axis clears the break, extra advantage on it buys nothing, while the
+     * bodies it costs are the next conflict. Every defensive lever measured in
+     * this project has failed by spending ready bodies; the levers that won
+     * (`unopposedWindow`) converted a wasted opportunity into a break instead.
+     *
+     * With exact information the break target is not an estimate: the true
+     * province strength, their whole ready board on that axis, and the best
+     * answer their fate and honor can actually pay for. So "which axis breaks
+     * this province with the fewest bodies" is answerable, and it is a
+     * different question from "which axis is furthest ahead".
+     *
+     * Returns undefined when neither axis breaks or both cost the same, which
+     * hands the decision back to the advantage rule unchanged.
+     */
+    private omniCheapestBreakAxis(me: any, opponent: any, omni: Omniscient):
+    { axis: 'military' | 'political'; bodies: number; other: number } | undefined {
+        const target = this.omniWeakestLegalTargetStrength(opponent, omni);
+        const theirReady = (opponent?.cardPiles?.cardsInPlay || [])
+            .filter((card: any) => card.type === 'character' && !card.bowed);
+        const myReady = this.readyCharacters(me);
+        // Bodies needed on one axis: send the strongest first, because that is
+        // the order the declaration sizer itself commits them in.
+        const cost = (axis: 'military' | 'political'): number | undefined => {
+            const need = target +
+                theirReady.reduce((sum: number, card: any) =>
+                    sum + Math.max(this.skillValue(card, axis) || 0, 0), 0) +
+                this.omniHandThreat(omni, axis).skill;
+            const skills = myReady
+                .map((card) => Math.max(this.skillValue(card, axis) || 0, 0))
+                .filter((skill) => skill > 0)
+                .sort((left, right) => right - left);
+            let total = 0;
+            for(let count = 0; count < skills.length; count++) {
+                total += skills[count];
+                if(total >= need) {
+                    return count + 1;
+                }
+            }
+            return undefined;
+        };
+        const military = cost('military');
+        const political = cost('political');
+        if(military === undefined && political === undefined) {
+            return undefined;
+        }
+        if(military === undefined) {
+            return { axis: 'political', bodies: political!, other: Number.POSITIVE_INFINITY };
+        }
+        if(political === undefined) {
+            return { axis: 'military', bodies: military, other: Number.POSITIVE_INFINITY };
+        }
+        if(military === political) {
+            return undefined;
+        }
+        return military < political
+            ? { axis: 'military', bodies: military, other: political }
+            : { axis: 'political', bodies: political, other: military };
+    }
+
     private omniHandThreat(omni: Omniscient, type: 'military' | 'political'): { skill: number; detail: string } {
         const matrix = omni.handThreatMatrix?.[type];
         const plan = matrix?.[matrix.length - 1];
@@ -4218,11 +4402,41 @@ class JigokuBotPolicy {
             !attackLists.includes(opponent?.strongholdProvince || [])) {
             attackLists.unshift(opponent?.strongholdProvince || []);
         }
+        const useOmniProvinces = !!omni && profile.useOmniscientProvinceKnowledge !== false;
         let candidateLists = targeting.rank(
             attackLists,
-            omni && profile.useOmniscientProvinceKnowledge !== false ? omni.oppProvinces : [],
+            useOmniProvinces ? omni!.oppProvinces : [],
             this.currentOpponentProvinceDenial || {}
         );
+        // Exact hidden province strengths reorder the conquest plan. Record the
+        // fair ordering alongside so a probe can tell "the cheat picked a
+        // different province" from "the cheat agreed with the guess".
+        if(BotTelemetry.enabled && omni) {
+            const locationOf = (lists: any[][]) => {
+                const list = lists[0] || [];
+                const card = list.find((candidate: any) => candidate &&
+                    candidate.isProvince !== false && (candidate.isProvince || candidate.facedown));
+                return String(card?.location || '');
+            };
+            const fairFirst = locationOf(targeting.rank(attackLists, [],
+                this.currentOpponentProvinceDenial || {}));
+            const omniFirst = locationOf(candidateLists);
+            BotTelemetry.record('omni-use', () => ({
+                site: 'province-target',
+                seat: String(this.currentSeatName),
+                round: this.currentRoundNumber,
+                gated: !useOmniProvinces,
+                chosen: omniFirst,
+                fair: fairFirst,
+                diverged: useOmniProvinces && omniFirst !== fairFirst,
+                facedownTargets: omni.oppProvinces.filter((province) =>
+                    province.facedown && !province.broken).length,
+                chosenStrength: omni.oppProvinces.find((province) =>
+                    province.location === omniFirst)?.strength ?? -1,
+                fairStrength: omni.oppProvinces.find((province) =>
+                    province.location === fairFirst)?.strength ?? -1
+            }));
+        }
         if(preferredLocation) {
             candidateLists = candidateLists.slice().sort((left, right) => {
                 const location = (list: any[]) => (list || []).find((card: any) =>
@@ -4376,6 +4590,21 @@ class JigokuBotPolicy {
         //   - otherwise defend to beat the REAL threat, not the visible
         //     skill — a minimal block sized on visible numbers is a free
         //     flip for a held pump card.
+        if(_omni && attackerSkill !== null && BotTelemetry.enabled) {
+            const threat = this.omniHandThreat(_omni, type === 'political' ? 'political' : 'military');
+            BotTelemetry.record('omni-use', () => ({
+                site: 'token-defense',
+                seat: String(me?.name || ''),
+                round: this.currentRoundNumber,
+                gated: !profile.useOmniscientTokenDefense,
+                axis: type,
+                attackerSkill: attackerSkill,
+                handThreat: threat.skill,
+                provinceStrength: this.attackedProvinceStrength(me),
+                diverged: !!profile.useOmniscientTokenDefense &&
+                    attackerSkill + threat.skill < this.attackedProvinceStrength(me)
+            }));
+        }
         if(_omni && profile.useOmniscientTokenDefense && attackerSkill !== null) {
             const threat = this.omniHandThreat(_omni, type === 'political' ? 'political' : 'military');
             const effectiveAttack = attackerSkill + threat.skill;

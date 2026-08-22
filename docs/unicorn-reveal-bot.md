@@ -15,7 +15,7 @@ The bot treats public province knowledge as an economy resource:
 3. Reveal the opposing stronghold province first when Border Fortress, Iuchi Farseer, Overrun, or another legal reveal effect can select it.
 4. Use Shiro Shinjo only when at least one opposing non-stronghold province is faceup.
 5. Reserve 4 fate for Scouted Terrain once all four outer provinces are faceup.
-6. If the opponent attacks while the Scouted plan is ready, preserve defenders unless the stronghold itself is threatened. After that attack completes, play Scouted Terrain and attack the now-eligible stronghold.
+6. If the opponent attacks while the Scouted plan is ready, preserve defenders unless the stronghold itself is threatened. After that attack completes, play Scouted Terrain and attack the now-eligible stronghold. Play it only when that attack can actually be declared and can reach the province's strength; once it is live, the stronghold is the declaration target.
 7. Without the Scouted line, retain the fate advantage and buy one durable threat with fate.
 
 All deck-specific thresholds, IDs, fate amounts, target priorities, bid reduction, Scouted timing, and opponent Aranat response values live in `UnicornRevealProfile` or `ProvinceRevealResponseProfile`. The policy consumes those profiles through `UnicornRevealTactics` and `ProvinceRevealResponseTactics`; resolved profiles deep-clone every array/map so runtime tuning cannot leak between bots.
@@ -83,7 +83,7 @@ Ratings describe value to this bot: **S** is a primary win/economy engine, **A**
 
 | Card | Copies | Cost | Rating | Bot treatment |
 |---|---:|---:|:---:|---|
-| Scouted Terrain | 3 | 4 | S | Keeps one opening paid card, reserves 4 fate once enabled, waits for an opposing completed conflict, then opens the stronghold attack. |
+| Scouted Terrain | 3 | 4 | S | Keeps one opening paid card, reserves 4 fate once enabled, waits for an opposing completed conflict, checks a ready attacker can reach the stronghold province's strength, then opens the stronghold attack and declares it. |
 | Chasing the Sun | 3 | 1 | S | Played while attacking when another hidden outer province remains; redirects and reveals without applying an irrelevant Seeker restriction. |
 | Diversionary Maneuver | 3 | 2 | A | Used in a military attack with another hidden legal province. The engine performs the participant reset/move sequence; the bot then chooses the reveal target. |
 | Overrun | 3 | 1 | S | Always takes the break reaction. It reveals a hidden province first; when everything is exposed, it targets the highest-priority province text, led by Massing at Twilight. |
@@ -271,6 +271,77 @@ node tools/selfplay/deckFieldWinRate.js
 node tools/selfplay/validateBotInteractions.js --decks UnicornReveal --opponents all --seeds 1,2,3 --games 2 --out tools/selfplay/out/ur-interactions
 node tools/selfplay/auditCards.js --decks UnicornReveal --seeds 1,2,3 --opponents all --modes fair --games 3 --workers 12 --out tools/selfplay/out/ur-cardaudit
 ```
+
+## Scouted Terrain was spent without ever attacking the stronghold (2026-08-22)
+
+**Symptom.** One human game (Unicorn Reveal bot vs a Crab human) played Scouted
+Terrain **three times** and declared at the stronghold **zero times**.
+
+| Round | What the bot did after paying 4 fate |
+|---|---|
+| 2 | Declared at Shinsei's Last Hope — a normal outer province |
+| 3 | "passes their conflict opportunity as none of their characters can be declared as an attacker" — the phase had no ready body at all |
+| 5 | Declared at Shinsei's Last Hope again, with 3 skill |
+
+The card grants nothing but a legal declaration against the stronghold
+province, and the lasting effect expires at end of phase. Every one of those
+three plays was four fate and a card for nothing.
+
+**Two independent causes.**
+
+*The declaration never went to the stronghold.* `attackProvinceDecision`
+already added the live-legal stronghold to the candidate list, but the generic
+`ProvinceTargetingTactics.rank` sorts by **ascending** strength — the whole
+point of the normal conquest heuristic is to break the cheapest province. A
+3-strength outer province outranks a stronghold province every time, so the
+stronghold was a candidate that could never win. Breaking it wins the game
+outright, so once it is live it is *the* target, not one of five.
+
+*The play had no gate on the attack it unlocks.* `shouldPlayScoutedTerrain`
+read the province snapshot, our fate and the opponent's completed conflicts.
+None of those is a body. Round 3's board was entirely bowed and the card was
+still played.
+
+**Fix.** Both sides, both behind injectable flags.
+
+- `scoutedDeclareAtStronghold` (default `true`) forces `preferredLocation` to
+  the stronghold province while it is attackable, so the existing
+  preferred-target sort — not the strength ranking — picks the target. It is
+  scoped with `!mustAttackStronghold(opponent)`: with three provinces broken
+  the conquest rule already hands `attackProvinceLists` the stronghold alone,
+  and that branch keeps its old decision and its old `attack-stronghold`
+  telemetry reason untouched. The Scouted path reports
+  `unicorn-reveal-attack-scouted-stronghold`.
+- `scoutedRequiresReadyAttacker` (default `true`) adds a `ScoutedAttackReadiness`
+  argument — conflicts remaining, ready attackers, ready attack skill — and
+  declines the play without a conflict opportunity and a declarable body.
+  `JigokuBotPolicy.scoutedAttackReadiness` measures **both** axes, skips one
+  whose conflict opportunities are spent, and excludes a body whose skill on
+  that axis is a dash (`skillValue` returns `null`).
+- `scoutedRequireBreakableStronghold` (default `true`) additionally requires
+  that ready skill to reach the stronghold province's strength plus
+  `scoutedStrongholdSkillMargin` (default `0`). Skill is compared against the
+  **province**, not against the visible defenders: the opponent may decline to
+  defend, and the deck's pumps sit on top of this floor. A facedown stronghold
+  province falls back to `scoutedUnknownStrongholdStrength` (default `5`)
+  rather than to zero, so an unknown province cannot look free.
+- The same breakability check now gates
+  `unicorn-reveal-bait-scouted-counterattack`. That bait concedes a whole
+  conflict to keep bodies ready for the Scouted line; without it the bait would
+  concede a province and then hit the stricter play gate.
+
+**Measured reachability** (`auditCards.js --decks UnicornReveal --seeds 1
+--opponents all --modes fair --games 3`, 48 games, same shuffles both sides):
+
+| reason | before | after |
+|---|---:|---:|
+| `unicorn-reveal-play-scouted-terrain` | 2 | 2 |
+| `unicorn-reveal-attack-scouted-stronghold` | 0 | 2 |
+| `attack-stronghold` (conquest path, unchanged) | 2 | 2 |
+
+Both plays that happened now convert into the stronghold declaration they were
+paid for; the conquest path is untouched. Win rate is **not** measured here —
+that is a `/roundrobin` job.
 
 ## Two defects found in a live replay (2026-08-21)
 

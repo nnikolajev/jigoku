@@ -709,7 +709,32 @@ export const DEFAULT_PROFILE: DeckProfile = {
     defenseThreatBufferCap: 0,
     defenseThreatBufferIdleOnly: false,
     defenseBreakTie: false,
-    defenseTuning: {},
+    // SHIPPED FIELD-WIDE on the owner's explicit call (2026-08-22), NOT on a
+    // measured win. Both stronghold knobs read NULL in self-play — 50.12% and
+    // 49.88%, p=0.921, against a null arm validated at exactly 50.00% — on a
+    // ceiling of 0.00pp (0/272 winner flips, 99.3% of games bit-identical).
+    //
+    // The rig cannot score this lever, and the reason is structural rather
+    // than statistical. V1's stronghold branch commits EVERY ready body no
+    // matter how small the attack, and the cap pays off only against an
+    // opponent who attacks the stronghold with a hopeless force ON PURPOSE to
+    // strip the defence and then attacks again the same phase. No bot declares
+    // a hopeless conflict — the declaration logic requires a plausible win —
+    // so the field never generates the input. A human did exactly that
+    // (political 7 vs 59 into the whole board, then military 20 vs 0 for the
+    // game) and it is why this ships.
+    //
+    // Same standing as `conflictTempo.tradeDefenseWinOnly` and
+    // `drawBidding.cardsOverHonor`: owner-directed, honestly null, do not cite
+    // the 50.12% as support and do not silently revert it.
+    //
+    // `maxSurplusMargin` stays 0: it is STRUCTURALLY inert, because V1 already
+    // targets exactly `attackerSkill + 1` on outer provinces. It measured
+    // bit-identical (816-816, 272-272 on every base).
+    defenseTuning: {
+        strongholdMaxSurplusMargin: 10,
+        strongholdCapRequiresEnemyReserve: true
+    },
     // SHIPPED: the READY LOOP half only. V1's water score notices a bowed body
     // but prices it flat at 25 against earth's 40 — so a 5-skill body lying
     // bowed loses the ring exactly as a 1-skill one does — and it only fires

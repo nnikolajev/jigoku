@@ -24,8 +24,16 @@
 //     not work: every outlet here spends the body as a COST, and a prevented
 //     cost is an unpaid cost, so the ability never initiates and none of the
 //     death payoffs fire either. Measured in full in
-//     `test/server/cards/CrabSacrificeIronMine.spec.js`. The saves answer the
-//     OPPONENT's removal, and nothing else.
+//     `test/server/cards/CrabSacrificeIronMine.spec.js`.
+//     What the saves ARE for is the leave-play the deck cannot dodge any other
+//     way. Two of them, and the bigger one is not removal at all: this deck
+//     buys at zero fate on purpose, so its whole board is discarded in the FATE
+//     PHASE. Across five recorded human games 10 of 11 save uses were exactly
+//     that — Tainted Hero x4, Unleashed Experiment x2, Damned Hida, Butcher of
+//     the Fallen, One of the Forgotten — and only ONE answered opponent removal
+//     (Ceaseless Duty on an Assassination). A save spent during the conflict
+//     phase is a save not available at the fate phase, which is why firing one
+//     on our OWN sacrifice cost is doubly expensive.
 //     They also do not all read the same. Iron Mine and Reprieve carry "a
 //     character you control" in their printed condition; CEASELESS DUTY DOES
 //     NOT, so the engine legally offers it on the opponent's departing body and
@@ -40,11 +48,11 @@
 
 // WIRED vs NOT WIRED — read this before tuning anything here.
 //
-// A knob nobody reads cannot change a win rate, and two full measurement arms
-// were spent today on exactly that: `castleAlwaysAfterBreak` measured
-// bit-identical to its control until the policy was taught to read it, and
-// `additionalFateByCharacterId` still measures bit-identical because nothing
-// reads it at all. Every field below is marked.
+// A knob nobody reads cannot change a win rate, and three full measurement arms
+// were spent on exactly that: `castleAlwaysAfterBreak` measured bit-identical
+// to its control until the policy was taught to read it, and
+// `additionalFateByCharacterId` did the same until it was wired on 2026-08-22.
+// Every field below is marked.
 //
 // WIRED (a change here changes play):
 //   sacrificeTier1/2, tierPenalty, sacrificeOutletIds, outletPenalty,
@@ -59,6 +67,8 @@
 //   weightOfDutyMinimumTargetSkill    -> pickWeightOfDutyTarget
 //   declareHonorFloor                 -> withoutHonorCostDeclares
 //   honorSpendFloor                   -> canPayHonorCost
+//   additionalFateByCharacterId, endgameZeroFate -> desiredAdditionalFate
+//   fodderReserve, fodderReserveMinimum -> pickFodderBody
 //
 // NOT WIRED — descriptive only, marked individually below. Do not A/B these
 // without wiring them first; they will read bit-identical every time.
@@ -137,17 +147,118 @@ export interface CrabSacrificeProfile {
     taintedHeroIds: string[];
     taintedHeroMinimumSpareBodies: number;
 
+    // ---- fodder reserve ----------------------------------------------------
+    // Buy a body to SPEND before buying a second body to keep.
+    //
+    // Tainted Hero must eat a friendly character before it may be declared at
+    // all, and the blanking lasts one phase, so it needs a fresh body EVERY
+    // round. Way of the Crab, Silent Skirmisher, Stoic Gunso, Steadfast Witch
+    // Hunter and Weight of Duty all spend one too. `bodyOrder: 'highest-cost'`
+    // buys the most expensive body first, which is the PAYLOAD, so the bot
+    // reached the conflict phase holding two Tainted Heroes and no fodder and
+    // fed one to the other — six times in twelve measured games, plus Damned
+    // Hida three times and Unleashed Experiment twice. The human never did
+    // this once in five games: all 15 of his blanking costs were Tier 1 or
+    // Tier 2, and his stated priority was "to have a sacrifice body each
+    // round to activate Tainted Hero or some other ability such as Way of the
+    // Crab."
+    //
+    // With an outlet live and fewer than `fodderReserveMinimum` expendable
+    // bodies on board, the next body bought is the best fodder available
+    // (Tier 1 first — its death pays — then cheapest), instead of whatever
+    // `bodyOrder` wanted. It does not add a buy or raise the budget; it
+    // reorders one pick.
+    //
+    // MEASURED NEGATIVE, and it ships OFF. 192 games over six fresh bases
+    // (140001-145001), `deckFieldWinRate` with the SUBJECT seat injected:
+    //
+    //   fodderReserve true   38.54%   CI [31.9, 45.6]
+    //   fodderReserve false  42.71%   CI [35.9, 49.8]
+    //
+    // -4.17pp for the rule. The mechanism is reachable and does exactly what
+    // it says — fodder-class sacrifices went 26/44 -> 32/44 and Tainted Hero
+    // eating another Tainted Hero went 7 -> 3 — so this is not a dead knob.
+    // It is the same trade the deck keeps losing: the pick spent on a body to
+    // SPEND is a payload not bought, and at 2.2 bodies a dynasty phase this
+    // deck cannot afford both. The human's rule works for the human because he
+    // also buys 3.00 bodies a phase.
+    //
+    // Note the honest caveat on the rig: the null arm reproduced the control
+    // to within ONE game of 192 rather than exactly, so the injection path is
+    // not perfectly transparent here. That is far smaller than the 8-game
+    // effect, but a confirmation on three more fresh bases is owed before
+    // anyone calls the size of it precise.
+    fodderReserve: boolean;
+    fodderReserveMinimum: number;
+
     // ---- fate placement ----------------------------------------------------
     // Extra fate placed at buy time, by printed id. DIRE characters must be
     // bought at exactly ZERO — Damned Hida is +3 military while dire (3 -> 6)
     // and Unleashed Experiment only sheds its downside abilities while dire —
     // so a fate placed on either is a strict downgrade, not insurance.
-    // NOT WIRED. Nothing reads this map; an arm injecting it measures
-    // bit-identical. Fate placement is owned by `fateAwareEconomy`, where
-    // `bodyAdditionalFateForCostThree: 1` measured −5.4pp (Damned Hida is a
-    // cost-3 body that must stay DIRE) and `durableAdditionalFate` 2/1 was
-    // −0.6pp. Persistence is not this deck's problem; see the docs.
+    //
+    // WIRED (2026-08-22) -> `desiredAdditionalFate`, read by the policy's
+    // additional-fate prompt ahead of the generic `fateAwareEconomy`. An id
+    // absent from the map falls through to that economy unchanged.
+    //
+    // The values are the human's, read off five recorded games. The rule is
+    // NOT "spend less fate" — it is TWO CLASSES:
+    //
+    //   * PAYLOAD (Tainted Hero, Butcher of the Fallen) is bought to PERSIST
+    //     across rounds and is fed a fresh cheap body every round. The human
+    //     paid Tainted Hero 1.83 fate on average, never 0;
+    //   * FODDER (Gallant Quartermaster, Kaiu Envoy, Silent Skirmisher, One of
+    //     the Forgotten) is bought to DIE this round, so a fate on it is burnt
+    //     with the body — the human paid 0.10-0.20 average;
+    //   * DIRE is a hard zero, for the printed reason above.
+    //
+    // The bot was doing close to the opposite: a flat +1 on nearly everything,
+    // which both broke dire (Damned Hida at 1 fate is 3 military, not 6;
+    // Unleashed Experiment at 1 fate still costs 2 honor to declare) and left
+    // it buying 2.24 bodies a dynasty phase against the human's 3.00. That
+    // width gap is the deck's measured weakness ("it has no board"), and the
+    // earlier persistence experiments — `bodyAdditionalFateForCostThree: 1`
+    // (−5.4pp) and `durableAdditionalFate` 2/1 (−0.6pp) — both bought
+    // persistence with the flat rule, i.e. on the fodder too.
     additionalFateByCharacterId: Record<string, number>;
+    // MEASURED NULL, SHIPS ON at the owner's explicit request (2026-08-22) —
+    // same standing as `conflictTempo.tradeDefenseWinOnly` and
+    // `drawBidding.cardsOverHonor`. Do not cite it as a measured win, and do
+    // not silently revert it. The measurement below is the honest record.
+    //
+    // `deckFieldWinRate`, SUBJECT seat injected,
+    // 384 games over TWELVE bases:
+    //
+    //   bases 140001-145001   control 42.19%   fate-on 47.92%   +5.73pp
+    //   bases 150001-155001   control 38.54%   fate-on 35.94%   -2.60pp
+    //   POOLED                155/384 40.36%   161/384 41.93%   +1.56pp
+    //                                                    z=0.44, p=0.66
+    //
+    // The two base SETS disagree by 8.3pp about the same lever, which is the
+    // standard warning against believing either one. Do not re-run six bases
+    // and ship whichever sign comes up.
+    //
+    // What IS repeatable is the mechanism, and it is worth knowing because it
+    // was the whole hypothesis: dishonor losses fall in BOTH sets (45 -> 27,
+    // then 49 -> 37), because Unleashed Experiment bought with fate keeps its
+    // `honorCostToDeclare(2)` and bleeds 2 honor per declaration, and this
+    // deck's top loss reason is dishonor. The saving is real and it does not
+    // convert — the same games come back as conquest losses instead
+    // (64 -> 81 on the fresh set). Cheaper bodies mean a weaker board; it is
+    // the deck's standing trade, priced yet again.
+    //
+    // Before believing an earlier reading of this knob: it FIRST measured
+    // negative because the shipped `saveFatePass` setup-fate floor was raising
+    // the deliberate dire zeros straight back up. That is fixed (see
+    // `raiseSetupFate`'s `exactZero`); the numbers above are post-fix.
+    useDeckFatePlacement: boolean;
+    // Q5 from the human: "if I put 0 fate it means the game is close to the
+    // end, one of the strongholds can be attacked or I expect I will be able
+    // to attack it that round." Persistence is only worth buying while the
+    // game lasts long enough to use it; in the closing round the same fate
+    // buys another body instead. When a stronghold is live for either side,
+    // every id in the map above is bought at zero.
+    endgameZeroFate: boolean;
 
     // ---- Unleashed Experiment ---------------------------------------------
     // Dire (no fate) is the point: it loses its other abilities, which is
@@ -271,19 +382,32 @@ export const CRAB_SACRIFICE_DEFAULTS: CrabSacrificeProfile = {
     taintedHeroIds: ['tainted-hero'],
     taintedHeroMinimumSpareBodies: 1,
 
-    // Dire bodies at zero, the two 5-cost payloads at one so they survive a
-    // fate phase, everything else left to the generic economy.
+    fodderReserve: false,
+    fodderReserveMinimum: 1,
+
+    // Human averages over five recorded games, rounded; dire hard-pinned at 0.
+    // Fifth Tower Watch is deliberately ABSENT — the human never bought one,
+    // so there is no observation to copy and it falls through to the generic
+    // economy rather than being guessed at.
     additionalFateByCharacterId: {
+        // dire: a fate here is a strict downgrade, not insurance
         'damned-hida': 0,
         'unleashed-experiment': 0,
+        // fodder: bought to die this round, so a fate is burnt with the body
         'silent-skirmisher': 0,
         'gallant-quartermaster': 0,
         'kaiu-envoy': 0,
         'one-of-the-forgotten': 0,
-        'tainted-hero': 0,
+        'vengeful-berserker': 0,
+        // payload: bought to persist and be fed a fresh body each round
+        'tainted-hero': 2,
+        'butcher-of-the-fallen': 2,
+        'steadfast-witch-hunter': 1,
         'repentant-legion': 1,
         'mercenary-company': 1
     },
+    useDeckFatePlacement: true,
+    endgameZeroFate: true,
 
     direCharacterIds: ['unleashed-experiment', 'damned-hida'],
     declareCostsHonorIds: ['unleashed-experiment'],
@@ -539,6 +663,94 @@ export class CrabSacrificeTactics {
     // Skill this outlet returns for one body.
     outletPayoff(cardId: string): number {
         return numberOr(this.profile.pumpValueById[cardId], 0);
+    }
+
+    // ---- fodder reserve ----------------------------------------------------
+
+    /**
+     * Is this body cheap enough to be spent as a COST rather than kept?
+     * Tier 1 and Tier 2 are exactly the deck's fodder classes.
+     */
+    isFodder(card: any): boolean {
+        return this.tierOf(card) <= 1;
+    }
+
+    /**
+     * Does anything we control need a body to eat this round?
+     *
+     * Tainted Hero cannot be declared at all until it eats one, and it must
+     * eat again every round because the blanking lasts one phase. Way of the
+     * Crab, the skill outlets and Steadfast Witch Hunter all convert a body
+     * too. A board with an outlet and no fodder is an outlet that will eat
+     * the PAYLOAD instead — measured: the bot fed Tainted Hero to Tainted
+     * Hero six times in twelve games.
+     */
+    outletNeedsFodder(myCharacters: any[], hand: any[]): boolean {
+        const outletInPlay = (myCharacters || []).some((card) =>
+            card && (this.profile.taintedHeroIds.includes(card.id) ||
+                this.profile.skillOutletIds.includes(card.id) ||
+                this.profile.sacrificeOutletIds.includes(card.id)));
+        const outletInHand = (hand || []).some((card) => card && card.id === 'way-of-the-crab');
+        return outletInPlay || outletInHand;
+    }
+
+    /**
+     * Which body to buy when the board has an outlet but nothing to feed it.
+     *
+     * The human's stated priority: "I also prioritised to have a sacrifice
+     * body each round to activate Tainted Hero or some other ability such as
+     * Way of the Crab." That is not the same as buying cheap — it is buying
+     * the body whose DEATH pays (Tier 1: Gallant Quartermaster returns 2 fate,
+     * Kaiu Envoy a fate and a card), then the cheapest expendable one.
+     *
+     * Returns null when the rule does not apply, leaving `bodyOrder` alone.
+     */
+    pickFodderBody(bodies: any[], myCharacters: any[], hand: any[],
+        costOf: (card: any) => number): any {
+        if(!this.profile.fodderReserve) {
+            return null;
+        }
+        if(!this.outletNeedsFodder(myCharacters, hand)) {
+            return null;
+        }
+        // Already holding a spare body the outlet can eat: buy normally.
+        const spare = (myCharacters || []).filter((card) => card && this.isFodder(card)).length;
+        if(spare >= this.profile.fodderReserveMinimum) {
+            return null;
+        }
+        const candidates = (bodies || []).filter((card) => card && this.isFodder(card));
+        if(candidates.length === 0) {
+            return null;
+        }
+        return candidates
+            .slice()
+            .sort((left, right) =>
+                this.tierOf(left) - this.tierOf(right) ||
+                costOf(left) - costOf(right) ||
+                byUuid(left, right))[0];
+    }
+
+    // ---- fate placement ----------------------------------------------------
+
+    /**
+     * Extra fate to place when buying this character, or `null` to leave the
+     * decision to the generic fate-aware economy.
+     *
+     * `strongholdLive` is the human's endgame read (Q5): with a stronghold
+     * attackable by either side the game ends this round or next, so fate
+     * spent on persistence never pays and the same fate buys another body.
+     */
+    desiredAdditionalFate(cardId?: string, strongholdLive = false): number | null {
+        if(!this.profile.useDeckFatePlacement) {
+            return null;
+        }
+        if(!cardId || !Object.prototype.hasOwnProperty.call(this.profile.additionalFateByCharacterId, cardId)) {
+            return null;
+        }
+        if(strongholdLive && this.profile.endgameZeroFate) {
+            return 0;
+        }
+        return Math.max(0, numberOr(this.profile.additionalFateByCharacterId[cardId], 0));
     }
 
     // ---- Fifth Tower Watch -------------------------------------------------

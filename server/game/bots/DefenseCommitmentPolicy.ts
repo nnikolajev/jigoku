@@ -28,6 +28,9 @@ import { BotTelemetry } from './BotTelemetry.js';
  */
 export type DefenseCommitmentMode = 'win-only' | 'prevent-break';
 
+/** No cap: declare every ready body. What the stronghold branch has always done. */
+export const UNCAPPED = Number.POSITIVE_INFINITY;
+
 export interface DefenseCommitmentConfig {
     /**
      * Commit one skill past the attacker when a tie is already reachable, so
@@ -70,6 +73,62 @@ export interface DefenseCommitmentConfig {
     skillBuffer: number;
     /** Reserve sized from what the attacker can still pay after declaration. */
     threatBuffer: number;
+    /**
+     * Cap on how much skill a defense may commit, measured from the
+     * BREAK-PREVENTION line rather than from the attacker's total:
+     *
+     *     cap = max(attackerSkill - provinceStrength, 0) + margin
+     *
+     * 0 = uncapped (V1).
+     *
+     * The province absorbs its own strength — a province breaks only when the
+     * attacker beats the defender by at least `provinceStrength` — so the
+     * skill that actually has to come off our board is
+     * `attackerSkill - provinceStrength`, and the margin is the safety buffer
+     * on top of THAT. Measuring the margin from the attacker's raw total
+     * instead makes every strong province over-defended by exactly its own
+     * strength, which is the case this knob exists to stop.
+     *
+     * This is NOT the sizing family that `defenseBreakTie`, `skillBuffer`,
+     * `threatBuffer` and `chumpBlock` belong to. Those all decide whether to
+     * defend at all, or how hard on a board that is losing, and all six of
+     * them are measured and settled. This one leaves every such decision
+     * alone and only trims SURPLUS on a defense that is already decided — the
+     * mirror of `attackKeepHome`, whose payoff is bodies still ready for the
+     * next conflict of the same phase.
+     *
+     * The general branches are already close to minimal, so this mostly bites
+     * where a buffer pushed the target out; the branch it exists for is the
+     * stronghold, which commits everything unconditionally.
+     */
+    maxSurplusMargin: number;
+    /**
+     * The cap for the stronghold-under-attack branch, which otherwise declares
+     * every ready body no matter how small the attack. 0 = uncapped (V1).
+     *
+     * STATIC, unlike the outer-province cap above: this one is measured from
+     * the attacker's RAW skill (`attackerSkill + margin`), not from the
+     * break-prevention line. Discounting the buffer by the stronghold's own
+     * strength would shrink it on the one province whose break ENDS THE GAME,
+     * and a strong stronghold province is exactly where an opponent spends
+     * their tricks. Owner's call: outer provinces relative, stronghold flat.
+     *
+     * Breaking the stronghold loses the GAME, so the surplus here is real
+     * insurance against a post-declaration pump rather than pure waste — but
+     * it is bought with the whole board, and a second stronghold attack in the
+     * same phase then walks in against nothing. A larger margin than the outer
+     * provinces is the point: it covers a stacked answer (Banzai +2/+4,
+     * Spreading the Darkness +4, a body played from hand) and still leaves
+     * bodies ready for the follow-up.
+     */
+    strongholdMaxSurplusMargin: number;
+    /**
+     * Only cap the stronghold defense while the attacker still has ready
+     * bodies at home — i.e. a second attack this phase is actually possible.
+     * With their board fully committed there is no follow-up to save for, so
+     * the surplus costs nothing and V1's all-in is correct.
+     */
+    strongholdCapRequiresEnemyReserve: boolean;
 }
 
 export const DEFAULT_DEFENSE_COMMITMENT: DefenseCommitmentConfig = {
@@ -79,7 +138,10 @@ export const DEFAULT_DEFENSE_COMMITMENT: DefenseCommitmentConfig = {
     breakTieMinReadyCount: 0,
     breakTieRingElements: [],
     skillBuffer: 0,
-    threatBuffer: 0
+    threatBuffer: 0,
+    maxSurplusMargin: 0,
+    strongholdMaxSurplusMargin: 0,
+    strongholdCapRequiresEnemyReserve: false
 };
 
 export interface DefenseSizingInput {
@@ -99,9 +161,13 @@ export interface DefenseSizingInput {
     conflictsRemaining: number;
     /** Lowercased contested ring element. */
     ringElement: string;
+    /** Our STRONGHOLD province is the one being attacked: a break loses the game. */
+    strongholdUnderAttack?: boolean;
+    /** Enemy ready bodies NOT in this conflict — their follow-up attack. */
+    opponentReadyAtHome?: number;
 }
 
-export type DefenseBranch = 'win-only' | 'concede' | 'tie-or-better' | 'prevent-break' | 'hopeless';
+export type DefenseBranch = 'win-only' | 'concede' | 'tie-or-better' | 'prevent-break' | 'hopeless' | 'stronghold';
 
 export interface DefenseSizingResult {
     /** Skill to defend up to. Undefined on `concede` / `hopeless`. */
@@ -113,6 +179,8 @@ export interface DefenseSizingResult {
     tieBreakApplied: boolean;
     /** Why an eligible window was declined, for telemetry. */
     tieBreakDeclined?: 'off' | 'marginal-cost' | 'last-body' | 'no-surplus' | 'ring';
+    /** A surplus cap actually lowered the target below what V1 would commit. */
+    surplusCapped: boolean;
 }
 
 export class DefenseCommitmentPolicy {
@@ -125,41 +193,114 @@ export class DefenseCommitmentPolicy {
     public size(input: DefenseSizingInput): DefenseSizingResult {
         const { attackerSkill, potential, provinceStrength } = input;
 
+        // The stronghold: a break loses the game, so every other cap is
+        // overridden and V1 declares the whole board. `UNCAPPED` reproduces
+        // that exactly; a configured margin trims only the surplus.
+        if(input.strongholdUnderAttack) {
+            const target = this.strongholdTarget(input);
+            return {
+                target,
+                branch: 'stronghold',
+                tieBreakEligible: false,
+                tieBreakApplied: false,
+                surplusCapped: Number.isFinite(target)
+            };
+        }
+
         if(input.mode === 'win-only') {
             // The rush would rather lose a province than bow bodies it needs to
             // attack again, so it only defends when it can win outright. This
             // path has ALWAYS added the tie-breaking point; the shared path
             // below never did.
-            return potential > attackerSkill
-                ? { target: attackerSkill + 1, branch: 'win-only', tieBreakEligible: false, tieBreakApplied: false }
-                : { branch: 'concede', tieBreakEligible: false, tieBreakApplied: false };
+            if(potential <= attackerSkill) {
+                return { branch: 'concede', tieBreakEligible: false, tieBreakApplied: false, surplusCapped: false };
+            }
+            const raw = attackerSkill + 1;
+            const target = this.capTarget(raw, input);
+            return { target, branch: 'win-only', tieBreakEligible: false, tieBreakApplied: false, surplusCapped: target < raw };
         }
 
         if(potential >= attackerSkill) {
             const eligible = potential > attackerSkill;
             const declined = eligible ? this.declineReason(input) : undefined;
             const applied = eligible && !declined;
+            const raw = Math.min(attackerSkill + (applied ? 1 : 0) + this.config.threatBuffer, potential);
+            const target = this.capTarget(raw, input);
             return {
-                target: Math.min(attackerSkill + (applied ? 1 : 0) + this.config.threatBuffer, potential),
+                target,
                 branch: 'tie-or-better',
                 tieBreakEligible: eligible,
                 tieBreakApplied: applied,
-                tieBreakDeclined: declined
+                tieBreakDeclined: declined,
+                surplusCapped: target < raw
             };
         }
 
         if(potential > attackerSkill - provinceStrength) {
+            const raw = Math.min(
+                attackerSkill - provinceStrength + 1 + this.config.skillBuffer + this.config.threatBuffer,
+                potential);
+            const target = this.capTarget(raw, input);
             return {
-                target: Math.min(
-                    attackerSkill - provinceStrength + 1 + this.config.skillBuffer + this.config.threatBuffer,
-                    potential),
+                target,
                 branch: 'prevent-break',
                 tieBreakEligible: false,
-                tieBreakApplied: false
+                tieBreakApplied: false,
+                surplusCapped: target < raw
             };
         }
 
-        return { branch: 'hopeless', tieBreakEligible: false, tieBreakApplied: false };
+        return { branch: 'hopeless', tieBreakEligible: false, tieBreakApplied: false, surplusCapped: false };
+    }
+
+    /**
+     * How far the stronghold defense may commit past the attacker.
+     *
+     * `UNCAPPED` is V1: every ready body, however small the attack. A margin
+     * caps the target at `attackerSkill + margin`, which still beats the
+     * attacker by that margin — it can never concede a stronghold V1 would
+     * have held, only stop stacking bodies onto one already held.
+     */
+    private strongholdTarget(input: DefenseSizingInput): number {
+        const margin = this.config.strongholdMaxSurplusMargin;
+        if(margin <= 0) {
+            return UNCAPPED;
+        }
+        // With their board fully committed there is no second attack to save
+        // bodies for, so the surplus is free insurance and V1 is right.
+        if(this.config.strongholdCapRequiresEnemyReserve &&
+            !((input.opponentReadyAtHome ?? 0) > 0)) {
+            return UNCAPPED;
+        }
+        return input.attackerSkill + margin;
+    }
+
+    /**
+     * `max(attackerSkill - provinceStrength, 0) + margin` — the skill that has
+     * to come off our board to stop the break, plus the safety buffer.
+     */
+    private marginTarget(input: DefenseSizingInput, margin: number): number {
+        return Math.max(input.attackerSkill - input.provinceStrength, 0) + margin;
+    }
+
+    /**
+     * Trim surplus off an already-sized target. The general branches are
+     * margin-minimal already (`win-only` asks for `attackerSkill + 1`), so
+     * this only ever bites when a buffer pushed the target out.
+     */
+    private capTarget(target: number, input: DefenseSizingInput): number {
+        const margin = this.config.maxSurplusMargin;
+        if(margin <= 0) {
+            return target;
+        }
+        // Never cap BELOW the point that wins the conflict. At province
+        // strength 6+ the relative formula lands under `attackerSkill + 1`,
+        // and a defense that bows bodies and still loses is strictly worse
+        // than not defending at all — it pays the bodies AND hands over the
+        // ring. The cap exists to trim surplus, never to convert a won
+        // defense into a lost one.
+        const winFloor = input.attackerSkill + 1;
+        return Math.min(target, Math.max(this.marginTarget(input, margin), winFloor));
     }
 
     private declineReason(input: DefenseSizingInput): DefenseSizingResult['tieBreakDeclined'] {
@@ -217,8 +358,11 @@ export function recordDefenseSizing(
         readyCount: input.readyCount,
         conflictsRemaining: input.conflictsRemaining,
         ringElement: input.ringElement,
+        strongholdUnderAttack: input.strongholdUnderAttack,
+        opponentReadyAtHome: input.opponentReadyAtHome,
         branch: result.branch,
         target: result.target,
+        surplusCapped: result.surplusCapped,
         tieBreakEligible: result.tieBreakEligible,
         tieBreakApplied: result.tieBreakApplied,
         tieBreakDeclined: result.tieBreakDeclined,
@@ -231,6 +375,12 @@ export function recordDefenseSizing(
         // every scoped arm, because a declined window still reports eligible.
         divergent: result.tieBreakApplied && input.defenderSkill === input.attackerSkill,
         // Kept separately: the size of the window the scope is choosing within.
-        windowOpen: result.tieBreakEligible && input.defenderSkill === input.attackerSkill
+        windowOpen: result.tieBreakEligible && input.defenderSkill === input.attackerSkill,
+        // The surplus cap diverges on a different condition entirely: it bites
+        // only where V1 would have declared ANOTHER body and the cap stops.
+        // `capWindowOpen` is every call the cap could have reached, so the
+        // fire rate is readable without a second run.
+        capDivergent: result.surplusCapped && input.defenderSkill >= (result.target ?? UNCAPPED),
+        capWindowOpen: !!input.strongholdUnderAttack
     }));
 }

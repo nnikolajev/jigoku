@@ -51,11 +51,181 @@ so the ability never initiates. Pinned in
 This matches the printed ruling the deck guide quotes: *"If that occurs during
 the payment of a cost, then that cost is not considered to have been paid."*
 
-**So the saves have exactly one use here: answering the OPPONENT's removal.**
 `CrabSacrificeProfile.saveInversion` is therefore `false`, and the policy
-actively refuses to fire a save on a body it is itself spending
+refuses to fire a save on a body it is itself spending
 (`pendingSacrificeCostUuid`). Turning the inversion on cost **6.5pp**
 (30.65% → 24.11%) before the guard existed.
+
+### The guard leaked for Iron Mine — fixed 2026-08-22
+
+The claim above ("the policy actively refuses") was true only for Reprieve and
+Ceaseless Duty. **Iron Mine is a HOLDING, and a holding sits in a province**, so
+it matched the province-location test in `triggeredWindowDecision` and was
+selected by the `trigger-province-ability` branch — which returns *before* the
+`pendingSacrificeCostUuid` guard, that guard living in the character/event
+branch below it. A runtime probe confirmed the guard state was correct at the
+window (`pending` set, `pendingName` matching, `seen: 1`); it was simply never
+consulted on that path.
+
+Cost, measured over 12 self-play games (3 bases × 4 opponents): **14 of 14**
+`"attempted to use X, but did not successfully pay the required costs"` events
+were this exact sequence, in 10 of the 12 games, twice in some:
+
+```
+Seat0 uses Iron Mine to prevent Kaiu Envoy from leaving play
+Seat0 attempted to use Stoic Gunsō, but did not successfully pay the required costs
+```
+
+Iron Mine spent, cost unpaid, pump never applied, body still in play. The deck
+runs three Iron Mine and its measured weakness is that it *has no board*, so
+burning its persistence engine on its own costs is doubly expensive.
+
+Fixed by `savesOwnSacrificeCost`, checked inside the province finder's
+predicate. Same slate after: **0 of 12** games, and 4/12 wins against 2/12
+(a diagnostic, not a measurement — three bases, no seat swap).
+
+**So the saves have two uses here, and the smaller one is removal.** This deck
+buys at zero fate on purpose, so its whole board is discarded in the FATE
+PHASE, and that is the leave-play the saves mostly answer: across five recorded
+human games, **10 of 11** save uses were fate-phase persistence (Tainted Hero
+×4, Unleashed Experiment ×2, Damned Hida, Butcher of the Fallen, One of the
+Forgotten) and exactly **one** answered opponent removal (Ceaseless Duty on an
+Assassination). A save spent in the conflict phase is a save unavailable at the
+fate phase.
+
+## The setup-fate floor was overriding deliberate DIRE zeros
+
+`saveFatePass.setupRounds` ships field-wide at `[1,2,3]` and `raiseSetupFate`
+raises whatever a deck would naturally put on a body up to that floor. It was
+raising the zeros that are the whole point of a **dire** character: Damned Hida
+is +3 military only while it has no fate (6 → 3 with one on it), and Unleashed
+Experiment only sheds `honorCostToDeclare(2)` while empty, so a floored copy
+bleeds 2 honor on every declaration in the deck whose top loss reason is
+dishonor. It hit UnicornReveal's Khanbulak Benefactor the same way.
+
+Fixed by threading an `exactZero` flag into `raiseSetupFate`, set by any branch
+that answers with a deliberate zero for a dire body
+(`FateAwareAdditionalFateOverride.exact`, and the Benefactor branch). The floor
+itself is unchanged for every other card.
+
+Second defect on the same path: `fateAwareAdditionalFateButton` did
+`Math.max(economy, override)` for board-aware decks, so a deck override of 0 was
+a **floor and never a zero**. Same `exact` flag governs it.
+
+## Two human-derived levers, both measured, both OFF
+
+Read off five recorded human games (2026-08-22, human 4W-1L with this list).
+Both are wired, both default off, both are a JSON string to switch on.
+
+### `useDeckFatePlacement` — fate is two classes, not one rate
+
+Payload (Tainted Hero 1.83 fate average, Butcher) is bought to PERSIST and fed a
+fresh cheap body every round; fodder (Gallant Quartermaster 0.10, Kaiu Envoy
+0.17) is bought to DIE, so fate on it is burnt with the body; dire is a hard
+zero. The bot was applying a flat +1 to all three.
+
+**Null over 384 games / 12 bases.** `+5.73pp` on 140001-145001, `−2.60pp` on
+150001-155001, pooled `+1.56pp` (155/384 vs 161/384, z=0.44, p=0.66). The two
+base sets disagree by 8.3pp about one lever — do not re-roll six bases and ship
+the sign you like.
+
+The *mechanism* replicates in both sets even though the win rate does not:
+dishonor losses fall 45→27 and 49→37, and come back as conquest losses
+(64→81 on the fresh set). Cheaper bodies, weaker board — this deck's standing
+trade, priced again.
+
+### `fodderReserve` — buy a body to SPEND before a second body to keep
+
+Tainted Hero must eat a friendly character every round. With `bodyOrder:
+'highest-cost'` the bot bought the payload first and then fed Tainted Hero to
+Tainted Hero — 6 times in 12 games, plus Damned Hida 3 and Unleashed Experiment
+2. The human did this **zero** times in five games: all 15 of his blanking costs
+were Tier 1 or Tier 2.
+
+**−4.17pp** (38.54% on, 42.71% off; 192 games, six bases). The rule works
+exactly as designed — fodder-class sacrifices 26/44 → 32/44, Tainted-Hero-eats-
+Tainted-Hero 7 → 3 — and still loses, because the pick spent on a body to spend
+is a payload not bought. At 2.2 bodies a dynasty phase this deck cannot afford
+both classes; the human affords the rule because he also buys 3.00 a phase.
+
+Caveat on that run: the null arm reproduced its control to within one game of
+192 rather than exactly, so the injection path is not perfectly transparent
+here. Much smaller than the 8-game effect, but the size is not precise.
+
+## The 3.00-vs-2.24 bodies/phase gap — diagnosed, and NOT closable by buying
+
+The human buys **3.09** characters per dynasty phase, the bot **2.45**. Ten arms
+were run at the gap. It is not fate, not budget and not card availability, and
+forcing it open costs **8.3pp**.
+
+### Where the gap is NOT
+
+| suspected cause | measurement | verdict |
+|---|---|---|
+| fate income early | R1-R2 spend 5.60/6.00 human vs 5.58/5.83 bot | **identical** |
+| body spend caps | caps -> 14: bodies 2.45 -> 2.45 | not binding |
+| cards revealed | 3.59/phase human vs 3.43 bot | near-identical |
+| Rally placements | 2.00/game human vs 2.33 bot | bot is HIGHER |
+
+The gap opens at round 3+: human spends 9.08 fate a phase and ends on 1.25; the
+bot spends 6.19 and ends on 2.81.
+
+### Where the gap actually is
+
+**The bot runs out of CARDS, not fate.** Seat-attributed probe over 18 games:
+**57% of its dynasty phases end in `fate-aware-pass-after-buying`** — the branch
+taken when `characters.length === 0` — and most of those at 0-1 fate left. Only
+24% end in `preserve-fate` with cards still on the table.
+
+Of what IS revealed, the human buys **93%** of characters and the bot **81%**
+(after discounting revealed Iron Mines, which are 0.40/phase for the bot against
+0.26 for the human).
+
+The human's extra fate is one loop: **Gallant Quartermaster costs 1 and refunds
+2 when sacrificed**, so feeding it is +1 fate AND a fired outlet, and the fate
+lands in the next round's dynasty phase.
+
+| | GQ bought/round | GQ fed/round | fed:bought |
+|---|---|---|---|
+| human | 0.43 | 0.43 | **100%** |
+| bot | 0.15 | 0.08 | 50% |
+
+### Every arm that installs the loop makes it worse
+
+`fodderReserve` fixed the FEEDING half (50% -> 88%) and measured **−4.17pp**.
+Fixing the BUYING half needs cheap-first ordering, and that is worse still:
+
+| arm | bodies/phase | fate LEFT | note |
+|---|---|---|---|
+| control | 2.45 | 2.20 | |
+| caps raised | 2.45 | 1.84 | inert |
+| `bodyOrder: lowest-cost` | 2.60 | **4.34** | |
+| lowest-cost + fodder + caps | **2.80** | 3.69 | best width |
+| `fodderReserveMinimum` 1/2/3 | 2.33/2.33/2.43 | 3.07/3.18/3.21 | |
+| `durableCharacterIds: []` | 2.28 | 1.81 | fewer, bigger |
+
+Note the signature: **every arm that raises bodies raises UNSPENT fate.** That is
+the tell that province throughput, not fate, is the binding constraint — cheaper
+bodies do not create more dynasty cards to buy.
+
+The best width arm was measured properly, `deckFieldWinRate`, 384 games over the
+same twelve bases as the control:
+
+```
+control  155/384  40.36%
+width    123/384  32.03%   CI [27.6, 36.9]     -8.33pp
+```
+
+and the reason is in the win reasons: `loss:dishonor` **131** against the
+control's 94. A wider board of cheaper bodies loses more conflicts, and this
+deck pays for lost conflicts in honor.
+
+**Conclusion: 2.45 bodies a phase is this deck's equilibrium at bot skill, not a
+misconfiguration.** The human sustains 3.09 because he closes the GQ loop 100%
+of the time AND wins the conflicts that keep his honor, which is a play-quality
+difference, not an allocation one. Do not re-open this by tuning `bodyOrder`,
+`bodySpendCap*`, `durableCharacterIds` or `fodderReserve*`; all six are measured
+above.
 
 ## Sacrifice ranking
 
@@ -107,6 +277,24 @@ Result: `auditCards` **28/28 plays, 15/15 abilities, 0 zero-use, 0 stalls**.
 Rig: `SUBJECT=CrabSacrifice node tools/selfplay/deckFieldWinRate.js`, per
 `.claude/skills/roundrobin/SKILL.md`. Every arm ran 336 games over six bases;
 the shipped build was re-measured over **twelve**.
+
+### Client benchmark, 2026-08-22: 37.3% -> 47.0% in the field round robin
+
+The standard client benchmark (`botRoundRobin.js`, 40 games per matchup, every
+deck against every other) was rerun after the Iron Mine fix, the dire-zero
+fixes, `useDeckFatePlacement` and the stronghold surplus cap:
+
+| | before | after | |
+|---|---|---|---|
+| CrabSacrifice | 37.3% | **47.0%** | **+9.7pp** |
+
+It was the largest mover in the field by a factor of 1.5, against sixteen other
+decks that drifted between +6.4pp and -5.0pp. Treat the SIZE with the usual
+caution — a field round robin is zero-sum (these deltas sum to ~0), so it
+reports standing, not proof that a change is good, and this was not a controlled
+arm. But the deck-specific fixes it followed (Iron Mine no longer cancelling the
+bot's own sacrifice cost, 14 occurrences -> 0) are the obvious candidate, and
+nothing else in the field gained anything like as much.
 
 ### SHIPPED: 44.64%, 672 games, 12 bases, CI [40.9, 48.4]
 

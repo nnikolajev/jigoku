@@ -96,7 +96,7 @@ import {
     ProvinceRevealResponseTactics,
     UnicornRevealTactics
 } from './UnicornRevealTactics.js';
-import type { ProvinceKnowledgeSnapshot } from './UnicornRevealTactics';
+import type { ProvinceKnowledgeSnapshot, ScoutedAttackReadiness } from './UnicornRevealTactics';
 import type { PersonalHonorConflict } from './PersonalHonorTactics';
 import MulliganTactics from './MulliganTactics.js';
 import type { MulliganPolicyVariant } from './MulliganTactics';
@@ -151,6 +151,8 @@ const RING_ORDER = ['air', 'earth', 'fire', 'water', 'void'];
 const CONFLICT_TITLE_REGEX = /^(Military|Political)\s+(Air|Earth|Fire|Water|Void)\s+Conflict/i;
 const SKILL_VS_REGEX = /:\s*(\d+)\s+vs\s+(\d+)/;
 const PROVINCE_KEYS = ['one', 'two', 'three', 'four'];
+
+const STRONGHOLD_PROVINCE_LOCATION = 'stronghold province';
 
 // The element of the ring the current conflict is contested over. The engine's
 // `Conflict.getSummary()` publishes `elements` (an ARRAY — a conflict can carry
@@ -245,6 +247,18 @@ interface FateAwareDynastyPreference {
 interface FateAwareAdditionalFateOverride {
     desired: number;
     reason: string;
+    /**
+     * The amount is EXACT, not a floor.
+     *
+     * A board-aware deck normally takes `Math.max(economy, override)`, so a
+     * deck asking for 0 gets whatever the economy already wanted. That is
+     * right for "this body deserves at least N" and wrong for a body whose
+     * ability REQUIRES zero fate: `dire` grants its bonus only while the
+     * character has none, so a floor silently downgrades Damned Hida from 6
+     * military to 3 and leaves Unleashed Experiment paying 2 honor per
+     * declaration. Only such a deck sets this.
+     */
+    exact?: boolean;
 }
 
 interface DecideContext {
@@ -1529,9 +1543,13 @@ class JigokuBotPolicy {
             // placed in front of it: `fateAwareAdditionalFateButton` also does
             // the economy bookkeeping (bought count, durable spend) that the
             // rest of the dynasty phase reads, and it must still run.
+            // Set by any branch below that answers with a deliberate, exact
+            // zero for a DIRE body, so the setup-fate floor leaves it alone.
+            let exactZeroFate = false;
             return this.raiseSetupFate(((): BotDecision | null => {
                 const revealFate = this.currentUnicornReveal?.desiredAdditionalFate(context.playCardId) ?? null;
                 if(revealFate !== null) {
+                    exactZeroFate = revealFate === 0 && context.playCardId === 'khanbulak-benefactor';
                     return this.buttonDecision(
                         this.closestBidButton(buttons, revealFate),
                         context.playCardId === 'khanbulak-benefactor'
@@ -1549,15 +1567,18 @@ class JigokuBotPolicy {
                         dragon,
                         duelist,
                         shugenja,
-                        attachmentTower
+                        attachmentTower,
+                        opponent
                     )
                     : null;
                 const fateAwareButton = this.fateAwareAdditionalFateButton(
                     buttons,
                     context.playCost,
-                    fateAwareOverride?.desired
+                    fateAwareOverride?.desired,
+                    fateAwareOverride?.exact
                 );
                 if(fateAwareButton) {
+                    exactZeroFate = !!fateAwareOverride?.exact && fateAwareOverride.desired === 0;
                     return this.buttonDecision(fateAwareButton, fateAwareOverride?.reason || 'fate-aware-additional-fate');
                 }
                 const dishonorFate = dishonor?.desiredAdditionalFate(context.playCardId) ?? null;
@@ -1585,6 +1606,15 @@ class JigokuBotPolicy {
                 if(lionHonorFate !== null) {
                     return this.buttonDecision(this.closestBidButton(buttons, lionHonorFate), 'lion-honor-character-fate');
                 }
+                // Two classes, not one rate: payload buys persistence, fodder
+                // is bought to die this round and dire must stay at zero. The
+                // generic economy has one flat rule and applies it to all
+                // three. Ids absent from the map fall through to it unchanged.
+                const crabFate = this.currentCrabSacrifice?.desiredAdditionalFate(
+                    context.playCardId, this.strongholdRaceLive(me, opponent)) ?? null;
+                if(crabFate !== null) {
+                    return this.buttonDecision(this.closestBidButton(buttons, crabFate), 'crab-sacrifice-character-fate');
+                }
                 const attachmentFate = attachmentTower
                     ? attachmentTower.desiredAdditionalFate(context.playCardId, me?.stats?.fate ?? 0, context.playCost)
                     : null;
@@ -1609,7 +1639,7 @@ class JigokuBotPolicy {
                 }
                 const fateReserve = shugenja ? shugenja.desiredFateReserve(me, opponent) : undefined;
                 return this.buttonDecision(this.pickFateButton(buttons, me, context.playCost, profile.aggressiveFate, fateReserve), 'additional-fate');
-            })(), buttons);
+            })(), buttons, exactZeroFate);
         }
 
         if(title.includes('how much fate') || title.includes('how much honor')) {
@@ -2316,6 +2346,77 @@ class JigokuBotPolicy {
         return strongholdProvinceUnderAttack(me);
     }
 
+    /**
+     * Skill to defend the stronghold up to. `Infinity` is V1: every ready body.
+     *
+     * A margin caps it at `attackerSkill + margin`, which still WINS the
+     * conflict by that margin, so the province is no less safe against the
+     * skill on the table — the cap only stops stacking further bodies onto a
+     * defense already decided. The bodies it keeps ready are what answers a
+     * SECOND stronghold attack in the same phase, which V1 meets with nothing.
+     */
+    private strongholdDefenseTarget(profile: DeckProfile, attackerSkill: number, me: any,
+        opponent: any, type: string, ringElement: string): number {
+        const tuning = profile.defenseTuning || {};
+        if(!(Number(tuning.strongholdMaxSurplusMargin) > 0)) {
+            return Number.POSITIVE_INFINITY;
+        }
+        // Unread on this path: the stronghold branch returns before `size`
+        // looks at the mode. Named so the shape stays a valid sizing input.
+        const mode: DefenseCommitmentMode = 'prevent-break';
+        const sizingInput = {
+            mode,
+            attackerSkill: attackerSkill,
+            defenderSkill: 0,
+            potential: 0,
+            provinceStrength: this.attackedProvinceStrength(me),
+            marginalSkill: 0,
+            readyCount: this.readyCharacters(me).filter((card: any) => !card.inConflict).length,
+            conflictsRemaining: Math.max(0, Number(me?.stats?.conflictsRemaining) || 0),
+            ringElement: ringElement,
+            strongholdUnderAttack: true,
+            // Their follow-up: ready bodies NOT already committed to this
+            // conflict. With none, there is no second attack to save for.
+            opponentReadyAtHome: this.myCharactersInPlay(opponent)
+                .filter((card: any) => !card.bowed && !card.inConflict).length
+        };
+        const sizing = new DefenseCommitmentPolicy({
+            breakTie: profile.defenseBreakTie,
+            skillBuffer: profile.defenseSkillBuffer,
+            ...tuning
+        }).size(sizingInput);
+        recordDefenseSizing(sizingInput, sizing, {
+            seat: String(me?.name || ''),
+            round: this.currentRoundNumber,
+            axis: type,
+            honor: Number(me?.stats?.honor) || 0
+        });
+        return sizing.target ?? Number.POSITIVE_INFINITY;
+    }
+
+    /**
+     * Would firing this card's leave-play save cancel a sacrifice WE are
+     * paying right now?
+     *
+     * A prevented sacrifice during cost payment means the cost was not paid,
+     * so the ability being paid for never initiates and none of the death
+     * payoffs fire either — the save is spent for nothing. Pinned in
+     * `test/server/cards/CrabSacrificeIronMine.spec.js`.
+     *
+     * The same question is asked again in the character/event branch below.
+     * This copy exists because holdings answer the window from the PROVINCE
+     * branch, which returns before that one.
+     */
+    private savesOwnSacrificeCost(card: any): boolean {
+        if(!this.currentCrabSacrifice || !this.pendingSacrificeCostUuid || !card?.id) {
+            return false;
+        }
+        const profile = this.currentCrabSacrifice.profile;
+        return profile.saveHoldingIds.includes(card.id) ||
+            profile.saveAttachmentIds.includes(card.id) ||
+            profile.saveEventIds.includes(card.id);
+    }
+
     private strongholdDefenseCharacter(card: any): StrongholdDefenseCharacter {
         return {
             uuid: String(card.uuid),
@@ -2496,9 +2597,19 @@ class JigokuBotPolicy {
     // purpose — the arm's claim is that one more fate now buys a whole skipped
     // dynasty phase later — but affordability still binds, because the engine
     // offers only legal amounts and `closestBidButton` picks among those.
-    private raiseSetupFate(decision: BotDecision | null, buttons: any[]): BotDecision | null {
+    /**
+     * `exactZero` marks an answer that a deck policy chose DELIBERATELY and
+     * exactly, because the character's ability requires having no fate:
+     * `dire` grants its bonus only while the body is empty. Raising such a
+     * body to the setup floor does not buy persistence, it DELETES the reason
+     * the card was played — Damned Hida drops 6 military to 3, Unleashed
+     * Experiment keeps paying 2 honor per declaration, Khanbulak Benefactor
+     * loses its draw. The floor is a good lever (`saveFatePass.setupRounds`
+     * ships at [1,2,3], +2.22pp then +4.14pp) but it was raising these too.
+     */
+    private raiseSetupFate(decision: BotDecision | null, buttons: any[], exactZero = false): BotDecision | null {
         const floor = this.currentSaveFatePass?.setupFateFloor(this.currentRoundNumber) ?? 0;
-        if(!decision || floor <= 0) {
+        if(!decision || floor <= 0 || exactZero) {
             return decision;
         }
         const natural = parseInt(String(decision.target), 10);
@@ -2666,7 +2777,7 @@ class JigokuBotPolicy {
         return numeric[0].button;
     }
 
-    private fateAwareAdditionalFateButton(buttons: any[], playCost?: number, desiredOverride?: number): any | null {
+    private fateAwareAdditionalFateButton(buttons: any[], playCost?: number, desiredOverride?: number, exactOverride = false): any | null {
         if(!this.usesFateAwareEconomy() || this.fateAwarePendingAdditionalFate === null) {
             return null;
         }
@@ -2674,7 +2785,7 @@ class JigokuBotPolicy {
         const cap = this.fateAwarePendingAdditionalFateCap ?? this.fateAwarePendingAdditionalFate;
         const requested = desiredOverride === undefined
             ? this.fateAwarePendingAdditionalFate
-            : this.usesBoardAwareDynastyEconomy()
+            : this.usesBoardAwareDynastyEconomy() && !exactOverride
                 ? Math.max(this.fateAwarePendingAdditionalFate, desiredOverride)
                 : desiredOverride;
         const desired = Math.min(cap, Math.max(0, requested));
@@ -2701,10 +2812,21 @@ class JigokuBotPolicy {
         dragon: DragonTactics | null,
         duelist: DuelTactics | null,
         shugenja: ShugenjaTactics | null,
-        attachmentTower: DragonAttachmentTactics | null
+        attachmentTower: DragonAttachmentTactics | null,
+        opponent?: any
     ): FateAwareAdditionalFateOverride | null {
         if(!economy.preferDeckAdditionalFate) {
             return null;
+        }
+        // THIS is the branch the Crab list actually reaches — it sets
+        // `preferDeckAdditionalFate`, so the fate-aware economy owns the
+        // prompt and the generic cluster below this method never runs for it.
+        // Wiring only that cluster moved the deck's averages by ~0.05 fate.
+        const crabFate = this.currentCrabSacrifice?.desiredAdditionalFate(
+            context.playCardId, this.strongholdRaceLive(me, opponent)) ?? null;
+        if(crabFate !== null) {
+            // Exact: this deck's zeros are load-bearing (dire), not floors.
+            return { desired: crabFate, reason: 'crab-sacrifice-character-fate', exact: true };
         }
         const dishonorFate = dishonor?.desiredAdditionalFate(context.playCardId) ?? null;
         if(dishonorFate !== null) {
@@ -4422,6 +4544,36 @@ class JigokuBotPolicy {
         return this.attackedProvinceStrength(opponent, 4);
     }
 
+    // What the board can actually put into the stronghold attack Scouted
+    // Terrain unlocks. Both axes are measured because the declaration picks
+    // one, and an axis whose conflict opportunities are spent contributes
+    // nothing. A dash on an axis makes the body undeclarable there, which is
+    // why `skillValue` returning null excludes it from that axis's count.
+    private scoutedAttackReadiness(me: any): ScoutedAttackReadiness {
+        const ready = this.readyCharacters(me);
+        const axis = (type: 'military' | 'political') => {
+            const remaining = Number(me?.stats?.[type === 'military' ? 'militaryRemaining' : 'politicalRemaining']);
+            if(Number.isFinite(remaining) && remaining <= 0) {
+                return { attackers: 0, skill: 0 };
+            }
+            const values = ready
+                .map((card) => this.skillValue(card, type))
+                .filter((value): value is number => value !== null && Number.isFinite(value));
+            return {
+                attackers: values.length,
+                skill: values.reduce((total, value) => total + Math.max(0, value), 0)
+            };
+        };
+        const military = axis('military');
+        const political = axis('political');
+        const best = political.skill > military.skill ? political : military;
+        return {
+            conflictsRemaining: Math.max(0, Number(me?.stats?.conflictsRemaining) || 0),
+            readyAttackers: best.attackers,
+            readyAttackSkill: best.skill
+        };
+    }
+
     private attackProvinceDecision(opponent: any, omni?: Omniscient,
         legalDirectCardUuids?: Record<string, true>, profile: DeckProfile = DEFAULT_PROFILE,
         preferredLocation?: string): BotDecision | null {
@@ -4437,6 +4589,24 @@ class JigokuBotPolicy {
         if(this.currentUnicornReveal && this.currentProvinceKnowledge?.opponentStrongholdAttackable &&
             !attackLists.includes(opponent?.strongholdProvince || [])) {
             attackLists.unshift(opponent?.strongholdProvince || []);
+        }
+        // Adding it as a candidate is not enough. The generic ranking sorts by
+        // ASCENDING strength, so a 3-strength outer province outranks the
+        // stronghold every time and the four fate Scouted Terrain cost buy a
+        // normal break — the replay of 2026-08-22 spent the card three times
+        // and never declared at the stronghold. Breaking that province wins
+        // the game outright, so once it is live it is THE target.
+        //
+        // Scoped to the Scouted path only: with three provinces broken the
+        // conquest rule already hands `attackProvinceLists` the stronghold
+        // alone, so that branch keeps its decision and its telemetry reason.
+        const scoutedStrongholdLocation = this.currentUnicornReveal?.profile.scoutedDeclareAtStronghold &&
+            this.currentProvinceKnowledge?.opponentStrongholdAttackable &&
+            !mustAttackStronghold(opponent)
+            ? STRONGHOLD_PROVINCE_LOCATION
+            : undefined;
+        if(scoutedStrongholdLocation) {
+            preferredLocation = scoutedStrongholdLocation;
         }
         const useOmniProvinces = !!omni && profile.useOmniscientProvinceKnowledge !== false;
         let candidateLists = targeting.rank(
@@ -4490,11 +4660,14 @@ class JigokuBotPolicy {
             if(province.uuid) {
                 if(this.isDirectCardLegal(province, legalDirectCardUuids) &&
                     !this.isAttempted('cardClicked', [province.uuid])) {
-                    const stronghold = province.location === 'stronghold province';
+                    const stronghold = province.location === STRONGHOLD_PROVINCE_LOCATION;
                     const planned = !!preferredLocation && province.location === preferredLocation;
-                    return this.cardClickDecision(province, planned
-                        ? 'conflict-lookahead-target'
-                        : stronghold ? 'attack-stronghold' : 'attack-province');
+                    return this.cardClickDecision(province,
+                        stronghold && scoutedStrongholdLocation
+                            ? 'unicorn-reveal-attack-scouted-stronghold'
+                            : planned
+                                ? 'conflict-lookahead-target'
+                                : stronghold ? 'attack-stronghold' : 'attack-province');
                 }
             } else if(province.location && opponent.name) {
                 const args = [province.location, opponent.name, true];
@@ -4503,11 +4676,14 @@ class JigokuBotPolicy {
                         command: 'facedownCardClicked',
                         args,
                         target: province.location,
-                        reason: preferredLocation && province.location === preferredLocation
-                            ? 'conflict-lookahead-target'
-                            : province.location === 'stronghold province'
-                                ? 'attack-facedown-stronghold'
-                                : 'attack-facedown-province'
+                        reason: scoutedStrongholdLocation &&
+                            province.location === STRONGHOLD_PROVINCE_LOCATION
+                            ? 'unicorn-reveal-attack-scouted-stronghold'
+                            : preferredLocation && province.location === preferredLocation
+                                ? 'conflict-lookahead-target'
+                                : province.location === STRONGHOLD_PROVINCE_LOCATION
+                                    ? 'attack-facedown-stronghold'
+                                    : 'attack-facedown-province'
                     };
                 }
             }
@@ -4538,13 +4714,22 @@ class JigokuBotPolicy {
             (Number(me?.stats?.conflictsRemaining) || 0) > 0 &&
             (Number(me?.stats?.fate) || 0) >= this.currentUnicornReveal.profile.scoutedTerrainCost &&
             (me?.cardPiles?.hand || []).some((card: any) =>
-                card.id === this.currentUnicornReveal?.profile.scoutedTerrainCardId)) {
+                card.id === this.currentUnicornReveal?.profile.scoutedTerrainCardId) &&
+            // The bait concedes a province to keep bodies ready for the Scouted
+            // line. If those bodies cannot break the stronghold, the play gate
+            // will decline the card and the conceded province bought nothing.
+            (!this.currentUnicornReveal.profile.scoutedRequireBreakableStronghold ||
+                this.currentUnicornReveal.canBreakStrongholdNow(this.currentProvinceKnowledge,
+                    this.scoutedAttackReadiness(me).readyAttackSkill))) {
             return this.buttonDecision(done, 'unicorn-reveal-bait-scouted-counterattack');
         }
 
         const skillMatch = promptTitle.match(SKILL_VS_REGEX);
         const attackerSkill = skillMatch ? parseInt(skillMatch[1], 10) : null;
         const defenderSkill = skillMatch ? parseInt(skillMatch[2], 10) : 0;
+        // Read before the stronghold branch, which now sizes itself and so
+        // returns before this used to be declared.
+        const ringElement = conflictMatch ? conflictMatch[2].toLowerCase() : '';
 
         let candidates = this.sortBySkillDesc(
             this.withoutHonorCostDeclares(
@@ -4588,18 +4773,31 @@ class JigokuBotPolicy {
         // The stronghold province: breaking it loses the game, so no
         // commitment cap applies — every ready body defends, even for decks
         // that otherwise concede (win-only) or fold hopeless conflicts.
-        if(this.strongholdUnderAttack(me)) {
-            if(candidates.length > 0) {
+        //
+        // `defenseTuning.strongholdMaxSurplusMargin` is the one thing allowed
+        // to trim that, and only the SURPLUS: the capped target still beats
+        // the attacker by the margin, so no stronghold V1 would have held is
+        // conceded. What it buys is bodies left ready for the NEXT stronghold
+        // attack of the same phase, which V1 answers with an empty board.
+        // Sized here (not in the branch below) because this path returns
+        // before the shared sizing runs. 0 reproduces V1 exactly.
+        const strongholdDefense = this.strongholdUnderAttack(me);
+        if(strongholdDefense) {
+            const strongholdTarget = this.strongholdDefenseTarget(
+                profile, attackerSkill, me, opponent, type, ringElement);
+            if(defenderSkill < strongholdTarget && candidates.length > 0) {
                 return this.cardClickDecision(candidates[0], 'stronghold-defense-all');
             }
-            return this.buttonDecision(done, 'finish-defenders');
+            return this.buttonDecision(done,
+                defenderSkill >= strongholdTarget && candidates.length > 0
+                    ? 'stronghold-defense-capped'
+                    : 'finish-defenders');
         }
 
         // Display of Power is the deck's province-trade engine. Proactively
         // trade for a ring that turns on a live Phoenix payoff; otherwise use
         // Display only when the available board cannot win the defense anyway.
         // Never concede the stronghold.
-        const ringElement = conflictMatch ? conflictMatch[2].toLowerCase() : '';
         const availableDefense = defenderSkill + candidates.reduce((total, card) =>
             total + Math.max(this.skillValue(card, type) || 0, 0), 0);
         const displayRingUseful = !!shugenja && shugenja.shouldUseDisplayForRing(
@@ -4798,6 +4996,22 @@ class JigokuBotPolicy {
             }
         }
         return true;
+    }
+
+    /**
+     * Can a stronghold be attacked by either side — i.e. is the game one
+     * conflict from ending?
+     *
+     * Conquest needs three broken outer provinces before the stronghold
+     * province is a legal target, so three on either side means the next
+     * break can end it. The human's read (Q5): fate spent on persistence
+     * only pays while the game lasts long enough to use it, so in the
+     * closing round the same fate buys another BODY instead.
+     */
+    private strongholdRaceLive(me: any, opponent: any): boolean {
+        const threshold = 3;
+        return this.brokenOuterProvinceCount(me) >= threshold ||
+            this.brokenOuterProvinceCount(opponent) >= threshold;
     }
 
     private brokenOuterProvinceCount(player: any): number {
@@ -6785,7 +6999,8 @@ class JigokuBotPolicy {
                 this.currentUnicornReveal.shouldPlayScoutedTerrain(
                     this.currentProvinceKnowledge,
                     Number(me?.stats?.fate) || 0,
-                    this.currentOpponentCompletedConflictsThisRound
+                    this.currentOpponentCompletedConflictsThisRound,
+                    this.scoutedAttackReadiness(me)
                 )) {
                 return this.cardClickDecision(scouted, 'unicorn-reveal-play-scouted-terrain');
             }
@@ -8103,6 +8318,21 @@ class JigokuBotPolicy {
                 : null;
         }
 
+        // Buy a body to SPEND before a second body to keep. `bodyOrder` alone
+        // buys the most expensive body first, which for this deck is the
+        // payload — and an outlet with no fodder eats the payload instead
+        // (Tainted Hero ate Tainted Hero six times in twelve games). Reorders
+        // exactly one pick out of `bodies`; adds no buy and raises no budget,
+        // so every affordability gate above still holds.
+        const fodder = this.currentCrabSacrifice?.pickFodderBody(
+            bodies, this.myCharactersInPlay(me), me?.cardPiles?.hand || [], costOf);
+        if(fodder) {
+            const fodderDecision = playBody(fodder, 'crab-sacrifice-buy-fodder');
+            if(fodderDecision) {
+                return fodderDecision;
+            }
+        }
+
         const decision = economy.prioritizeBodies
             ? playBody() || playDurable()
             : playDurable() || playBody();
@@ -8343,6 +8573,17 @@ class JigokuBotPolicy {
             (card.isProvince || card.type === 'province' || card.type === 'stronghold' ||
                 /^(province [1-4]|stronghold province)$/.test(String(card.location || ''))) &&
             !this.isAttempted('cardClicked', [card.uuid]) &&
+            // IRON MINE IS A HOLDING, AND A HOLDING SITS IN A PROVINCE, so it
+            // matches the location test above and is picked HERE — before the
+            // `pendingSacrificeCostUuid` guard further down, which lives in the
+            // character/event branch and is therefore never consulted for it.
+            // Measured over 12 self-play games: 14 of 14 "did not successfully
+            // pay the required costs" events were this exact sequence — Iron
+            // Mine cancels the bot's OWN sacrifice cost, so the cost goes
+            // unpaid, the ability never initiates, and the holding is spent for
+            // nothing. Reprieve (an attachment) and Ceaseless Duty (an event in
+            // hand) do not reach this branch, which is why only Iron Mine leaked.
+            !this.savesOwnSacrificeCost(card) &&
             // A province whose targeting canceled twice this round is dead until
             // the board changes — same guard the character/event branch uses.
             // Without it a trigger→cancel→retrigger cycle loops the window,

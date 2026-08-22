@@ -263,3 +263,95 @@ looks exactly like a clean null.
   list.
 - `.claude/skills/roundrobin/SKILL.md` — the measurement method all of this
   follows.
+
+## Defense SURPLUS caps — a seventh defensive lever, and the first one that is unmeasurable rather than wrong
+
+`defenseTuning.maxSurplusMargin`, `strongholdMaxSurplusMargin` and
+`strongholdCapRequiresEnemyReserve` (`DefenseCommitmentPolicy`). All default 0 /
+false. `refactorIdentity` SHA identical with them present.
+
+This is deliberately NOT the sizing family the six rejected levers belong to.
+Those decide *whether* to defend, or how hard on a losing board. These trim
+SURPLUS off a defense already decided — the mirror of `attackKeepHome`, whose
+payoff is bodies still ready for the next conflict of the same phase.
+
+### The case that motivated it
+
+A human replay (2026-08-22, `game replays/crab sacrifice/`, Unicorn seat): the
+bot's stronghold was attacked **political 7 vs 59** — a deliberate bait — and
+`stronghold-defense-all` declared the entire board. The same phase, the human
+declared military at the same province for **20 vs 0** and won the game. V1 has
+no cap on the stronghold branch at all: it commits every ready body no matter
+how small the attack.
+
+### The formula, and why the two halves differ
+
+- **Outer provinces**: `max(attackerSkill - provinceStrength, 0) + margin`.
+  Relative, because a province breaks only when the attacker beats the defender
+  by at least its strength, so the province absorbs its own strength and only
+  the remainder has to come off our board.
+- **Stronghold**: `attackerSkill + margin`. STATIC. Discounting the buffer by
+  the stronghold's own strength would shrink it on the one province whose break
+  ends the game. Owner's call.
+- **A win floor**: the outer cap can never fall below `attackerSkill + 1`. At
+  province strength 6+ the relative formula lands under the win line, and a
+  defense that bows bodies and still loses is strictly worse than not defending
+  — it pays the bodies AND hands over the ring.
+
+### The outer-province half is structurally inert
+
+With the win floor in place it changes nothing in **0 of 36** attacker x
+province-strength combinations, and the reason is not tuning: **V1 already
+targets exactly `attackerSkill + 1` on outer provinces.** There is no surplus in
+the TARGET to trim.
+
+The over-commitment visible in real games on outer provinces is **body
+granularity** — `sortBySkillDesc` declares the biggest ready body first, so a
+single 20-skill body overshoots a target of 11 by nine. A cap on the target
+cannot fix that; only defender SELECTION ORDER can, and biggest-first is
+deliberate (it minimises the NUMBER of bodies bowed). Pinned in
+`test/server/bots/defensecommitmentpolicy.spec.js`.
+
+### The stronghold half fires, and still measures nothing
+
+Ceiling first, `measureDecisiveness`, combined arm, 272 games:
+
+```
+winner flipped              0 (0.0%)
+same winner, different path 2 (0.7%)
+game completely unchanged   270 (99.3%)
+CEILING: 0.00pp
+```
+
+Head-to-head confirms exactly what a 0.00pp ceiling predicts. Null arm validated
+at **exactly 50.00%** (816-816, every base 272-272):
+
+| arm | result | |
+|---|---|---|
+| null (`0` / `0`) | 816-816 | **50.00%** exactly, every base 272-272 |
+| `strongholdMaxSurplusMargin: 10` | 818-814 | 50.12%, z=0.10, **p=0.921** |
+| \+ `strongholdCapRequiresEnemyReserve` | 814-818 | 49.88%, z=-0.10, **p=0.921** |
+| `maxSurplusMargin: 6` | 816-816 | **50.00%, every base 272-272 — bit-identical** |
+| both (6 + 10) | 818-814 | 50.12% — *identical to the stronghold arm alone* |
+
+Two independent confirmations that the outer-province half is inert: it scores
+the null arm's exact 272-272 on every base, and the combined arm reproduces the
+stronghold arm's totals cell for cell. That is the degenerate-arm check the
+`controlAttackKeepHome` trap taught — diff a new arm against the ADJACENT arm,
+not only against the control.
+
+The situation is not absent from self-play — across 12 bot games there were 14
+stronghold attacks, 13 survived, one phase with two of them, and two where the
+defender was 10+ skill ahead. The bodies the cap saves simply never decide a
+bot-vs-bot game.
+
+**Why the rig cannot score this lever.** It pays off against an opponent who
+attacks the stronghold with a hopeless force ON PURPOSE to strip the defence,
+then attacks again. No bot declares a hopeless conflict — the declaration logic
+requires a plausible win — so the field never generates the input. The human
+did it on turn six and won with it.
+
+So this is the first defensive lever here that is **unmeasurable rather than
+measured bad**: null with a zero ceiling in self-play, and a real fix for a real
+human line. Ship it only as an explicit owner call, and never cite the 50.12% as
+support.

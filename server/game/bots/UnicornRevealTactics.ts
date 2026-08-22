@@ -41,6 +41,13 @@ export interface ProvinceRevealResponseProfile {
     fallbackValueByAbility: Record<ProvinceAbilityClass, number>;
 }
 
+// What the board can put into the stronghold attack Scouted Terrain unlocks.
+export interface ScoutedAttackReadiness {
+    conflictsRemaining: number;
+    readyAttackers: number;
+    readyAttackSkill: number;
+}
+
 export interface UnicornRevealProfile {
     preferOpponentStrongholdReveal: boolean;
     revealSourceIds: string[];
@@ -69,6 +76,30 @@ export interface UnicornRevealProfile {
     scoutedTerrainCardId: string;
     scoutedTerrainCost: number;
     scoutedMinimumOpponentCompletedConflicts: number;
+    // Scouted Terrain buys exactly ONE thing: a legal declaration against the
+    // stronghold province. It has no board effect, no card draw and no fate
+    // return, so a phase in which we never declare that attack spends four
+    // fate and a card on nothing. A human replay (2026-08-22 vs Crab) played
+    // it three times and declared at the stronghold zero times: twice the
+    // declaration went to a cheap outer province, once the phase had no ready
+    // character at all. Both gates below are that replay.
+    scoutedRequiresReadyAttacker: boolean;
+    // Even unopposed, an attack that cannot reach the stronghold province's
+    // strength cannot break it, and breaking it is the only payoff. Skill on
+    // ready bodies is compared against the province, not against the
+    // defenders: the opponent may decline to defend, and the deck's pumps sit
+    // on top of this floor.
+    scoutedRequireBreakableStronghold: boolean;
+    // What to assume when the stronghold province is still facedown. Fair
+    // seeds cannot read its strength, and the card's own condition already
+    // needs four faceup opposing provinces before it is playable.
+    scoutedUnknownStrongholdStrength: number;
+    // Headroom demanded over the province strength before the line is worth
+    // the card. 0 = break it exactly if nobody defends.
+    scoutedStrongholdSkillMargin: number;
+    // Once the stronghold province is legal, target it. The generic province
+    // ranking prefers the CHEAPEST break, which throws the card away.
+    scoutedDeclareAtStronghold: boolean;
     // Characters whose printed skill IS the fate left in our pool (Yoritomo).
     // Bought out of an opening 6-fate pool they arrive as a vanilla 3/3 tower
     // on an empty board, which is the opposite of what the reveal engine wants
@@ -149,6 +180,11 @@ export const UNICORN_REVEAL_DEFAULTS: UnicornRevealProfile = {
     scoutedTerrainCardId: 'scouted-terrain',
     scoutedTerrainCost: 4,
     scoutedMinimumOpponentCompletedConflicts: 1,
+    scoutedRequiresReadyAttacker: true,
+    scoutedRequireBreakableStronghold: true,
+    scoutedUnknownStrongholdStrength: 5,
+    scoutedStrongholdSkillMargin: 0,
+    scoutedDeclareAtStronghold: true,
     fateScalingCharacterIds: ['yoritomo'],
     fateScalingMinimumPoolAfterPlay: 2,
     fateScalingWideBoardRevealedProvinces: 3
@@ -203,16 +239,50 @@ export class UnicornRevealTactics {
         return this.opponentFaceupNonStronghold(snapshot) >= 4;
     }
 
+    // Their stronghold province as the fair view sees it, and the strength we
+    // have to reach to break it. A facedown one falls back to the profile
+    // assumption rather than to zero, so an unknown province cannot look free.
+    strongholdBreakStrength(snapshot?: ProvinceKnowledgeSnapshot): number {
+        const stronghold = snapshot?.opponent.find((province) => province.stronghold);
+        const strength = Number(stronghold?.strength);
+        return stronghold?.faceup && Number.isFinite(strength)
+            ? Math.max(0, strength)
+            : Math.max(0, this.profile.scoutedUnknownStrongholdStrength);
+    }
+
+    // Can the bodies that are ready RIGHT NOW break the stronghold province if
+    // nobody defends? `readyAttackSkill` is their summed skill on the axis the
+    // declaration would use.
+    canBreakStrongholdNow(snapshot: ProvinceKnowledgeSnapshot | undefined, readyAttackSkill: number): boolean {
+        return Math.max(0, Number(readyAttackSkill) || 0) >=
+            this.strongholdBreakStrength(snapshot) + this.profile.scoutedStrongholdSkillMargin;
+    }
+
     // Scouted Terrain needs unrevealed provinces to pay off, so it is gated on
     // the snapshot rather than on fate alone.
+    //
+    // It also needs the attack it enables to actually happen. The lasting
+    // effect expires at end of phase and grants nothing else, so a conflict
+    // opportunity, a body that can be declared, and enough skill to reach the
+    // province are all part of the card's cost, not of its follow-up.
     shouldPlayScoutedTerrain(
         snapshot: ProvinceKnowledgeSnapshot | undefined,
         fate: number,
-        opponentCompletedConflicts: number
+        opponentCompletedConflicts: number,
+        attack: ScoutedAttackReadiness = { conflictsRemaining: 1, readyAttackers: 1, readyAttackSkill: Infinity }
     ): boolean {
-        return !!snapshot && !snapshot.opponentStrongholdAttackable &&
-            this.allOpponentOuterRevealed(snapshot) && fate >= this.profile.scoutedTerrainCost &&
-            opponentCompletedConflicts >= this.profile.scoutedMinimumOpponentCompletedConflicts;
+        if(!snapshot || snapshot.opponentStrongholdAttackable ||
+            !this.allOpponentOuterRevealed(snapshot) || fate < this.profile.scoutedTerrainCost ||
+            opponentCompletedConflicts < this.profile.scoutedMinimumOpponentCompletedConflicts) {
+            return false;
+        }
+        if(this.profile.scoutedRequiresReadyAttacker &&
+            (Math.max(0, Number(attack.conflictsRemaining) || 0) < 1 ||
+                Math.max(0, Number(attack.readyAttackers) || 0) < 1)) {
+            return false;
+        }
+        return !this.profile.scoutedRequireBreakableStronghold ||
+            this.canBreakStrongholdNow(snapshot, attack.readyAttackSkill);
     }
 
     // Layer this deck's Good Omen consideration on top of the generic draw

@@ -51,6 +51,48 @@ describe('UnicornRevealTactics', function() {
         expect(tactics.shouldPlayScoutedTerrain(snapshot({ opponentStrongholdAttackable: true }), 9, 1)).toBe(false);
     });
 
+    // The 2026-08-22 replay: Scouted Terrain played three times, stronghold
+    // attacked zero times. Once the phase had no ready character at all.
+    it('refuses Scouted Terrain when the attack it unlocks cannot happen', function() {
+        const tactics = new UnicornRevealTactics();
+        const ready = { conflictsRemaining: 1, readyAttackers: 2, readyAttackSkill: 10 };
+
+        expect(tactics.shouldPlayScoutedTerrain(snapshot(), 4, 1, ready)).toBe(true);
+        expect(tactics.shouldPlayScoutedTerrain(snapshot(), 4, 1,
+            { ...ready, readyAttackers: 0 })).toBe(false);
+        expect(tactics.shouldPlayScoutedTerrain(snapshot(), 4, 1,
+            { ...ready, conflictsRemaining: 0 })).toBe(false);
+        expect(tactics.shouldPlayScoutedTerrain(snapshot(), 4, 1,
+            { ...ready, readyAttackSkill: 4 })).toBe(false);
+    });
+
+    it('reads the stronghold province strength it has to reach, fair-view only', function() {
+        const tactics = new UnicornRevealTactics();
+        const faceup = (strength) => snapshot({
+            opponent: snapshot().opponent.map((province) => province.stronghold
+                ? { ...province, faceup: true, strength }
+                : province)
+        });
+
+        // Facedown: the profile assumption, not zero.
+        expect(tactics.strongholdBreakStrength(snapshot()))
+            .toBe(UNICORN_REVEAL_DEFAULTS.scoutedUnknownStrongholdStrength);
+        expect(tactics.strongholdBreakStrength(faceup(7))).toBe(7);
+        expect(tactics.canBreakStrongholdNow(faceup(7), 7)).toBe(true);
+        expect(tactics.canBreakStrongholdNow(faceup(7), 6)).toBe(false);
+    });
+
+    it('keeps both new gates switchable from a tuning arm', function() {
+        const off = new UnicornRevealTactics({
+            ...UNICORN_REVEAL_DEFAULTS,
+            scoutedRequiresReadyAttacker: false,
+            scoutedRequireBreakableStronghold: false
+        });
+
+        expect(off.shouldPlayScoutedTerrain(snapshot(), 4, 1,
+            { conflictsRemaining: 0, readyAttackers: 0, readyAttackSkill: 0 })).toBe(true);
+    });
+
     it('reduces later-round bids only while Good Omen is held', function() {
         const tactics = new UnicornRevealTactics();
         const omen = [{ id: 'good-omen' }];

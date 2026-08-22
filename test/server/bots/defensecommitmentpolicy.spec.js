@@ -190,5 +190,90 @@ describe('DefenseCommitmentPolicy', function() {
         expect(DEFAULT_DEFENSE_COMMITMENT.breakTieRingElements).toEqual([]);
         expect(DEFAULT_DEFENSE_COMMITMENT.skillBuffer).toBe(0);
         expect(DEFAULT_DEFENSE_COMMITMENT.threatBuffer).toBe(0);
+        expect(DEFAULT_DEFENSE_COMMITMENT.maxSurplusMargin).toBe(0);
+        expect(DEFAULT_DEFENSE_COMMITMENT.strongholdMaxSurplusMargin).toBe(0);
+        expect(DEFAULT_DEFENSE_COMMITMENT.strongholdCapRequiresEnemyReserve).toBe(false);
+    });
+
+    // The surplus caps. These are NOT the defense-sizing family that decides
+    // whether to defend — they only trim skill off a defense already decided.
+    describe('surplus caps', function() {
+        const stronghold = (over = {}) => input(Object.assign({
+            strongholdUnderAttack: true,
+            potential: 60,
+            opponentReadyAtHome: 2
+        }, over));
+
+        it('leaves the stronghold uncapped at the default, as V1 does', function() {
+            const result = new DefenseCommitmentPolicy({}).size(stronghold());
+            expect(result.branch).toBe('stronghold');
+            expect(result.target).toBe(Infinity);
+            expect(result.surplusCapped).toBe(false);
+        });
+
+        // STATIC on purpose: the stronghold's own strength must not shrink the
+        // buffer on the province whose break ends the game.
+        it('caps the stronghold at attackerSkill + margin, ignoring province strength', function() {
+            const weak = new DefenseCommitmentPolicy({ strongholdMaxSurplusMargin: 10 })
+                .size(stronghold({ attackerSkill: 7, provinceStrength: 3 }));
+            const strong = new DefenseCommitmentPolicy({ strongholdMaxSurplusMargin: 10 })
+                .size(stronghold({ attackerSkill: 7, provinceStrength: 9 }));
+            expect(weak.target).toBe(17);
+            expect(strong.target).toBe(17);
+            expect(weak.surplusCapped).toBe(true);
+        });
+
+        it('leaves the stronghold uncapped when the attacker kept nothing home', function() {
+            const config = { strongholdMaxSurplusMargin: 10, strongholdCapRequiresEnemyReserve: true };
+            const noReserve = new DefenseCommitmentPolicy(config)
+                .size(stronghold({ opponentReadyAtHome: 0 }));
+            const reserve = new DefenseCommitmentPolicy(config)
+                .size(stronghold({ opponentReadyAtHome: 1 }));
+            expect(noReserve.target).toBe(Infinity);
+            expect(reserve.target).toBe(20);
+        });
+
+        // Outer provinces measure the margin from the BREAK-PREVENTION line,
+        // because the province absorbs its own strength.
+        // Reachable only when some other buffer pushed the target out; a
+        // `threatBuffer` of 10 is what that looks like.
+        it('measures the outer-province cap from attackerSkill - provinceStrength', function() {
+            const args = input({ mode: 'prevent-break', attackerSkill: 20, provinceStrength: 4,
+                defenderSkill: 0, potential: 60 });
+            const uncapped = new DefenseCommitmentPolicy({ threatBuffer: 10 }).size(args);
+            const capped = new DefenseCommitmentPolicy({ threatBuffer: 10, maxSurplusMargin: 6 }).size(args);
+            expect(uncapped.target).toBe(30);
+            // max(20 - 4, 0) + 6
+            expect(capped.target).toBe(22);
+            expect(capped.surplusCapped).toBe(true);
+        });
+
+        // A defense that bows bodies and still LOSES is strictly worse than not
+        // defending: it pays the bodies and hands over the ring anyway.
+        it('never caps below the point that wins the conflict', function() {
+            for(const provinceStrength of [6, 8, 12]) {
+                const result = new DefenseCommitmentPolicy({ maxSurplusMargin: 6 })
+                    .size(input({ mode: 'win-only', attackerSkill: 25, provinceStrength,
+                        defenderSkill: 0, potential: 60 }));
+                expect(result.target).toBe(26);
+            }
+        });
+
+        // V1 already sizes outer provinces minimally, so with no buffer in play
+        // there is no surplus for this knob to trim. This is the whole reason
+        // the outer-province half of the lever measured as a no-op: the
+        // over-commitment seen in real games is BODY GRANULARITY (the biggest
+        // ready body is declared first and overshoots a minimal target), which
+        // a cap on the target cannot fix.
+        it('is inert on outer provinces at the shipped buffers', function() {
+            for(const provinceStrength of [3, 4, 5, 6, 7, 8]) {
+                for(const attackerSkill of [5, 10, 15, 20, 25, 30]) {
+                    const args = input({ mode: 'win-only', attackerSkill, provinceStrength,
+                        defenderSkill: 0, potential: 60 });
+                    expect(new DefenseCommitmentPolicy({ maxSurplusMargin: 6 }).size(args).target)
+                        .toBe(new DefenseCommitmentPolicy({}).size(args).target);
+                }
+            }
+        });
     });
 });

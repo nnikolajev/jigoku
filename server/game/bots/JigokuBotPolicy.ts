@@ -52,6 +52,12 @@ import { ConflictDeclarationPolicy, recordAxisChoice } from './ConflictDeclarati
 import { ConflictTempoPolicy, recordTempoRead } from './ConflictTempoPolicy.js';
 import type { ConflictTempoRead } from './ConflictTempoPolicy';
 import { UnopposedWindowPolicy, recordUnopposedWindow } from './UnopposedWindowPolicy.js';
+import { ReadyValuePolicy, gloryOf } from './ReadyValuePolicy.js';
+import { ReadyMovePlanner, sequenceOptionsFrom, moveSourceSpec } from './ReadyMovePlanner.js';
+import type { ReadyMovePlan, SequenceSourceTargets } from './ReadyMovePlanner';
+import type { ReadyValueVerdict } from './ReadyValuePolicy';
+import { DefenderRingChoicePolicy } from './DefenderRingChoicePolicy.js';
+import type { DefenderRingChoiceResult } from './DefenderRingChoicePolicy';
 import { BotTelemetry } from './BotTelemetry.js';
 import type { DeckProfile } from './DeckProfiles';
 import type { FateAwareEconomyProfile } from './FateAwareEconomy';
@@ -148,6 +154,19 @@ interface BotDecision {
 }
 
 const RING_ORDER = ['air', 'earth', 'fire', 'water', 'void'];
+// `conflictflow.ts:defenderChoosesRing` builds this prompt with
+// `source: 'Defender chooses conflict ring'`, which `SelectRingPrompt`
+// publishes as the promptTitle, and an activePromptTitle naming the
+// attacker. Either identifies the prompt; the menu regex is the fallback
+// for adapters that publish only the active title.
+// Strongholds whose Action READIES a character. They bow themselves for the
+// round to do it, so the ready has to be worth that bow.
+const READY_STRONGHOLD_IDS = new Set(['hayaken-no-shiro', 'kyuden-bayushi']);
+// Reactions whose entire payoff is readying one of our characters. Firing one
+// with no conflict left to use the body spends the trigger for nothing.
+const READY_REACTION_IDS = new Set(['elegant-tessen', 'niten-master', 'twilight-rider']);
+const DEFENDER_RING_PROMPT_TITLE = 'Defender chooses conflict ring';
+const DEFENDER_RING_MENU_REGEX = /choose a ring for .+ conflict/i;
 const CONFLICT_TITLE_REGEX = /^(Military|Political)\s+(Air|Earth|Fire|Water|Void)\s+Conflict/i;
 const SKILL_VS_REGEX = /:\s*(\d+)\s+vs\s+(\d+)/;
 const PROVINCE_KEYS = ['one', 'two', 'three', 'four'];
@@ -320,6 +339,7 @@ interface DecideContext {
     participatingCharacterCounts?: { self: number; opponent: number };
     cavalryCharacterUuids?: Record<string, true>;
     readyAfterMoveCharacterUuids?: Record<string, true>;
+    sequenceSourceTargets?: SequenceSourceTargets;
     // Seed-3 cheat view: the human's true hand/fate/province strengths. Present
     // only for the omniscient bot; every omniscient branch is gated on it, so
     // Non-omniscient bots (undefined here) keep identical behavior.
@@ -512,6 +532,30 @@ class JigokuBotPolicy {
     private currentParticipatingCharacterCounts: { self: number; opponent: number } | undefined;
     private currentCavalryCharacterUuids: Record<string, true> | undefined;
     private currentReadyAfterMoveCharacterUuids: Record<string, true> | undefined;
+    // One `ReadyValuePolicy` reading per decide() call. The verdict is a pure
+    // function of a board that cannot change inside one prompt, and both
+    // playbook-context builders ask for it, so memoising keeps the telemetry
+    // to one row per decision instead of one per builder.
+    private currentReadyValueVerdict?: ReadyValueVerdict;
+    private currentSequenceSourceTargets?: SequenceSourceTargets;
+    // The ready -> move plan, also one reading per decide() call. Null is a
+    // real answer (no sequence is worth doing), so a separate `computed`
+    // flag distinguishes it from "not asked yet".
+    private currentReadyMovePlan?: ReadyMovePlan | null;
+    private readyMovePlanComputed = false;
+    // The body whose ready leg this conflict has already paid for, and the
+    // conflict it belongs to. Survives across prompts on purpose: the plan
+    // itself is stateless, so without this a better plan appearing between the
+    // legs orphans the card that was already spent.
+    private readyMoveStartedUuid: string | null = null;
+    private readyMoveStartedConflict = '';
+    // The body and source a stage-`move` plan committed to. Needed because the
+    // planner is BLIND at the following target prompt: `sequenceSourceTargets`
+    // asks the engine whether each source is usable, and a source that is
+    // mid-resolution is not, so `moveOptions` comes back empty and the plan
+    // disappears exactly when the target has to be chosen. Measured: the
+    // planner answered 0 of 237 Unicorn move-target prompts.
+    private readyMoveCommittedMove: { uuid: string; sourceId: string } | null = null;
     private currentUnicorn: UnicornTactics | null = null;
     private currentUnicornReveal: UnicornRevealTactics | null = null;
     private currentProvinceRevealResponse = new ProvinceRevealResponseTactics();
@@ -676,6 +720,10 @@ class JigokuBotPolicy {
         this.currentParticipatingCharacterCounts = context.participatingCharacterCounts;
         this.currentCavalryCharacterUuids = context.cavalryCharacterUuids;
         this.currentReadyAfterMoveCharacterUuids = context.readyAfterMoveCharacterUuids;
+        this.currentReadyValueVerdict = undefined;
+        this.currentSequenceSourceTargets = context.sequenceSourceTargets;
+        this.currentReadyMovePlan = undefined;
+        this.readyMovePlanComputed = false;
         this.currentProvinceKnowledge = context.provinceKnowledge;
         this.currentCombinedConflictSkills = !!context.provinceKnowledge?.combinedConflictSkills;
         this.currentCompletedConflictsThisRound = Math.max(0, Number(context.completedConflictsThisRound) || 0);
@@ -1973,19 +2021,15 @@ class JigokuBotPolicy {
         // outside conflicts every ring reports unselectable !== true, and a
         // stray ringClicked is rejected by the controller and stalls the bot.
         if(me.selectRing === true && /\bring\b/.test(title)) {
-            // Togashi Tadakatsu: conflicts declared against him let US (the
-            // defender) choose the element — hand the attacker the WORST
-            // ring (lowest score: no fate pile, no board synergy).
-            if(dragon && playerState?.conflict?.attackingPlayerId &&
-                playerState.conflict.attackingPlayerId !== me.id) {
-                const rings = Object.values(playerState?.rings || {}).filter((ring: any) =>
-                    ring && ring.unselectable !== true && !this.isAttempted('ringClicked', [ring.element]));
-                if(rings.length > 0) {
-                    const worst: any = rings.sort((a: any, b: any) =>
-                        this.ringScore(a, me, this.opponentPlayer(playerState, me), dishonor, glory, undefined, shugenja) -
-                        this.ringScore(b, me, this.opponentPlayer(playerState, me), dishonor, glory, undefined, shugenja))[0];
-                    return { command: 'ringClicked', args: [worst.element], target: worst.element, reason: 'dragon-worst-ring-for-attacker' };
-                }
+            // Togashi Tadakatsu: a conflict declared against the player who
+            // controls him lets the DEFENDER choose the element. Generic: the
+            // prompt exists because the OPPONENT has him in play, so any deck
+            // can be asked it, and V1's answer here was its own ATTACKING
+            // preference -- i.e. the best ring, handed over.
+            const defenderRing = this.defenderRingChoiceDecision(playerState, me,
+                promptTitle, menuTitle, dishonor, glory, dragon, shugenja, attachmentTower);
+            if(defenderRing) {
+                return defenderRing;
             }
             const ringDecision = this.ringDecision(playerState, me, title, dishonor, glory, dragon, shugenja, attachmentTower, buttons, context.targetHint?.sourceCardId);
             if(ringDecision) {
@@ -5448,6 +5492,10 @@ class JigokuBotPolicy {
             clarityPoliticalOnly: sharedPlayCtx.clarityPoliticalOnly,
             tadakaRequiresBowedBase: sharedPlayCtx.tadakaRequiresBowedBase,
             tadakaReadyIsUseful: sharedPlayCtx.tadakaReadyIsUseful,
+            homeReadyIsUseful: sharedPlayCtx.homeReadyIsUseful,
+            readyMoveTargetUuid: sharedPlayCtx.readyMoveTargetUuid,
+            readyMoveMoveSourceId: sharedPlayCtx.readyMoveMoveSourceId,
+            readyMoveMoveTargetUuid: sharedPlayCtx.readyMoveMoveTargetUuid,
             conflictProvinceElements: this.currentConflictProvinceElements,
             conflictRingElements: conflictRingElementsOf(playerState),
             // "if there is a Battlefield in play" (Chronicler of Conquests).
@@ -6240,6 +6288,15 @@ class JigokuBotPolicy {
                     playCtx?.activeConflict !== false
                 );
             }
+            // A stronghold that READIES pays a real cost - it bows for the
+            // rest of the round - so it answers the same question a ready card
+            // does (`ReadyValuePolicy`): with no conflict left to use the body,
+            // the bow is spent for nothing. Deck gates below still apply on top.
+            if(READY_STRONGHOLD_IDS.has(String(card.id)) &&
+                playCtx?.homeReadyIsUseful === false &&
+                !(playCtx?.myCharacters || []).some((body: any) => body.bowed && body.inConflict)) {
+                return false;
+            }
             // Hayaken no Shiro readies a cheap Bushi — only worth the bow
             // when one of the deck's cheap bodies actually sits bowed.
             if(lion && card.id === 'hayaken-no-shiro') {
@@ -6263,6 +6320,11 @@ class JigokuBotPolicy {
             // follow-up, movement triggers, or an after-win payoff. Preserve
             // an unused Barcha for its stronger bow+move action.
             if(card.id === 'golden-plains-outpost') {
+                // A committed ready -> move sequence already proved the arrival
+                // changes the result, so it opens the stronghold on its own.
+                if(playCtx?.readyMoveMoveSourceId === 'golden-plains-outpost') {
+                    return true;
+                }
                 const moveCharacters = playCtx?.myCharacters || [];
                 return !!this.currentUnicorn && playCtx?.conflictType === 'military' &&
                     this.currentUnicorn.shouldUseMove(this.unicornMoveContext(
@@ -6488,6 +6550,17 @@ class JigokuBotPolicy {
             clarityPoliticalOnly: this.currentDeckProfile.shugenja?.clarityPoliticalOnly === true,
             tadakaRequiresBowedBase: this.currentDeckProfile.shugenja?.disguiseRequiresBowedBase === true,
             tadakaReadyIsUseful: this.tadakaReadyIsUseful(me, opponent),
+            // Is readying a body at HOME worth a card right now? See
+            // `ReadyValuePolicy`. Undefined is never published: an unopted
+            // profile answers `true` through the disabled arm.
+            homeReadyIsUseful: this.homeReadyVerdict(playerState, me, opponent).useful,
+            readyMoveTargetUuid: this.readyMoveReadyTargetUuid(playerState, me),
+            readyMoveMoveSourceId: this.readyMovePlan(playerState, me)?.stage === 'move'
+                ? this.readyMovePlan(playerState, me)?.moveSourceId
+                : undefined,
+            readyMoveMoveTargetUuid: this.readyMovePlan(playerState, me)?.stage === 'move'
+                ? this.readyMovePlan(playerState, me)?.uuid
+                : undefined,
             conflictProvinceElements: this.currentConflictProvinceElements,
             conflictRingElements: conflictRingElementsOf(playerState),
             // "if there is a Battlefield in play" (Chronicler of Conquests).
@@ -6547,6 +6620,351 @@ class JigokuBotPolicy {
             Number(opponent?.stats?.conflictsRemaining) || 0,
             this.myCharactersInPlay(opponent).filter((card: any) => !card.bowed).length
         );
+    }
+
+    /**
+     * Is readying a body that is NOT in the conflict worth the card? Owned by
+     * `ReadyValuePolicy`; see that file for the three uses that count and for
+     * the Imperial Favor exception. One reading per decide() call, published on
+     * both playbook contexts as `homeReadyIsUseful` so every ready card asks
+     * the same question instead of inventing its own.
+     */
+    private homeReadyVerdict(playerState: any, me: any, opponent: any): ReadyValueVerdict {
+        if(this.currentReadyValueVerdict) {
+            return this.currentReadyValueVerdict;
+        }
+        const policy = new ReadyValuePolicy(this.currentDeckProfile.readyValue);
+        if(policy.inert) {
+            this.currentReadyValueVerdict = { useful: true, reason: 'ready-gate-disabled' };
+            return this.currentReadyValueVerdict;
+        }
+        const conflictActive = !!playerState?.conflict?.type;
+        // "We can move it in" is a per-CHARACTER answer, not a board-level one:
+        // `ReadyMovePlanner` commits to one body and one move source, and
+        // crediting every bowed body with the plan's justification is exactly
+        // how the old "we hold a mover" reading leaked. The board-level verdict
+        // therefore passes false and the plan reaches the gate through
+        // `readyMoveTargetUuid` on the playbook context instead.
+        const verdict = policy.evaluate({
+            inConflict: false,
+            conflictActive,
+            conflictsRemaining: Number(me?.stats?.conflictsRemaining) || 0,
+            opponentConflictsRemaining: Number(opponent?.stats?.conflictsRemaining) || 0,
+            canMoveIntoConflict: false,
+            // Glory is read off the candidate by `anyTargetUseful`; this
+            // board-level reading answers for a body that carries some, so the
+            // per-card check below can still veto a 0-glory target.
+            gloryOnReady: this.myCharactersInPlay(me)
+                .reduce((top: number, card: any) => card.bowed && !card.inConflict
+                    ? Math.max(top, gloryOf(card))
+                    : top, 0),
+            // The glory count runs at the END of every conflict phase, so the
+            // favor is contestable for as long as that phase is running —
+            // whoever currently holds it.
+            favorContested: (me?.phase || playerState?.phase) === 'conflict'
+        });
+        this.currentReadyValueVerdict = verdict;
+        // Only the WITHHOLDING is recorded. "Every ready is fine" is the
+        // overwhelmingly common answer and would bury the rows that matter.
+        if(!verdict.useful) {
+            this.recordReadyValue(me, opponent, String(me?.promptTitle || ''), verdict);
+        }
+        return verdict;
+    }
+
+    /**
+     * The ready -> move sequence (`ReadyMovePlanner`). One reading per decide()
+     * call. Null is a real answer, so `readyMovePlanComputed` distinguishes it
+     * from "not asked yet".
+     *
+     * Every legality question is answered by the ENGINE, through
+     * `JigokuBotController.sequenceSourceTargets` — the planner only pairs the
+     * legs, budgets the fate for both, and applies the value gate.
+     */
+    private readyMovePlan(playerState: any, me: any): ReadyMovePlan | null {
+        if(this.readyMovePlanComputed) {
+            return this.currentReadyMovePlan ?? null;
+        }
+        this.readyMovePlanComputed = true;
+        this.currentReadyMovePlan = null;
+        const planner = new ReadyMovePlanner(this.currentDeckProfile.readyMove);
+        if(planner.inert || new ReadyValuePolicy(this.currentDeckProfile.readyValue)
+            .config.allowMoveIntoConflict === false) {
+            return null;
+        }
+        const conflict = playerState?.conflict;
+        if(!conflict?.type) {
+            return null;
+        }
+        const { readyOptions, moveOptions, readyAfterMoveOptions } =
+            sequenceOptionsFrom(this.currentSequenceSourceTargets);
+        if(moveOptions.length === 0 && readyAfterMoveOptions.length === 0) {
+            return null;
+        }
+        const conflictType: 'military' | 'political' =
+            conflict.type === 'political' ? 'political' : 'military';
+        const opponent = this.opponentPlayer(playerState, me);
+        const mine = this.myCharactersInPlay(me);
+        const standing = this.conflictStanding(playerState, me);
+        const plan = planner.plan({
+            characters: mine,
+            conflictActive: true,
+            fate: Number(me?.stats?.fate) || 0,
+            winSkillNeeded: standing?.losing ? standing.gap : 0,
+            strengthNeeded: Math.max(0, Number(this.conflictStrengthNeeded(playerState, me)) || 0),
+            readyOptions,
+            moveOptions,
+            readyAfterMoveOptions,
+            skillOf: (card: any) => this.skillValue(card, conflictType) || 0,
+            preferUuid: this.readyMoveStartedUuid || undefined,
+            // A BOWED participant still counts for `isParticipating()` and for
+            // `hasMoreParticipants`, which is why the Unicorn rush wants bodies
+            // in the conflict whether or not they can contribute skill. Every
+            // other deck supplies no payoff, so for them only ready -> move
+            // (arriving READY) is ever worth doing.
+            participationPayoff: this.currentUnicorn
+                ? (card: any) => this.unicornParticipationPayoff(card, me, opponent)
+                : undefined
+        });
+        this.currentReadyMovePlan = plan;
+        if(plan) {
+            this.rememberStartedSequence(playerState, plan);
+            this.recordReadyMovePlan(me, plan);
+        }
+        return plan;
+    }
+
+    /**
+     * What a body is worth in the conflict beyond its skill, for the deck built
+     * around arriving late. All four payoffs read `isParticipating()`, which is
+     * bow-agnostic, so they pay even for a body that arrives bowed:
+     *
+     *   Minami Kaze Regulars  after-win reaction, needs MORE participants
+     *   Higashi Kaze Company  after-win reaction, needs a 0-fate participant
+     *   Shinjo Shono          +1/+1 to participating Cavalry while outnumbering
+     *   Outskirts Sentry      honors a participant when anyone moves in
+     */
+    private unicornParticipationPayoff(card: any, me: any, opponent: any): number {
+        const unicorn = this.currentUnicorn;
+        if(!unicorn) {
+            return 0;
+        }
+        const mine = this.myCharactersInPlay(me);
+        const theirs = this.myCharactersInPlay(opponent);
+        const counts = this.currentParticipatingCharacterCounts;
+        const selfParticipants = unicorn.effectiveParticipantCount(counts?.self, mine);
+        const opponentParticipants = unicorn.effectiveParticipantCount(counts?.opponent, theirs);
+        // Arriving makes it one more.
+        const outnumberAfterMove = selfParticipants + 1 > opponentParticipants;
+        let payoff = 0;
+        if(card?.id === 'minami-kaze-regulars' && outnumberAfterMove) {
+            payoff += unicorn.profile.minamiWinBonus;
+        }
+        if(card?.id === 'higashi-kaze-company' &&
+            mine.some((other: any) => other !== card && other.inConflict &&
+                (Number(other.fate) || 0) === 0)) {
+            payoff += unicorn.profile.higashiWinBonus;
+        }
+        // Shinjo Shono's Action is legal only while we hold the participant
+        // majority. If we do not hold it now but WOULD once this body arrives,
+        // the arrival is what unlocks +1/+1 on every participating Cavalry —
+        // worth one point per Cavalry that would receive it.
+        const shonoParticipating = mine.some((other: any) =>
+            other.id === 'shinjo-shono' && other.inConflict);
+        const unlocksShono = shonoParticipating &&
+            selfParticipants <= opponentParticipants && outnumberAfterMove;
+        if(unlocksShono) {
+            payoff += mine.filter((other: any) =>
+                (other.inConflict || other === card) &&
+                unicorn.isCavalry(other, this.currentCavalryCharacterUuids)).length;
+        }
+        // Outskirts Sentry honors a participant whenever anything moves in,
+        // whatever moved and whatever its state.
+        if(mine.some((other: any) => other.id === 'outskirts-sentry' && other.inConflict)) {
+            payoff += unicorn.profile.outskirtsGloryWeight;
+        }
+        return payoff;
+    }
+
+    /**
+     * Pull the body a committed sequence named to the front of a selector's
+     * candidate list. Both legs use it: readying somebody OTHER than the
+     * planned body, or moving somebody other than the one just readied, breaks
+     * the sequence in half exactly as reliably as not planning at all.
+     *
+     * Returns null when the plan does not apply or the planned body is not on
+     * offer, and the caller keeps its own ordering.
+     */
+    private plannedSequenceCard(cards: any[], playerState: any, me: any,
+        stage: 'ready' | 'move', sourceCardId?: string): any | null {
+        const plan = this.readyMovePlan(playerState, me);
+        if(!plan || plan.stage !== stage) {
+            return null;
+        }
+        if(stage === 'move' && sourceCardId && plan.moveSourceId !== String(sourceCardId)) {
+            return null;
+        }
+        return (cards || []).find((card) => String(card?.uuid || '') === plan.uuid) || null;
+    }
+
+    /**
+     * The move target a plan committed to at the ACTION window, for use at the
+     * following TARGET prompt where the plan itself is no longer derivable —
+     * the source is mid-resolution, so the engine reports it unusable and
+     * `moveOptions` is empty. Scoped to the same conflict as the commitment.
+     */
+    private committedMoveCard(cards: any[], playerState: any, me: any,
+        sourceCardId?: string): any | null {
+        const live = this.plannedSequenceCard(cards, playerState, me, 'move', sourceCardId);
+        if(live) {
+            return live;
+        }
+        // Refresh the conflict scope before trusting the memory.
+        this.readyMovePlan(playerState, me);
+        const committed = this.readyMoveCommittedMove;
+        if(!committed || (sourceCardId && committed.sourceId !== String(sourceCardId))) {
+            return null;
+        }
+        return (cards || []).find((card) =>
+            String(card?.uuid || '') === committed.uuid && !card.inConflict) || null;
+    }
+
+    /**
+     * Narrow a move-in selector's candidates to bodies that will actually bring
+     * something. A body arriving with ZERO skill on the contested axis adds
+     * nothing to the comparison, so moving it in spends the source for free —
+     * unless the arrival itself pays (`unicornParticipationPayoff`: Minami and
+     * Higashi's after-win reactions, Shinjo Shono's participant majority,
+     * Outskirts Sentry's on-move honor, none of which need skill).
+     *
+     * Returns the empty list when nothing qualifies, so the caller declines
+     * rather than moving somebody pointlessly. Found by
+     * `test/server/integration/botreadyvalue.spec.js`, which caught five such
+     * moves across one pass of the field.
+     */
+    private usefulMoveArrivals(cards: any[], axis: 'military' | 'political',
+        me: any, opponent: any): any[] {
+        return (cards || []).filter((card) =>
+            (this.skillValue(card, axis) || 0) > 0 ||
+            (!!this.currentUnicorn && this.unicornParticipationPayoff(card, me, opponent) > 0));
+    }
+
+    /**
+     * Reconcile the generic `ReadyMovePlanner` with a deck's OWN movement
+     * scorer on a source both can answer.
+     *
+     * Returns the planner's body only when the deck model is not in charge.
+     * Either way it records whether the two AGREE, which is the only honest way
+     * to compare them: a knob that flips the owner but selects the same body is
+     * degenerate, and reads as a clean null however many games it is given.
+     */
+    private movePickerOverride(cards: any[], playerState: any, me: any,
+        sourceCardId: string, deckPick: () => any | null): any | null {
+        const planned = this.committedMoveCard(cards, playerState, me, sourceCardId);
+        if(BotTelemetry.enabled) {
+            const deckChoice = deckPick();
+            if(planned || deckChoice) {
+                BotTelemetry.record('move-picker-agreement', () => ({
+                    seat: String(me?.name || ''),
+                    round: this.currentRoundNumber,
+                    sourceCardId,
+                    plannerPick: String(planned?.id || ''),
+                    deckPick: String(deckChoice?.id || ''),
+                    bothAnswered: !!planned && !!deckChoice,
+                    agree: !!planned && !!deckChoice &&
+                        String(planned.uuid) === String(deckChoice.uuid)
+                }));
+            }
+        }
+        return this.deckOwnsMovePlanning() ? null : planned;
+    }
+
+    /**
+     * Does this deck ship its own movement planner that should own the
+     * move-target pick? True for Unicorn today (`UnicornTactics`), and behind
+     * `readyMove.deferToDeckMovePlanner` so the deck model and the generic
+     * planner can be compared rather than one assumed better.
+     */
+    private deckOwnsMovePlanning(): boolean {
+        return !!this.currentUnicorn &&
+            new ReadyMovePlanner(this.currentDeckProfile.readyMove)
+                .config.deferToDeckMovePlanner;
+    }
+
+    /**
+     * Track the body a ready leg has been spent on, scoped to ONE conflict. The
+     * key is the conflict's own identity, so a new conflict starts clean and a
+     * stale body can never pull the planner off a fresh board.
+     */
+    private rememberStartedSequence(playerState: any, plan: ReadyMovePlan): void {
+        const conflict = playerState?.conflict;
+        const key = `${conflict?.attackingPlayerId || ''}|${conflict?.type || ''}|` +
+            `${conflict?.ring?.element || conflict?.element || ''}|${this.currentRoundNumber}`;
+        if(key !== this.readyMoveStartedConflict) {
+            this.readyMoveStartedConflict = key;
+            this.readyMoveStartedUuid = null;
+            this.readyMoveCommittedMove = null;
+        }
+        // Only a sequence that still owes a leg is worth remembering. A plan
+        // that is already at its final leg needs no stickiness.
+        if(plan.stage === 'ready' && plan.moveSourceId) {
+            this.readyMoveStartedUuid = plan.uuid;
+        }
+        if(plan.stage === 'move' && plan.moveSourceId) {
+            this.readyMoveCommittedMove = { uuid: plan.uuid, sourceId: plan.moveSourceId };
+        }
+    }
+
+    /** The body a committed sequence wants READIED right now, or undefined. */
+    private readyMoveReadyTargetUuid(playerState: any, me: any): string | undefined {
+        const plan = this.readyMovePlan(playerState, me);
+        return plan?.stage === 'ready' ? plan.uuid : undefined;
+    }
+
+    /** The body a committed sequence wants MOVED right now, when this source is
+     *  the one the plan budgeted for. */
+    private readyMoveMoveTarget(playerState: any, me: any, sourceCardId: string): any | null {
+        const plan = this.readyMovePlan(playerState, me);
+        return plan?.stage === 'move' && plan.moveSourceId === String(sourceCardId)
+            ? plan.card
+            : null;
+    }
+
+    /** One row per committed sequence, so "did it fire and did it finish" is
+     *  answerable without re-deriving the board. */
+    private recordReadyMovePlan(me: any, plan: ReadyMovePlan): void {
+        if(!BotTelemetry.enabled) {
+            return;
+        }
+        BotTelemetry.record('ready-move-plan', () => ({
+            seat: String(me?.name || ''),
+            round: this.currentRoundNumber,
+            stage: plan.stage,
+            order: plan.order,
+            cardId: String(plan.card?.id || ''),
+            readySourceId: plan.readySourceId || '',
+            moveSourceId: plan.moveSourceId,
+            totalCost: plan.totalCost,
+            projectedSkill: plan.projectedSkill,
+            payoff: plan.payoff,
+            reason: plan.reason
+        }));
+    }
+
+    /** Telemetry + gate: how many ready plays this profile withheld. */
+    private recordReadyValue(me: any, opponent: any, prompt: string, verdict: ReadyValueVerdict): void {
+        if(!BotTelemetry.enabled) {
+            return;
+        }
+        BotTelemetry.record('ready-value', () => ({
+            seat: String(me?.name || ''),
+            round: this.currentRoundNumber,
+            prompt,
+            useful: verdict.useful,
+            reason: verdict.reason,
+            conflictsRemaining: Number(me?.stats?.conflictsRemaining) || 0,
+            opponentConflictsRemaining: Number(opponent?.stats?.conflictsRemaining) || 0
+        }));
     }
 
     private conflictDeckConsumptionAllowed(playerState: any, me: any, amount: number): boolean {
@@ -7252,6 +7670,15 @@ class JigokuBotPolicy {
                 this.currentCharacterBaseMilitary,
                 this.currentCharacterPrintedCosts
             );
+            // Elegant Tessen is bought FOR its enter-play ready. This branch
+            // predates `ReadyValuePolicy` and bypasses the playbook gate, so it
+            // asks the same question directly: with no conflict left on either
+            // side the ready is cosmetic and the card is spent for a +1/+1 that
+            // will never be compared to anything.
+            if(setup?.id === 'elegant-tessen' &&
+                !this.homeReadyVerdict(playerState, me, this.opponentPlayer(playerState, me)).useful) {
+                return null;
+            }
             if(setup) {
                 return this.cardClickDecision(setup, setup.id === 'elegant-tessen'
                     ? 'lion-tessen-ready-setup'
@@ -8503,6 +8930,76 @@ class JigokuBotPolicy {
         return this.buttonDecision(this.findButton(buttons, ['done']), 'finish-dynasty-discard');
     }
 
+    /**
+     * `Togashi Tadakatsu` moves the element choice to the DEFENDER, before the
+     * conflict type, the attackers and the province are chosen
+     * (`conflictflow.ts:defenderChoosesRing`). We are handing the attacker a
+     * ring, so the ranking to use is THEIRS, reversed -- see
+     * `DefenderRingChoicePolicy`.
+     *
+     * Detected from the prompt, not from `playerState.conflict`: the conflict
+     * summary is only published by `updateCurrentConflict` AFTER this ring is
+     * selected, so at this prompt it still describes the PREVIOUS conflict.
+     * `SelectRingPrompt` publishes `source.name` as the promptTitle, which the
+     * engine sets to the literal string below.
+     */
+    private defenderRingChoiceDecision(playerState: any, me: any, promptTitle: string,
+        menuTitle: string, dishonor: DishonorTactics | null, glory: GloryTactics | null,
+        dragon: DragonTactics | null, shugenja: ShugenjaTactics | null,
+        attachmentTower: DragonAttachmentTactics | null): BotDecision | null {
+        if(String(promptTitle) !== DEFENDER_RING_PROMPT_TITLE &&
+            !DEFENDER_RING_MENU_REGEX.test(String(menuTitle))) {
+            return null;
+        }
+        const rings = Object.values(playerState?.rings || {}).filter((ring: any) =>
+            ring && ring.unselectable !== true && !this.isAttempted('ringClicked', [ring.element]));
+        if(rings.length === 0) {
+            return null;
+        }
+        const opponent = this.opponentPlayer(playerState, me);
+        const policy = new DefenderRingChoicePolicy(this.currentDeckProfile.defenderRingChoice);
+        const choice = policy.choose({
+            rings,
+            // Scored with the roles SWAPPED and with no deck tactics module:
+            // every module here models OUR deck, and reading the attacker's
+            // board through it would price their rings with our payoffs.
+            scoreForAttacker: (ring: any) => this.ringScore(ring, opponent, me, null, null, null, null),
+            scoreForSelf: (ring: any) =>
+                this.ringScore(ring, me, opponent, dishonor, glory, dragon, shugenja, undefined, attachmentTower),
+            elementOrder: RING_ORDER
+        });
+        if(!choice) {
+            return null;
+        }
+        this.recordDefenderRingChoice(me, choice);
+        return {
+            command: 'ringClicked',
+            args: [choice.ring.element],
+            target: choice.ring.element,
+            reason: choice.reason
+        };
+    }
+
+    /** One row per Tadakatsu ring handed over, with the whole ranking, so a
+     * measurement can check the lever fired and what it avoided. */
+    private recordDefenderRingChoice(me: any, choice: DefenderRingChoiceResult): void {
+        if(!BotTelemetry.enabled) {
+            return;
+        }
+        BotTelemetry.record('defender-ring-choice', () => ({
+            seat: String(me?.name || ''),
+            round: this.currentRoundNumber,
+            chosen: String(choice.ring?.element || ''),
+            chosenFate: Number(choice.ring?.fate) || 0,
+            reason: choice.reason,
+            ranking: choice.ordered.map((ring: any) => String(ring?.element || '')).join(','),
+            fateHandedOver: Number(choice.ring?.fate) || 0,
+            maxFateAvailable: choice.ordered.reduce(
+                (top: number, ring: any) => Math.max(top, Number(ring?.fate) || 0), 0)
+        }));
+    }
+
+
     private ringDecision(playerState: any, me: any, title: string, dishonor: DishonorTactics | null = null, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, buttons: any[] = [], sourceCardId?: string): BotDecision | null {
         const rings = Object.values(playerState?.rings || {}).filter((ring: any) =>
             ring && ring.unselectable !== true && !this.isAttempted('ringClicked', [ring.element]));
@@ -8805,6 +9302,19 @@ class JigokuBotPolicy {
                             return false;
                         }
                     }
+                    // A reaction whose whole payoff is READYING a body answers
+                    // to `ReadyValuePolicy` like any other ready: with no
+                    // conflict left on either side, firing it spends a
+                    // once-per-round trigger on nothing. Covers Elegant Tessen
+                    // and Niten Master for EVERY deck, which is why it lives
+                    // here rather than in a per-deck branch.
+                    if(READY_REACTION_IDS.has(String(card.id)) &&
+                        !this.homeReadyVerdict(playerState, me,
+                            this.opponentPlayer(playerState, me)).useful &&
+                        !this.myCharactersInPlay(me).some((body: any) =>
+                            body.bowed && body.inConflict)) {
+                        return false;
+                    }
                     return card.id !== 'feeding-an-army' || !lion ||
                         lion.shouldUseFeedingArmy(this.myCharactersInPlay(me));
                 })
@@ -9045,7 +9555,7 @@ class JigokuBotPolicy {
         attachmentControl: AttachmentControlTactics | null = null
     ): BotDecision | null {
         const personalHonor = new PersonalHonorTactics(profile.personalHonor || PERSONAL_HONOR_DEFAULTS);
-        const cards = this.findVisibleCards(playerState).filter((card) =>
+        let cards = this.findVisibleCards(playerState).filter((card) =>
             card.selectable && card.uuid && !this.isAttempted('cardClicked', [card.uuid]));
         if(cards.length === 0) {
             // Prompts can offer the opponent's facedown provinces, which have
@@ -9055,6 +9565,55 @@ class JigokuBotPolicy {
         }
 
         const skillType = title.includes('political') ? 'political' : 'military';
+
+        // A move-into-conflict selector, whatever deck branch would otherwise
+        // answer it. A body arriving with no skill on the CONTESTED axis and no
+        // arrival payoff spends the source for nothing, so it is removed from
+        // the candidate list before any ranking sees it — one guard instead of
+        // one per deck picker. The axis comes from the conflict, not from the
+        // prompt title or a deck's preferred axis: reading the wrong one is how
+        // a 0-political body was moved into a political conflict.
+        const moveSpec = targetHint?.sourceCardId
+            ? moveSourceSpec(targetHint.sourceCardId)
+            : undefined;
+        // Favorable Ground's single target carries BOTH `sendHome` and
+        // `moveToConflict`, and some adapters publish only the first, so a
+        // known move source is enough to apply the guard. Participants stay
+        // selectable either way: only home characters are filtered.
+        if(moveSpec && (targetHint?.gameActions || [])
+            .some((action) => action === 'moveToConflict' || action === 'sendHome') &&
+            playerState?.conflict?.type) {
+            const conflictAxis: 'military' | 'political' =
+                playerState.conflict.type === 'political' ? 'political' : 'military';
+            const myUuids = new Set(this.findVisibleCards(me).map((card: any) => card.uuid));
+            const ownHome = cards.filter((card) =>
+                card.type === 'character' && !card.inConflict &&
+                this.cardBelongsToPlayer(card, me, myUuids));
+            if(ownHome.length > 0) {
+                const useful = new Set(this
+                    .usefulMoveArrivals(ownHome, conflictAxis, me, this.opponentPlayer(playerState, me))
+                    .map((card: any) => String(card.uuid)));
+                // A committed move -> ready plan is moving a BOWED body in on
+                // purpose, with the ready leg already budgeted, so the
+                // arrival filter must not remove it: it contributes 0 skill
+                // only for the window between the two legs.
+                const plannedArrival = this.plannedSequenceCard(
+                    ownHome, playerState, me, 'move', targetHint?.sourceCardId);
+                if(plannedArrival?.uuid) {
+                    useful.add(String(plannedArrival.uuid));
+                }
+                const homeUuids = new Set(ownHome.map((card: any) => String(card.uuid)));
+                const filtered = cards.filter((card) =>
+                    !homeUuids.has(String(card.uuid)) || useful.has(String(card.uuid)));
+                if(filtered.length === 0) {
+                    const declineMove = this.findButton(buttons, ['cancel']);
+                    if(declineMove) {
+                        return this.buttonDecision(declineMove, 'move-no-useful-arrival');
+                    }
+                }
+                cards = filtered.length > 0 ? filtered : cards;
+            }
+        }
 
         const replay = this.replayCardDecision(
             playerState,
@@ -9553,13 +10112,20 @@ class JigokuBotPolicy {
             // Even the Odds prefers a Commander, which it also honors.
             if(['matsu-mitsuko', 'even-the-odds', 'formal-invitation'].includes(sourceId) && mine.length > 0) {
                 const home = mine.filter((card) => !card.bowed && !card.inConflict);
-                const pool = home.length > 0 ? home : mine;
+                // A body with no skill on the contested axis is not a
+                // reinforcement, whatever the deck ranking says.
+                const useful = this.usefulMoveArrivals(
+                    home.length > 0 ? home : mine, axis, me, this.opponentPlayer(playerState, me));
                 const commanders = sourceId === 'even-the-odds'
-                    ? pool.filter((card) => lionDuelist.isCommander(card) && !card.isHonored)
+                    ? useful.filter((card) => lionDuelist.isCommander(card) && !card.isHonored)
                     : [];
-                const target = this.sortBySkillDesc(commanders.length > 0 ? commanders : pool, axis)[0];
+                const target = this.sortBySkillDesc(commanders.length > 0 ? commanders : useful, axis)[0];
                 if(target) {
                     return this.cardClickDecision(target, `lion-duelist-${sourceId}-move-in`);
+                }
+                const declineMove = this.findButton(buttons, ['cancel']);
+                if(declineMove) {
+                    return this.buttonDecision(declineMove, `lion-duelist-${sourceId}-no-useful-arrival`);
                 }
             }
 
@@ -10419,7 +10985,24 @@ class JigokuBotPolicy {
         // Ride On uses the Unicorn sequence scorer (ready skill, movement
         // triggers, or bowed+ready/after-win payoff). Favorable Ground keeps
         // its generic tower retreat/reinforcement behavior.
+        // Second leg of a committed sequence, for every move source that has no
+        // bespoke picker of its own (Matsu Mitsuko, Even the Odds, Hiruma
+        // Signaller). The three sources below keep their own branches because
+        // they also have non-sequence uses to fall back to.
+        if(targetHint.sourceCardId) {
+            const plannedGeneric = this.plannedSequenceCard(
+                mine, playerState, me, 'move', targetHint.sourceCardId);
+            if(plannedGeneric) {
+                return this.cardClickDecision(plannedGeneric, 'planned-move-into-conflict');
+            }
+        }
+
         if(targetHint.sourceCardId === 'favorable-ground') {
+            const plannedMove = this.plannedSequenceCard(mine, playerState, me, 'move', 'favorable-ground');
+            if(plannedMove) {
+                this.favorableGroundRetreatPending = false;
+                return this.cardClickDecision(plannedMove, 'favorable-ground-planned-move');
+            }
             const standing = this.conflictStanding(playerState, me);
             const opponent = this.opponentPlayer(playerState, me);
             const strongholdConflict = !!standing && (standing.amAttacker
@@ -10441,6 +11024,20 @@ class JigokuBotPolicy {
             }
         }
         if(targetHint.sourceCardId === 'ride-on') {
+            // Unicorn's own movement scorer owns this pick. It is a measured,
+            // deck-specific model (Spyglass draw value, Moto Stables, Outskirts
+            // Sentry glory, Barcha bow+move swing, the Minami/Higashi after-win
+            // reactions) and it already prices a post-move ready source. The
+            // generic planner only steps in when that model is absent.
+            const plannedRideOn = this.movePickerOverride(
+                mine, playerState, me, 'ride-on', () => this.currentUnicorn?.pickMoveTarget(
+                    this.unicornMoveContext(me, playerState?.conflict?.type === 'political' ? 'political' : 'military',
+                        mine, (card) => this.skillValue(card,
+                            playerState?.conflict?.type === 'political' ? 'political' : 'military') || 0,
+                        { requireCavalry: true })) || null);
+            if(plannedRideOn) {
+                return this.cardClickDecision(plannedRideOn, 'ride-on-planned-move');
+            }
             const moveType = playerState?.conflict?.type === 'political' ? 'political' : 'military';
             const standing = this.conflictStanding(playerState, me);
             const moveOpponent = this.myCharactersInPlay(this.opponentPlayer(playerState, me));
@@ -10652,6 +11249,15 @@ class JigokuBotPolicy {
         // carriers are valid with ready support; Minami/Higashi are valid
         // while already winning because their after-win reactions still fire.
         if(targetHint.sourceCardId === 'golden-plains-outpost') {
+            // Unicorn's own scorer owns this pick too — see `ride-on` above.
+            const plannedOutpost = this.movePickerOverride(
+                mine, playerState, me, 'golden-plains-outpost',
+                () => this.currentUnicorn?.pickMoveTarget(this.unicornMoveContext(
+                    me, 'military', mine, (card) => this.skillValue(card, 'military') || 0,
+                    { requireCavalry: true })) || null);
+            if(plannedOutpost) {
+                return this.cardClickDecision(plannedOutpost, 'golden-plains-planned-move');
+            }
             const standing = this.conflictStanding(playerState, me);
             const moveOpponent = this.myCharactersInPlay(this.opponentPlayer(playerState, me));
             const allOwn = this.myCharactersInPlay(me);
@@ -10688,6 +11294,10 @@ class JigokuBotPolicy {
         // commit next — so we never strip its last fate.
         if(targetHint.sourceCardId === 'i-am-ready') {
             const withFate = mine.filter((card) => card.bowed && (Number(card.fate) || 0) > 0);
+            const plannedReady = this.plannedSequenceCard(withFate, playerState, me, 'ready');
+            if(plannedReady) {
+                return this.cardClickDecision(plannedReady, 'i-am-ready-for-planned-move');
+            }
             const inFight = withFate.filter((card) => card.inConflict);
             if(inFight.length > 0) {
                 return this.cardClickDecision(this.sortBySkillDesc(inFight, skillType)[0], 'i-am-ready-participant');
@@ -10705,8 +11315,12 @@ class JigokuBotPolicy {
         // helpful pick prefers ready characters — the wrong direction).
         if(targetHint.sourceCardId === 'sacred-sanctuary') {
             const bowed = mine.filter((card) => card.bowed);
-            if(bowed.length > 0) {
-                return this.cardClickDecision(this.sortBySkillDesc(bowed, skillType)[0], 'sanctuary-ready-bowed');
+            // Participants first — see `against-the-waves` below.
+            const participants = bowed.filter((card) => card.inConflict);
+            const pool = participants.length > 0 ? participants : bowed;
+            if(pool.length > 0) {
+                return this.cardClickDecision(this.sortBySkillDesc(pool, skillType)[0],
+                    participants.length > 0 ? 'sanctuary-ready-bowed-participant' : 'sanctuary-ready-bowed');
             }
         }
 
@@ -10735,12 +11349,23 @@ class JigokuBotPolicy {
             // is controller:self + Shugenja, so every selectable card is safe
             // even when a public-state adapter omitted owner metadata.
             const bowed = cards.filter((card) => card.bowed);
-            const wavesPool = bowed.length > 0 ? bowed : (polarityGuards ? [] : cards);
+            const plannedWaves = this.plannedSequenceCard(bowed, playerState, me, 'ready');
+            if(plannedWaves) {
+                return this.cardClickDecision(plannedWaves, 'waves-ready-for-planned-move');
+            }
+            // A bowed PARTICIPANT is worth strictly more than a bowed body at
+            // home: its skill re-enters the conflict being fought the moment it
+            // readies (`ReadyValuePolicy`). Narrow to the participants when
+            // there are any, then apply the deck's own tower preference.
+            const participants = bowed.filter((card) => card.inConflict);
+            const preferred = participants.length > 0 ? participants : bowed;
+            const wavesPool = preferred.length > 0 ? preferred : (polarityGuards ? [] : cards);
             if(wavesPool.length > 0) {
                 const pick = shugenja
                     ? shugenja.pickTower(wavesPool, (card) => this.skillValue(card, skillType) || 0)
                     : this.sortBySkillDesc(wavesPool, skillType)[0];
-                return this.cardClickDecision(pick, 'waves-ready-bowed');
+                return this.cardClickDecision(pick,
+                    participants.length > 0 ? 'waves-ready-bowed-participant' : 'waves-ready-bowed');
             }
             // With no bowed Shugenja the only legal half of "bow OR ready" is
             // BOW, and the target is ours by the card's own controller clause —
@@ -10902,7 +11527,15 @@ class JigokuBotPolicy {
         const inServiceReadyStage = actionNames.includes('ready') ||
             (actionNames.length === 0 && mine.length > 0 && mine.every((card) => card.isUnique));
         if(lion && targetHint.sourceCardId === 'in-service-to-my-lord' && inServiceReadyStage && mine.some((card) => card.bowed && card.isUnique)) {
-            const pick = lion.pickReadyTarget(mine.filter((card) => card.bowed && card.isUnique),
+            const uniqueBowed = mine.filter((card) => card.bowed && card.isUnique);
+            // In Service is the ready leg the sequencer reaches for most often
+            // (it is free, and it readies a unique tower). Follow the plan's
+            // body so the move that was budgeted for actually has it.
+            const plannedInService = this.plannedSequenceCard(uniqueBowed, playerState, me, 'ready');
+            if(plannedInService) {
+                return this.cardClickDecision(plannedInService, 'in-service-ready-for-planned-move');
+            }
+            const pick = lion.pickReadyTarget(uniqueBowed,
                 (card) => this.skillValue(card, skillType) || 0);
             if(pick) {
                 return this.cardClickDecision(pick, 'lion-in-service-ready-strong');
@@ -11083,6 +11716,25 @@ class JigokuBotPolicy {
         }
         if(actionNames.includes('ready') && !actionNames.includes('bow')) {
             const bowedOwn = mine.filter((card) => card.bowed);
+            // Nothing on offer is a PARTICIPANT and no conflict can use a body
+            // standing up at home (`ReadyValuePolicy`): decline rather than
+            // spend the effect. This is the one guard that covers every ready
+            // prompt the bot can reach — province Actions, stronghold Actions,
+            // reactions and card effects alike — instead of one gate per card.
+            if(bowedOwn.length > 0 && !bowedOwn.some((card) => card.inConflict) &&
+                !this.homeReadyVerdict(playerState, me, this.opponentPlayer(playerState, me)).useful &&
+                !this.plannedSequenceCard(bowedOwn, playerState, me, 'ready')) {
+                const declineReady = this.findButton(buttons, ['cancel', 'done']);
+                if(declineReady) {
+                    return this.buttonDecision(declineReady, 'decline-ready-no-conflict-left');
+                }
+            }
+            // First leg of a committed ready -> move sequence: ready the body
+            // the plan budgeted a move source for, not the biggest bowed one.
+            const plannedReady = this.plannedSequenceCard(bowedOwn, playerState, me, 'ready');
+            if(plannedReady) {
+                return this.cardClickDecision(plannedReady, 'ready-for-planned-move');
+            }
             if(bowedOwn.length > 0) {
                 // Rank bowed own bodies: CONFLICT participants first (their
                 // skill returns to the fight in progress), then multi-fate
@@ -11245,6 +11897,19 @@ class JigokuBotPolicy {
     // `fateRemovalKillFirst`), fire honors own / dishonors enemy, water bows the
     // opponent's strongest ready character or readies an own bowed one when
     // more conflicts remain, air weighs gaining 2 honor against taking 1.
+    /**
+     * `ReadyValuePolicy`'s verdict for a RING resolution, which has no playbook
+     * context to hang it on. Returns undefined when the profile has the gate
+     * off, so the caller keeps its untouched ordering.
+     */
+    private readyValueForRingChoice(playerState: any, me: any): boolean | undefined {
+        const policy = new ReadyValuePolicy(this.currentDeckProfile.readyValue);
+        if(policy.inert) {
+            return undefined;
+        }
+        return this.homeReadyVerdict(playerState, me, this.opponentPlayer(playerState, me)).useful;
+    }
+
     private ringResolutionDecision(playerState: any, me: any, promptTitle: string, menuTitle: string, buttons: any[], personalHonor: PersonalHonorTactics, dishonor: DishonorTactics | null = null): BotDecision | null {
         const dontResolve = this.findButton(buttons, ['don\'t resolve']);
         const isWaterTargetPrompt = menuTitle === 'Choose character to bow or unbow' ||
@@ -11317,11 +11982,25 @@ class JigokuBotPolicy {
 
             // Water is binary tempo: ready a bowed friendly or bow a ready
             // enemy. Pick largest combined military + political skill swing.
+            //
+            // The ring effect costs no card, but the CHOICE is still a choice:
+            // when no conflict is left to use a ready (`ReadyValuePolicy`), a
+            // home ready buys nothing, while bowing an enemy still denies their
+            // glory to the Imperial Favor count that runs at the end of this
+            // phase. So DEMOTE the dead half below every live option instead of
+            // letting raw skill pick it first.
+            //
+            // Demote, never drop. Removing it emptied `useful` on a board with
+            // no ready enemy, and the forced fallback below then READIED AN
+            // ENEMY character -- caught by `botpolarityfield.spec.js`.
+            const readyIsDead = this.readyValueForRingChoice(playerState, me) === false;
+            const deadReady = (card: any) => readyIsDead && !card.inConflict;
             const useful = mine.filter((card) => card.bowed)
                 .map((card) => ({ card, reason: 'water-ring-ready-own' }))
                 .concat(theirs.filter((card) => !card.bowed)
                     .map((card) => ({ card, reason: 'water-ring-bow-enemy' })))
-                .sort((a, b) => this.combinedSkillValue(b.card) - this.combinedSkillValue(a.card) ||
+                .sort((a, b) => (deadReady(a.card) ? 1 : 0) - (deadReady(b.card) ? 1 : 0) ||
+                    this.combinedSkillValue(b.card) - this.combinedSkillValue(a.card) ||
                     String(a.card.uuid).localeCompare(String(b.card.uuid)));
             if(useful.length > 0) {
                 return this.cardClickDecision(useful[0].card, useful[0].reason);
@@ -11681,8 +12360,15 @@ class JigokuBotPolicy {
         const sorted = this.sortBySkillDesc(cards, skillType);
         // A free ready is worth nothing on an already-ready character, so this
         // preference puts bowed candidates first and only then sorts by skill.
+        // Among the bowed, a PARTICIPANT outranks a body at home: a bowed
+        // participant contributes 0 skill to the conflict being fought, so
+        // readying it is skill on the table right now, while readying a home
+        // body is only tempo for a conflict that may never come
+        // (`ReadyValuePolicy`). `Array.prototype.sort` is stable, so the
+        // skill order inside each group survives.
         if(preference === 'strongest-bowed') {
-            return sorted.slice().sort((a, b) => Number(!!b.bowed) - Number(!!a.bowed));
+            const readyRank = (card: any) => (card?.bowed ? (card.inConflict ? 2 : 1) : 0);
+            return sorted.slice().sort((a, b) => readyRank(b) - readyRank(a));
         }
         return preference === 'weakest' ? sorted.reverse() : sorted;
     }

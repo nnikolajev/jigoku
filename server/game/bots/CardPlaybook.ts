@@ -84,6 +84,24 @@ export interface PlaybookContext {
     // anything while a conflict can still use it.
     tadakaRequiresBowedBase?: boolean;
     tadakaReadyIsUseful?: boolean;
+    // Owned by `ReadyValuePolicy` (`DeckProfile.readyValue`). Is readying a
+    // body that is NOT in the conflict worth a card right now? False only when
+    // no conflict opportunity remains on EITHER side, we hold no
+    // move-into-conflict effect, and the deck does not race the Imperial Favor
+    // — i.e. when the ready is provably cosmetic. Undefined on old callers, and
+    // every gate below treats undefined as "useful" so they stay unchanged.
+    homeReadyIsUseful?: boolean;
+    // The body `ReadyMovePlanner` has committed to readying and then MOVING
+    // into the running conflict. It is one uuid, not a board-level flag, on
+    // purpose: crediting every bowed body with one plan's justification is how
+    // the old "we hold a mover somewhere" reading let the bot ready a body it
+    // never moved.
+    readyMoveTargetUuid?: string;
+    // The second leg of the same plan: the move source it budgeted for, and the
+    // body it will move. Set only while that body is READY and at home, i.e.
+    // when the move is the action to take now.
+    readyMoveMoveSourceId?: string;
+    readyMoveMoveTargetUuid?: string;
     omniscient?: boolean; // optional capability has exact opposing-hand information
     opponentHasAffordableBowEffect?: boolean; // exact omniscient hand threat after fate check
     characterPrintedCosts?: Record<string, number>; // exact live printed cost by in-play character UUID
@@ -306,6 +324,43 @@ const entry = (cardId: string, overrides: Partial<PlaybookEntry>): PlaybookEntry
 
 const participating = (cards: any[]) => cards.filter((card) => card.inConflict);
 const readyParticipants = (cards: any[]) => cards.filter((card) => card.inConflict && !card.bowed);
+
+// A ready effect is only worth a card when a conflict can still USE the body it
+// un-bows. A bowed PARTICIPANT always qualifies: a bowed body contributes 0
+// skill, so readying it hands its whole skill straight back to the conflict
+// being fought. Everything else is a home body, and whether that is worth
+// anything is one board reading owned by `ReadyValuePolicy` and published as
+// `ctx.homeReadyIsUseful` — a conflict opportunity left on either side, a
+// move-into-conflict effect in hand, or (per deck) the Imperial Favor glory
+// count. Undefined leaves every gate below at its pre-2026-08-23 reading.
+const readyIsWorthACard = (ctx: PlaybookContext, targets: any[]): boolean => {
+    const readyable = (targets || []).filter((card) => card && card.bowed);
+    if(readyable.length === 0) {
+        return false;
+    }
+    if(readyable.some((card) => card.inConflict)) {
+        return true;
+    }
+    // The ready -> move sequence: this exact body is being readied so a move
+    // source already budgeted for can put it into the conflict.
+    if(ctx.readyMoveTargetUuid &&
+        readyable.some((card) => String(card.uuid) === ctx.readyMoveTargetUuid)) {
+        return true;
+    }
+    if(ctx.homeReadyIsUseful !== undefined) {
+        return ctx.homeReadyIsUseful;
+    }
+    // A caller that does not publish the policy reading (Bot V2, the offline
+    // tools) falls back to the two public counts, which is the same rule
+    // Elegance and Grace shipped with. A context carrying NEITHER count knows
+    // nothing about the conflict clock at all -- that is no information, not
+    // evidence of waste -- so it keeps the pre-gate answer.
+    if(ctx.conflictsRemaining === undefined && ctx.opponentConflictsRemaining === undefined) {
+        return true;
+    }
+    return (Number(ctx.conflictsRemaining) || 0) > 0 ||
+        (Number(ctx.opponentConflictsRemaining) || 0) > 0;
+};
 const DRAGON_MONK_IDS = new Set([
     'ancient-master', 'teacher-of-empty-thought', 'togashi-acolyte',
     'togashi-ichi', 'togashi-initiate', 'togashi-mitsu-2',
@@ -700,8 +755,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
             return best > 0 ? best : null;
         }),
         summary: 'ready a friendly character by removing 1 of its fate',
-        shouldPlay: (ctx) => ctx.myCharacters.some((card) =>
-            card.bowed && (Number(card.fate) || 0) > (card.inConflict ? 0 : 1))
+        shouldPlay: (ctx) => readyIsWorthACard(ctx, ctx.myCharacters.filter((card) =>
+            (Number(card.fate) || 0) > (card.inConflict ? 0 : 1)))
     }),
 
     // +1 military to every non-unique character we control: needs bodies.
@@ -750,8 +805,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 8,
         summary: 'holding: ready a Cavalry character',
         inPlayAction: true,
-        shouldUseAction: (ctx) => ctx.myCharacters.some((card) => card.bowed &&
-            (!!ctx.cavalryCharacterUuids?.[card.uuid] || (card.traits || []).includes('cavalry')))
+        shouldUseAction: (ctx) => readyIsWorthACard(ctx, ctx.myCharacters.filter((card) =>
+            !!ctx.cavalryCharacterUuids?.[card.uuid] || (card.traits || []).includes('cavalry')))
     }),
 
     // Holding reaction: +2 military after a character moves to a conflict.
@@ -1781,8 +1836,11 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 6,
         summary: 'lose 1 honor: move into the conflict',
         inPlayAction: true,
+        // It moves ITSELF in, for an honor. A body with no skill on the
+        // contested axis buys nothing with that honor.
         shouldUseAction: (ctx) => ctx.canPayHonor !== false && ctx.losing &&
-            ctx.myCharacters.some((card) => card.id === 'moto-eviscerator' && !card.inConflict && !card.bowed)
+            ctx.myCharacters.some((card) => card.id === 'moto-eviscerator' &&
+                !card.inConflict && !card.bowed && liveSkill(card, ctx.conflictType) > 0)
     }),
 
     // Military duel that dishonors the loser. Shared bid tactics weigh the
@@ -1869,7 +1927,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         // Works with every participant bowed: readies a unique (bows a non-unique that may be at home).
         worksWithoutReadyParticipant: true,
         summary: 'bow a cheap non-unique to ready a unique character',
-        shouldPlay: (ctx) => ctx.myCharacters.some((card) => card.bowed && card.isUnique) &&
+        shouldPlay: (ctx) => readyIsWorthACard(ctx, ctx.myCharacters.filter((card) => card.isUnique)) &&
             ctx.myCharacters.some((card) => !card.bowed && !card.isUnique)
     }),
 
@@ -1882,7 +1940,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         // Works with every participant bowed: readies up to 6 printed cost of Bushi.
         worksWithoutReadyParticipant: true,
         summary: 'ready up to 6 cost worth of Bushi characters',
-        shouldPlay: (ctx) => ctx.myCharacters.filter((card) => card.bowed).length >= 2
+        shouldPlay: (ctx) => ctx.myCharacters.filter((card) => card.bowed).length >= 2 &&
+            readyIsWorthACard(ctx, ctx.myCharacters)
     }),
 
     // Reaction after we break a province in a military conflict: 1 fate on
@@ -2309,14 +2368,11 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: '+1/+1 and ready a cheap attached character',
         abilityValue: true,
         preConflict: true,
-        shouldPlay: (ctx) => ctx.myCharacters.some((card) => {
-            if(!card.bowed) {
-                return false;
-            }
+        shouldPlay: (ctx) => readyIsWorthACard(ctx, ctx.myCharacters.filter((card) => {
             const cost = card.uuid ? ctx.characterPrintedCosts?.[card.uuid] : undefined;
             const visibleCost = Number(cost ?? card.printedCost ?? card.cost);
             return Number.isFinite(visibleCost) && visibleCost <= 2;
-        })
+        }))
     }),
 
     // Kyuden Isawa recasts a high-impact Spell event from the conflict
@@ -2446,8 +2502,11 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 7,
         summary: 'water claimed: readies itself',
         inPlayAction: true,
-        shouldUseAction: (ctx) => ctx.myCharacters.some((card) =>
-            card.id === 'prodigy-of-the-waves' && card.bowed)
+        // Readying itself is still a ready, and answers to the same question
+        // (`ReadyValuePolicy`): with no conflict left to use the body it is
+        // cosmetic, even though it costs no card.
+        shouldUseAction: (ctx) => readyIsWorthACard(ctx, ctx.myCharacters.filter((card) =>
+            card.id === 'prodigy-of-the-waves'))
     }),
 
     // Grant Covert during Water conflicts. It is useful before a conflict is
@@ -2526,11 +2585,14 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 7,
         summary: 'sacrifice: reinforce a defense or rescue a tower for the next conflict',
         inPlayAction: true,
-        shouldUseAction: (ctx) => ctx.losing && (
+        // The second leg of a `ReadyMovePlanner` sequence overrides the
+        // `losing` gate: the plan has already proved the arrival changes the
+        // result, which includes breaking a province while ahead on skill.
+        shouldUseAction: (ctx) => ctx.readyMoveMoveSourceId === 'favorable-ground' || (ctx.losing && (
             (!ctx.amAttacker && ctx.myCharacters.some((card) => !card.bowed && !card.inConflict)) ||
             (ctx.preferFavorableRetreat && !ctx.strongholdConflict && (ctx.conflictsRemaining ?? 0) >= 1 &&
                 ctx.myCharacters.some((card) => !card.bowed && card.inConflict))
-        )
+        ))
     }),
 
     // ---- conflict events ----
@@ -2561,9 +2623,9 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         }),
         summary: 'ready an own bowed Shugenja',
         shouldPlay: gated('against-the-waves',
-            (ctx) => ctx.myCharacters.some((card) => card.bowed && isShugenja(card)),
-            (ctx) => ctx.myCharacters.some((card) => card.bowed &&
-                PHOENIX_SHUGENJA.includes(card.id)))
+            (ctx) => readyIsWorthACard(ctx, ctx.myCharacters.filter((card) => isShugenja(card))),
+            (ctx) => readyIsWorthACard(ctx, ctx.myCharacters.filter((card) =>
+                PHOENIX_SHUGENJA.includes(card.id))))
     }),
 
     // Win an unopposed conflict by 5+ to gain 2 fate. The policy extends the
@@ -3285,8 +3347,10 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 6,
         summary: '+1/+1; move the bearer into conflicts',
         inPlayAction: true,
+        // A bearer with no skill on the contested axis arrives and changes
+        // nothing; a BOWED one contributes 0 whatever its printed skill.
         shouldUseAction: (ctx) => ctx.myCharacters.some((card) =>
-            !card.inConflict && !card.bowed &&
+            !card.inConflict && !card.bowed && liveSkill(card, ctx.conflictType) > 0 &&
             (card.attachments || []).some((attachment: any) => attachment.id === 'hawk-tattoo'))
     }),
 
@@ -3790,7 +3854,9 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 7,
-        summary: 'province: ready an honored character'
+        summary: 'province: ready an honored character',
+        shouldUseAction: (ctx) => readyIsWorthACard(ctx,
+            ctx.myCharacters.filter((card) => card.isHonored))
     }),
 
     // Stronghold reaction: honor our character after every resolved duel.
@@ -4360,9 +4426,14 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         inPlayAction: true,
         worksWithoutReadyParticipant: true,
         summary: 'military: move a ready character at home into the conflict',
+        // The target is mandatory once the Action starts, so the gate has to
+        // prove a WORTHWHILE arrival exists, not merely a legal one: a body
+        // with no skill on the contested axis changes nothing.
         shouldUseAction: (ctx) => ctx.conflictType === 'military' && moreHonorable(ctx) &&
-            ctx.activeConflict !== false && readyAtHome(ctx.myCharacters).length > 0 &&
-            ((ctx.winSkillNeeded ?? 0) > 0 || (ctx.strengthNeeded ?? 0) > 0)
+            ctx.activeConflict !== false &&
+            (ctx.readyMoveMoveSourceId === 'matsu-mitsuko' ||
+                (readyAtHome(ctx.myCharacters).some((card) => liveSkill(card, ctx.conflictType) > 0) &&
+                    ((ctx.winSkillNeeded ?? 0) > 0 || (ctx.strengthNeeded ?? 0) > 0)))
     }),
 
     // Reaction after winning a conflict it attacked, while more honorable:
@@ -4420,7 +4491,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
             if(counts && counts.self >= counts.opponent) {
                 return false;
             }
-            return readyAtHome(ctx.myCharacters).length > 0;
+            return ctx.readyMoveMoveSourceId === 'even-the-odds' ||
+                readyAtHome(ctx.myCharacters).some((card) => liveSkill(card, ctx.conflictType) > 0);
         }
     }),
 
@@ -4456,8 +4528,10 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: 'political: move the attached character into the conflict',
         shouldUseAction: (ctx) => ctx.conflictType === 'political' &&
             ctx.activeConflict !== false &&
-            ctx.myCharacters.some((card) => !card.bowed && !card.inConflict &&
-                (card.attachments || []).some((attachment: any) => attachment?.id === 'formal-invitation'))
+            (ctx.readyMoveMoveSourceId === 'formal-invitation' ||
+                ctx.myCharacters.some((card) => !card.bowed && !card.inConflict &&
+                    liveSkill(card, ctx.conflictType) > 0 &&
+                    (card.attachments || []).some((attachment: any) => attachment?.id === 'formal-invitation')))
     }),
 
     // Attachment. Action while the bearer participates: ready a participating
@@ -4562,7 +4636,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         abilityValue: true,
         worksWithoutReadyParticipant: true,
         summary: 'sacrifice a character: ready a character',
-        shouldUseAction: (ctx) => ctx.myCharacters.some((card) => card.bowed) &&
+        shouldUseAction: (ctx) => readyIsWorthACard(ctx, ctx.myCharacters) &&
             ctx.myCharacters.length >= 3
     }),
 
@@ -5160,14 +5234,14 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
                 .reduce((total, skill) => total + skill, 0);
         }),
         summary: 'ready up to 2 honored characters (6 printed cost or less)',
-        // A ready body is only worth a card if something can still USE it. A
-        // bowed PARTICIPANT contributes no skill until it readies, so readying
-        // one swings the conflict being fought; a bowed body at home is an
-        // attacker for a conflict of ours still to come or a defender for one
-        // of theirs. With none of the three the ready is cosmetic — the
-        // Imperial Favor counts glory, not ready characters — and the card is
-        // spent for nothing. Seen live: two characters readied after the last
+        // A ready body is only worth a card if something can still USE it —
+        // this card's own gate, generalised into `readyIsWorthACard` /
+        // `ReadyValuePolicy` once the same waste turned up on Against the
+        // Waves. Seen live here first: two characters readied after the last
         // conflict of the round was already resolved.
+        //
+        // `eleganceRequiresUse: false` is the pre-existing per-deck escape and
+        // still holds this card (and only this card) at its legacy reading.
         shouldPlay: (ctx) => {
             const targets = (ctx.myCharacters || []).filter((card) => card.bowed && card.isHonored);
             if(targets.length === 0) {
@@ -5176,11 +5250,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
             if(ctx.eleganceRequiresUse === false) {
                 return true;
             }
-            if(targets.some((card) => card.inConflict)) {
-                return true;
-            }
-            return (Number(ctx.conflictsRemaining) || 0) > 0 ||
-                (Number(ctx.opponentConflictsRemaining) || 0) > 0;
+            return readyIsWorthACard(ctx, targets);
         }
     }),
 

@@ -181,13 +181,33 @@ export class UnicornTactics {
         return score;
     }
 
+    // Does moving this body in bring anything at all? Skill on the contested
+    // axis, or one of the payoffs that pays for the ARRIVAL rather than for the
+    // skill. Without either, the move spends the source for nothing — measured
+    // live at `Ride On moved Battle Maiden Recruit in (0 skill)`.
+    private arrivalBringsSomething(card: any, ctx: UnicornMoveContext): boolean {
+        // `projectedMoveSkill` is 0 for a bowed body with no ready follow-up,
+        // which is the case this filter exists for: a body that arrives bowed
+        // and stays bowed contributes nothing and spends the source for free
+        // (`Ride On moved Battle Maiden Recruit in (0 skill)`, measured live).
+        //
+        // A SUPPORTED bowed carrier — one `readyAfterMoveUuids` says can be
+        // stood up after the move — still qualifies. That is the deck's
+        // deliberate move -> ready sequence; see the follow-through note in
+        // `test/helpers/readymoveallowances.js`.
+        return this.projectedMoveSkill(card, ctx) > 0 ||
+            this.hasWinningPayoff(card, ctx) ||
+            !!ctx.barchaReadyBearerUuids?.[card.uuid];
+    }
+
     // Best legal body to move into the conflict.
     pickMoveTarget(ctx: UnicornMoveContext): any | null {
         const legal = ctx.characters.filter((card) => !card.inConflict &&
             (!ctx.requireCavalry || this.isCavalry(card, ctx.cavalryUuids)) &&
             // Preserve an unused Barcha for its own stronger bow+move action.
             (!ctx.requireCavalry || !ctx.barchaReadyBearerUuids?.[card.uuid]) &&
-            (!card.bowed || this.hasReadyFollowUp(card, ctx) || this.hasWinningPayoff(card, ctx)));
+            (!card.bowed || this.hasReadyFollowUp(card, ctx) || this.hasWinningPayoff(card, ctx)) &&
+            this.arrivalBringsSomething(card, ctx));
         return legal.sort((a, b) => this.moveScore(b, ctx) - this.moveScore(a, ctx) ||
             String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
     }
@@ -239,9 +259,14 @@ export class UnicornTactics {
                 skillOf(b) - skillOf(a))[0] || null;
     }
 
-    // Ready the most valuable bowed body.
+    // Ready the most valuable bowed body. A bowed PARTICIPANT first: it is
+    // contributing 0 skill to the conflict being fought right now, while a body
+    // at home is only tempo for a conflict that may never come. Twilight Rider
+    // fires this reaction as it arrives, so it is usually readying ITSELF.
     pickTwilightReadyTarget(characters: any[], skillOf: (card: any) => number): any | null {
-        return characters.filter((card) => card.bowed)
+        const bowed = characters.filter((card) => card.bowed);
+        const participants = bowed.filter((card) => card.inConflict);
+        return (participants.length > 0 ? participants : bowed)
             .sort((a, b) => skillOf(b) - skillOf(a))[0] || null;
     }
 

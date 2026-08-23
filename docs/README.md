@@ -35,6 +35,9 @@ single-base measurement has produced false positives here.
 | [bot-effect-polarity.md](bot-effect-polarity.md) | **SHIPPED** — the ready/honor-ours vs bow/dishonor-theirs invariant, watched in real games |
 | [bot-honor-token-targeting.md](bot-honor-token-targeting.md) | **SHIPPED** — who picks the side on a combined honor/dishonor prompt |
 | [bot-conflict-rules-from-replays.md](bot-conflict-rules-from-replays.md) | **REFERENCE** — conflict rules derived from human games |
+| [bot-ready-value.md](bot-ready-value.md) | **SHIPPED** - never spend a card readying a body no conflict can use; watched in real games |
+| [bot-ready-move-sequence.md](bot-ready-move-sequence.md) | **SHIPPED** - ready -> move AND move -> ready, both legs budgeted; the move-value counterfactual monitor; Unicorn keeps its own scorer (measured -1.17pp for the generic one) |
+| [bot-defender-ring-choice.md](bot-defender-ring-choice.md) | **SHIPPED** - Togashi Tadakatsu hands the element choice to the defender: give the attacker their WORST ring |
 
 ## Measured experiments
 

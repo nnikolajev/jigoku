@@ -178,8 +178,10 @@ describe('CraneHonorTactics', function() {
 
         it('only spends the card when a ready body still has something to do', function() {
             // Seen live: two characters readied after the last conflict of the
-            // round had already resolved. Ready bodies are not glory, so the
-            // Imperial Favor does not pay for them.
+            // round had already resolved. This gate was generalised into
+            // `ReadyValuePolicy` once the same waste turned up on Against the
+            // Waves; the counts-only fallback below is what a context with no
+            // published policy reading still gets.
             const gate = getPlaybookEntry('elegance-and-grace').shouldPlay;
             const home = [{ bowed: true, isHonored: true, inConflict: false }];
             const participant = [{ bowed: true, isHonored: true, inConflict: true }];
@@ -192,6 +194,31 @@ describe('CraneHonorTactics', function() {
             // Nothing left to fight: the ready is cosmetic.
             expect(gate({ ...spent, myCharacters: home })).toBe(false);
             expect(gate({ ...spent, myCharacters: [] })).toBe(false);
+        });
+
+        it('defers to the published ReadyValuePolicy reading when there is one', function() {
+            // `homeReadyIsUseful` is the policy's answer and outranks the raw
+            // counts: it also knows about move-into-conflict effects and the
+            // Imperial Favor exception, neither of which the counts can see.
+            const gate = getPlaybookEntry('elegance-and-grace').shouldPlay;
+            const home = [{ bowed: true, isHonored: true, inConflict: false }];
+            expect(gate({
+                conflictsRemaining: 2, opponentConflictsRemaining: 2,
+                homeReadyIsUseful: false, myCharacters: home
+            })).toBe(false);
+            expect(gate({
+                conflictsRemaining: 0, opponentConflictsRemaining: 0,
+                homeReadyIsUseful: true, myCharacters: home
+            })).toBe(true);
+        });
+
+        it('keeps the per-deck legacy escape working', function() {
+            const gate = getPlaybookEntry('elegance-and-grace').shouldPlay;
+            const home = [{ bowed: true, isHonored: true, inConflict: false }];
+            expect(gate({
+                conflictsRemaining: 0, opponentConflictsRemaining: 0,
+                homeReadyIsUseful: false, eleganceRequiresUse: false, myCharacters: home
+            })).toBe(true);
         });
     });
 

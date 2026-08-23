@@ -30,6 +30,8 @@ import type { BotDecision, BotEngine, MenuCardInfo } from './BotEngine';
 import { getPlaybookEntry, deriveDeckStrategy } from './CardPlaybook.js';
 import type { DeckStrategy } from './CardPlaybook';
 import { resolveDeckProfile } from './DeckProfiles.js';
+import { MOVE_SOURCES, READY_SOURCES, moveSourceSpec, readySourceSpec } from './ReadyMovePlanner.js';
+import type { SequenceSourceTargets } from './ReadyMovePlanner';
 import type { DeckProfile } from './DeckProfiles';
 import { applyV2DeckProfile } from './shared/V2DeckProfiles.js';
 import type { DuelBidContext } from './DuelBidTactics';
@@ -80,6 +82,11 @@ interface BotTraceEntry {
 }
 
 type CommandRunner = (command: string, playerName: string, args: any[]) => boolean;
+
+/** A GameObject pile (`_(...)` wrapper) as a plain array; anything else empty. */
+function pileArray(pile: { toArray?: () => any[] } | null | undefined): any[] {
+    return pile?.toArray ? (pile.toArray() || []) : [];
+}
 
 class JigokuBotController {
     readonly trace: BotTraceEntry[] = [];
@@ -286,6 +293,190 @@ class JigokuBotController {
         return result;
     }
 
+    /**
+     * Exact legal targets for the ready and move sources the ready -> move
+     * sequencer plans with, read from the ENGINE instead of from a hand-written
+     * eligibility table.
+     *
+     * `action.meetsRequirements(context) === ''` is what makes this exact: it
+     * already enforces the conflict type, the phase, the card's own condition
+     * (Matsu Mitsuko's honor lead, Shiotome Encampment's claimed military ring,
+     * Even the Odds' participant count) and the once-per-round limits, so none
+     * of that has to be restated in `MOVE_SOURCES` / `READY_SOURCES`. Those
+     * tables carry only the FATE cost and the shape of the move, which the
+     * action cannot report.
+     *
+     * Keyed by card ID, unioned across copies. The moved uuid is not always the
+     * action's target: `selfOrBearerOnly` sources (Adorned Barcha, Formal
+     * Invitation, Moto Eviscerator) move the character they are attached to or
+     * are, while the action targets somebody else entirely.
+     */
+    private sequenceSourceTargets(player: Player): SequenceSourceTargets {
+        const ready: Record<string, string[]> = {};
+        const move: Record<string, string[]> = {};
+        const readyAfterMove: Record<string, string[]> = {};
+        if(!this.game?.currentConflict) {
+            return { ready, move, readyAfterMove };
+        }
+        const readyIds = new Set(READY_SOURCES.map((spec) => spec.id));
+        const moveIds = new Set(MOVE_SOURCES.map((spec) => spec.id));
+        const record = (bucket: Record<string, string[]>, id: string, uuids: string[]) => {
+            if(uuids.length > 0) {
+                bucket[id] = Array.from(new Set((bucket[id] || []).concat(uuids))).sort();
+            }
+        };
+
+        for(const source of this.sequenceSourceCandidates(player)) {
+            const id = String(source?.cardData?.id || source?.id || '');
+            const wantsReady = readyIds.has(id);
+            const wantsMove = moveIds.has(id);
+            if(!id || (!wantsReady && !wantsMove)) {
+                continue;
+            }
+            for(const action of this.usableActions(source, player)) {
+                let context;
+                try {
+                    context = action.createContext(player);
+                    if(action.meetsRequirements(context) !== '') {
+                        continue;
+                    }
+                } catch{
+                    continue;
+                }
+                if(wantsMove) {
+                    record(move, id, this.movedUuidsFor(id, source, action, context, player));
+                }
+                // A participant-only source can NEVER be the first leg, and
+                // `getAllLegalTargets` cannot be trusted to say so: it returned
+                // every friendly character for Fan of Command, participating or
+                // not. Treat it as a SUPERSET (right type, right controller,
+                // source usable) and keep the participation split here.
+                if(wantsReady && !readySourceSpec(id)?.participantOnly) {
+                    record(ready, id, this.legalOwnCharacterUuids(action, context, player));
+                }
+            }
+            if(wantsReady) {
+                record(readyAfterMove, id, this.readyAfterMoveUuidsFor(id, source, player));
+            }
+        }
+        return { ready, move, readyAfterMove };
+    }
+
+    /**
+     * Home bodies a PARTICIPANT-ONLY ready source would be able to stand up once
+     * they have been moved into the conflict — the second leg of a move -> ready
+     * sequence.
+     *
+     * The engine cannot answer this directly: with no legal participant yet,
+     * `meetsRequirements` returns `'target'`, which is exactly the state the
+     * plan exists to create. So the target check is ignored and everything else
+     * — the source's own condition (Fan of Command's bearer participating, The
+     * Pursuit of Justice's water conflict province), the phase, the costs, the
+     * once-per-round limit — is still enforced, and the eligible bodies are
+     * projected from the printed trait.
+     */
+    private readyAfterMoveUuidsFor(id: string, source: any, player: Player): string[] {
+        const spec = readySourceSpec(id);
+        if(!spec?.participantOnly) {
+            return [];
+        }
+        const usable = this.usableActions(source, player).some((action: any) => {
+            try {
+                return action.meetsRequirements(action.createContext(player), ['target']) === '';
+            } catch{
+                return false;
+            }
+        });
+        if(!usable) {
+            return [];
+        }
+        // Both ends of the sequence: the body while still at HOME (so the
+        // planner can commit to moving it) and the same body once it is a bowed
+        // PARTICIPANT (the second leg, when this source can finally take it).
+        // The planner splits them by `inConflict`.
+        if(spec.selfOnly) {
+            return source?.uuid ? [String(source.uuid)] : [];
+        }
+        return pileArray(player.cardsInPlay)
+            .filter((card: any) => card?.uuid &&
+                (card.type || card.getType?.()) === 'character' &&
+                (!spec.trait || card.hasTrait?.(spec.trait)))
+            .map((card: any) => String(card.uuid));
+    }
+
+    /** Every zone a ready/move source can be sitting in. */
+    private sequenceSourceCandidates(player: Player): any[] {
+        const inPlay = pileArray(player.cardsInPlay);
+        const provinces: any[] = player.getProvinces ? player.getProvinces() : [];
+        return [
+            ...pileArray(player.hand),
+            ...inPlay,
+            ...inPlay.flatMap((card: any) => card?.attachments || []),
+            ...provinces,
+            ...provinces.flatMap((province: any) =>
+                (province?.attachments || []).concat(province?.childCards || [])),
+            ...(player.getDynastyCardsInProvince ? player.getDynastyCardsInProvince('any') : []),
+            ...(player.stronghold ? [player.stronghold] : [])
+        ];
+    }
+
+    /** Every action this card could take right now: a hand card offers its
+     *  play actions, a board card its own. */
+    private usableActions(source: any, player: Player): any[] {
+        try {
+            const actions: any[] = (String(source?.location || '') === 'hand'
+                ? source?.getPlayActions?.()
+                : source?.getActions?.()) || [];
+            return actions.filter((action: any) =>
+                action && action.createContext && action.meetsRequirements &&
+                (!action.card || action.card.controller === player));
+        } catch{
+            return [];
+        }
+    }
+
+    /**
+     * Legal targets of an action, narrowed to characters this player controls
+     * that are NOT already in the conflict.
+     *
+     * A SUPERSET, deliberately. `BaseCardSelector.getAllLegalTargets` did not
+     * apply the target's `cardCondition` for the abilities measured here — Fan
+     * of Command returned every friendly character rather than the
+     * participating Bushi it can actually ready — so this narrows by type,
+     * controller and participation only. The final target pick is still made by
+     * the prompt handlers, which re-filter against the live selectable list.
+     */
+    private legalOwnCharacterUuids(action: any, context: any, player: Player): string[] {
+        const target = (action.targets || [])[0];
+        try {
+            const legal: any[] = target?.getAllLegalTargets?.(context) || [];
+            return legal
+                .filter((card: any) => card?.uuid &&
+                    (card.type || card.getType?.()) === 'character' &&
+                    card.controller === player && !card.isParticipating?.() && !card.inConflict)
+                .map((card: any) => String(card.uuid));
+        } catch{
+            return [];
+        }
+    }
+
+    /** Which character this move source would actually put into the conflict. */
+    private movedUuidsFor(id: string, source: any, action: any, context: any,
+        player: Player): string[] {
+        const spec = moveSourceSpec(id);
+        if(!spec?.selfOrBearerOnly) {
+            return this.legalOwnCharacterUuids(action, context, player);
+        }
+        // Attached to somebody (Adorned Barcha, Formal Invitation) or moving
+        // itself (Moto Eviscerator).
+        const moved = source?.parent && (source.parent.type || source.parent.getType?.()) === 'character'
+            ? source.parent
+            : source;
+        return moved?.uuid && moved.controller === player && !moved.inConflict
+            ? [String(moved.uuid)]
+            : [];
+    }
+
     // Own province is known information. Read the live game object so a still
     // facedown province gets its exact total: printed province + stronghold +
     // holdings + current effects. `strengthSummary` intentionally hides this
@@ -456,6 +647,8 @@ class JigokuBotController {
                     participatingCharacterCounts: this.participatingCharacterCounts(player),
                     cavalryCharacterUuids: this.cavalryCharacterUuids(player),
                     readyAfterMoveCharacterUuids: this.readyAfterMoveCharacterUuids(player),
+                    // Exact engine legality for the ready -> move sequencer.
+                    sequenceSourceTargets: this.sequenceSourceTargets(player),
                     // Exact live duel skills/honor/Iaijutsu state for shared
                     // 5x5 bid analysis. Gap remains for old synthetic callers.
                     duelBidContext: this.currentDuelBidContext(player),
@@ -694,7 +887,8 @@ class JigokuBotController {
         'bidWar', 'lionDuelist', 'crabSacrifice', 'craneHonor', 'lionHonor',
         'strongholdBow', 'conflictRecursion', 'dynastyEvents', 'saveFatePass',
         'aggressiveSpend', 'provinceTargeting', 'conflictDeckSafety',
-        'conflictTempo', 'unopposedWindow'
+        'conflictTempo', 'unopposedWindow', 'readyValue', 'defenderRingChoice',
+        'readyMove'
     ] as const;
 
     private decisionProfile(player: Player): DeckProfile | undefined {

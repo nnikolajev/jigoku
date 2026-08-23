@@ -23,6 +23,12 @@ import { DEFAULT_CONFLICT_TEMPO } from './ConflictTempoPolicy.js';
 import type { ConflictTempoConfig } from './ConflictTempoPolicy';
 import { DEFAULT_UNOPPOSED_WINDOW } from './UnopposedWindowPolicy.js';
 import type { UnopposedWindowConfig } from './UnopposedWindowPolicy';
+import { DEFAULT_READY_VALUE } from './ReadyValuePolicy.js';
+import { DEFAULT_READY_MOVE } from './ReadyMovePlanner.js';
+import type { ReadyMoveConfig } from './ReadyMovePlanner';
+import type { ReadyValueConfig } from './ReadyValuePolicy';
+import { DEFAULT_DEFENDER_RING_CHOICE } from './DefenderRingChoicePolicy.js';
+import type { DefenderRingChoiceConfig } from './DefenderRingChoicePolicy';
 import { DEFAULT_HONOR_RACE_LIMITS } from './CardPlaybook.js';
 import { DISHONOR_DEFAULTS } from './DishonorTactics.js';
 import type { DishonorProfile } from './DishonorTactics';
@@ -290,6 +296,23 @@ export interface DeckProfile {
     // it: `estimateHandThreat` prices a hand only into the conflict already
     // running. `enabled: false` (the default) is V1 exactly.
     unopposedWindow: Partial<UnopposedWindowConfig>;
+    // Is readying a character worth the card, owned by `ReadyValuePolicy`? A
+    // ready only pays when a conflict can still use the body: a bowed
+    // participant of the conflict being fought, a conflict opportunity left on
+    // either side, or a move-into-conflict effect we hold. `countFavorGlory`
+    // adds the Imperial Favor exception for the decks that race it — a bowed
+    // character contributes 0 glory to the count. `enabled: false` is V1.
+    readyValue: Partial<ReadyValueConfig>;
+    // The two-action ready -> move sequence, owned by `ReadyMovePlanner`. It
+    // plans BOTH legs at once (budgeting the fate for both) so the bot cannot
+    // ready a body and then fail to move it, and it only commits when the body
+    // arriving actually changes the conflict. `enabled: false` is V1.
+    readyMove: Partial<ReadyMoveConfig>;
+    // How to answer the prompt Togashi Tadakatsu creates, owned by
+    // `DefenderRingChoicePolicy`: the DEFENDER picks the element for a conflict
+    // declared against them. `enabled: false` restores V1's answer, which was
+    // its own attacking preference — i.e. the best ring, handed to the enemy.
+    defenderRingChoice: Partial<DefenderRingChoiceConfig>;
 
     // Honor is a win condition on both ends — 0 loses, 25 wins — and the bot
     // pays honor costs (Assassination is 3) with no budget at all outside the
@@ -787,6 +810,16 @@ export const DEFAULT_PROFILE: DeckProfile = {
     //
     // See docs/bot-unopposed-window.md.
     unopposedWindow: { ...DEFAULT_UNOPPOSED_WINDOW, enabled: true },
+    // SHIPPED ON, field-wide. Never spend a card readying a body no conflict
+    // can use. See `ReadyValuePolicy` for the three uses that count and for the
+    // Imperial Favor exception (off here, on for the decks that race it).
+    readyValue: { ...DEFAULT_READY_VALUE },
+    // SHIPPED ON, field-wide. See `ReadyMovePlanner` and
+    // `docs/bot-ready-move-sequence.md`.
+    readyMove: { ...DEFAULT_READY_MOVE },
+    // SHIPPED ON, field-wide, and generic: the prompt exists because the
+    // OPPONENT has Togashi Tadakatsu in play, so every deck can be asked it.
+    defenderRingChoice: { ...DEFAULT_DEFENDER_RING_CHOICE },
     // SHIPPED ON. V1 used to choose the conflict axis from its own ready board
     // alone, ignoring the opponent's board even though that board is public and
     // the fair `ringScore` already reads it. Weight 1 subtracts the opponent's
@@ -860,6 +893,9 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         conflictDeclaration: { ...DEFAULT_PROFILE.conflictDeclaration },
         conflictTempo: { ...DEFAULT_PROFILE.conflictTempo },
         unopposedWindow: { ...DEFAULT_PROFILE.unopposedWindow },
+        readyValue: { ...DEFAULT_PROFILE.readyValue },
+        readyMove: { ...DEFAULT_PROFILE.readyMove },
+        defenderRingChoice: { ...DEFAULT_PROFILE.defenderRingChoice },
         fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },
         boardAwareDynasty: {
             ...DEFAULT_PROFILE.boardAwareDynasty,
@@ -2525,6 +2561,14 @@ const OVERRIDES: ProfileOverride[] = [
             // its Action needs a FIRE province, which it supplies itself. Under
             // the stronghold it is the last thing an opponent has to break.
             strongholdProvinceId: 'honor-s-reward',
+            // THE Imperial Favor exception to `ReadyValuePolicy`. Every other
+            // deck stops paying for a ready that no conflict can use; this one
+            // wants the favor for Censure, and the glory count that awards it
+            // at the end of the conflict phase reads only UNBOWED characters
+            // (`DrawCard.getContributionToImperialFavor`). So readying a glory
+            // body with no conflicts left is still real value here, and only
+            // here. Kyuden Bayushi's own ready is what this unblocks.
+            readyValue: { countFavorGlory: true },
             mulligan: {
                 // Two holdings are real engines here (Imperial Storehouse
                 // sacrifices for a card, Acclaimed Geisha House switches the

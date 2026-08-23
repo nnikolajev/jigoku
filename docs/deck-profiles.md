@@ -69,6 +69,44 @@ DeckStrategy flags ──profileFromStrategy()──▶ base profile ──resol
   (falling back to `profileFromStrategy(context.strategy)` when a caller passes
   only strategy, e.g. unit tests).
 
+### Injecting an override for a measurement (`v2Profile`)
+
+`JigokuBotController.decisionProfile` layers an A/B arm on top of the resolved
+profile. Three routes, applied in this order:
+
+| field | scope |
+|---|---|
+| `deckProfile` | every deck the arm is injected into |
+| `deckProfileByArchetype` | only decks whose profile resolves to that archetype (`profileArchetype`: `lion`, `unicorn`, `bid-war`, `dishonor`, `glory`, `shugenja`, `dragon`, `standard`) |
+| everything else | V2 engine fields, not the deck profile |
+
+Tactics sub-profiles listed in `TACTICS_SUBPROFILE_KEYS` are deep-merged one
+level, so an arm names ONE knob instead of restating the whole object — for
+`rebirth` that object includes the printed-skill table and the Phoenix faction
+list, which are legality data, not preferences.
+
+**A deck-scoped module is never CREATED by an arm.** Its presence in the
+profile is what switches it on:
+
+```ts
+const shugenja = profile.shugenja ? new ShugenjaTactics(profile.shugenja) : null;
+```
+
+so naming `shugenja` at the top level of an arm used to hand Crab, Lion,
+Dragon and everything else a **partial** `ShugenjaProfile` with its id lists
+undefined — Phoenix spell logic switched on for a deck that runs none of it.
+Measured on Crab before the guard: **16 of 16 games flipped away from the
+change**. `decisionProfile` now applies such a key only when the base profile
+already carries it, keeps the rest of the same arm, and logs the dropped key
+once naming the archetype. Scope a deck-specific knob with
+`deckProfileByArchetype`; both routes then produce identical runs on the
+owning deck.
+
+Note the failure mode this closes is invisible to a null arm: a null injects
+the knob at its own default and so never creates a key that was not there. It
+shows up only as an arm doing far too much. Specs:
+`test/server/bots/botenginerouting.spec.js`.
+
 ## Adding / tuning a deck
 
 1. Confirm the deck's `DeckStrategy` flags are derived correctly

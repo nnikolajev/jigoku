@@ -554,6 +554,24 @@ NEGATIVE: this one transfers. The difference is that it is not a sizing
 judgement — it converts a conflict opportunity that was being discarded into a
 break, which is the one currency this engine actually pays out in.
 
+### 17. Four fixes from the 2026-08-23 Phoenix Shugenja loss
+
+A single lost game (`game replays/debug/`), read decision by decision, produced
+two field-wide correctness fixes and one deck-scoped win-rate result:
+
+| rule | knob | measured |
+|---|---|---|
+| a bid larger than the conflict deck costs 5 honor on TOP of the transfer | `drawBidding.deckExhaustionAware` | ceiling 0.00pp (0 flips / 112) — correctness |
+| a tied opponent-aware differential must not flip a dominant own axis | `conflictDeclaration.ownAxisDominanceMargin` = 2 | 1 flip / 112 — correctness |
+| Disguised discards the base, so only replace a BOWED one, and only while a conflict can use the ready | `shugenja.disguiseRequires*` | **+3.13pp**, 576 games, 9 bases, p=0.0020 |
+| Clarity of Purpose is only fully paid in political conflicts | `shugenja.clarityPoliticalOnly` | (same arm) |
+
+The shape repeats rule 16's lesson. The two levers that touch SIZING or a
+threshold are unresolvable; the one that stops a resource being spent for
+nothing — V1 disguised onto a ready body **92-94% of the time** — is worth
+three points on the decks that run it. Full write-up in
+[`bot-phoenix-replay-2026-08-23.md`](bot-phoenix-replay-2026-08-23.md).
+
 ## Open threads
 
 1. **Zero fate is the largest untouched cause.** 92 of 228

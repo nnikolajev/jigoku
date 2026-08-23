@@ -19,6 +19,34 @@ export interface ShugenjaProfile {
     airIds: string[];
     voidIds: string[];
     disguiseTargets: Record<string, number>;
+    // ---- Isawa Tadaka 2's Disguised play ----
+    // Disguised REPLACES the chosen body: Tadaka enters play ready and takes
+    // its fate, attachments and status tokens, and the base is discarded
+    // (`PlayDisguisedCharacterAction.executeHandler`). Onto a READY base that
+    // is a stat swap; onto a BOWED one it is also a ready, which is the half
+    // that makes the keyword worth its discount.
+    //
+    // Measured live (2026-08-23, round 3): the bot spent its prepared disguise
+    // on a Prodigy of the Waves it had just bought READY, converting a 3/3 and
+    // a 5/3 board into a 5/3 board alone, and then declared with 6 skill.
+    // Attacking first and disguising afterwards readies the bowed attacker.
+    disguiseRequiresBowedBase: boolean;
+    // A ready body is only worth the discount while something can still use it:
+    // a conflict of ours left to declare, or a conflict of THEIRS with ready
+    // bodies to defend against. With neither, the ready is spent on nothing.
+    disguiseRequiresConflictValue: boolean;
+    // ---- Clarity of Purpose ----
+    // Half the card is conditional on the axis: "opponents' card effects cannot
+    // bow that character" applies anywhere, but "does not bow as a result of
+    // conflict resolution" is printed `during political conflicts`. V1 plays it
+    // in a military conflict on a blind hedge against the hidden hand, and on
+    // any visible bow threat. Measured live (2026-08-23): two military casts in
+    // one game, the second recurred through Kyuden Isawa's once-per-round
+    // ability while ALREADY winning the conflict 11-7.
+    //
+    // On, the card is held for political conflicts, where the whole card pays.
+    // Off reproduces the shipped behaviour.
+    clarityPoliticalOnly: boolean;
     spellPriority: string[];
     protectedDiscardIds: string[];
     // Spell events this deck can pay Kyuden Isawa's hand-discard cost with.
@@ -195,6 +223,16 @@ export const SHUGENJA_DEFAULTS: ShugenjaProfile = {
         'young-philosopher': 2,
         'ethereal-dreamer': 1
     },
+    // SHIPPED 2026-08-23. Paired rig, both seats pooled, `ONLY=` the two Kyuden
+    // Isawa decks: +4.69pp on the discovery bases (91001-93001) and +2.34pp on
+    // six FRESH ones (210001-215001), pooling to **+3.13pp over 576 games and
+    // nine bases, p=0.0020** — PhoenixPhoenix +4.51pp, PhoenixShugenja +1.74pp,
+    // neither negative. Null arm (all three at these values' opposites, i.e.
+    // the old behaviour) was 100% bit-identical, so the rig was clean.
+    // Set all three false to revert. See docs/bot-phoenix-replay-2026-08-23.md.
+    disguiseRequiresBowedBase: true,
+    disguiseRequiresConflictValue: true,
+    clarityPoliticalOnly: true,
     spellPriority: [
         'display-of-power', 'consumed-by-five-fires', 'earth-becomes-sky',
         'clarity-of-purpose', 'against-the-waves', 'the-path-of-man',
@@ -622,9 +660,17 @@ export class ShugenjaTactics {
     // profile table qualify, and only when we can still afford the reduced
     // cost (5 minus the base's discount).
     pickDisguiseTarget(cards: any[], availableFate = Number.POSITIVE_INFINITY): any {
-        const candidates = (cards || []).filter((card) =>
+        const legal = (cards || []).filter((card) =>
             card.id && this.profile.disguiseTargets[card.id] !== undefined &&
             availableFate >= Math.max(5 - this.profile.disguiseTargets[card.id], 0));
+        // Restrict to bowed bases only when one exists: the play gate below is
+        // what declines the disguise outright, and this prompt fires after the
+        // card is already committed, so it must never return null where the
+        // ungated version found a base.
+        const bowedBases = legal.filter((card) => !!card.bowed);
+        const candidates = this.profile.disguiseRequiresBowedBase && bowedBases.length > 0
+            ? bowedBases
+            : legal;
         if(candidates.length === 0) {
             return null;
         }
@@ -689,7 +735,8 @@ export class ShugenjaTactics {
 
     // Play Isawa Tadaka 2 from hand, once. Returns null if a copy is already
     // in play — the second is dead.
-    pickTadakaPlay(hand: any[], myCharacters: any[], availableFate: number): any {
+    pickTadakaPlay(hand: any[], myCharacters: any[], availableFate: number,
+        conflictValueAvailable = true): any {
         const tadaka = (hand || []).find((card) =>
             card.id === 'isawa-tadaka-2' && card.uuid && card.isPlayableByMe);
         if(!tadaka || (myCharacters || []).some((card) => card.id === 'isawa-tadaka-2')) {
@@ -699,10 +746,59 @@ export class ShugenjaTactics {
             card.id && this.profile.disguiseTargets[card.id] !== undefined &&
             availableFate >= Math.max(5 - this.profile.disguiseTargets[card.id], 0));
         const base = this.pickDisguiseTarget(affordableBases, availableFate);
+        if(!base || (Number(base.fate) || 0) < 2) {
+            return null;
+        }
+        // Replacing a READY base spends the discount on a stat swap and throws
+        // the base's own body away. Wait for it to bow — attacking with it
+        // first and disguising afterwards keeps both.
+        if(this.profile.disguiseRequiresBowedBase && !base.bowed) {
+            return null;
+        }
+        if(this.profile.disguiseRequiresConflictValue && !conflictValueAvailable) {
+            return null;
+        }
         // Proactively turn a prepared two-fate body into the durable Tadaka
         // tower. Ordinary conflict evaluation may still play him without this
         // setup when his printed skill is needed immediately.
-        return base && (Number(base.fate) || 0) >= 2 ? tadaka : null;
+        return tadaka;
+    }
+
+    /**
+     * Take the Disguised play, or the plain one? Disguised DISCARDS the base,
+     * which is a discount worth paying only for the ready it buys. With
+     * `disguiseRequiresBowedBase` and no bowed base standing, the full printed
+     * cost buys the same body and keeps the ready one — so prefer the plain
+     * play whenever we can afford it. Every other case keeps V1's rule, which
+     * takes Disguised whenever the engine offers it.
+     */
+    prefersDisguisedPlay(myCharacters: any[], availableFate: number): boolean {
+        if(!this.profile.disguiseRequiresBowedBase) {
+            return true;
+        }
+        const bowedBase = (myCharacters || []).some((card) =>
+            card?.bowed && card.id && this.profile.disguiseTargets[card.id] !== undefined);
+        if(bowedBase) {
+            return true;
+        }
+        return (Number(availableFate) || 0) < 5;
+    }
+
+    /**
+     * Is a readied body still worth anything this phase? True when we have a
+     * conflict of our own left to declare, or the opponent does and has ready
+     * bodies to attack with. Both counts are public.
+     */
+    static disguiseReadyIsUseful(
+        myConflictsRemaining: number,
+        opponentConflictsRemaining: number,
+        opponentReadyCharacters: number
+    ): boolean {
+        if((Number(myConflictsRemaining) || 0) >= 1) {
+            return true;
+        }
+        return (Number(opponentConflictsRemaining) || 0) >= 1 &&
+            (Number(opponentReadyCharacters) || 0) >= 1;
     }
 
     // Buy a dynasty character specifically to be a disguise BASE for a Tadaka

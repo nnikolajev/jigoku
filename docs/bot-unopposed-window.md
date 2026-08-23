@@ -126,8 +126,8 @@ DECIDED games and sign-testing them, the same way the water ready loop was.
 | **search pooled** | **3 bases, 1632 games** | **42** | **22** | **+0.61pp, p=0.017** |
 
 Both seats positive, and the seat-0 over-read is the usual size (the paired rig
-reads one seat about 2.7x bigger than the other; see
-`jigoku-paired-rig-seat-bias`).
+reads one seat about 2.7x bigger than the other; see the worked example in
+`.claude/skills/roundrobin/SKILL.md`).
 
 Confirmed on six FRESH bases, both seats:
 

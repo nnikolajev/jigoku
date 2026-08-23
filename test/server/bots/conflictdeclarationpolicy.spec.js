@@ -182,10 +182,69 @@ describe('ConflictDeclarationPolicy', function() {
         });
     });
 
+    // Live loss of 2026-08-23, round 1. Asako Togama alone at 2 military / 5
+    // political, facing a dashed-military Young Philosopher and a 3/2 Inferno
+    // Guard Invoker: military = 2 - 3 = -1, political = 5 - 6 = -1. A dead tie,
+    // and the tie-break `military >= political` declared MILITARY with 2 skill
+    // into a 3-skill defense while five political sat on the board.
+    describe('a dominant own axis', function() {
+        const togama = {
+            myMilitary: 2, myPolitical: 5,
+            theirMilitary: 3, theirPolitical: 6,
+            forceMilitary: false
+        };
+        const guarded = { opponentBoardWeight: 1, ownAxisDominanceMargin: 2, dominantAxisSwitchMargin: 2 };
+
+        it('is what V1 flips away from on a tied differential', function() {
+            const result = new ConflictDeclarationPolicy({ opponentBoardWeight: 1 }).chooseAxis(togama);
+            expect(result.axis).toBe('military');
+            expect(result.reason).toBe('opponent-aware');
+        });
+
+        it('holds when the differential does not clear the margin', function() {
+            const result = new ConflictDeclarationPolicy(guarded).chooseAxis(togama);
+            expect(result.axis).toBe('political');
+            expect(result.reason).toBe('below-dominant-margin');
+        });
+
+        // The opponent's board is still the point of the weight: a real wall on
+        // our strong axis moves the declaration, a tie does not.
+        it('still yields to a differential that earns it', function() {
+            const wall = Object.assign({}, togama, { theirMilitary: 0, theirPolitical: 12 });
+            const result = new ConflictDeclarationPolicy(guarded).chooseAxis(wall);
+            expect(result.axis).toBe('military');
+            expect(result.reason).toBe('opponent-aware');
+        });
+
+        // An even board has no axis to be loyal to, so the guard must not fire.
+        it('does not fire on a board without a dominant axis', function() {
+            const even = {
+                myMilitary: 4, myPolitical: 5,
+                theirMilitary: 6, theirPolitical: 7,
+                forceMilitary: false
+            };
+            expect(new ConflictDeclarationPolicy(guarded).chooseAxis(even).reason)
+                .toBe(new ConflictDeclarationPolicy({ opponentBoardWeight: 1 }).chooseAxis(even).reason);
+        });
+
+        it('is inert at the class default, which is always satisfied', function() {
+            for(const input of [togama, { myMilitary: 7, myPolitical: 1, theirMilitary: 9, theirPolitical: 3, forceMilitary: false }]) {
+                expect(new ConflictDeclarationPolicy({ opponentBoardWeight: 1 }).chooseAxis(input))
+                    .toEqual(new ConflictDeclarationPolicy({
+                        opponentBoardWeight: 1,
+                        ownAxisDominanceMargin: DEFAULT_CONFLICT_DECLARATION.ownAxisDominanceMargin,
+                        dominantAxisSwitchMargin: DEFAULT_CONFLICT_DECLARATION.dominantAxisSwitchMargin
+                    }).chooseAxis(input));
+            }
+        });
+    });
+
     it('the CLASS default reproduces V1, so an unconfigured policy is inert', function() {
         expect(DEFAULT_CONFLICT_DECLARATION.opponentBoardWeight).toBe(0);
         expect(DEFAULT_CONFLICT_DECLARATION.switchMargin).toBe(0);
         expect(DEFAULT_CONFLICT_DECLARATION.avoidExhaustedAxis).toBe(false);
+        expect(DEFAULT_CONFLICT_DECLARATION.ownAxisDominanceMargin).toBe(0);
+        expect(DEFAULT_CONFLICT_DECLARATION.dominantAxisSwitchMargin).toBe(0);
     });
 
     it('but the shipped DECK PROFILE turns the opponent board on', function() {
@@ -194,5 +253,20 @@ describe('ConflictDeclarationPolicy', function() {
         // documents V1 so the policy can be constructed inert in a test, and
         // the profile carries what actually ships.
         expect(DEFAULT_PROFILE.conflictDeclaration.opponentBoardWeight).toBe(1);
+    });
+
+    it('and the dominant-axis guard, which the weight needs to stop tie-flipping', function() {
+        expect(DEFAULT_PROFILE.conflictDeclaration.ownAxisDominanceMargin).toBe(2);
+        expect(DEFAULT_PROFILE.conflictDeclaration.dominantAxisSwitchMargin).toBe(2);
+
+        // The shipped configuration on the board that produced it.
+        const shipped = new ConflictDeclarationPolicy(DEFAULT_PROFILE.conflictDeclaration)
+            .chooseAxis({
+                myMilitary: 2, myPolitical: 5,
+                theirMilitary: 3, theirPolitical: 6,
+                forceMilitary: false
+            });
+        expect(shipped.axis).toBe('political');
+        expect(shipped.reason).toBe('below-dominant-margin');
     });
 });

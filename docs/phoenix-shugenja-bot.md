@@ -89,6 +89,47 @@ strongest legal enemy whenever possible. If the engine offers only Phoenix
 characters, it must remove the weakest own legal character instead of looping
 on Cancel.
 
+## Disguised timing and Clarity of Purpose (SHIPPED 2026-08-23)
+
+Three knobs on `ShugenjaProfile`, all `true` in `SHUGENJA_DEFAULTS` so both
+Kyuden Isawa decks inherit them through their own overlays. Read off one lost
+human game; full write-up in
+[bot-phoenix-replay-2026-08-23.md](bot-phoenix-replay-2026-08-23.md).
+
+| knob | rule |
+|---|---|
+| `disguiseRequiresBowedBase` | only replace a BOWED base |
+| `disguiseRequiresConflictValue` | and only while a conflict can still use the ready |
+| `clarityPoliticalOnly` | hold Clarity of Purpose for political conflicts |
+
+**Disguised discards the base.** `PlayDisguisedCharacterAction.executeHandler`
+moves the base’s fate, attachments and status tokens onto Tadaka and then
+discards it, so replacing a READY body is a stat swap that throws that body
+away; replacing a bowed one is also a ready, which is what the discount is
+buying. V1 did the former **92-94% of the time** — 201 Disguised plays over 384
+games with 16 onto a bowed base. Gated, all 74 remaining plays are onto a bowed
+base, the rest being Tadaka played at his printed 5 with the base kept
+(`prefersDisguisedPlay`).
+
+The conflict-value half is `ShugenjaTactics.disguiseReadyIsUseful`: a conflict
+of ours left to declare, or one of theirs with ready bodies behind it. Both
+counts are public.
+
+**Clarity of Purpose** reads "opponents’ card effects cannot bow that character
+and it does not bow as a result of conflict resolution during political
+conflicts" — only the second clause is unconditional, and only on one axis.
+V1’s gate ended in a blind hedge against the hidden hand and spent the card
+twice in one game, the second time recurred through Kyuden Isawa’s
+once-per-round action while already winning 11-7. The knob closes the hand
+path, the `urgentClarityThreat` pre-emption and the Kyuden recursion together —
+`pickKyudenSpell` filters on the same `shouldPlay` gate and `shouldUseKyuden`
+needs a legal target, so the stronghold no longer bows for a card that will be
+refused.
+
+Measured on the paired rig (`ONLY=PhoenixShugenja,PhoenixPhoenix`, both seats
+pooled): **+3.13pp over 576 games and 9 bases, p=0.0020**, null arm 100%
+bit-identical. PhoenixPhoenix +4.51pp, PhoenixShugenja +1.74pp.
+
 ## Ring plan (injectable, off by default)
 
 V1 picks the declaration ring with `JigokuBotPolicy.ringScore`, where a ring

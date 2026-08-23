@@ -1800,6 +1800,18 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
         run(profile, targetState('isawa-tadaka-2', [], [dreamer], [], 'Choose a character to replace'), {
             targetHint: { sourceCardId: 'isawa-tadaka-2', sourceIsMine: true, gameActions: [] }
         });
+        // The play menu offers Disguised and the plain play side by side. V1
+        // always takes Disguised; `prefersDisguisedPlay` is the knob that pays
+        // the printed cost instead when the only base standing is READY.
+        run(profile, makeState({
+            promptTitle: 'Play Isawa Tadaka', menuTitle: 'Play Isawa Tadaka', stats: { fate: 5 },
+            buttons: [
+                { text: 'Play this character', arg: 'play', uuid: 'play-plain' },
+                { text: 'Play this character with Disguise', arg: 'disguise', uuid: 'play-disguise' },
+                CANCEL
+            ],
+            cardPiles: { cardsInPlay: [dreamer] }
+        }), { playCardId: 'isawa-tadaka-2' });
 
         // `disguisedCost` is only asked for by the free-conflict window
         // (`UnopposedWindowPolicy`), and that window defers to the board-aware

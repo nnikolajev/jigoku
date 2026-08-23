@@ -8,16 +8,16 @@ Bot V2 lives under `server/game/bots/v2/`. `BotEngineRouter` owns version select
 
 ## Decision pipeline
 
-1. `PlanningStateBuilder` creates an immutable player-perspective snapshot and stable prompt/material-state fingerprints.
+1. `PerspectiveSnapshotBuilder` creates an immutable player-perspective snapshot and stable prompt/material-state fingerprints.
 2. `IntentManager` selects or retains game, round, phase, conflict, and macro intent plus reservations.
 3. `CandidateRegistry` asks contributors for semantic candidates. Contributors may add candidates, constraints, effects, or score annotations; they never submit commands.
-4. `SafetyValidator` applies legality and shared safety vetoes before scoring.
+4. `SafetyVetoPipeline` applies legality and shared safety vetoes before scoring.
 5. `UtilityEvaluator` produces a common utility vector. Deck differences are injected through profiles and `DeckSynergies`, not hard-coded into the orchestrator.
 6. `TacticalSearch` projects immutable effect descriptors with deterministic ordering and bounded depth, beam, candidate, and node limits.
 7. `TerminalSolver` takes priority for forced wins and forced-loss prevention.
 8. The high-confidence gate either selects one V2 command or records an explicit V1 fallback. The floor is confidence 0.90 plus score advantage 3 and a terminal/shared-safety justification; profiles may only tighten it. Only the first live action is executed; material changes trigger replanning.
 
-Typed semantics are in `v2/cards`; immutable candidates/effects/state/utility/intent models are in `v2/model`; generic scope ledgers are in `v2/ledger`; allocation, information, resource, terminal, and search layers have separate folders. Stable candidate IDs include semantic source/mode/target/cost identity. Prompt chains use `ActionMacro` continuation and are revalidated at every step.
+Typed semantics are in `v2/cards`; immutable candidates/effects/state/utility/intent models are in `v2/model`; allocation, information, resource, terminal, search and tracing layers have separate folders (`TacticalSearch` in `v2/search`, `TerminalSolver` in `v2/terminal`). Stable candidate IDs include semantic source/mode/target/cost identity. Prompt chains use `ActionMacro` continuation and are revalidated at every step.
 
 `TacticalSearch` remains fully implemented and exercised in shadow/research mode. `liveTacticalSearch` is false unless an injected profile explicitly opts in. This is a retained experiment switch, not a safety bypass: terminal solving and shared safety vetoes still run in enabled mode. The default was disabled after repeated holdouts showed zero accepted corrections, hundreds of exhausted search budgets, material runtime regression, and one 30-second self-play timeout.
 

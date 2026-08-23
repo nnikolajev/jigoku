@@ -1527,6 +1527,16 @@ class JigokuBotPolicy {
             if(shugenja && (context.playCardId === 'isawa-tadaka-2' || promptTitle.toLowerCase().includes('isawa tadaka'))) {
                 const disguised = buttons.find((button) =>
                     String(button.text || '').toLowerCase().includes('with disguise'));
+                const plain = buttons.find((button) => {
+                    const text = String(button.text || '').toLowerCase();
+                    return text !== 'cancel' && !text.includes('with disguise');
+                });
+                // With only a READY base standing, the discount costs that body
+                // outright. Pay the printed five and keep both.
+                if(disguised && plain &&
+                    !shugenja.prefersDisguisedPlay(this.myCharactersInPlay(me), me?.stats?.fate ?? 0)) {
+                    return this.buttonDecision(plain, 'tadaka-play-full-cost-keep-base');
+                }
                 if(disguised) {
                     return this.buttonDecision(disguised, 'tadaka-play-disguised');
                 }
@@ -2705,6 +2715,9 @@ class JigokuBotPolicy {
                 ? handCosts.reduce((sum: number, cost: number) => sum + cost, 0) / handCosts.length
                 : 1.5,
             handCardCosts: handCosts,
+            conflictDeckSize: Number.isFinite(Number(me?.numConflictCards))
+                ? Number(me?.numConflictCards)
+                : undefined,
             board: {
                 characterCount: characters.length,
                 readyCharacterCount: characters.filter((card) => !card.bowed).length,
@@ -5278,7 +5291,12 @@ class JigokuBotPolicy {
         const preparedTadaka = shugenja?.pickTadakaPlay(
             me?.cardPiles?.hand || [],
             myCharacters,
-            me?.stats?.fate ?? 0
+            me?.stats?.fate ?? 0,
+            ShugenjaTactics.disguiseReadyIsUseful(
+                Number(me?.stats?.conflictsRemaining) || 0,
+                Number(opponent?.stats?.conflictsRemaining) || 0,
+                opponentCharacters.filter((card: any) => !card.bowed).length
+            )
         );
         const preparedFiveFires = shugenja?.pickFiveFiresPlay(
             me?.cardPiles?.hand || [],
@@ -5427,6 +5445,9 @@ class JigokuBotPolicy {
             duelLoserUuids: playerState?.conflict?.duelLoserUuids || [],
             clarityProtectedUuids: sharedPlayCtx.clarityProtectedUuids,
             opponentParticipantCanBow: sharedPlayCtx.opponentParticipantCanBow,
+            clarityPoliticalOnly: sharedPlayCtx.clarityPoliticalOnly,
+            tadakaRequiresBowedBase: sharedPlayCtx.tadakaRequiresBowedBase,
+            tadakaReadyIsUseful: sharedPlayCtx.tadakaReadyIsUseful,
             conflictProvinceElements: this.currentConflictProvinceElements,
             conflictRingElements: conflictRingElementsOf(playerState),
             // "if there is a Battlefield in play" (Chronicler of Conquests).
@@ -5499,8 +5520,12 @@ class JigokuBotPolicy {
         // A visible participating bow source, or an affordable exact omniscient
         // hand bow, can act after our next pass. Protect now, before optional
         // board actions and ordinary value plays give that threat priority.
-        const urgentClarityThreat = !!sharedPlayCtx.opponentParticipantCanBow ||
-            !!sharedPlayCtx.opponentHasAffordableBowEffect;
+        const urgentClarityThreat = (!!sharedPlayCtx.opponentParticipantCanBow ||
+            !!sharedPlayCtx.opponentHasAffordableBowEffect) &&
+            // Same rule as the playbook gate: with `clarityPoliticalOnly` the
+            // card is not spent in a military conflict at all, so the urgent
+            // pre-emption cannot re-open the door the gate just closed.
+            !(sharedPlayCtx.clarityPoliticalOnly && conflictType !== 'political');
         const urgentClarity = urgentClarityThreat
             ? this.normalConflictPlayCandidates(me, opponent).find((card: any) =>
                 card.id === 'clarity-of-purpose' && card.uuid && card.isPlayableByMe &&
@@ -6460,6 +6485,9 @@ class JigokuBotPolicy {
             winSkillNeeded: standing?.losing ? standing.gap : 0,
             clarityProtectedUuids: Array.from(this.clarityProtectedUuids),
             opponentParticipantCanBow: this.currentOpponentParticipantCanBow,
+            clarityPoliticalOnly: this.currentDeckProfile.shugenja?.clarityPoliticalOnly === true,
+            tadakaRequiresBowedBase: this.currentDeckProfile.shugenja?.disguiseRequiresBowedBase === true,
+            tadakaReadyIsUseful: this.tadakaReadyIsUseful(me, opponent),
             conflictProvinceElements: this.currentConflictProvinceElements,
             conflictRingElements: conflictRingElementsOf(playerState),
             // "if there is a Battlefield in play" (Chronicler of Conquests).
@@ -6487,6 +6515,38 @@ class JigokuBotPolicy {
                 ? (amount: number) => this.conflictDeckConsumptionAllowed(playerState, me, amount)
                 : undefined
         };
+    }
+
+    // One row per Disguised play actually made, at the prompt that commits it.
+    // `bowedBase` is the whole question `disguiseRequiresBowedBase` asks: a
+    // ready base is discarded for a stat swap, a bowed one is also a ready.
+    private recordDisguiseBase(me: any, base: any): void {
+        if(!BotTelemetry.enabled) {
+            return;
+        }
+        BotTelemetry.record('tadaka-disguise', () => ({
+            seat: String(me?.name || ''),
+            round: this.currentRoundNumber,
+            baseId: String(base?.id || ''),
+            bowedBase: !!base?.bowed,
+            participatingBase: !!base?.inConflict,
+            baseFate: Number(base?.fate) || 0,
+            conflictsRemaining: Number(me?.stats?.conflictsRemaining) || 0
+        }));
+    }
+
+    // Is a body readied by Tadaka's Disguised play still worth the base it
+    // discards? Only while a conflict can still use it: one of ours to declare,
+    // or one of theirs with ready bodies behind it. Both counts are public.
+    private tadakaReadyIsUseful(me: any, opponent: any): boolean {
+        if(!this.currentDeckProfile.shugenja) {
+            return true;
+        }
+        return ShugenjaTactics.disguiseReadyIsUseful(
+            Number(me?.stats?.conflictsRemaining) || 0,
+            Number(opponent?.stats?.conflictsRemaining) || 0,
+            this.myCharactersInPlay(opponent).filter((card: any) => !card.bowed).length
+        );
     }
 
     private conflictDeckConsumptionAllowed(playerState: any, me: any, amount: number): boolean {
@@ -7161,7 +7221,12 @@ class JigokuBotPolicy {
             const tadaka = shugenja.pickTadakaPlay(
                 me?.cardPiles?.hand || [],
                 this.myCharactersInPlay(me),
-                me?.stats?.fate ?? 0
+                me?.stats?.fate ?? 0,
+                ShugenjaTactics.disguiseReadyIsUseful(
+                    Number(me?.stats?.conflictsRemaining) || 0,
+                    Number(opponent?.stats?.conflictsRemaining) || 0,
+                    this.myCharactersInPlay(opponent).filter((card: any) => !card.bowed).length
+                )
             );
             if(tadaka && this.isDirectCardLegal(tadaka, legalDirectCardUuids) && !this.isAttempted('cardClicked', [tadaka.uuid])) {
                 return this.cardClickDecision(tadaka, 'tadaka-prepared-disguise');
@@ -9049,6 +9114,7 @@ class JigokuBotPolicy {
         if(shugenja && title.includes('character to replace')) {
             const base = shugenja.pickDisguiseTarget(cards, me?.stats?.fate ?? 0);
             if(base) {
+                this.recordDisguiseBase(me, base);
                 return this.cardClickDecision(base, 'tadaka-disguise-base');
             }
         }
@@ -10244,6 +10310,7 @@ class JigokuBotPolicy {
             if(prompt.includes('character to replace')) {
                 const base = shugenja.pickDisguiseTarget(mine, me?.stats?.fate ?? 0);
                 if(base) {
+                    this.recordDisguiseBase(me, base);
                     return this.cardClickDecision(base, 'tadaka-disguise-base');
                 }
             }

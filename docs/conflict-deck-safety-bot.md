@@ -30,3 +30,23 @@ Regression coverage lives in `conflictdecksafetytactics.spec.js`; the
 specialized policy suite also proves normal play/replay intent still executes
 when the deck has safe capacity.
 
+## The other half: the DRAW BID (2026-08-23)
+
+This module guards OPTIONAL consumption — an extra draw the bot chooses to
+take. It never saw the largest consumer of all, the draw-phase honor bid, which
+is mandatory once revealed and is usually the biggest single draw of the round.
+
+A bid larger than the conflict deck reshuffles the discard and costs a flat 5
+honor (`player.ts deckRanOutOfCards`, 3 in Skirmish) on TOP of the honor
+transferred to the lower bidder. Measured live: 8 honor and ONE card left, the
+bot bid 5 into an opponent bid of 1, gave 4 away, then lost 5 for the
+reshuffle, and the game ended at 0.
+
+`DrawBidTactics.deckExhaustionAware` (shipped on) projects the exhaustion and
+re-runs the whole bid analysis at `myHonor - deckExhaustionHonorLoss`, so the
+honor rails choose for the honor the bot will actually hold. Note the engine
+rule the two modules share: the penalty fires when the draw is **strictly
+larger** than the deck, so bidding it to exactly zero is free.
+
+See [draw-bid-bot.md](draw-bid-bot.md) and
+[bot-phoenix-replay-2026-08-23.md](bot-phoenix-replay-2026-08-23.md).

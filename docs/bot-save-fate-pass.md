@@ -341,18 +341,26 @@ constraint — board persistence was.
 
 ## Knobs
 
-| field | meaning |
-|---|---|
-| `setupRounds` | rounds where every body bought gets a fate floor (empty = off) |
-| `setupAdditionalFate` | the floor. Raises the deck's own answer, never lowers it |
-| `earlyRounds` | rounds skipped on the round number alone (empty = off) |
-| `minBoardCharacters` | own characters in play required before a skip |
-| `minPersistentCharacters` | stricter: own characters still carrying fate (0 = off) |
-| `lateFromRound` | from this round the skip is gated on the board, not the round (0 = off) |
-| `lateSkillRatio` | own board skill / opponent board skill required to skip late |
-| `lateMinCharacters` | bodies required before any late skip |
-| `minFate` | never skip holding less than this much fate |
-| `maxBrokenProvinces` | stop skipping once this many own provinces are broken |
+**Only the first two still exist.** The skip half was rejected twice and its
+code was deleted with it: `SaveFatePassProfile` now carries `setupRounds` and
+`setupAdditionalFate` and nothing else, and the shipped value in
+`DEFAULT_PROFILE.saveFatePass` is `{ setupRounds: [1, 2, 3], setupAdditionalFate: 1 }`.
+The rest of the table is kept as the record of what was measured — an arm
+naming any of those fields today is inert, not a fresh test. Rebuild
+instructions are in [bot-fate-experiments-recovery.md](bot-fate-experiments-recovery.md).
+
+| field | status | meaning |
+|---|---|---|
+| `setupRounds` | **live** | rounds where every body bought gets a fate floor (empty = off) |
+| `setupAdditionalFate` | **live** | the floor. Raises the deck's own answer, never lowers it |
+| `earlyRounds` | removed | rounds skipped on the round number alone (empty = off) |
+| `minBoardCharacters` | removed | own characters in play required before a skip |
+| `minPersistentCharacters` | removed | stricter: own characters still carrying fate (0 = off) |
+| `lateFromRound` | removed | from this round the skip is gated on the board, not the round (0 = off) |
+| `lateSkillRatio` | removed | own board skill / opponent board skill required to skip late |
+| `lateMinCharacters` | removed | bodies required before any late skip |
+| `minFate` | removed | never skip holding less than this much fate |
+| `maxBrokenProvinces` | removed | stop skipping once this many own provinces are broken |
 
 The setup floor deliberately overrides the economy's *budget* cap — spending
 one more fate now is the whole claim — but affordability still binds, because

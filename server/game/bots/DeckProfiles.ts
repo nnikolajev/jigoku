@@ -803,7 +803,20 @@ export const DEFAULT_PROFILE: DeckProfile = {
     // Per deck, causal (paired probe, both seats pooled): eight of eight
     // non-rush decks positive, none negative. Lion and Unicorn record exactly
     // zero flips because `forceMilitaryConflict` returns before the policy runs.
-    conflictDeclaration: { opponentBoardWeight: 1 },
+    // `ownAxisDominanceMargin` / `dominantAxisSwitchMargin` SHIPPED 2026-08-23
+    // alongside the weight above. The subtraction TIES whenever the opponent
+    // out-defends us equally on both axes, and the tie-break then falls through
+    // to military — measured live on a 2-military / 5-political board that
+    // declared military into a 3-skill defense. A dominant own axis now has to
+    // be beaten by 2, not merely matched. Correctness rather than a lever: it
+    // flipped 1 winner in 112 replayed shuffles, and the field arm carrying it
+    // read +0.43pp / p=0.729 over 1632 games against a null arm at exactly
+    // 50.00%. See docs/bot-phoenix-replay-2026-08-23.md.
+    conflictDeclaration: {
+        opponentBoardWeight: 1,
+        ownAxisDominanceMargin: 2,
+        dominantAxisSwitchMargin: 2
+    },
     liveCharacterCosts: true,
     handThreatPreconditions: true,
     honorRaceAware: false,

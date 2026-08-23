@@ -1,5 +1,12 @@
 # Rejected and disabled Bot V2 experiments
 
+> **Knob names in this file may no longer exist.** A rejected experiment is
+> often deleted along with its knobs — the whole skip half of `saveFatePass`
+> (`earlyRounds`, `lateFromRound`, `lateSkillRatio`, `maxSkipsPerGame`, ...) and
+> `defenseTuning.breakTieMinReadyCount` are gone from the code. Naming one in an
+> arm today is INERT, not a fresh test. Check the profile interface before
+> reproducing anything here.
+
 Keep failed or inconclusive work here so it is not silently re-enabled.
 
 ## Initial enabled live profile: not eligible as default

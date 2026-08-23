@@ -42,7 +42,9 @@ single-base measurement has produced false positives here.
 |---|---|
 | [bot-save-fate-pass.md](bot-save-fate-pass.md) | **SHIPPED** the early-round fate floor (+2.22pp then +4.14pp); the dynasty-phase **skip is REJECTED twice** — do not repropose |
 | [bot-unopposed-window.md](bot-unopposed-window.md) | **SHIPPED** +0.53pp — buy a body and declare into an all-bowed board |
-| [bot-conflict-tempo.md](bot-conflict-tempo.md) | **REJECTED/null** — and the reason defense *sizing* is settled as a free parameter in both directions |
+| [bot-fate-strip.md](bot-fate-strip.md) | **SHIPPED** +1.13pp — fate removal aims at the lowest-fate enemy, not the fattest |
+| [bot-phoenix-replay-2026-08-23.md](bot-phoenix-replay-2026-08-23.md) | **SHIPPED** +3.13pp on the two Kyuden Isawa decks, plus two field-wide correctness fixes, all four read off one lost game |
+| [bot-conflict-tempo.md](bot-conflict-tempo.md) | **MIXED** — the water ready-loop SHIPPED (+0.32pp) and `tradeDefenseWinOnly` ships on a measured null at the owner’s call; the rest is why defense *sizing* is settled as a free parameter in both directions |
 | [bot-fate-starvation.md](bot-fate-starvation.md) | **REFERENCE** — the conflict-window census behind the fate levers |
 | [bot-fate-experiments-recovery.md](bot-fate-experiments-recovery.md) | **HISTORY** — removed fate experiments and how to rebuild them |
 | [bot-v2-rejected-experiments.md](bot-v2-rejected-experiments.md) | **REJECTED** — the master list. Check it before proposing any bot idea |

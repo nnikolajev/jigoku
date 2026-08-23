@@ -74,6 +74,16 @@ export interface PlaybookContext {
     allowStrengthOvercommit?: boolean; // Dragon card-count payoff exception
     clarityProtectedUuids?: string[]; // characters already protected by Clarity this conflict
     opponentParticipantCanBow?: boolean; // public board threat from a participating defender
+    // DeckProfile A/B switch (`shugenja.clarityPoliticalOnly`). True holds
+    // Clarity of Purpose for political conflicts, where its whole printed
+    // effect pays; undefined/false keeps V1's military hedge.
+    clarityPoliticalOnly?: boolean;
+    // DeckProfile A/B switches (`shugenja.disguiseRequires*`). Disguised
+    // DISCARDS the base, so replacing a ready body throws that body away for a
+    // stat swap; replacing a bowed one is also a ready, which is only worth
+    // anything while a conflict can still use it.
+    tadakaRequiresBowedBase?: boolean;
+    tadakaReadyIsUseful?: boolean;
     omniscient?: boolean; // optional capability has exact opposing-hand information
     opponentHasAffordableBowEffect?: boolean; // exact omniscient hand threat after fate check
     characterPrintedCosts?: Record<string, number>; // exact live printed cost by in-play character UUID
@@ -2489,7 +2499,11 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
             if(fate >= 5) {
                 return true;
             }
+            if(ctx.tadakaRequiresBowedBase && ctx.tadakaReadyIsUseful === false) {
+                return false;
+            }
             return ctx.myCharacters.some((card) => card.id && TADAKA_DISGUISE_COSTS[card.id] !== undefined &&
+                (!ctx.tadakaRequiresBowedBase || !!card.bowed) &&
                 fate >= Math.max(5 - TADAKA_DISGUISE_COSTS[card.id], 1));
         }
     }),
@@ -2578,8 +2592,15 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
             // card. During military, use Clarity only for an actual visible
             // defender threat, an exact affordable seed-3 hand threat, or the
             // ordinary fair-bot hedge against its hidden hand.
-            return ctx.conflictType === 'political' ||
-                !!ctx.opponentParticipantCanBow ||
+            if(ctx.conflictType === 'political') {
+                return true;
+            }
+            // The military hedge is what spent this card twice in one measured
+            // game, once while already winning 11-7.
+            if(ctx.clarityPoliticalOnly) {
+                return false;
+            }
+            return !!ctx.opponentParticipantCanBow ||
                 (ctx.omniscient ? !!ctx.opponentHasAffordableBowEffect : true);
         }
     }),

@@ -27,6 +27,11 @@ export interface DrawBidContext {
     myFate: number;
     opponentFate: number;
     fateOnUnclaimedRings: number;
+    // Cards left in our own CONFLICT deck. Drawing more than this reshuffles
+    // the discard back in and costs a flat honor penalty (`player.ts`
+    // `deckRanOutOfCards`), so the bid is not only an honor TRANSFER — past
+    // this number it is also an honor LOSS. Omitted by synthetic callers.
+    conflictDeckSize?: number;
     myBrokenProvinces: number;
     opponentBrokenProvinces: number;
     averageConflictCardCost: number;
@@ -105,6 +110,19 @@ export interface DrawBidProfile {
     dishonorPlanOpponentThreshold: number;
     predictedHighBidThreshold: number;
     honorOpportunityPenalty: number;
+    // DECKING OURSELVES OUT. Every honor rail above reads `myHonor` as if the
+    // bid only moved honor between the players. It does not: a bid larger than
+    // the conflict deck reshuffles the discard and costs a flat
+    // `deckExhaustionHonorLoss` on top of the transfer, and that loss lands
+    // BEFORE the next decision. Measured live (2026-08-23): 8 honor, 1 card
+    // left, bid 5 -> gave 4 away and then lost 5 for the reshuffle, ending the
+    // game at 0. At 3 honor (8 - 5) the same profile bids 1 and survives.
+    //
+    // On: project the exhaustion, subtract the penalty from `myHonor`, and let
+    // the ordinary rails pick the bid for the honor we will ACTUALLY hold.
+    // Off reproduces the bid that ignores the deck.
+    deckExhaustionAware: boolean;
+    deckExhaustionHonorLoss: number;
 }
 
 export interface LegacyDrawBidProfile {
@@ -184,7 +202,16 @@ export const DEFAULT_DRAW_BID_PROFILE: DrawBidProfile = {
     honorPlanSelfThreshold: 16,
     dishonorPlanOpponentThreshold: 9,
     predictedHighBidThreshold: 4,
-    honorOpportunityPenalty: 2
+    honorOpportunityPenalty: 2,
+    // SHIPPED 2026-08-23 as a CORRECTNESS fix, not a win-rate lever. It fires
+    // only when a bid outdraws the conflict deck, which self-play reaches in
+    // well under 1% of games: 0 winner flips in 112 replayed shuffles, and the
+    // field head-to-head it rides in reads +0.43pp / p=0.729 over 1632 games on
+    // a null arm validated at exactly 50.00%. Same standing as the effect
+    // polarity guards — measured not-negative, kept because the behaviour it
+    // prevents lost a real game. See docs/bot-phoenix-replay-2026-08-23.md.
+    deckExhaustionAware: true,
+    deckExhaustionHonorLoss: 5
 };
 
 export const DEFAULT_LEGACY_DRAW_BID_PROFILE: LegacyDrawBidProfile = {
@@ -327,6 +354,30 @@ export class DrawBidTactics extends BaseDrawBidTactics {
     }
 
     analyze(context: DrawBidContext): DrawBidAnalysis {
+        const chosen = this.analyzeAtStatedHonor(context);
+        if(!this.profile.deckExhaustionAware) {
+            return chosen;
+        }
+        // `drawCardsToHand` only reshuffles when the draw is STRICTLY larger
+        // than the deck, so bidding the deck out to exactly zero is free; the
+        // penalty starts one card later.
+        const deckSize = Math.trunc(finite(context.conflictDeckSize, NaN));
+        if(!Number.isFinite(deckSize) || chosen.selectedBid <= deckSize) {
+            return chosen;
+        }
+        const penalty = Math.max(0, finite(this.profile.deckExhaustionHonorLoss));
+        if(penalty <= 0) {
+            return chosen;
+        }
+        // The reshuffle penalty resolves in this same draw phase, so the honor
+        // every rail below is protecting is the post-penalty number, not the
+        // one on the board right now.
+        const projectedHonor = Math.max(0, finite(context.myHonor) - penalty);
+        const adjusted = this.analyzeAtStatedHonor({ ...context, myHonor: projectedHonor });
+        return { ...adjusted, reason: `${adjusted.reason}-deck-exhaustion` };
+    }
+
+    private analyzeAtStatedHonor(context: DrawBidContext): DrawBidAnalysis {
         const round = Math.max(1, Math.trunc(finite(context.roundNumber, 1)));
         if(round <= 1) {
             return this.fixedAnalysis(context, this.profile.openingBid, 'opening-max-cards');

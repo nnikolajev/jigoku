@@ -8,6 +8,17 @@ describe('Phoenix Shugenja tactics', function() {
     const tactics = new ShugenjaTactics(SHUGENJA_DEFAULTS);
     const strategy = deriveDeckStrategy(['kyuden-isawa']);
     const profile = resolveDeckProfile(['kyuden-isawa', 'vassal-fields'], strategy);
+    // The disguise/Clarity gates ship ON (see docs/bot-phoenix-replay-2026-08-23.md).
+    // Behaviour they deliberately removed is still exercised through this arm,
+    // which is exactly the JSON an A/B run injects to revert them.
+    const legacyShugenja = {
+        ...SHUGENJA_DEFAULTS,
+        disguiseRequiresBowedBase: false,
+        disguiseRequiresConflictValue: false,
+        clarityPoliticalOnly: false
+    };
+    const legacyTactics = new ShugenjaTactics(legacyShugenja);
+    const legacyProfile = { ...profile, shugenja: legacyShugenja };
 
     function stateFor(me, opponent = {}) {
         return {
@@ -59,9 +70,14 @@ describe('Phoenix Shugenja tactics', function() {
         const prodigy = { id: 'prodigy-of-the-waves', uuid: 'prodigy', fate: 2, bowed: true, inConflict: true };
         const adept = { id: 'adept-of-the-waves', uuid: 'adept', fate: 3, bowed: false };
         const philosopher = { id: 'young-philosopher', uuid: 'philosopher', fate: 2, attachments: [{ id: 'clarity' }] };
-        expect(tactics.pickDisguiseTarget([adept, prodigy])).toBe(adept);
-        expect(tactics.pickDisguiseTarget([prodigy, philosopher])).toBe(philosopher);
-        expect(tactics.pickDisguiseTarget([adept, prodigy], 1)).toBe(prodigy);
+        expect(legacyTactics.pickDisguiseTarget([adept, prodigy])).toBe(adept);
+        expect(legacyTactics.pickDisguiseTarget([prodigy, philosopher])).toBe(philosopher);
+        expect(legacyTactics.pickDisguiseTarget([adept, prodigy], 1)).toBe(prodigy);
+        expect(legacyTactics.pickDisguiseTarget([{ id: 'asako-tsuki', uuid: 'unique', fate: 4 }])).toBeNull();
+        // Shipped: the BOWED base outranks the fatter ready one, because the
+        // ready is what the discount is buying. Legality is unchanged.
+        expect(tactics.pickDisguiseTarget([adept, prodigy])).toBe(prodigy);
+        expect(tactics.pickDisguiseTarget([prodigy, philosopher])).toBe(prodigy);
         expect(tactics.pickDisguiseTarget([{ id: 'asako-tsuki', uuid: 'unique', fate: 4 }])).toBeNull();
     });
 
@@ -75,15 +91,20 @@ describe('Phoenix Shugenja tactics', function() {
             7
         )).toBe(dreamer);
         expect(tactics.desiredAdditionalFate('ethereal-dreamer', [tadaka], 7, 1)).toBe(2);
-        expect(tactics.pickTadakaPlay([tadaka], [dreamer], 4)).toBe(tadaka);
+        // The base is BOUGHT ready in the dynasty phase and disguised over once
+        // it has attacked and bowed — that ordering is the whole point of the
+        // shipped gate, so the conflict-phase half uses the bowed body.
+        const bowedDreamer = { ...dreamer, bowed: true };
+        expect(tactics.pickTadakaPlay([tadaka], [dreamer], 4)).toBeNull();
+        expect(tactics.pickTadakaPlay([tadaka], [bowedDreamer], 4)).toBe(tadaka);
 
         const state = stateFor({
             phase: 'conflict',
             promptTitle: 'Action Window',
             menuTitle: 'Initiate an action',
             buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
-            stats: { fate: 4 },
-            cardPiles: { hand: [tadaka], cardsInPlay: [dreamer] }
+            stats: { fate: 4, conflictsRemaining: 2 },
+            cardPiles: { hand: [tadaka], cardsInPlay: [bowedDreamer] }
         });
         const decision = new JigokuBotPolicy('tadaka-phase-window').decide(state, 'Phoenix', { profile });
         expect(decision.reason).toBe('tadaka-prepared-disguise');
@@ -342,8 +363,10 @@ describe('Phoenix Shugenja tactics', function() {
             }], oppProvinces: [], unmodeledEvents: []
         };
         const policy = new FateAwareJigokuBotPolicy(5);
+        // Military Clarity is off in the shipped profile, so the omniscient
+        // hand-threat gate this covers is exercised through the revert arm.
         const context = {
-            profile, cardHint: (cardId) => getPlaybookEntry(cardId),
+            profile: legacyProfile, cardHint: (cardId) => getPlaybookEntry(cardId),
             conflictCosts: { clarity: 1 }, omniscient: noBow
         };
 
@@ -372,6 +395,17 @@ describe('Phoenix Shugenja tactics', function() {
             state, 'Phoenix', { ...context, promptIdentity: 'unaffordable-bow' }
         );
         expect(cannotAfford.target).toBe('Pass');
+
+        // Shipped: even an exact, affordable enemy bow effect does not buy a
+        // military Clarity. The card is held for the conflict type that pays.
+        context.omniscient = {
+            ...noBow,
+            oppHand: [{ id: 'for-shame', fate: 1, canBowOpponent: true, conflictTypes: [] }]
+        };
+        const shipped = new FateAwareJigokuBotPolicy(5).decide(state, 'Phoenix', {
+            ...context, profile, promptIdentity: 'shipped-military-hold'
+        });
+        expect(shipped.target).toBe('Pass');
     });
 
     it('plays Clarity immediately against a visible bowing participant for every seed', function() {
@@ -403,13 +437,32 @@ describe('Phoenix Shugenja tactics', function() {
 
         for(const policy of [new JigokuBotPolicy(2), new FateAwareJigokuBotPolicy(1), new FateAwareJigokuBotPolicy(5)]) {
             const decision = policy.decide(state, 'Phoenix', {
-                profile, cardHint: (cardId) => getPlaybookEntry(cardId),
+                profile: legacyProfile, cardHint: (cardId) => getPlaybookEntry(cardId),
                 conflictCosts: { 'clarity-visible': 1 },
                 opponentParticipantCanBow: true
             });
             expect(decision.reason).toBe('clarity-urgent-bow-protection');
             expect(decision.args[0]).toBe('clarity-visible');
         }
+
+        // Shipped: the urgent pre-emption is gated by the same rule as the
+        // playbook, so a visible bow source cannot reopen a military Clarity.
+        const held = new FateAwareJigokuBotPolicy(1).decide(state, 'Phoenix', {
+            profile, cardHint: (cardId) => getPlaybookEntry(cardId),
+            conflictCosts: { 'clarity-visible': 1 },
+            opponentParticipantCanBow: true, promptIdentity: 'shipped-hold'
+        });
+        expect(held.target).toBe('Pass');
+
+        // ...but the SAME board on the political axis still plays it.
+        state.conflict.type = 'political';
+        state.players.Phoenix.menuTitle = 'Political Air conflict\nAttacker: 5 Defender: 2';
+        const political = new FateAwareJigokuBotPolicy(1).decide(state, 'Phoenix', {
+            profile, cardHint: (cardId) => getPlaybookEntry(cardId),
+            conflictCosts: { 'clarity-visible': 1 },
+            opponentParticipantCanBow: true, promptIdentity: 'shipped-political'
+        });
+        expect(political.args[0]).toBe('clarity-visible');
     });
 
     it('protects each ready participant at most once and spreads a second Clarity', function() {
@@ -466,8 +519,11 @@ describe('Phoenix Shugenja tactics', function() {
         // Shukujo and ring effects can change the conflict type without
         // ending it. That must not clear Clarity's per-character memory.
         conflict.type = 'military';
+        // The per-character memory is knob-independent; playing a SECOND
+        // Clarity in a military conflict is not, so this half uses the arm that
+        // reverts `clarityPoliticalOnly`.
         expect(policy.decide(actionState('clarity2', [tadaka, tsukune]), 'Phoenix', {
-            ...playContext, promptIdentity: 'play-two'
+            ...playContext, profile: legacyProfile, promptIdentity: 'play-two'
         }).args[0]).toBe('clarity2');
         expect(policy.decide(targetState([tadaka, tsukune]), 'Phoenix', {
             ...playContext, promptIdentity: 'target-two', targetHint: {
@@ -563,10 +619,20 @@ describe('Phoenix Shugenja tactics', function() {
         expect(political.reason).toBe('replay-card-shared-play-intent');
         expect(political.args[0]).toBe('clarity-discard');
 
+        // R4c1 of the 2026-08-23 replay: Kyuden recurred Clarity into a
+        // MILITARY conflict the bot was already winning 11-7, burning the
+        // stronghold's once-per-round action and a hand card. The recursion
+        // reads the same `shouldPlay` gate as a hand play, so the shipped
+        // profile now declines the card and leaves the prompt.
         state.conflict.type = 'military';
         const military = new JigokuBotPolicy('kyuden-clarity-military').decide(state, 'Phoenix', context);
-        expect(military.reason).toBe('replay-card-shared-play-intent');
-        expect(military.args[0]).toBe('clarity-discard');
+        expect(military.reason).toBe('replay-no-useful-card');
+        expect(military.target).toBe('Cancel');
+
+        const legacyMilitary = new JigokuBotPolicy('kyuden-clarity-military-legacy')
+            .decide(state, 'Phoenix', { ...context, profile: legacyProfile });
+        expect(legacyMilitary.reason).toBe('replay-card-shared-play-intent');
+        expect(legacyMilitary.args[0]).toBe('clarity-discard');
     });
 
     it('cancels a Clarity of Purpose target prompt rather than protecting a home character', function() {
@@ -1099,6 +1165,158 @@ describe('Phoenix Shugenja tactics', function() {
             expect(on().ringPlanEffectScore(ring('air', 3), kudaka)).toBe(15);
             expect(on().ringPlanEffectScore(ring('earth', 3), kudaka)).toBe(0);
         });
+    });
+
+    // Live game of 2026-08-23, round 3. The bot bought Prodigy of the Waves
+    // with 2 fate in the dynasty phase and immediately disguised Tadaka onto it
+    // — Disguised DISCARDS the base, so a ready 3/3 plus a hand card became a
+    // ready 5/3 and nothing else. Attacking with Prodigy first and disguising
+    // the bowed body afterwards keeps both, because Tadaka enters play ready.
+    describe('Disguised timing for Isawa Tadaka', function() {
+        const hand = [{ id: 'isawa-tadaka-2', uuid: 'tadaka', isPlayableByMe: true }];
+        const base = (bowed) => [{ id: 'prodigy-of-the-waves', uuid: 'prodigy', fate: 2, bowed: bowed }];
+        // `tactics` carries the SHIPPED profile, which has the gates on.
+        const gated = tactics;
+        const legacy = new ShugenjaTactics({
+            ...SHUGENJA_DEFAULTS,
+            disguiseRequiresBowedBase: false,
+            disguiseRequiresConflictValue: false
+        });
+
+        it('reproduces the old play with the knobs off', function() {
+            expect(legacy.pickTadakaPlay(hand, base(false), 5, true)).toBeTruthy();
+            expect(legacy.pickTadakaPlay(hand, base(true), 5, false)).toBeTruthy();
+        });
+
+        it('declines a ready base and takes a bowed one', function() {
+            expect(gated.pickTadakaPlay(hand, base(false), 5, true)).toBeNull();
+            expect(gated.pickTadakaPlay(hand, base(true), 5, true)).toBeTruthy();
+        });
+
+        it('declines even a bowed base once nothing can use the ready', function() {
+            expect(gated.pickTadakaPlay(hand, base(true), 5, false)).toBeNull();
+        });
+
+        it('prices the ready off both conflict counts and their ready board', function() {
+            // One of ours left to declare is enough on its own.
+            expect(ShugenjaTactics.disguiseReadyIsUseful(1, 0, 0)).toBe(true);
+            // None of ours, but one of theirs to defend against.
+            expect(ShugenjaTactics.disguiseReadyIsUseful(0, 1, 2)).toBe(true);
+            // Their conflict with nothing ready to declare it with is not a threat.
+            expect(ShugenjaTactics.disguiseReadyIsUseful(0, 1, 0)).toBe(false);
+            expect(ShugenjaTactics.disguiseReadyIsUseful(0, 0, 3)).toBe(false);
+        });
+
+        // The replace prompt fires after the card is already committed, so the
+        // preference must never return null where the ungated pick found a base.
+        it('prefers a bowed base at the prompt but never refuses to answer it', function() {
+            const mixed = [
+                { id: 'prodigy-of-the-waves', uuid: 'ready', fate: 3, bowed: false },
+                { id: 'adept-of-the-waves', uuid: 'bowed', fate: 0, bowed: true }
+            ];
+            expect(legacy.pickDisguiseTarget(mixed, 5).uuid).toBe('ready');
+            expect(gated.pickDisguiseTarget(mixed, 5).uuid).toBe('bowed');
+            expect(gated.pickDisguiseTarget([mixed[0]], 5).uuid).toBe('ready');
+        });
+
+        // The engine offers "play this character" and "play with Disguise" as
+        // two buttons. V1 always took Disguised; with only a ready base standing
+        // the discount costs that body outright, so the printed five buys the
+        // same 5/3 and keeps it.
+        it('pays full cost rather than discard a ready base', function() {
+            const ready = [{ id: 'prodigy-of-the-waves', uuid: 'ready', bowed: false }];
+            const bowedBase = [{ id: 'prodigy-of-the-waves', uuid: 'bowed', bowed: true }];
+
+            expect(legacy.prefersDisguisedPlay(ready, 5)).toBe(true);
+            expect(gated.prefersDisguisedPlay(ready, 5)).toBe(false);
+            expect(gated.prefersDisguisedPlay(bowedBase, 5)).toBe(true);
+            // Cannot afford the printed cost: the discount is the only way in.
+            expect(gated.prefersDisguisedPlay(ready, 4)).toBe(true);
+            expect(gated.prefersDisguisedPlay([], 5)).toBe(false);
+        });
+
+        // Same gate on the ordinary conflict-evaluation path, which plays him
+        // from hand rather than through the prepared-disguise branch.
+        it('carries the same rule into the playbook entry', function() {
+            const entry = getPlaybookEntry('isawa-tadaka-2');
+            const ctx = (overrides) => ({
+                myCharacters: [{ id: 'prodigy-of-the-waves', bowed: false }],
+                fate: 2, ...overrides
+            });
+
+            expect(entry.shouldPlay(ctx({}))).toBe(true);
+            expect(entry.shouldPlay(ctx({ tadakaRequiresBowedBase: true, tadakaReadyIsUseful: true }))).toBe(false);
+            expect(entry.shouldPlay(ctx({
+                myCharacters: [{ id: 'prodigy-of-the-waves', bowed: true }],
+                tadakaRequiresBowedBase: true, tadakaReadyIsUseful: true
+            }))).toBe(true);
+            expect(entry.shouldPlay(ctx({
+                myCharacters: [{ id: 'prodigy-of-the-waves', bowed: true }],
+                tadakaRequiresBowedBase: true, tadakaReadyIsUseful: false
+            }))).toBe(false);
+            // Full printed cost in hand is a normal play, not a disguise.
+            expect(entry.shouldPlay(ctx({
+                fate: 5, tadakaRequiresBowedBase: true, tadakaReadyIsUseful: false
+            }))).toBe(true);
+        });
+    });
+
+    // Same game, rounds 3 and 4: Clarity of Purpose cast in a MILITARY conflict
+    // twice, the second time recurred through Kyuden Isawa's once-per-round
+    // ability while the bot was already winning 11-7. Only its political clause
+    // ("does not bow as a result of conflict resolution") is unconditional
+    // value; the military use is a hedge against a hand it cannot see.
+    describe('Clarity of Purpose', function() {
+        const entry = getPlaybookEntry('clarity-of-purpose');
+        const ctx = (overrides) => ({
+            myCharacters: [{ uuid: 'tower', bowed: false, inConflict: true }],
+            clarityProtectedUuids: [],
+            ...overrides
+        });
+
+        it('keeps the military hedge with the knob off', function() {
+            expect(entry.shouldPlay(ctx({ conflictType: 'military' }))).toBe(true);
+        });
+
+        it('holds the card for political conflicts with the knob on', function() {
+            expect(entry.shouldPlay(ctx({ conflictType: 'military', clarityPoliticalOnly: true }))).toBe(false);
+            expect(entry.shouldPlay(ctx({ conflictType: 'political', clarityPoliticalOnly: true }))).toBe(true);
+        });
+
+        // Not even a visible bow source reopens it: the whole point is that the
+        // card is worth a full political conflict, not a military hedge.
+        it('does not reopen on a visible military bow threat', function() {
+            expect(entry.shouldPlay(ctx({
+                conflictType: 'military', clarityPoliticalOnly: true, opponentParticipantCanBow: true
+            }))).toBe(false);
+        });
+
+        it('still needs an unprotected ready participant in a political conflict', function() {
+            expect(entry.shouldPlay(ctx({
+                conflictType: 'political', clarityPoliticalOnly: true,
+                clarityProtectedUuids: ['tower']
+            }))).toBe(false);
+        });
+    });
+
+    it('ships the disguise/Clarity gates on, and both deck overlays inherit them', function() {
+        // Measured +3.13pp over 576 games on nine bases, both seats pooled
+        // (p=0.0020). An arm reverts by setting all three false, which is the
+        // legacy behaviour every `gated`-free expectation above still covers.
+        expect(SHUGENJA_DEFAULTS.disguiseRequiresBowedBase).toBe(true);
+        expect(SHUGENJA_DEFAULTS.disguiseRequiresConflictValue).toBe(true);
+        expect(SHUGENJA_DEFAULTS.clarityPoliticalOnly).toBe(true);
+
+        // Both Kyuden Isawa decks spread SHUGENJA_DEFAULTS in their own
+        // overlay, so neither can silently reset the gates.
+        for(const ids of [
+            ['kyuden-isawa', 'vassal-fields'],
+            ['kyuden-isawa', 'fushicho', 'city-of-the-rich-frog']
+        ]) {
+            const resolved = resolveDeckProfile(ids, deriveDeckStrategy(ids)).shugenja;
+            expect(resolved.disguiseRequiresBowedBase).withContext(ids.join(',')).toBe(true);
+            expect(resolved.clarityPoliticalOnly).withContext(ids.join(',')).toBe(true);
+        }
     });
 
     it('uses forced Ujina on an enemy, falling back to the weakest own legal target', function() {

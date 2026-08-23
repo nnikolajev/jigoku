@@ -474,3 +474,106 @@ Every rule from `.claude/skills/roundrobin/SKILL.md` still applies: validate the
 rig with an arm injected at its own default, use several independent bases, and
 read the TOTAL rather than the per-opponent rows.
 
+## Full script index
+
+Every entry point under `tools/selfplay/`. The sections above cover the
+measurement rigs in depth; this table is the map. Worker files (`_*.js`) are
+forked by their parent script and are not run directly.
+
+### Measure a change
+
+| script | purpose |
+|---|---|
+| `parallelHeadToHead.js` | changed bots vs unchanged bots, sharded. **The answer.** |
+| `headToHeadRoundRobin.js` | serial reference implementation of the same experiment |
+| `measureDecisiveness.js` | replay each shuffle with and without the change; the ceiling |
+| `probePaired.js` | paired telemetry probe: what the bot actually DID, plus the ceiling free |
+| `perDeckFlips.js` | per-deck CAUSAL effect, pooling a SEAT=0 and a SEAT=1 probe dump |
+| `crossTabFlips.js` | bucket decided games by a window attribute to find a SCOPE |
+| `refactorIdentity.js` | prove a behaviour-preserving change preserved behaviour |
+| `deckFingerprint.js` | deterministic cross-deck regression fingerprint |
+| `deckFieldWinRate.js` | one deck against the fixed field (new-deck onboarding) |
+
+### Omniscient (seed-independent capability)
+
+| script | purpose |
+|---|---|
+| `parallelOmniscientHeadToHead.js` | the head-to-head with one seat omniscient |
+| `probeOmniscient.js` | paired probe for the hidden-information path |
+| `analyzeOmniscientDecisions.js` | what the omniscient seat does with the hidden hand |
+| `auditOmniscientCoverage.js` | what the omniscient seat is still blind to |
+| `botOmniscientRoundRobin.js` | cross-pool round robin with an optional mirror gate |
+
+### Per-lever analysers (read a probePaired dump)
+
+| script | purpose |
+|---|---|
+| `analyzeAxisChoice.js` | `axis-choice` events — conflict declaration axis |
+| `analyzeAttackSize.js` | attacker allocation reachability and shape |
+| `analyzeDefenseTie.js` | `defense-size` events — the defensive tie-break |
+| `analyzeTempo.js` | population of the declaration-time board read (`ConflictTempoPolicy`) |
+| `analyzeUnopposed.js` | population of the free-conflict window (`UnopposedWindowPolicy`) |
+| `analyzeDuelBids.js` | duel-bid matrix laboratory; runs no game |
+| `analyzePolicyGame.js` | deterministic paired-game policy debugger |
+| `auditBotRegret.js` | offline V2 trace miner (heuristic findings) |
+
+### Correctness audits (not win-rate rigs)
+
+| script | purpose |
+|---|---|
+| `auditEffectPolarity.js` | ready/honor-ours vs bow/dishonor-theirs, watched in real games |
+| `replayPolarityCase.js` | replay ONE game by its `base|DeckA|DeckB` polarity label |
+| `auditCards.js` | live card-usage gate: which cards actually get played |
+| `cardUsageAudit.js` | shared runtime card-coverage helpers |
+| `auditConflictBehavior.js` | focused conflict-policy audit over real games |
+| `interactionAudit.js` | runtime instrumentation for bot interaction loops |
+| `validateBotInteractions.js` | all-deck click/rejection cycle detector |
+
+### Policy A/Bs (both seats same deck)
+
+| script | purpose |
+|---|---|
+| `compareBotVersions.js` | V1 vs V2 pass-through |
+| `compareProfileVariants.js` | paired deck-profile debugger |
+| `compareDrawBidPolicies.js` | adaptive vs legacy draw bidding |
+| `compareMulliganPolicies.js` | adaptive vs legacy mulligan |
+| `compareDynastySeeds.js` | seed-3 board-aware vs seed-1 fate-aware dynasty |
+| `compareConflictPlanning.js` | lookahead vs legacy conflict planning |
+| `tuneBotV2.js` | bounded offline ranking of measured V2 coefficient profiles |
+
+### Round robins and benchmarks
+
+| script | purpose |
+|---|---|
+| `botRoundRobin.js` | full deck round robin, every unique pair |
+| `botSeedRoundRobin.js` | cross-pool strategy-seed benchmark |
+| `winRates.js` | one-stop win-rate board vs Crane Baseline |
+| `standardBenchmark.js` | the published suite consumed by jigoku-client (`STANDARD_SUITE_ID` must match `standardBenchmarkSuite` in `jigoku-client/client/NewGame.tsx`) |
+| `v2BenchmarkPartitions.js` | partition helper for the V2 benchmark |
+| `mirrorCrane.js` | true Crane mirror, isolates the seed effect from deck noise |
+
+### Card / deck laboratories
+
+| script | purpose |
+|---|---|
+| `cardLab.js` | price one card in a controlled scenario |
+| `drawBidMatrix.js` | deterministic draw-dial laboratory |
+| `importEmeraldDeckFixture.js` | cache one EmeraldDB deck + its card records as a fixture |
+| `exportReplay.js` | export a bot game as a client-format `.json.gz` replay (both hands visible) |
+| `runGames.js` | run N games, aggregate outcomes, optional per-game dump |
+
+### Shared infrastructure (not entry points)
+
+| script | purpose |
+|---|---|
+| `harness.js` | the headless game runner every script above uses |
+| `deckLoader.js` | build a Jigoku deck object from a cached EmeraldDB fixture |
+| `deckRegistry.js` | the deck catalogue and `DECK_LABELS` order |
+| `reward.js` | the self-play reward signal |
+
+One `match<Deck>.js` per piloted deck (`matchCrabSacrifice.js`, `matchCraneDuel.js`,
+`matchCraneHonor.js`, `matchDragon.js`, `matchLion.js`, `matchLionDuelist.js`,
+`matchLionHonor.js`, `matchPhoenix.js`, `matchPhoenixPhoenix.js`, `matchPhoenixShugenja.js`,
+`matchScorpion.js`, `matchScorpionBidWar.js`, `matchUnicorn.js`) plays that deck against
+the Crane precon with seats alternating. They are quick smoke checks for a
+single deck, **not** evidence about a bot change — use the head-to-head for that.

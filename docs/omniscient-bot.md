@@ -103,7 +103,7 @@ Both were found on 2026-08-21 and both are fixed behind
    systematically — which is exactly the failure mode every rejected broad
    omniscient lever showed.
 2. **The rollout's omniscient `opponentHandThreat` was honor-blind too.** Same
-   fix, applied at `JigokuBotPolicy.conflictPhasePlan`'s `threat()` helper for
+   fix, applied at `JigokuBotPolicy.conflictPhaseLookahead`'s `threat()` helper for
    the opponent side only.
 
 `test/server/bots/omniscientcapability.spec.js` locks both halves and, just as

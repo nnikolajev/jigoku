@@ -4,7 +4,7 @@
 
 This report covers the V1 bot implementation for the EmeraldDB deck **Unicorn Reveal** (`6057d28e-e023-4c9f-b027-475f13eaf394`). The exact list is cached as self-play fixtures: 1 stronghold, 1 role, 5 provinces, 40 dynasty cards, and 40 conflict cards, across 35 unique card IDs. Card IDs and counts are preserved.
 
-The deck is registered as `UnicornReveal` in the common self-play catalogue, which makes it available to the win-rate, round-robin, seed, omniscient, head-to-head, interaction, and card-audit tools. The Jigoku client exposes the same EmeraldDB list as **Unicorn Reveal** in its pretrained bot-deck selector, and `standardBenchmarkSuite` in the client matches `STANDARD_SUITE_ID` in `tools/selfplay/standardBenchmark.js` (`crane-baseline-4736f7c0-unicorn-reveal-6057d28e`).
+The deck is registered as `UnicornReveal` in the common self-play catalogue, which makes it available to the win-rate, round-robin, seed, omniscient, head-to-head, interaction, and card-audit tools. The Jigoku client exposes the same EmeraldDB list as **Unicorn Reveal** in its pretrained bot-deck selector, and `standardBenchmarkSuite` in the client matches `STANDARD_SUITE_ID` in `tools/selfplay/standardBenchmark.js` (`crane-baseline-4736f7c0-unicorn-reveal-6057d28e-lion-duelist-a2058c37` — the suite gained a third opponent when Lion Duelist was added, and both sides must be changed together).
 
 ## Strategy implemented
 

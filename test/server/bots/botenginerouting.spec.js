@@ -2,6 +2,8 @@ const BotEngineRouter = require('../../../build/server/game/bots/BotEngineRouter
 const V1PolicyAdapter = require('../../../build/server/game/bots/V1PolicyAdapter.js').default;
 const JigokuBotController = require('../../../build/server/game/bots/JigokuBotController.js');
 const { resolveBotIdentity, stableConfigurationHash } = require('../../../build/server/game/bots/BotConfiguration.js');
+const { deriveDeckStrategy } = require('../../../build/server/game/bots/CardPlaybook.js');
+const { resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
 const golden = require('../../fixtures/bots/v1-golden-decisions.json');
 
 describe('Jigoku bot engine routing', function() {
@@ -104,5 +106,68 @@ describe('Jigoku bot engine routing', function() {
             deckProfile: 'golden-profile', configurationHash: controller.identity.configurationHash,
             selectedBy: 'fallback', fallbackReason: 'v2-pass-through'
         }));
+    });
+
+    // A deck-scoped tactics module is gated by the PRESENCE of its profile key
+    // (`profile.shugenja ? new ShugenjaTactics(profile.shugenja) : null`), so an
+    // arm that names one at the top level used to hand every deck in the field a
+    // partial profile with its id lists undefined. Measured on Crab before the
+    // guard: 16 of 16 games lost, 100% of games flipped AWAY from the change.
+    describe('deck-profile override scoping', function() {
+        const controllerFor = (v2Profile, baseProfile) => {
+            const player = { name: golden.botName, left: false, disconnected: false };
+            const game = { getPlayerByName: () => player, getState: () => ({ players: {} }) };
+            const controller = new JigokuBotController(game, {
+                playerName: golden.botName, engineVersion: 'v1', seed: 1, v2Profile
+            }, () => true);
+            controller.deckProfile = baseProfile;
+            return { controller, player };
+        };
+        const withoutShugenja = () => resolveDeckProfile([], deriveDeckStrategy([]));
+        const withShugenja = () => resolveDeckProfile(
+            ['kyuden-isawa', 'vassal-fields'], deriveDeckStrategy(['kyuden-isawa'])
+        );
+        const arm = { shugenja: { clarityPoliticalOnly: false }, drawBidding: { deckExhaustionAware: false } };
+
+        it('never creates a module the deck does not own', function() {
+            const base = withoutShugenja();
+            expect(base.shugenja).toBeUndefined();
+
+            const { controller, player } = controllerFor({ deckProfile: arm }, base);
+            const merged = controller.decisionProfile(player);
+
+            expect(merged.shugenja).toBeUndefined();
+            // The applicable half of the SAME arm still applies, so the guard
+            // drops a key rather than the whole override.
+            expect(merged.drawBidding.deckExhaustionAware).toBe(false);
+            expect(merged.drawBidding.lowHonorThreshold)
+                .toBe(base.drawBidding.lowHonorThreshold);
+        });
+
+        it('still applies it to the deck that does own it', function() {
+            const { controller, player } = controllerFor({ deckProfile: arm }, withShugenja());
+            const merged = controller.decisionProfile(player);
+
+            expect(merged.shugenja.clarityPoliticalOnly).toBe(false);
+            // One level deep: everything the arm did not name survives.
+            expect(merged.shugenja.disguiseRequiresBowedBase).toBe(true);
+            expect(merged.shugenja.towerIds.length).toBeGreaterThan(0);
+        });
+
+        it('routes an archetype-scoped arm to exactly the same result', function() {
+            const scoped = { deckProfileByArchetype: { shugenja: arm } };
+            const owning = controllerFor(scoped, withShugenja());
+            const other = controllerFor(scoped, withoutShugenja());
+
+            expect(owning.controller.decisionProfile(owning.player).shugenja.clarityPoliticalOnly)
+                .toBe(false);
+            expect(other.controller.decisionProfile(other.player).shugenja).toBeUndefined();
+        });
+
+        it('leaves the profile untouched when no override is configured', function() {
+            const base = withShugenja();
+            const { controller, player } = controllerFor(undefined, base);
+            expect(controller.decisionProfile(player)).toBe(base);
+        });
     });
 });

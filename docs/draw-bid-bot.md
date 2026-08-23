@@ -137,3 +137,24 @@ the tuned Dragon Attachments profile then won its focused A/B 45-35 (56.3%).
 Seed 2 won 141-99 (58.8%) across six fate-sensitive same-deck A/Bs. Full
 results and the exact stored baseline are in
 `tools/selfplay/out/draw-bid-analysis.md`.
+
+## Decking yourself out (`deckExhaustionAware`, SHIPPED 2026-08-23)
+
+Every honor rail above reads `myHonor` as if the bid only MOVED honor between
+the players. It does not: `player.ts drawCardsToHand` reshuffles the discard
+whenever the draw is **strictly larger** than the conflict deck, and
+`deckRanOutOfCards` charges a flat 5 honor (3 in Skirmish) for it.
+
+Measured live: 8 honor, ONE card left, `defend-open-stronghold` bid 5 into an
+opponent bid of 1 — gave 4 away, then lost 5 for the reshuffle, and the game
+ended at 0.
+
+With the knob on, a bid that outdraws the deck is re-analyzed at
+`myHonor - deckExhaustionHonorLoss`, so the rails choose for the honor the bot
+will actually hold. At 8 - 5 = 3 the `protect-low-honor` rail takes it and the
+bid is 1, which at a 1-card deck does not even pay the penalty. Inert whenever
+the deck covers the bid or `conflictDeckSize` is unknown; the reason string
+gains a `-deck-exhaustion` suffix when it fires.
+
+Ceiling 0.00pp over 112 replayed shuffles — this is a correctness fix, not a
+win-rate lever. See [`bot-phoenix-replay-2026-08-23.md`](bot-phoenix-replay-2026-08-23.md).

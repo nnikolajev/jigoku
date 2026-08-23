@@ -302,6 +302,121 @@ describe('DrawBidTactics', function() {
         });
     });
 
+    // Regression for the live loss of 2026-08-23. The bot held 8 honor with ONE
+    // card left in its conflict deck, bid 5 into an opponent bid of 1, handed
+    // over 4 honor and then lost 5 more when the draw reshuffled the discard —
+    // 8 - 4 - 5, dead at 0. Every honor rail below reads `myHonor` as if the
+    // bid only MOVED honor; past the deck size it also burns a flat 5.
+    describe('deck exhaustion', function() {
+        // The board this actually happened on: three of our provinces already
+        // broken, which sends the shipped profile straight to the maximum bid.
+        const nearlyDecked = {
+            roundNumber: 7,
+            myBrokenProvinces: 3,
+            opponentBrokenProvinces: 2,
+            myFate: 4,
+            opponentHandCount: 13
+        };
+        // The rule SHIPS on, so `off()` is the arm that reverts it.
+        const aware = () => new DrawBidTactics(DEFAULT_DRAW_BID_PROFILE);
+        const off = () => new DrawBidTactics({
+            ...DEFAULT_DRAW_BID_PROFILE, deckExhaustionAware: false
+        });
+
+        it('reproduces the losing bid with the rule off', function() {
+            const analysis = off().analyze(context({
+                ...nearlyDecked, myHonor: 8, opponentHonor: 8, conflictDeckSize: 1
+            }));
+
+            expect(analysis.selectedBid).toBe(5);
+            expect(analysis.reason).toBe('defend-open-stronghold');
+        });
+
+        // 1-3 cards left x 6-8 honor. Every one of these outdraws the deck at
+        // the bid the rails would otherwise pick, so every one is re-bid on the
+        // honor left AFTER the five-honor reshuffle penalty — which is at or
+        // under the low-honor rail in all nine cases.
+        it('bids the floor whenever the deck cannot cover the draw', function() {
+            for(const conflictDeckSize of [1, 2, 3]) {
+                for(const myHonor of [6, 7, 8]) {
+                    const analysis = aware().analyze(context({
+                        ...nearlyDecked, myHonor, opponentHonor: 8, conflictDeckSize
+                    }));
+
+                    expect(analysis.selectedBid)
+                        .withContext(`deck ${conflictDeckSize}, honor ${myHonor}`).toBe(1);
+                    expect(analysis.reason)
+                        .withContext(`deck ${conflictDeckSize}, honor ${myHonor}`)
+                        .toBe('protect-low-honor-deck-exhaustion');
+                }
+            }
+        });
+
+        // The case the user named: one card, six honor. `drawCardsToHand` only
+        // reshuffles when the draw is STRICTLY larger than the deck, so bidding
+        // 1 into a 1-card deck does not even pay the penalty — and if something
+        // else draws first and it does fire, 6 - 5 = 1 still leaves the bot
+        // alive with no honor handed to the opponent on top.
+        it('survives one card and six honor', function() {
+            const analysis = aware().analyze(context({
+                ...nearlyDecked, myHonor: 6, opponentHonor: 12, conflictDeckSize: 1
+            }));
+
+            expect(analysis.selectedBid).toBe(1);
+            expect(analysis.selectedBid).not.toBeGreaterThan(1);
+        });
+
+        // A full deck must not notice the rule at all: same bid, same reason,
+        // no `-deck-exhaustion` suffix. This is what keeps the change scoped to
+        // an almost-empty deck instead of quietly re-tuning every draw phase.
+        it('is inert while the deck can cover the bid', function() {
+            for(const conflictDeckSize of [5, 12, 30]) {
+                for(const myHonor of [6, 8, 11, 15]) {
+                    const overrides = { ...nearlyDecked, myHonor, opponentHonor: 8 };
+                    const reverted = off().analyze(context(overrides));
+                    const on = aware().analyze(context({ ...overrides, conflictDeckSize }));
+
+                    expect(on.selectedBid)
+                        .withContext(`deck ${conflictDeckSize}, honor ${myHonor}`)
+                        .toBe(reverted.selectedBid);
+                    expect(on.reason)
+                        .withContext(`deck ${conflictDeckSize}, honor ${myHonor}`)
+                        .toBe(reverted.reason);
+                }
+            }
+        });
+
+        // An unknown deck size is the synthetic-caller path. It must behave
+        // exactly like the rule being off rather than guessing at exhaustion.
+        it('ignores an unknown deck size', function() {
+            const overrides = { ...nearlyDecked, myHonor: 8, opponentHonor: 8 };
+
+            expect(aware().analyze(context(overrides)).selectedBid)
+                .toBe(off().analyze(context(overrides)).selectedBid);
+        });
+
+        it('ships on, so every deck overlay inherits it', function() {
+            expect(DEFAULT_DRAW_BID_PROFILE.deckExhaustionAware).toBe(true);
+            for(const profile of [
+                CARD_ENGINE_DRAW_BID_PROFILE, HONOR_DRAW_BID_PROFILE,
+                DISHONOR_DRAW_BID_PROFILE, TOWER_DRAW_BID_PROFILE
+            ]) {
+                expect(profile.deckExhaustionAware).toBe(true);
+            }
+        });
+
+        // Honor well clear of the penalty still buys cards: the rule re-bids on
+        // `myHonor - 5`, it does not clamp to the floor.
+        it('still bids up when the penalty leaves plenty of honor', function() {
+            const analysis = aware().analyze(context({
+                ...nearlyDecked, myHonor: 18, opponentHonor: 11, conflictDeckSize: 2
+            }));
+
+            expect(analysis.selectedBid).toBeGreaterThan(1);
+            expect(analysis.reason).toMatch(/-deck-exhaustion$/);
+        });
+    });
+
 });
 
 describe('LegacyDrawBidTactics', function() {

@@ -63,12 +63,40 @@ export interface ConflictDeclarationConfig {
      * change V1 rather than reproduce it.
      */
     avoidExhaustedAxis: boolean;
+    /**
+     * When our OWN board favours one axis by at least this many skill points,
+     * treat that axis as the deck's real one and make the opponent-aware
+     * differential earn `dominantAxisSwitchMargin` before it is allowed to
+     * overrule it.
+     *
+     * The differential is a SUBTRACTION, so two axes tie whenever the opponent
+     * out-defends us by the same amount on both — and the tie-break then falls
+     * through to `military >= political`, which is the wrong half of a
+     * political board. Measured live (2026-08-23, round 1): Asako Togama alone
+     * at 2 military / 5 political, against a dashed-military Young Philosopher
+     * and a 3/2 Inferno Guard Invoker. military = 2 - 3 = -1, political =
+     * 5 - 6 = -1, a dead tie — and the bot declared MILITARY with 2 skill into
+     * a 3-skill defense while holding 5 political.
+     *
+     * 0 is always satisfied (`|diff| >= 0`), so the class default leaves the
+     * comparison exactly as it was.
+     */
+    ownAxisDominanceMargin: number;
+    /**
+     * The differential gain required to switch away from a dominant own axis.
+     * Applied INSTEAD of `switchMargin` when the dominance test above passes,
+     * and only when it is the larger of the two. A tie (gain 0) never clears a
+     * positive value, which is the case this exists for.
+     */
+    dominantAxisSwitchMargin: number;
 }
 
 export const DEFAULT_CONFLICT_DECLARATION: ConflictDeclarationConfig = {
     opponentBoardWeight: 0,
     switchMargin: 0,
-    avoidExhaustedAxis: false
+    avoidExhaustedAxis: false,
+    ownAxisDominanceMargin: 0,
+    dominantAxisSwitchMargin: 0
 };
 
 export interface AxisChoiceInput {
@@ -111,7 +139,7 @@ export interface AxisChoiceResult {
      */
     baseline: ConflictAxisChoice;
     reason: 'force-military' | 'only-military' | 'only-political' | 'own-board' |
-        'opponent-aware' | 'below-margin' | 'axis-exhausted';
+        'opponent-aware' | 'below-margin' | 'below-dominant-margin' | 'axis-exhausted';
 }
 
 export class ConflictDeclarationPolicy {
@@ -173,6 +201,11 @@ export class ConflictDeclarationPolicy {
         // Switching costs the deck whatever axis synergy its own board implies,
         // so make the differential earn it.
         const gain = Math.abs(military - political);
+        const dominant = Math.abs(myMilitary - myPolitical) >= this.config.ownAxisDominanceMargin &&
+            this.config.dominantAxisSwitchMargin > this.config.switchMargin;
+        if(dominant && gain < this.config.dominantAxisSwitchMargin) {
+            return { axis: baseline, baseline: baseline, reason: 'below-dominant-margin' };
+        }
         if(gain < this.config.switchMargin) {
             return { axis: baseline, baseline: baseline, reason: 'below-margin' };
         }
@@ -199,6 +232,7 @@ export function recordAxisChoice(
         axis: result.axis,
         baseline: result.baseline,
         reason: result.reason,
+        ownAxisGap: Math.abs(input.myMilitary - input.myPolitical),
         // Divergence from V1, which is what a measurement wants. `axis !==
         // baseline` also fires for `force-military` overriding a
         // political-heavy board, and V1 does that too.

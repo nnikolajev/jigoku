@@ -94,6 +94,8 @@ class JigokuBotController {
     private recentExhaustSignatures: string[] = [];
     private consecutiveExhaustions = 0;
     private deckStrategy?: DeckStrategy;
+    // Log a misdirected arm once per controller, not once per decision.
+    private reportedInapplicableOverrides = false;
     private omniscientCapability: OmniscientBotCapability;
     // Display of Power installs its delayed ring replacement only after its
     // ability-effects event survives interrupts. Remember that success for
@@ -657,6 +659,10 @@ class JigokuBotController {
     // an arm can retune ONE entry of a lookup table — `additionalFateByCharacterId`,
     // `provinceTextPriorityById`, `onRevealValueById` — without silently zeroing
     // every entry it did not restate.
+    private static isTacticsSubProfileKey(key: string): boolean {
+        return (JigokuBotController.TACTICS_SUBPROFILE_KEYS as readonly string[]).includes(key);
+    }
+
     private static mergeTacticsProfile(...layers: any[]): any {
         const merged: any = {};
         for(const layer of layers) {
@@ -675,6 +681,22 @@ class JigokuBotController {
         return merged;
     }
 
+    // Every tactics sub-profile a tuning arm may name. Some of these exist on
+    // EVERY deck (`drawBidding`, `conflictDeclaration`, ...); the rest are the
+    // per-playstyle modules, and for those the KEY'S PRESENCE is the deck gate
+    // — `JigokuBotPolicy` builds them as
+    // `profile.shugenja ? new ShugenjaTactics(profile.shugenja) : null`.
+    private static readonly TACTICS_SUBPROFILE_KEYS = [
+        'rebirth', 'shugenja', 'fateAwareEconomy', 'strongholdDefense',
+        'defenseTuning', 'conflictDeclaration', 'conflictCardEconomy',
+        'drawBidding', 'duelBidding', 'personalHonor', 'boardAwareDynasty',
+        'mulligan', 'honorRace', 'unicornReveal', 'provinceRevealResponse',
+        'bidWar', 'lionDuelist', 'crabSacrifice', 'craneHonor', 'lionHonor',
+        'strongholdBow', 'conflictRecursion', 'dynastyEvents', 'saveFatePass',
+        'aggressiveSpend', 'provinceTargeting', 'conflictDeckSafety',
+        'conflictTempo', 'unopposedWindow'
+    ] as const;
+
     private decisionProfile(player: Player): DeckProfile | undefined {
         // Bot V2 carries its own per-deck tuning, the same way V1 does. It is
         // applied only for the V2 engine so V1's measured behavior stays frozen
@@ -690,7 +712,26 @@ class JigokuBotController {
         const baseAny = (base as any) || {};
         const archetype = JigokuBotController.profileArchetype(baseAny);
         const perDeck = (deckProfileByArchetype && deckProfileByArchetype[archetype]) || {};
-        const topLevel: any = { ...(sharedTop || {}), ...perDeck };
+        // A deck-scoped module named by an arm must never be CREATED on a deck
+        // whose base profile has none. Naming `shugenja` at the top level of an
+        // arm used to hand every deck in the field a partial ShugenjaProfile,
+        // which switches Phoenix spell logic on with its id lists undefined:
+        // measured on Crab at 16 of 16 games lost, 100% of games flipped AWAY.
+        // A dropped override is a visible non-result; a created one silently
+        // destroys every deck that does not own the module.
+        const inapplicable = Object.keys({ ...(sharedTop || {}), ...perDeck })
+            .filter((key) => JigokuBotController.isTacticsSubProfileKey(key) && !baseAny[key]);
+        if(inapplicable.length > 0 && !this.reportedInapplicableOverrides) {
+            this.reportedInapplicableOverrides = true;
+            logger.info(`Bot ${this.config.playerName} ignored deck-profile override(s) ` +
+                `${inapplicable.join(', ')}: the '${archetype}' profile has no such module. ` +
+                'Scope the arm with deckProfileByArchetype instead of naming it at the top level.');
+        }
+        const dropped = new Set(inapplicable);
+        const topLevel: any = Object.fromEntries(
+            Object.entries({ ...(sharedTop || {}), ...perDeck })
+                .filter(([key]) => !dropped.has(key))
+        );
         const baseV2 = baseAny.v2 || {};
         const merged: any = {
             ...baseAny,
@@ -717,20 +758,15 @@ class JigokuBotController {
         // faction list, which are load-bearing legality data, not preferences.
         // Inert until an arm sets one: no shipped override does.
         // One level deep, which is all a tuning arm needs: arms set scalars.
-        for(const key of ['rebirth', 'shugenja', 'fateAwareEconomy', 'strongholdDefense',
-            'defenseTuning', 'conflictDeclaration', 'conflictCardEconomy',
-            'drawBidding', 'duelBidding', 'personalHonor', 'boardAwareDynasty',
-            'mulligan', 'honorRace', 'unicornReveal', 'provinceRevealResponse',
-            'bidWar', 'lionDuelist', 'crabSacrifice', 'craneHonor', 'lionHonor',
-            'strongholdBow', 'conflictRecursion', 'dynastyEvents', 'saveFatePass',
-            'aggressiveSpend', 'provinceTargeting', 'conflictDeckSafety',
-            'conflictTempo', 'unopposedWindow'] as const) {
-            if(sharedTop?.[key] || perDeck[key]) {
+        for(const key of JigokuBotController.TACTICS_SUBPROFILE_KEYS) {
+            if((sharedTop?.[key] || perDeck[key]) && !dropped.has(key)) {
                 merged[key] = JigokuBotController.mergeTacticsProfile(
                     baseAny[key], sharedTop?.[key], perDeck[key]
                 );
             }
         }
+        // SAFETY: `merged` is `baseAny` (a resolved DeckProfile) plus overrides
+        // restricted above to keys that profile already carries.
         return merged as DeckProfile;
     }
 
@@ -1657,6 +1693,9 @@ class JigokuBotController {
             opponentBrokenProvinces: brokenOuter(opponentProvinces),
             averageConflictCardCost,
             handCardCosts,
+            // Bidding more than this reshuffles the discard for a flat honor
+            // penalty, which the honor rails have to see.
+            conflictDeckSize: player.conflictDeck?.size(),
             board: {
                 characterCount: characters.length,
                 readyCharacterCount: characters.filter((card) => !card.bowed).length,

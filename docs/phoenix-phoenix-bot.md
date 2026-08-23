@@ -100,6 +100,19 @@ Ancestral Shrine returns claimed rings for 1 honor each. It frees a claimed
 *earth* while Solemn Scholar is in play, and otherwise only fires below
 `shrineHonorFloor`.
 
+## Inherited from the shugenja overlay
+
+This deck runs Kyuden Isawa, so `strategy.shugenja` is true and the whole
+`ShugenjaProfile` applies underneath the rebirth tuning — including the
+Disguised-timing and Clarity gates shipped 2026-08-23
+(`disguiseRequiresBowedBase`, `disguiseRequiresConflictValue`,
+`clarityPoliticalOnly`). This deck is the larger half of that result at
+**+4.51pp**, p<0.001. Its own overlay spreads `SHUGENJA_DEFAULTS`, so it
+inherits the gates automatically and cannot silently reset them; a spec in
+`test/server/bots/shugenjatactics.spec.js` asserts that for both decks. See
+[phoenix-shugenja-bot.md](phoenix-shugenja-bot.md) and
+[bot-phoenix-replay-2026-08-23.md](bot-phoenix-replay-2026-08-23.md).
+
 ## Knobs
 
 Everything is data on `RebirthProfile` (`server/game/bots/RebirthTactics.ts`),

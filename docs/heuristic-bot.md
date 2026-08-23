@@ -365,8 +365,11 @@ work. Full evidence in `bot-v2-rejected-experiments.md`.
   ring effect and a claimed ring, not a ring; it costs a body worth **2.55
   skill** on average that is bowed for the round, and **49% of the time that
   body is the last ready one**.
-- **`defenseTuning.breakTieMinReadyCount`** — the one scope the telemetry
-  actually pointed at: never spend the LAST ready body on the extra point. The
+- **`defenseTuning.breakTieMinReadyCount`** (**removed from the code**; the
+  finding below stands, the knob does not — `defenseTuning` now carries only
+  `strongholdMaxSurplusMargin` and `strongholdCapRequiresEnemyReserve`) — the
+  one scope the telemetry actually pointed at: never spend the LAST ready body
+  on the extra point. The
   whole of the unscoped lever's loss sits in that bucket (13 to / 22 away with
   one body left, against 11 to / 7 away with two or more). Marginal *skill* does
   not separate the buckets and neither does conflicts-remaining.
@@ -508,6 +511,28 @@ mechanism runs" twice in this project:
 Total evidence on this lever: **~10,200 games**, two null arms at exactly
 50.00%, three forward base sets and one reverse.
 
+#### The tie the weight introduced (`ownAxisDominanceMargin`, 2026-08-23)
+
+Subtracting the opponent board makes the two axes TIE whenever they out-defend
+us equally on both, and `preferred = military >= political` then resolves the
+tie toward military — the wrong half of a political board. Measured live on
+Asako Togama alone at 2 military / 5 political against a dashed-military 0/4
+and a 3/2: `military = 2-3 = -1`, `political = 5-6 = -1`, and the bot declared
+MILITARY with 2 skill into a 3-skill defense. `switchMargin: 0` cannot catch
+it either, because the guard is `gain < switchMargin` and the gain is 0.
+
+`ownAxisDominanceMargin: 2` / `dominantAxisSwitchMargin: 2` (both shipped in
+`DEFAULT_PROFILE`, both 0 in the class default so it stays V1-inert) make a
+differential earn 2 points before it may overrule an own board that leans 2+
+the other way. The branch is reached only when `preferred !== baseline`, so it
+can only BLOCK a switch, never cause one, and it is symmetric — a 9-military
+board no longer abandons its axis to attack with 2 political either.
+
+Correctness rather than a lever: **1 winner flip in 112 replayed shuffles**,
+and the field arm carrying it read +0.43pp / p=0.729 over 1632 games against a
+null arm at exactly 50.00%. New telemetry reason `below-dominant-margin`.
+See [bot-phoenix-replay-2026-08-23.md](bot-phoenix-replay-2026-08-23.md).
+
 ### The two rigs appeared to disagree, and taking that apart is the finding
 
 The first two numbers for this lever were **+4.07pp (p=0.0055)** from the paired
@@ -587,9 +612,17 @@ carries, so an arm is a JSON string and never an edit:
 
 ```sh
 CHANGE='{"deckProfile":{"defenseBreakTie":true,
-        "defenseTuning":{"breakTieMinReadyCount":2}}}' \
+        "conflictDeclaration":{"opponentBoardWeight":0}}}' \
   node tools/selfplay/parallelHeadToHead.js
 ```
+
+**Name only a sub-profile the deck already has.** `decisionProfile` refuses
+to CREATE a deck-scoped module (`shugenja`, `rebirth`, `craneHonor`, ...) on
+a deck whose base profile has none, because presence of the key is what
+switches that module on. Before that guard a top-level `shugenja` arm handed
+every deck in the field a partial profile and lost 16 of 16 measured games on
+Crab. Scope a deck-specific knob with `deckProfileByArchetype` instead; see
+[deck-profiles.md](deck-profiles.md).
 
 Two rules learned from the levers that came before them:
 
@@ -626,7 +659,7 @@ one ring effect and holding a claimed ring.** Not "winning a ring".
 
 ### The bot's own value model disagrees with the engine, and the engine is right
 
-`ConflictPhasePlanner.scoreDefense` (line 664) credits a defensive conflict win
+`ConflictPhasePlanner.evaluateDefense` credits a defensive conflict win
 with the full symmetric `conflictWinValue` (**2.5**) plus
 `claimedRingValue * ringValue` (**0.6**), against `readySkillValue` of **0.12**
 per ready skill point. The measured marginal body costs **2.55 skill**, i.e.

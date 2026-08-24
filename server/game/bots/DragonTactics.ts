@@ -44,7 +44,73 @@ export interface DragonProfile {
     // sides as profile data so alternate Monk lists can inject their engine.
     ringFateOnKihoCharacters: string[];
     kihoCards: string[];
+    towerReuse: TowerReuseProfile;
 }
+
+// Keeping the tower on the table for the NEXT conflict.
+//
+// Measured over 48 games: the card-count payoff character is in play but does
+// not participate in 30-56% of conflict-sides, and the dominant reason is that
+// it is BOWED from the previous conflict (Mitsu 29% attacking / 39% defending)
+// rather than left at home by the declaration (9-16%). Every card-count
+// threshold this deck plays for is keyed on that body PARTICIPATING, so a
+// bowed tower turns the whole engine off for the rest of the round.
+//
+// A free ready source spent between conflicts converts one bowed tower into
+// another conflict's worth of abilities.
+export interface TowerReuseProfile {
+    // SHIPPED at `true`. Setting it false reproduces pre-2026-08-24 V1, so
+    // every knob here stays an A/B arm rather than an edit.
+    readyBetweenConflicts: boolean;
+    // Togashi Mitsu is THE tower: he is the only body that turns five cards
+    // into a ring resolution, so the deck looks for him before spending on
+    // anyone else.
+    primaryTowerIds: string[];
+    // A game that has not found Mitsu still needs one body carrying the
+    // attachments and the buffs. Togashi Ichi and Togashi Tadakatsu are the
+    // best remaining printed bodies (4/2 and 4/3) and both are unique, so a
+    // ready source can stand either back up.
+    fallbackTowerIds: string[];
+    // Before this round a missing Mitsu is still findable, so `pickTower`
+    // names nobody and the reuse/protection knobs below hold their resources
+    // rather than spending them on a body Mitsu will replace. It does NOT gate
+    // the five-card push any more -- see `requireTowerForFiveCount`.
+    fallbackTowerFromRound: number;
+    // MEASURED AND REJECTED -- ships at `false`, do not turn it on again.
+    //
+    // The idea (from a human pilot's own description of the deck) was to chase
+    // the five-card count only with a tower participating to cash it, on the
+    // reasoning that High House alone moves ONE fate and does not pay for the
+    // four or five cards spent reaching the threshold. It measured **-2.89pp,
+    // p=0.041** over 761 paired games on 12 bases -- the only result in that
+    // series to clear the noise floor, and it cleared it in the wrong
+    // direction. The premise is simply false: High House converts 74-76% of
+    // its bows into the ring-fate move, so a five-push with no tower still
+    // pays, and refusing it throws that away. See `docs/dragon-bot.md`.
+    requireTowerForFiveCount: boolean;
+    // Ready sources this deck may spend between conflicts. In Service to My
+    // Lord costs no fate, recurs from the bottom of the conflict deck, and
+    // pays with a non-unique body that contributes nothing to the count.
+    readySourceIds: string[];
+    // Aim the bow-prevention cards at the TOWER rather than at whichever monk
+    // tops the skill sort. Both of these are `targetPreference: 'strongest'`,
+    // and in a MILITARY conflict Togashi Mitsu, Togashi Ichi and Togashi
+    // Tadakatsu all show printed 4, so the tie is broken arbitrarily and the
+    // protection lands on a body the deck does not need next conflict.
+    preferTowerForProtection: boolean;
+    towerProtectionCardIds: string[];
+}
+
+export const TOWER_REUSE_DEFAULTS: TowerReuseProfile = {
+    readyBetweenConflicts: true,
+    primaryTowerIds: ['togashi-mitsu-2'],
+    fallbackTowerIds: ['togashi-ichi', 'togashi-tadakatsu'],
+    fallbackTowerFromRound: 3,
+    requireTowerForFiveCount: false,
+    readySourceIds: ['in-service-to-my-lord'],
+    preferTowerForProtection: true,
+    towerProtectionCardIds: ['swell-of-seafoam', 'iron-foundations-stance']
+};
 
 export const DRAGON_DEFAULTS: DragonProfile = {
     allowCardCountOvercommit: true,
@@ -62,7 +128,8 @@ export const DRAGON_DEFAULTS: DragonProfile = {
     ],
     ringFateProducerCards: ['written-in-the-stars', 'army-of-the-rising-wave'],
     ringFateOnKihoCharacters: ['togashi-dreamer'],
-    kihoCards: ['hurricane-punch', 'void-fist', 'swell-of-seafoam', 'iron-foundations-stance']
+    kihoCards: ['hurricane-punch', 'void-fist', 'swell-of-seafoam', 'iron-foundations-stance'],
+    towerReuse: { ...TOWER_REUSE_DEFAULTS }
 };
 
 // Decision helpers the policy delegates to when (and only when) the deck's
@@ -215,6 +282,73 @@ export class DragonTactics {
             return 2;
         }
         return null;
+    }
+
+    // The deck's current tower. Mitsu whenever he is on the table; otherwise
+    // nobody until `fallbackTowerFromRound`, because a fallback tower named
+    // too early spends the hand that the real tower needs.
+    pickTower(mine: any[], roundNumber = 1): any {
+        const reuse = this.profile.towerReuse;
+        const pick = (ranking: string[]) => mine
+            .filter((card) => card?.id && ranking.includes(card.id))
+            .sort((a, b) => ranking.indexOf(a.id) - ranking.indexOf(b.id))[0] || null;
+        return pick(reuse.primaryTowerIds) ||
+            (roundNumber >= reuse.fallbackTowerFromRound ? pick(reuse.fallbackTowerIds) : null);
+    }
+
+    // May we spend the hand chasing the five-card count right now? Only with a
+    // tower PARTICIPATING to cash it. High House on its own moves one fate;
+    // that is not worth the cards, and before the fallback round it is also
+    // the hand Mitsu will want.
+    fiveCountHasTower(mine: any[], roundNumber = 1): boolean {
+        if(!this.profile.towerReuse.requireTowerForFiveCount) {
+            return true;
+        }
+        const tower = this.pickTower(mine.filter((card) => card.inConflict), roundNumber);
+        return !!tower;
+    }
+
+    // Between conflicts: is a ready source worth spending to stand the tower
+    // back up? Only while a conflict can still USE it -- the same rule
+    // `ReadyValuePolicy` applies to every other ready in the field.
+    //
+    // In Service pays by bowing a non-unique, so one must be standing; the
+    // engine enforces that too, but checking here keeps the bot from clicking
+    // a card whose cost it cannot pay and cancelling out of the prompt.
+    pickTowerReadySource(input: {
+        myCharacters: any[];
+        playableCards: any[];
+        conflictsRemaining: number;
+        roundNumber?: number;
+    }): any {
+        if(!this.profile.towerReuse.readyBetweenConflicts || input.conflictsRemaining <= 0) {
+            return null;
+        }
+        const tower = this.pickTower(input.myCharacters, input.roundNumber ?? 1);
+        if(!tower || !tower.bowed) {
+            return null;
+        }
+        const hasFodder = input.myCharacters.some((card) => !card.bowed && !card.isUnique);
+        if(!hasFodder) {
+            return null;
+        }
+        const ranking = this.profile.towerReuse.readySourceIds;
+        return input.playableCards
+            .filter((card) => card?.id && ranking.includes(card.id))
+            .sort((a, b) => ranking.indexOf(a.id) - ranking.indexOf(b.id))[0] || null;
+    }
+
+    // Bow-prevention aimed at the tower. `candidates` is the prompt's own
+    // selectable list, so anything returned here is legal by construction --
+    // Swell's participating-monk restriction is already applied upstream.
+    // Null means "no opinion"; the generic skill sort then runs unchanged.
+    pickTowerProtectionTarget(sourceCardId: string | undefined, candidates: any[], roundNumber = 1): any {
+        const reuse = this.profile.towerReuse;
+        if(!reuse.preferTowerForProtection || !sourceCardId ||
+            !reuse.towerProtectionCardIds.includes(sourceCardId)) {
+            return null;
+        }
+        return this.pickTower(candidates, roundNumber);
     }
 
     // Which card Ancient Master should fetch, by a fixed preference order.

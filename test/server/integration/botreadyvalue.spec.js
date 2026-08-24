@@ -41,6 +41,9 @@ const {
 } = require('../../helpers/readymoveallowances.js');
 
 const BASES = String(process.env.READY_BASES || '91001').split(',').map(Number);
+// Fallback shuffle base for the plan-stage counter only (see the stage-READY
+// spec at the bottom of this file). Not used by any defect census.
+const PLAN_STAGE_FALLBACK_BASE = Number(process.env.READY_PLAN_BASE || 93001);
 const ONLY = String(process.env.READY_DECKS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const FULL = process.env.READY_FULL === '1';
 const DECKS = ONLY.length > 0 ? ONLY : DECK_LABELS;
@@ -318,7 +321,27 @@ describe('bot ready value (self-play field)', function() {
         expect(open.length).toBeLessThanOrEqual(10);
     });
 
-    it('commits ready -> move sequences, in both stages', function() {
+    it('commits ready -> move sequences, in both stages', async function() {
+        // Stage READY is RARE, and on the primary base the whole field produced
+        // it in exactly one game -- a Lion plan (In Service to My Lord ->
+        // Matsu Mitsuko on Akodo Toturi). A single game is not a guard: any
+        // behaviour change to EITHER deck in that pairing re-rolls the
+        // trajectory and deletes the only evidence, which is what happened when
+        // Dragon's In Service play was fixed (2026-08-24). The sequencer was
+        // fine -- it still fires on 93001 and 94001 -- but this assertion went
+        // red for a reason that had nothing to do with it.
+        //
+        // So the stage counter samples a SECOND base when the primary one comes
+        // up empty. Only `plansCommitted` reads it: the defect censuses above
+        // carry per-base allowance lists tuned to the primary base and must not
+        // see these games.
+        if(plansCommitted.ready === 0) {
+            for(const [a, b] of [['Lion', 'Crane'], ['LionDuelist', 'Crab']]) {
+                const extra = await playAndWatch(a, b, PLAN_STAGE_FALLBACK_BASE);
+                plansCommitted.ready += extra.planStages.ready;
+                plansCommitted.move += extra.planStages.move;
+            }
+        }
         // Direct from `ReadyMovePlanner`'s own telemetry, so it does not depend
         // on a decision-reason string surviving to the ready event.
         console.log(`ready -> move planner: ${plansCommitted.ready} decisions at stage READY ` +

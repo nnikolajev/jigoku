@@ -824,6 +824,52 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
             cardPiles: { hand: [event('void', 'void-fist'), character('acolyte', 'togashi-acolyte')] }
         }), { targetHint: { sourceCardId: 'ancient-master', sourceIsMine: true, gameActions: [] } });
 
+        // Tower reuse. Between conflicts (conflict phase, no attacking player)
+        // a BOWED tower plus a spare ready non-unique buys In Service to My
+        // Lord, so the tower can be declared again next conflict.
+        run(profile, makeState({
+            promptTitle: 'Action Window', menuTitle: 'Initiate an action', buttons: [PASS],
+            cardPiles: {
+                hand: [event('in-service', 'in-service-to-my-lord')],
+                cardsInPlay: [
+                    character('bowed-mitsu', 'togashi-mitsu-2', { bowed: true, isUnique: true }),
+                    character('fodder', 'togashi-initiate', { bowed: false })
+                ]
+            }
+        }));
+        // Swell of Seafoam aims at the tower rather than at whichever monk
+        // tops the skill sort.
+        run(profile, targetState('swell-of-seafoam', ['cardLastingEffect'], [
+            character('philosopher', 'tranquil-philosopher', { inConflict: true }),
+            character('tower', 'togashi-mitsu-2', { inConflict: true, isUnique: true })
+        ], []), {
+            targetHint: {
+                sourceCardId: 'swell-of-seafoam', sourceIsMine: true,
+                gameActions: ['cardLastingEffect']
+            }
+        });
+        // High House's five-card bonus is only weighed once a ring actually
+        // holds fate, which is what reaches the tower check on that path.
+        run(profile, makeState({
+            promptTitle: 'Conflict Action Window', menuTitle: 'Conflict', buttons: [PASS],
+            cardsPlayedThisConflict: 4,
+            strongholdProvince: [{
+                uuid: 'high-house-2', id: 'high-house-of-light', type: 'stronghold',
+                location: 'stronghold province', bowed: false
+            }],
+            cardPiles: { hand: [event('punch', 'hurricane-punch')], cardsInPlay: [mitsu] }
+        }, { cardPiles: { cardsInPlay: [character('enemy2', 'enemy2', { inConflict: true })] } }, {
+            rings: {
+                air: { element: 'air', fate: 2 }, earth: { element: 'earth', fate: 0 },
+                fire: { element: 'fire', fate: 0 }, water: { element: 'water', fate: 0 },
+                void: { element: 'void', fate: 0 }
+            },
+            conflict: {
+                type: 'military', attackingPlayerId: 'bot-id',
+                attackerSkill: 1, defenderSkill: 5
+            }
+        }));
+
         const buyer = policyGroup('dragon-fate-coverage');
         buyer.decide(makeState({
             phase: 'dynasty', promptTitle: 'Action Window', menuTitle: 'Initiate an action', buttons: [PASS],

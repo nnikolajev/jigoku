@@ -889,7 +889,7 @@ class JigokuBotController {
         'strongholdBow', 'conflictRecursion', 'dynastyEvents', 'saveFatePass',
         'aggressiveSpend', 'provinceTargeting', 'conflictDeckSafety',
         'conflictTempo', 'unopposedWindow', 'readyValue', 'defenderRingChoice',
-        'readyMove', 'attachmentTarget', 'moveIntoConflict'
+        'readyMove', 'attachmentTarget', 'moveIntoConflict', 'dragon'
     ] as const;
 
     private decisionProfile(player: Player): DeckProfile | undefined {

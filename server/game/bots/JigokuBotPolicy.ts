@@ -5391,8 +5391,14 @@ class JigokuBotPolicy {
         const canCreateRingFate = !!dragon &&
             dragon.canCreateRingFate(projectedRingFateCards, myCharacters);
         const highHouse = (me?.strongholdProvince || []).find((card: any) => card.id === 'high-house-of-light');
+        // `requireTowerForFiveCount` would require a tower participating before
+        // chasing the five-card count. It ships FALSE -- measured -2.89pp,
+        // p=0.041 -- so this call is a pass-through and V1 is unchanged. High
+        // House converts 74-76% of its bows into the ring-fate move, so a
+        // five-push with no tower still pays. See `docs/dragon-bot.md`.
         const highHouseRelevant = !!dragon && !!highHouse && dragon.hasParticipatingMonk(myCharacters) &&
-            !highHouse.bowed && (ringsHaveFate || canCreateRingFate);
+            !highHouse.bowed && (ringsHaveFate || canCreateRingFate) &&
+            dragon.fiveCountHasTower(myCharacters, this.currentRoundNumber);
         const dragonTargets = dragon ? dragon.cardTargets(
             myCharacters,
             standing.amAttacker,
@@ -7715,6 +7721,36 @@ class JigokuBotPolicy {
                 legalDirectCardUuids, decisionContext.handStats, shugenja);
             if(freeBody) {
                 return this.cardClickDecision(freeBody, 'unopposed-window-body');
+            }
+        }
+
+        // Stand the Dragon tower back up BETWEEN conflicts. Every card-count
+        // threshold this deck plays for -- Mitsu's ring resolve, Ichi's break,
+        // Teacher's draw -- requires that body to be PARTICIPATING, so a tower
+        // bowed by the previous conflict switches the engine off for the rest
+        // of the round. Measured: the tower is in play but absent from 30-56%
+        // of conflict-sides, and BOWED is the dominant reason (Mitsu 29%
+        // attacking / 39% defending) rather than the declaration leaving it
+        // home (9-16%).
+        //
+        // Same window test as the free-conflict lever above. SHIPPED on
+        // (`towerReuse.readyBetweenConflicts`); setting it false restores the
+        // pre-2026-08-24 behaviour, so it stays an A/B arm. Measured +1.05pp,
+        // p=0.42 over 762 paired games -- a null, shipped on the owner's call
+        // because it plays the line a human pilot actually plays.
+        if(dragon && me?.phase === 'conflict' && !playerState?.conflict?.attackingPlayerId) {
+            const readySource = dragon.pickTowerReadySource({
+                myCharacters: this.myCharactersInPlay(me),
+                playableCards: this.normalConflictPlayCandidates(me, this.opponentPlayer(playerState, me))
+                    .filter((card: any) => card.isPlayableByMe && card.uuid &&
+                        this.isDirectCardLegal(card, legalDirectCardUuids) &&
+                        !this.isAttempted('cardClicked', [card.uuid]) &&
+                        !this.isCancelVetoed(card.id)),
+                conflictsRemaining: Number(me?.stats?.conflictsRemaining) || 0,
+                roundNumber: this.currentRoundNumber
+            });
+            if(readySource) {
+                return this.cardClickDecision(readySource, 'dragon-tower-ready-between-conflicts');
             }
         }
 
@@ -11871,7 +11907,14 @@ class JigokuBotPolicy {
         }
         const inServiceReadyStage = actionNames.includes('ready') ||
             (actionNames.length === 0 && mine.length > 0 && mine.every((card) => card.isUnique));
-        if(lion && targetHint.sourceCardId === 'in-service-to-my-lord' && inServiceReadyStage && mine.some((card) => card.bowed && card.isUnique)) {
+        // The ready leg is NOT Lion-only. In Service is a Lion card, but the
+        // decks that splash it (Dragon "Monks In Da High House" runs three)
+        // carry no LionTactics, so gating this branch on `lion` sent every
+        // other deck into the wrong-side cancel below: the bow cost was paid,
+        // the ready prompt was reached, and the play was abandoned. Measured
+        // on Dragon at 46 clicks and 0 completed plays over 48 games.
+        if(targetHint.sourceCardId === 'in-service-to-my-lord' && inServiceReadyStage &&
+            mine.some((card) => card.bowed && card.isUnique)) {
             const uniqueBowed = mine.filter((card) => card.bowed && card.isUnique);
             // In Service is the ready leg the sequencer reaches for most often
             // (it is free, and it readies a unique tower). Follow the plan's
@@ -11880,10 +11923,11 @@ class JigokuBotPolicy {
             if(plannedInService) {
                 return this.cardClickDecision(plannedInService, 'in-service-ready-for-planned-move');
             }
-            const pick = lion.pickReadyTarget(uniqueBowed,
-                (card) => this.skillValue(card, skillType) || 0);
+            const pick = lion
+                ? lion.pickReadyTarget(uniqueBowed, (card) => this.skillValue(card, skillType) || 0)
+                : this.sortBySkillDesc(uniqueBowed, skillType)[0];
             if(pick) {
-                return this.cardClickDecision(pick, 'lion-in-service-ready-strong');
+                return this.cardClickDecision(pick, lion ? 'lion-in-service-ready-strong' : 'in-service-ready-strong');
             }
         }
         if(targetHint.sourceCardId === 'in-service-to-my-lord') {
@@ -12136,6 +12180,20 @@ class JigokuBotPolicy {
             // conflict — aim at ready ones whenever any exist.
             const preferred = sourceHint.targetSide === 'self' ? this.preferReady(mine) : theirs;
             if(preferred.length > 0) {
+                // Keep the TOWER usable. Swell of Seafoam and Iron Foundations
+                // Stance both carry `targetPreference: 'strongest'`, which in a
+                // military conflict cannot separate Mitsu, Ichi and Tadakatsu
+                // (all printed 4) -- so the body the deck needs next conflict
+                // is protected only by luck. SHIPPED on, but effectively INERT
+                // as a win-rate lever: it moves Swell onto the tower 42% -> 47%
+                // of the time and changed the outcome of 1 game in 762.
+                const towerProtect = sourceHint.targetSide === 'self'
+                    ? dragon?.pickTowerProtectionTarget(
+                        targetHint.sourceCardId, preferred, this.currentRoundNumber)
+                    : null;
+                if(towerProtect) {
+                    return this.cardClickDecision(towerProtect, 'dragon-protect-tower');
+                }
                 // A fate strip aimed at the opponent ignores the printed
                 // preference: Meditations on the Tao and Kuni Ritsuko both
                 // carried `most-fate`, which chips the body that needed the

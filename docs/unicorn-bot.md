@@ -11,10 +11,24 @@ The shared card-engine draw profile keeps a routine bid floor of 4 after the
 opening round. Unicorn needs movement, ready, and payoff cards to sustain its
 aggression, while universal honor rails can still force a safe bid of 1.
 
-The bot does not declare every useful character immediately. During a military
-conflict it may leave a movement target at home, declare Outskirts Sentry first,
-then move the reserved character with Golden Plains Outpost, Ride On, or
-Adorned Barcha. Candidate scores include:
+**A movement source is spent only on a body DECLARATION cannot reach.**
+`MoveIntoConflictPolicy` owns that half of the decision and `UnicornTactics`
+prices what the arrival is worth once the gate has allowed it. A READY body that
+the declaration step could legally have taken is not a move target at all: the
+declaration is free and puts it in the same conflict. The exceptions are Adorned
+Barcha (its Action bows an enemy participant), Twilight Rider (its reaction
+fires on MOVING, so declaring forfeits it) and **Golden Plains Outpost**, whose
+cost is bowing a stronghold that contributes no skill and has no other ability —
+so it keeps taking a ready Cavalry body. See `docs/bot-move-into-conflict.md`
+for the full card table and the live defect it came from.
+
+That gate also removes the attack-side reservation for a ready body: the bot
+still holds a body back when the gate would allow moving it (an unused Barcha
+bearer, a bowed body with a ready follow-up) and otherwise declares it now.
+
+During a military conflict it may leave a movement target at home, declare
+Outskirts Sentry first, then move the reserved character with Golden Plains
+Outpost, Ride On, or Adorned Barcha. Candidate scores include:
 
 - current conflict skill and fate;
 - Spyglass draw value and Moto Stables' twice-per-round military bonus;
@@ -24,7 +38,15 @@ Adorned Barcha. Candidate scores include:
 - a known post-move ready source: the character's own ability, I Am Ready, or
   Shiotome Encampment;
 - bowed Minami Kaze Regulars and Higashi Kaze Company reactions when moving the
-  character into an already winning conflict can still produce their payoff.
+  character into an already winning conflict can still produce their payoff;
+- Shinjo Shono's Action when the arrival is what creates the participant
+  majority, Utaku Infantry's per-participant bonus, and Flank the Enemy's
+  outnumbering condition — all bow-agnostic, so all of them pay for a body that
+  could not have been declared.
+
+Moto Outrider's self-ready is **military only** (`isDuringConflict('military')`),
+so a bowed Outrider moved into a political conflict arrives bowed and stays
+bowed; he is scored at 0 there.
 
 A bowed body is therefore not rejected merely for being bowed. It must either
 have an exact ready follow-up or a useful after-win reaction. Barcha may be used

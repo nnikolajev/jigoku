@@ -160,4 +160,189 @@ describe('UnicornTactics', function() {
             militarySkillSummary: { stat: '4' }
         }), 5, skill)).toBe(8);
     });
+
+    // ---------------------------------------------------------------
+    // Movement is for bodies DECLARATION cannot reach. One case per card
+    // the Unicorn rush actually runs; see docs/bot-move-into-conflict.md.
+    // ---------------------------------------------------------------
+    describe('spends a movement source only where declaring cannot', function() {
+        const moveCtx = (characters, extra = {}) => ({
+            conflictType: 'military',
+            characters,
+            skillOf: skill,
+            requireCavalry: false,
+            declarableUuids: Object.fromEntries(characters
+                .filter((candidate) => !candidate.bowed && !candidate.inConflict)
+                .map((candidate) => [candidate.uuid, true])),
+            moveSourceCardId: 'ride-on',
+            selfParticipantCount: characters.filter((candidate) => candidate.inConflict).length,
+            opponentParticipantCount: 0,
+            ...extra
+        });
+
+        // The live defect: r1c1 of the 2026-08-24 Dragon replay. Border Rider
+        // was ready at home and legal to declare as a defender; the bot
+        // declined to defend and then spent Ride On to put it in anyway.
+        it('leaves a ready Border Rider for the declaration step', function() {
+            const rider = card('border-rider', 'rider', { militarySkillSummary: { stat: '2' } });
+            expect(tactics.pickMoveTarget(moveCtx([rider]))).toBeNull();
+        });
+
+        // Covert / Shinjo Yasamura / Butcher of the Fallen: the body was ready
+        // but the declaration prompt would not take it, so it is absent from
+        // the declarable set and movement is the only way in.
+        it('moves a ready body that declaration was not allowed to take', function() {
+            const rider = card('border-rider', 'rider', { militarySkillSummary: { stat: '2' } });
+            expect(tactics.pickMoveTarget(moveCtx([rider], { declarableUuids: {} }))).toBe(rider);
+        });
+
+        // Outskirts Sentry honors a participating character after ANY move in.
+        // A bowed body contributes no skill but leaves with an honor token.
+        it('moves a bowed body to collect the Outskirts Sentry honor', function() {
+            const sentry = card('outskirts-sentry', 'sentry', { inConflict: true });
+            const bowed = card('young-warrior', 'bowed', { bowed: true });
+            const ctx = moveCtx([sentry, bowed], { hasOutskirtsSentry: true });
+            expect(tactics.arrivalPayoff(bowed, ctx)).toBeGreaterThan(0);
+            expect(tactics.pickMoveTarget(ctx)).toBe(bowed);
+            // The same Sentry is not a reason to move a READY body: declaring
+            // it is free and puts it in the same conflict.
+            const ready = card('young-warrior', 'ready');
+            expect(tactics.pickMoveTarget(moveCtx([sentry, ready], { hasOutskirtsSentry: true })))
+                .toBeNull();
+        });
+
+        // Utaku Infantry gets +1/+1 for each participating Unicorn character,
+        // itself included, and `isParticipating()` is bow-agnostic.
+        it('moves a bowed body to feed a participating Utaku Infantry', function() {
+            const infantry = card('utaku-infantry', 'infantry', { inConflict: true });
+            const bowed = card('young-warrior', 'bowed', { bowed: true });
+            const ctx = moveCtx([infantry, bowed]);
+            expect(tactics.arrivalPayoff(bowed, ctx))
+                .toBe(UNICORN_DEFAULTS.utakuInfantryBonus);
+            expect(tactics.pickMoveTarget(ctx)).toBe(bowed);
+            const ready = card('young-warrior', 'ready');
+            expect(tactics.pickMoveTarget(moveCtx([infantry, ready]))).toBeNull();
+        });
+
+        // Moto Outrider readies HIMSELF, but only "during a military conflict
+        // in which this character is participating". On a political conflict he
+        // arrives bowed and stays bowed.
+        it('moves a bowed Moto Outrider on military only', function() {
+            const outrider = card('moto-outrider', 'outrider', {
+                bowed: true, militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '2' }
+            });
+            const military = moveCtx([outrider]);
+            expect(tactics.projectedMoveSkill(outrider, military)).toBe(3);
+            expect(tactics.pickMoveTarget(military)).toBe(outrider);
+            const political = moveCtx([outrider], {
+                conflictType: 'political',
+                skillOf: (candidate) => Number(candidate.politicalSkillSummary?.stat) || 0
+            });
+            expect(tactics.projectedMoveSkill(outrider, political)).toBe(0);
+            expect(tactics.pickMoveTarget(political)).toBeNull();
+        });
+
+        // Twilight Rider's reaction fires on MOVING, not on committing, so
+        // declaring him forfeits it — but it only pays with a bowed body to
+        // stand up.
+        it('moves a ready Twilight Rider only when a bowed body can be readied', function() {
+            const rider = card('twilight-rider', 'twilight', { militarySkillSummary: { stat: '3' } });
+            const bowedFriend = card('young-warrior', 'friend', { bowed: true, inConflict: true });
+            expect(tactics.pickMoveTarget(moveCtx([rider, bowedFriend], {
+                hasBowedReadyTarget: true
+            }))).toBe(rider);
+            expect(tactics.pickMoveTarget(moveCtx([rider], { hasBowedReadyTarget: false })))
+                .toBeNull();
+            // Bowed he cannot be declared at all, and he readies himself.
+            const bowedRider = card('twilight-rider', 'twilight', {
+                bowed: true, militarySkillSummary: { stat: '3' }
+            });
+            expect(tactics.pickMoveTarget(moveCtx([bowedRider], { hasBowedReadyTarget: true })))
+                .toBe(bowedRider);
+        });
+
+        // Shinjo Shono's Action needs the participant majority. The arrival is
+        // only worth something when it is what CREATES that majority.
+        it('moves a bowed body when the arrival unlocks Shinjo Shono', function() {
+            const shono = card('shinjo-shono', 'shono', { inConflict: true });
+            const bowed = card('young-warrior', 'bowed', { bowed: true });
+            const unlocks = moveCtx([shono, bowed], {
+                cavalryUuids: { shono: true, bowed: true },
+                selfParticipantCount: 1, opponentParticipantCount: 1
+            });
+            expect(tactics.arrivalPayoff(bowed, unlocks)).toBeGreaterThan(0);
+            // Already outnumbering: Shono's Action is live without the arrival.
+            const already = moveCtx([shono, bowed], {
+                cavalryUuids: { shono: true, bowed: true },
+                selfParticipantCount: 2, opponentParticipantCount: 0
+            });
+            expect(tactics.arrivalPayoff(bowed, already)).toBe(0);
+        });
+
+        // Flank the Enemy's Action has the same majority condition.
+        it('moves a bowed body to turn Flank the Enemy on', function() {
+            const bowed = card('young-warrior', 'bowed', { bowed: true });
+            const ally = card('border-rider', 'ally', { inConflict: true });
+            const ctx = moveCtx([ally, bowed], {
+                hasFlankTheEnemy: true, selfParticipantCount: 1, opponentParticipantCount: 1
+            });
+            expect(tactics.arrivalPayoff(bowed, ctx))
+                .toBe(UNICORN_DEFAULTS.flankTheEnemyBonus);
+            expect(tactics.arrivalPayoff(bowed, { ...ctx, hasFlankTheEnemy: false })).toBe(0);
+        });
+
+        // Adorned Barcha's Action bows an enemy participant and brings its
+        // bearer along: the bow is the card, the move is the rider.
+        it('still uses Adorned Barcha from a ready, declarable bearer', function() {
+            const bearer = card('shinjo-yasamura', 'bearer', {
+                militarySkillSummary: { stat: '3' }, attachments: [{ id: 'adorned-barcha' }]
+            });
+            const ctx = moveCtx([bearer], {
+                barchaReadyBearerUuids: { bearer: true }, moveSourceCardId: undefined
+            });
+            expect(tactics.pickMoveTarget(ctx)).toBe(bearer);
+            expect(tactics.orderDeclarationCandidates([bearer], ctx).mover).toBe(bearer);
+        });
+
+        // Spyglass draws on "commits to a conflict OR moves to a conflict", so
+        // its bearer is worth no movement card while it can be declared.
+        it('does not spend a movement card to trigger Spyglass', function() {
+            const bearer = card('border-rider', 'spy', {
+                militarySkillSummary: { stat: '2' }, attachments: [{ id: 'spyglass' }]
+            });
+            expect(tactics.pickMoveTarget(moveCtx([bearer]))).toBeNull();
+        });
+
+        // Golden Plains Outpost pays by bowing the STRONGHOLD, which
+        // contributes no skill and has no other ability, so the move is free
+        // and a ready body is a fine target for it. Ride On is a card in hand
+        // and is not.
+        it('still moves a ready body with the free stronghold action', function() {
+            const rider = card('border-rider', 'rider', { militarySkillSummary: { stat: '3' } });
+            const cavalry = { requireCavalry: true, cavalryUuids: { rider: true } };
+            expect(tactics.pickMoveTarget(moveCtx([rider], {
+                ...cavalry, moveSourceCardId: 'golden-plains-outpost'
+            }))).toBe(rider);
+            expect(tactics.shouldUseMove(moveCtx([rider], {
+                ...cavalry, moveSourceCardId: 'golden-plains-outpost', strengthNeeded: 2
+            }))).toBe(true);
+            expect(tactics.pickMoveTarget(moveCtx([rider], {
+                ...cavalry, moveSourceCardId: 'ride-on'
+            }))).toBeNull();
+        });
+
+        // The attack-side reservation is the same decision: holding a READY
+        // body out of the declaration to move it in later pays a card for a
+        // free placement.
+        it('stops reserving a ready cavalry mover at the declaration step', function() {
+            const mover = card('border-rider', 'mover', { militarySkillSummary: { stat: '3' } });
+            const other = card('moto-youth', 'other', { militarySkillSummary: { stat: '2' } });
+            const ctx = moveCtx([mover, other], {
+                requireCavalry: true, cavalryUuids: { mover: true, other: true }
+            });
+            expect(tactics.orderDeclarationCandidates([mover, other], ctx).mover).toBeNull();
+            const blocked = { ...ctx, declarableUuids: { other: true } };
+            expect(tactics.orderDeclarationCandidates([mover, other], blocked).mover).toBe(mover);
+        });
+    });
 });

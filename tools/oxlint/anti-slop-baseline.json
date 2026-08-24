@@ -6,18 +6,18 @@
         "test",
         "tools"
     ],
-    "generatedAt": "2026-08-20",
-    "total": 1234,
+    "generatedAt": "2026-08-24",
+    "total": 1231,
     "totalsByRule": {
-        "require-safety-comment-for-type-assertion": 805,
-        "no-runtime-typeof": 244,
+        "require-safety-comment-for-type-assertion": 803,
+        "no-runtime-typeof": 243,
         "no-known-value-widening": 79,
         "no-unsafe-dictionary-type": 48,
         "no-shape-in-symbol-names": 24,
         "no-conditional-empty-object-spread": 21,
         "no-unknown-parameters": 11,
-        "no-widen-then-assert": 1,
-        "no-chained-type-assertions": 1
+        "no-chained-type-assertions": 1,
+        "no-widen-then-assert": 1
     },
     "files": {
         "server/db.js": {
@@ -119,10 +119,10 @@
         "server/game/bots/JigokuBotController.ts": {
             "no-conditional-empty-object-spread": 5,
             "no-known-value-widening": 9,
-            "no-runtime-typeof": 64,
+            "no-runtime-typeof": 63,
             "no-unsafe-dictionary-type": 1,
             "no-widen-then-assert": 1,
-            "require-safety-comment-for-type-assertion": 96
+            "require-safety-comment-for-type-assertion": 94
         },
         "server/game/bots/JigokuBotPolicy.ts": {
             "no-known-value-widening": 4,

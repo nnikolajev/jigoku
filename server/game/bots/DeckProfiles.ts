@@ -27,6 +27,8 @@ import { DEFAULT_ATTACHMENT_TARGET } from './AttachmentTargetPolicy.js';
 import { DEFAULT_READY_VALUE } from './ReadyValuePolicy.js';
 import { DEFAULT_READY_MOVE } from './ReadyMovePlanner.js';
 import type { ReadyMoveConfig } from './ReadyMovePlanner';
+import { DEFAULT_MOVE_INTO_CONFLICT } from './MoveIntoConflictPolicy.js';
+import type { MoveIntoConflictConfig } from './MoveIntoConflictPolicy';
 import type { ReadyValueConfig } from './ReadyValuePolicy';
 import type { AttachmentTargetConfig } from './AttachmentTargetPolicy';
 import { DEFAULT_DEFENDER_RING_CHOICE } from './DefenderRingChoicePolicy.js';
@@ -316,6 +318,13 @@ export interface DeckProfile {
     // ready a body and then fail to move it, and it only commits when the body
     // arriving actually changes the conflict. `enabled: false` is V1.
     readyMove: Partial<ReadyMoveConfig>;
+    // Is spending a MOVE source on this body worth the card, owned by
+    // `MoveIntoConflictPolicy`? A movement effect exists to put a body where
+    // DECLARATION cannot: a bowed body, one covert or an effect blocked from
+    // declaring, one that was not in play yet. Moving a body that was ready
+    // and legal to declare buys the placement declaration gives for free.
+    // `enabled: false` restores the pre-2026-08-24 behaviour exactly.
+    moveIntoConflict: Partial<MoveIntoConflictConfig>;
     // How to answer the prompt Togashi Tadakatsu creates, owned by
     // `DefenderRingChoicePolicy`: the DEFENDER picks the element for a conflict
     // declared against them. `enabled: false` restores V1's answer, which was
@@ -836,6 +845,10 @@ export const DEFAULT_PROFILE: DeckProfile = {
     // SHIPPED ON, field-wide. See `ReadyMovePlanner` and
     // `docs/bot-ready-move-sequence.md`.
     readyMove: { ...DEFAULT_READY_MOVE },
+    // SHIPPED ON, field-wide. Correctness class: it refuses a movement card
+    // spent on a body the declaration step could have taken for free. See
+    // `MoveIntoConflictPolicy` and `docs/bot-move-into-conflict.md`.
+    moveIntoConflict: { ...DEFAULT_MOVE_INTO_CONFLICT },
     // SHIPPED ON, field-wide, and generic: the prompt exists because the
     // OPPONENT has Togashi Tadakatsu in play, so every deck can be asked it.
     defenderRingChoice: { ...DEFAULT_DEFENDER_RING_CHOICE },
@@ -915,6 +928,15 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         readyValue: { ...DEFAULT_PROFILE.readyValue },
         attachmentTarget: { ...DEFAULT_PROFILE.attachmentTarget },
         readyMove: { ...DEFAULT_PROFILE.readyMove },
+        moveIntoConflict: {
+            ...DEFAULT_PROFILE.moveIntoConflict,
+            riderSourceIds: [...(DEFAULT_PROFILE.moveIntoConflict.riderSourceIds || [])],
+            freeSourceIds: [...(DEFAULT_PROFILE.moveIntoConflict.freeSourceIds || [])],
+            commanderHonorSourceIds: [
+                ...(DEFAULT_PROFILE.moveIntoConflict.commanderHonorSourceIds || [])
+            ],
+            moveReactionCardIds: [...(DEFAULT_PROFILE.moveIntoConflict.moveReactionCardIds || [])]
+        },
         defenderRingChoice: { ...DEFAULT_PROFILE.defenderRingChoice },
         fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },
         boardAwareDynasty: {

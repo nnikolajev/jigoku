@@ -55,7 +55,7 @@ import { UnopposedWindowPolicy, recordUnopposedWindow } from './UnopposedWindowP
 import { AttachmentTargetPolicy } from './AttachmentTargetPolicy.js';
 import { ReadyValuePolicy, gloryOf } from './ReadyValuePolicy.js';
 import { ReadyMovePlanner, sequenceOptionsFrom, moveSourceSpec } from './ReadyMovePlanner.js';
-import type { ReadyMovePlan, SequenceSourceTargets } from './ReadyMovePlanner';
+import type { ReadyMovePlan, SequenceOption, SequenceSourceTargets } from './ReadyMovePlanner';
 import type { ReadyValueVerdict } from './ReadyValuePolicy';
 import { DefenderRingChoicePolicy } from './DefenderRingChoicePolicy.js';
 import type { DefenderRingChoiceResult } from './DefenderRingChoicePolicy';
@@ -97,6 +97,7 @@ import type { StrongholdDefenseCharacter, StrongholdDefensePlan } from './Strong
 import { CraneBaselineTactics } from './CraneBaselineTactics.js';
 import { AttachmentControlTactics, isNegativeAttachmentId } from './AttachmentControlTactics.js';
 import { PersonalHonorTactics, PERSONAL_HONOR_DEFAULTS } from './PersonalHonorTactics.js';
+import { MoveIntoConflictPolicy, recordMoveIntoConflict } from './MoveIntoConflictPolicy.js';
 import { UnicornTactics } from './UnicornTactics.js';
 import type { UnicornMoveContext } from './UnicornTactics';
 import {
@@ -339,6 +340,10 @@ interface DecideContext {
     characterBaseMilitary?: Record<string, number>;
     participatingCharacterCounts?: { self: number; opponent: number };
     cavalryCharacterUuids?: Record<string, true>;
+    // Characters the ENGINE reports as Unicorn faction, both sides. Utaku
+    // Infantry counts participating Unicorn characters and the serialized card
+    // summary carries no faction at all.
+    unicornFactionCharacterUuids?: Record<string, true>;
     readyAfterMoveCharacterUuids?: Record<string, true>;
     sequenceSourceTargets?: SequenceSourceTargets;
     // Seed-3 cheat view: the human's true hand/fate/province strengths. Present
@@ -571,6 +576,14 @@ class JigokuBotPolicy {
     // disappears exactly when the target has to be chosen. Measured: the
     // planner answered 0 of 237 Unicorn move-target prompts.
     private readyMoveCommittedMove: { uuid: string; sourceId: string } | null = null;
+    // Bodies that were READY and legal to DECLARE into the conflict now being
+    // fought, keyed to that conflict. A move source spent on one of them buys
+    // the placement declaration would have given for free; the gate that reads
+    // this is `MoveIntoConflictPolicy`.
+    private conflictDeclarableUuids: Record<string, true> = {};
+    private conflictDeclarableSerial = '';
+    private conflictDeclarableIdentity = '';
+    private currentUnicornFactionCharacterUuids?: Record<string, true>;
     private currentUnicorn: UnicornTactics | null = null;
     private currentUnicornReveal: UnicornRevealTactics | null = null;
     private currentProvinceRevealResponse = new ProvinceRevealResponseTactics();
@@ -734,6 +747,7 @@ class JigokuBotPolicy {
         this.currentCharacterBaseMilitary = context.characterBaseMilitary;
         this.currentParticipatingCharacterCounts = context.participatingCharacterCounts;
         this.currentCavalryCharacterUuids = context.cavalryCharacterUuids;
+        this.currentUnicornFactionCharacterUuids = context.unicornFactionCharacterUuids;
         this.currentReadyAfterMoveCharacterUuids = context.readyAfterMoveCharacterUuids;
         this.currentLegalAttachmentBearers = context.legalAttachmentTargetUuidsBySource;
         this.currentReadyValueVerdict = undefined;
@@ -748,6 +762,8 @@ class JigokuBotPolicy {
             0,
             Number(context.opponentCompletedConflictsThisRound) || 0
         );
+        // Needs the round number and both completed counts above it.
+        this.syncConflictDeclarableScope(playerState);
         this.syncClarityConflict(playerState, context.roundNumber);
 
         if(this.usesFateAwareEconomy()) {
@@ -972,8 +988,72 @@ class JigokuBotPolicy {
                 card.id === 'outskirts-sentry' && card.inConflict),
             selfParticipantCount: this.currentParticipatingCharacterCounts?.self,
             opponentParticipantCount: this.currentParticipatingCharacterCounts?.opponent,
+            declarableUuids: this.conflictDeclarableUuids,
+            // Twilight Rider's on-move reaction only pays while SOMETHING of
+            // ours is bowed for it to stand up.
+            hasBowedReadyTarget: this.myCharactersInPlay(me).some((card: any) => card.bowed),
+            unicornFactionUuids: this.currentUnicornFactionCharacterUuids,
+            hasFlankTheEnemy: (me?.cardPiles?.hand || []).some((card: any) =>
+                card.id === 'flank-the-enemy' && card.isPlayableByMe),
             ...overrides
         };
+    }
+
+    /**
+     * Scope the declarable set to ONE conflict.
+     *
+     * The obvious key — the published conflict summary — is not usable on its
+     * own: the attacker chooses the type, the ring, the province and the
+     * attackers at the SAME prompt, so `playerState.conflict.type` is still
+     * empty while the attacker declaration is happening. Keying on it wiped the
+     * set the moment the conflict initiated, exactly between recording it and
+     * reading it.
+     *
+     * The conflict SERIAL is stable across that whole window: both completed
+     * counts only move when a conflict finishes. The published identity is used
+     * as a second, corroborating reset for callers that do not supply the
+     * counts, and never as the primary key.
+     */
+    private syncConflictDeclarableScope(playerState: any): void {
+        const serial = `${this.currentRoundNumber}|${this.currentCompletedConflictsThisRound}|` +
+            `${this.currentOpponentCompletedConflictsThisRound}`;
+        const conflict = playerState?.conflict;
+        const identity = conflict?.type
+            ? `${conflict.attackingPlayerId || ''}|${conflict.type}|` +
+                `${(conflict.elements || []).join('/')}`
+            : '';
+        const changedConflict = !!identity && !!this.conflictDeclarableIdentity &&
+            identity !== this.conflictDeclarableIdentity;
+        if(serial !== this.conflictDeclarableSerial || changedConflict) {
+            this.conflictDeclarableUuids = {};
+            this.conflictDeclarableIdentity = '';
+        }
+        this.conflictDeclarableSerial = serial;
+        if(identity) {
+            this.conflictDeclarableIdentity = identity;
+        }
+    }
+
+    /**
+     * Record the bodies the ENGINE says we may declare into this conflict right
+     * now. Called at both declaration prompts and unioned across the repeated
+     * passes each prompt makes, so a body declared on an earlier pass stays in
+     * the set.
+     *
+     * Legality comes from the prompt, never from card text: a body held out by
+     * covert, by Shinjo Yasamura's "cannot be declared as a defender" or by
+     * Butcher of the Fallen is simply not clickable, so it never enters the set
+     * and the move gate keeps allowing a movement card to bring it in. That is
+     * exactly the case movement exists for.
+     */
+    private noteDeclarableBodies(me: any, legalDirectCardUuids?: Record<string, true>): void {
+        for(const card of this.readyCharacters(me)) {
+            if(!card?.uuid || card.inConflict ||
+                !this.isDirectCardLegal(card, legalDirectCardUuids)) {
+                continue;
+            }
+            this.conflictDeclarableUuids[String(card.uuid)] = true;
+        }
     }
 
     private wayAbilityIsUsed(card: any, dragon: DragonTactics): boolean {
@@ -1098,7 +1178,9 @@ class JigokuBotPolicy {
         const attachmentControl = new AttachmentControlTactics(profile.attachmentControl);
         const personalHonor = new PersonalHonorTactics(profile.personalHonor || PERSONAL_HONOR_DEFAULTS);
         const mulligan = new MulliganTactics(profile.mulligan);
-        this.currentUnicorn = profile.unicorn ? new UnicornTactics(profile.unicorn) : null;
+        this.currentUnicorn = profile.unicorn
+            ? new UnicornTactics(profile.unicorn, new MoveIntoConflictPolicy(profile.moveIntoConflict))
+            : null;
         this.currentUnicornReveal = profile.unicornReveal
             ? new UnicornRevealTactics(profile.unicornReveal)
             : null;
@@ -3728,6 +3810,10 @@ class JigokuBotPolicy {
             );
             const allOwnCharacters = this.myCharactersInPlay(me);
             const skillOf = (card: any) => Math.max(this.skillValue(card, type) || 0, 0);
+            // Everything clickable here is a body that could be DECLARED into
+            // this conflict for free, so nothing in this set is worth a
+            // movement card later (`MoveIntoConflictPolicy`).
+            this.noteDeclarableBodies(me, legalDirectCardUuids);
             let unicornMover: any | null = null;
             let unicornMoveCtx: UnicornMoveContext | null = null;
             if(this.currentUnicorn && type === 'military') {
@@ -4023,7 +4109,8 @@ class JigokuBotPolicy {
             } else {
                 unbreakableCommit = committed.length < Math.max(1, totalEligible - 1);
             }
-            const projectedMoveSkill = committed.length > 0 && unicornMover && unicornMoveCtx
+            const projectedMoveSkill = committed.length > 0 && unicornMover && unicornMoveCtx &&
+                !moverIsDirectCandidate
                 ? this.currentUnicorn?.projectedMoveSwing(unicornMover, unicornMoveCtx) || 0
                 : 0;
             const needMore = strongholdPlan.forceAllAttackers
@@ -4821,6 +4908,11 @@ class JigokuBotPolicy {
         );
         const allOwnCharacters = this.myCharactersInPlay(me);
         const skillOf = (card: any) => Math.max(this.skillValue(card, type) || 0, 0);
+        // A defender declaration is FREE. Anything the prompt accepts here is
+        // therefore not worth a movement card later in the same conflict —
+        // the defect this records was `Ride On moved Border Rider in` after the
+        // bot had declined to declare that same ready body (2026-08-24 replay).
+        this.noteDeclarableBodies(me, legalDirectCardUuids);
         let unicornMover: any | null = null;
         let unicornMoveCtx: UnicornMoveContext | null = null;
         if(this.currentUnicorn && type === 'military') {
@@ -5028,7 +5120,11 @@ class JigokuBotPolicy {
         }
         const target = sizing.target as number;
 
-        const projectedMoveSkill = unicornMover && unicornMoveCtx
+        // Only a mover the declaration step could NOT have taken may stand in
+        // for a declared defender. Substituting a movement card for a body that
+        // is sitting right there in `candidates` pays a card for a placement
+        // that is free, and the body bows on return home either way.
+        const projectedMoveSkill = unicornMover && unicornMoveCtx && !moverIsDirectCandidate
             ? this.currentUnicorn?.projectedMoveSwing(unicornMover, unicornMoveCtx) || 0
             : 0;
         if(defenderSkill >= target || (projectedMoveSkill > 0 && defenderSkill + projectedMoveSkill >= target)) {
@@ -6354,6 +6450,7 @@ class JigokuBotPolicy {
                             strengthNeeded: playCtx?.strengthNeeded,
                             winSkillNeeded: playCtx?.winSkillNeeded,
                             requireCavalry: true,
+                            moveSourceCardId: 'golden-plains-outpost',
                             opponentCharacters: playCtx?.opponentCharacters || [],
                             barchaReadyBearerUuids: (playCtx?.opponentCharacters || [])
                                 .some((candidate: any) => candidate.inConflict && !candidate.bowed)
@@ -6443,6 +6540,32 @@ class JigokuBotPolicy {
                                 (body.attachments || []).some((attachment: any) =>
                                     String(attachment.uuid) === String(card.uuid)));
                         if(mover && (mover.bowed || mover.inConflict)) {
+                            return false;
+                        }
+                    }
+                    // A move-into-conflict source is only worth ACTIVATING when
+                    // the gate allows at least one body to be moved. Refusing
+                    // at the TARGET prompt is one prompt too late: a selector
+                    // with no legal alternative and no cancel button falls back
+                    // to the unfiltered list and takes the very body the
+                    // declaration step could have had for free (measured live:
+                    // `favorable-ground-reinforce` on a ready Kitsu Motso).
+                    //
+                    // Favorable Ground's retreat mode is the field's one
+                    // non-move use of a move source, so a Dragon rescue still
+                    // opens it.
+                    const moveSource = moveSourceSpec(String(card.id || ''));
+                    if(moveSource && playCtx?.activeConflict) {
+                        const axis: 'military' | 'political' =
+                            playCtx?.conflictType === 'political' ? 'political' : 'military';
+                        const canMoveSomebody = (playCtx?.myCharacters || [])
+                            .some((body: any) => !body.inConflict &&
+                                this.moveIntoConflictAllowed(body, card.id, me, axis));
+                        const retreatUse = !!dragon && card.id === 'favorable-ground' &&
+                            playCtx?.losing === true && playCtx?.strongholdConflict !== true &&
+                            (playCtx?.myCharacters || []).some((body: any) =>
+                                body.inConflict && !body.bowed);
+                        if(!canMoveSomebody && !retreatUse) {
                             return false;
                         }
                     }
@@ -6727,6 +6850,84 @@ class JigokuBotPolicy {
      * `JigokuBotController.sequenceSourceTargets` — the planner only pairs the
      * legs, budgets the fate for both, and applies the value gate.
      */
+    /**
+     * Is spending THIS move source on THIS body worth it, or would the
+     * declaration step have put it in the same place for free?
+     *
+     * One call for every move-target selector in the bot: the shared filter in
+     * `cardDecision` runs before any deck picker sees the candidate list, so
+     * Favorable Ground, Formal Invitation, Matsu Mitsuko, Even the Odds, Ride
+     * On and Golden Plains Outpost all inherit it, exactly as
+     * `AttachmentTargetPolicy` is applied once where the prompt's cards are
+     * split.
+     */
+    private moveIntoConflictAllowed(card: any, sourceCardId: string | undefined, me: any,
+        axis: 'military' | 'political'): boolean {
+        const gate = new MoveIntoConflictPolicy(this.currentDeckProfile.moveIntoConflict);
+        if(gate.inert) {
+            return true;
+        }
+        const input = {
+            uuid: String(card?.uuid || ''),
+            cardId: String(card?.id || ''),
+            bowed: !!card?.bowed,
+            declarable: !!card?.uuid && !!this.conflictDeclarableUuids[String(card.uuid)],
+            sourceCardId,
+            traits: card?.traits || [],
+            honored: !!card?.isHonored,
+            moveReactionPays: this.myCharactersInPlay(me).some((other: any) =>
+                other.bowed && String(other.uuid) !== String(card?.uuid || ''))
+        };
+        const verdict = gate.judge(input);
+        recordMoveIntoConflict(input, verdict, {
+            seat: this.currentSeatName,
+            round: this.currentRoundNumber,
+            axis,
+            site: 'move-target-prompt'
+        });
+        return verdict.allowed;
+    }
+
+    /**
+     * Apply `MoveIntoConflictPolicy` to the engine's legal move pairings.
+     *
+     * The planner already refuses an arrival that changes nothing. This refuses
+     * an arrival that changes something the DECLARATION step would have changed
+     * for free — the half no board summary can express, because it is about a
+     * choice that has already been made rather than about the board now.
+     */
+    private gatedMoveOptions(options: readonly SequenceOption[], mine: any[],
+        axis: 'military' | 'political'): SequenceOption[] {
+        const gate = new MoveIntoConflictPolicy(this.currentDeckProfile.moveIntoConflict);
+        if(gate.inert) {
+            return options.slice();
+        }
+        const byUuid = new Map<string, any>(mine.map((card: any) => [String(card.uuid), card]));
+        const hasBowedBody = mine.some((card: any) => card.bowed);
+        return options.filter((option) => {
+            const card = byUuid.get(option.uuid);
+            const input = {
+                uuid: option.uuid,
+                cardId: String(card?.id || ''),
+                bowed: !!card?.bowed,
+                declarable: !!this.conflictDeclarableUuids[option.uuid],
+                sourceCardId: option.sourceId,
+                traits: card?.traits || [],
+                honored: !!card?.isHonored,
+                moveReactionPays: hasBowedBody && mine.some((other: any) =>
+                    other.bowed && String(other.uuid) !== option.uuid)
+            };
+            const verdict = gate.judge(input);
+            recordMoveIntoConflict(input, verdict, {
+                seat: this.currentSeatName,
+                round: this.currentRoundNumber,
+                axis,
+                site: 'ready-move-planner'
+            });
+            return verdict.allowed;
+        });
+    }
+
     private readyMovePlan(playerState: any, me: any): ReadyMovePlan | null {
         if(this.readyMovePlanComputed) {
             return this.currentReadyMovePlan ?? null;
@@ -6742,15 +6943,21 @@ class JigokuBotPolicy {
         if(!conflict?.type) {
             return null;
         }
-        const { readyOptions, moveOptions, readyAfterMoveOptions } =
+        const { readyOptions, moveOptions: legalMoveOptions, readyAfterMoveOptions } =
             sequenceOptionsFrom(this.currentSequenceSourceTargets);
-        if(moveOptions.length === 0 && readyAfterMoveOptions.length === 0) {
-            return null;
-        }
         const conflictType: 'military' | 'political' =
             conflict.type === 'political' ? 'political' : 'military';
         const opponent = this.opponentPlayer(playerState, me);
         const mine = this.myCharactersInPlay(me);
+        // A body the declaration step could have taken for free is not worth a
+        // movement source. Dropping those pairings here rather than inside the
+        // planner keeps `ReadyMovePlanner` a pure function of its inputs, and
+        // leaves the ready-first leg alone: a BOWED body is undeclarable by
+        // definition, so a ready -> move sequence never reaches this filter.
+        const moveOptions = this.gatedMoveOptions(legalMoveOptions, mine, conflictType);
+        if(moveOptions.length === 0 && readyAfterMoveOptions.length === 0) {
+            return null;
+        }
         const standing = this.conflictStanding(playerState, me);
         const plan = planner.plan({
             characters: mine,
@@ -7217,6 +7424,15 @@ class JigokuBotPolicy {
                 winSkillNeeded: playCtx?.winSkillNeeded,
                 selfParticipantCount: this.currentParticipatingCharacterCounts?.self,
                 opponentParticipantCount: this.currentParticipatingCharacterCounts?.opponent,
+                // Ride On is a CARD. A ready body the declaration step could
+                // have taken is not worth one, so the gate sees the same
+                // declarable set the target prompt will.
+                declarableUuids: this.conflictDeclarableUuids,
+                moveSourceCardId: 'ride-on',
+                hasBowedReadyTarget: myCharacters.some((candidate: any) => candidate.bowed),
+                unicornFactionUuids: this.currentUnicornFactionCharacterUuids,
+                hasFlankTheEnemy: (playCtx?.hand || []).some((candidate: any) =>
+                    candidate.id === 'flank-the-enemy' && candidate.isPlayableByMe),
                 hasOutskirtsSentry: myCharacters.some((candidate: any) =>
                     candidate.id === 'outskirts-sentry' && candidate.inConflict)
             });
@@ -9670,6 +9886,8 @@ class JigokuBotPolicy {
             if(ownHome.length > 0) {
                 const useful = new Set(this
                     .usefulMoveArrivals(ownHome, conflictAxis, me, this.opponentPlayer(playerState, me))
+                    .filter((card: any) => this.moveIntoConflictAllowed(
+                        card, targetHint?.sourceCardId, me, conflictAxis))
                     .map((card: any) => String(card.uuid)));
                 // A committed move -> ready plan is moving a BOWED body in on
                 // purpose, with the ready leg already budgeted, so the
@@ -11146,7 +11364,7 @@ class JigokuBotPolicy {
                     this.unicornMoveContext(me, playerState?.conflict?.type === 'political' ? 'political' : 'military',
                         mine, (card) => this.skillValue(card,
                             playerState?.conflict?.type === 'political' ? 'political' : 'military') || 0,
-                        { requireCavalry: true })) || null);
+                        { requireCavalry: true, moveSourceCardId: 'ride-on' })) || null);
             if(plannedRideOn) {
                 return this.cardClickDecision(plannedRideOn, 'ride-on-planned-move');
             }
@@ -11164,6 +11382,7 @@ class JigokuBotPolicy {
                 me, moveType, moveCandidates.length > 0 ? moveCandidates : mine,
                 (card) => this.skillValue(card, moveType) || 0, {
                     requireCavalry: true,
+                    moveSourceCardId: 'ride-on',
                     winSkillNeeded: standing?.losing ? standing.gap : 0,
                     opponentCharacters: moveOpponent,
                     barchaReadyBearerUuids: moveOpponent.some((card) => card.inConflict && !card.bowed)
@@ -11366,7 +11585,7 @@ class JigokuBotPolicy {
                 mine, playerState, me, 'golden-plains-outpost',
                 () => this.currentUnicorn?.pickMoveTarget(this.unicornMoveContext(
                     me, 'military', mine, (card) => this.skillValue(card, 'military') || 0,
-                    { requireCavalry: true })) || null);
+                    { requireCavalry: true, moveSourceCardId: 'golden-plains-outpost' })) || null);
             if(plannedOutpost) {
                 return this.cardClickDecision(plannedOutpost, 'golden-plains-planned-move');
             }
@@ -11379,6 +11598,7 @@ class JigokuBotPolicy {
                 me, 'military', moveCandidates.length > 0 ? moveCandidates : mine,
                 (card) => this.skillValue(card, 'military') || 0, {
                     requireCavalry: true,
+                    moveSourceCardId: 'golden-plains-outpost',
                     winSkillNeeded: standing?.losing ? standing.gap : 0,
                     opponentCharacters: moveOpponent,
                     barchaReadyBearerUuids: moveOpponent.some((card) => card.inConflict && !card.bowed)

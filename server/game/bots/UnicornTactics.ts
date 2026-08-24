@@ -1,3 +1,7 @@
+import {
+    MoveIntoConflictPolicy
+} from './MoveIntoConflictPolicy.js';
+
 /**
  * Unicorn: cavalry movement, Gaijin attachments and ready effects.
  *
@@ -5,6 +9,10 @@
  * declared, so most of this profile prices MOVEMENT — whether moving in is
  * worth the card, which bodies benefit from a move bonus, and when a
  * ready effect beats holding the trigger.
+ *
+ * A movement source is spent only on a body DECLARATION cannot reach.
+ * `MoveIntoConflictPolicy` owns that half of the decision; everything here
+ * prices what the arrival is worth once the gate has allowed it.
  *
  * `UNICORN_DEFAULTS` is also imported by V2's `DeckSynergies`, which is why
  * this module counts as shared surface even though it is V1 tactics.
@@ -23,6 +31,12 @@ export interface UnicornProfile {
     barchaBowBonus: number;
     minamiWinBonus: number;
     higashiWinBonus: number;
+    /** Worth of +1/+1 on each participating Utaku Infantry the arrival feeds. */
+    utakuInfantryBonus: number;
+    /** Worth of turning Flank the Enemy's outnumbering condition on. */
+    flankTheEnemyBonus: number;
+    /** Worth, per participating Cavalry, of unlocking Shinjo Shono's Action. */
+    shonoUnlockBonus: number;
 }
 
 export const UNICORN_DEFAULTS: UnicornProfile = {
@@ -38,7 +52,10 @@ export const UNICORN_DEFAULTS: UnicornProfile = {
     supportedReadyCost: 1.5,
     barchaBowBonus: 4,
     minamiWinBonus: 3,
-    higashiWinBonus: 2
+    higashiWinBonus: 2,
+    utakuInfantryBonus: 1,
+    flankTheEnemyBonus: 2,
+    shonoUnlockBonus: 1
 };
 
 export interface UnicornMoveContext {
@@ -60,12 +77,30 @@ export interface UnicornMoveContext {
     winSkillNeeded?: number | null;
     selfParticipantCount?: number;
     opponentParticipantCount?: number;
+    /**
+     * Bodies that were READY and legal to DECLARE into this conflict. Moving
+     * one of them spends a card for what the declaration step would have done
+     * for free, so `MoveIntoConflictPolicy` refuses them unless the move
+     * itself carries something declaration cannot.
+     */
+    declarableUuids?: Record<string, true>;
+    /** The move source about to be spent, when the call site knows it. */
+    moveSourceCardId?: string;
+    /** A friendly bowed body a move reaction could stand up (Twilight Rider). */
+    hasBowedReadyTarget?: boolean;
+    /** Unicorn-faction uuids, for Utaku Infantry's participant count. */
+    unicornFactionUuids?: Record<string, true>;
+    /** Flank the Enemy is in hand and playable right now. */
+    hasFlankTheEnemy?: boolean;
 }
 
 /** Deck-local movement planner. It contains no prompt plumbing, so profiles can
  * tune scores without copying controller logic. */
 export class UnicornTactics {
-    constructor(public readonly profile: UnicornProfile = UNICORN_DEFAULTS) {}
+    constructor(
+        public readonly profile: UnicornProfile = UNICORN_DEFAULTS,
+        public readonly moveGate: MoveIntoConflictPolicy = new MoveIntoConflictPolicy()
+    ) {}
 
     // Participant count, preferring the exact value the controller supplies
     // and falling back to counting the serialized board.
@@ -100,24 +135,109 @@ export class UnicornTactics {
         return Math.max(Number(card?.glorySummary?.stat ?? card?.glory) || 0, 0);
     }
 
+    /**
+     * Moving a body in and READYING it afterwards is one plan, so the ready
+     * source has to be live for THIS conflict. Moto Outrider's Action reads
+     * "During a military conflict in which this character is participating",
+     * so on a political conflict he arrives bowed and stays bowed — the case
+     * that used to be scored as a full-skill arrival.
+     */
     private hasReadyFollowUp(card: any, ctx: UnicornMoveContext): boolean {
-        return !!card?.uuid && (!!ctx.readyAfterMoveUuids?.[card.uuid] ||
-            ['moto-outrider', 'twilight-rider'].includes(card.id));
-    }
-
-    private hasWinningPayoff(card: any, ctx: UnicornMoveContext): boolean {
-        if(!card?.bowed || Number(ctx.winSkillNeeded) > 0) {
+        if(!card?.uuid) {
             return false;
         }
-        if(card.id === 'minami-kaze-regulars') {
-            return (Number(ctx.selfParticipantCount) || 0) + 1 >
-                (Number(ctx.opponentParticipantCount) || 0);
+        if(ctx.readyAfterMoveUuids?.[card.uuid]) {
+            return true;
         }
-        if(card.id === 'higashi-kaze-company') {
-            return ctx.characters.some((other) => other !== card && other.inConflict &&
-                !other.bowed && (Number(other.fate) || 0) === 0);
+        if(card.id === 'moto-outrider') {
+            return ctx.conflictType === 'military';
         }
-        return false;
+        // Twilight Rider's reaction fires on its own move and may target
+        // itself, so it stands up in either conflict type.
+        return card.id === 'twilight-rider';
+    }
+
+    /** Participants on our side once this body arrives, against theirs. */
+    private outnumbersAfterArrival(ctx: UnicornMoveContext): boolean {
+        const self = this.effectiveParticipantCount(ctx.selfParticipantCount, ctx.characters);
+        const opponent = this.effectiveParticipantCount(ctx.opponentParticipantCount,
+            ctx.opponentCharacters || []);
+        return self + 1 > opponent;
+    }
+
+    /** We do NOT already hold the participant majority, so the arrival is what
+     *  unlocks anything gated on holding it. */
+    private arrivalUnlocksMajority(ctx: UnicornMoveContext): boolean {
+        const self = this.effectiveParticipantCount(ctx.selfParticipantCount, ctx.characters);
+        const opponent = this.effectiveParticipantCount(ctx.opponentParticipantCount,
+            ctx.opponentCharacters || []);
+        return self <= opponent && self + 1 > opponent;
+    }
+
+    private participating(ctx: UnicornMoveContext, cardId: string): boolean {
+        return ctx.characters.some((card) => card.id === cardId && card.inConflict);
+    }
+
+    /**
+     * What a BOWED body is worth purely for ARRIVING, on top of the zero skill
+     * it contributes. Every entry reads `isParticipating()`, which is
+     * bow-agnostic, so all of them pay for a body that cannot be declared:
+     *
+     *   Minami Kaze Regulars  after-win reaction, needs the participant majority
+     *   Higashi Kaze Company  after-win reaction, needs a 0-fate participant
+     *   Shinjo Shono          +1/+1 to participating Cavalry while outnumbering
+     *   Utaku Infantry        +1/+1 per participating Unicorn character
+     *   Outskirts Sentry      honors a participant whenever anything moves in
+     *   Flank the Enemy       its Action needs the participant majority
+     *
+     * A READY body collects all of these by being DECLARED, which costs no
+     * card, so none of them is a reason to spend a move source on one — that
+     * is `MoveIntoConflictPolicy`'s half of the decision, not this one's.
+     */
+    arrivalPayoff(card: any, ctx: UnicornMoveContext): number {
+        if(!card?.bowed) {
+            return 0;
+        }
+        let payoff = 0;
+        const winning = !(Number(ctx.winSkillNeeded) > 0);
+        if(winning && card.id === 'minami-kaze-regulars' && this.outnumbersAfterArrival(ctx)) {
+            payoff += this.profile.minamiWinBonus;
+        }
+        if(winning && card.id === 'higashi-kaze-company' &&
+            ctx.characters.some((other) => other !== card && other.inConflict &&
+                !other.bowed && (Number(other.fate) || 0) === 0)) {
+            payoff += this.profile.higashiWinBonus;
+        }
+        // Shinjo Shono's Action is legal only while we hold the participant
+        // majority. If the arrival is what creates it, every participating
+        // Cavalry gets +1/+1.
+        if(this.participating(ctx, 'shinjo-shono') && this.arrivalUnlocksMajority(ctx)) {
+            payoff += this.profile.shonoUnlockBonus * ctx.characters.filter((other) =>
+                (other.inConflict || other === card) &&
+                this.isCavalry(other, ctx.cavalryUuids)).length;
+        }
+        // Utaku Infantry counts participating UNICORN characters, itself
+        // included, so one more body is +1/+1 on each copy in the conflict.
+        const isUnicorn = !ctx.unicornFactionUuids || !!ctx.unicornFactionUuids[card.uuid];
+        if(isUnicorn) {
+            payoff += this.profile.utakuInfantryBonus * ctx.characters.filter((other) =>
+                other.id === 'utaku-infantry' && other.inConflict).length;
+        }
+        // Outskirts Sentry honors a participant whenever anything moves in,
+        // whatever moved and whatever its state.
+        if(ctx.hasOutskirtsSentry || this.participating(ctx, 'outskirts-sentry')) {
+            payoff += this.profile.outskirtsGloryWeight;
+        }
+        if(ctx.hasFlankTheEnemy && this.arrivalUnlocksMajority(ctx)) {
+            payoff += this.profile.flankTheEnemyBonus;
+        }
+        return payoff;
+    }
+
+    /** Kept for the two after-win reactions specifically; `arrivalPayoff` is
+     *  the full list. */
+    private hasWinningPayoff(card: any, ctx: UnicornMoveContext): boolean {
+        return this.arrivalPayoff(card, ctx) > 0;
     }
 
     // A bowed body contributes 0 skill, so moving it in is pointless unless
@@ -157,7 +277,7 @@ export class UnicornTactics {
         if(card.id === 'twilight-rider') {
             score += this.profile.twilightReadyBonus;
         }
-        if(card.id === 'moto-outrider') {
+        if(card.id === 'moto-outrider' && this.hasReadyFollowUp(card, ctx)) {
             score += this.profile.outriderReadyBonus;
         }
         if(ctx.hasMotoStables) {
@@ -173,12 +293,33 @@ export class UnicornTactics {
             !['moto-outrider', 'twilight-rider'].includes(card.id)) {
             score -= this.profile.supportedReadyCost;
         }
-        if(this.hasWinningPayoff(card, ctx)) {
-            score += card.id === 'minami-kaze-regulars'
-                ? this.profile.minamiWinBonus
-                : this.profile.higashiWinBonus;
-        }
-        return score;
+        return score + this.arrivalPayoff(card, ctx);
+    }
+
+    /**
+     * Does spending a movement source on this body beat DECLARING it?
+     *
+     * A ready body that the declaration step could legally have taken is not a
+     * move target: declaring costs no card and puts it in exactly the same
+     * place. The exceptions are the two effects declaration cannot reproduce —
+     * Adorned Barcha's enemy bow, and Twilight Rider's on-move ready with a
+     * live bowed body to stand up.
+     */
+    moveBeatsDeclaring(card: any, ctx: UnicornMoveContext): boolean {
+        return this.moveGate.allows({
+            uuid: String(card?.uuid || ''),
+            cardId: String(card?.id || ''),
+            bowed: !!card?.bowed,
+            declarable: !!card?.uuid && !!ctx.declarableUuids?.[card.uuid],
+            sourceCardId: ctx.moveSourceCardId ||
+                (ctx.barchaReadyBearerUuids?.[card?.uuid] ? 'adorned-barcha' : undefined),
+            traits: card?.traits || [],
+            honored: !!card?.isHonored,
+            moveReactionPays: !!ctx.hasBowedReadyTarget,
+            moveBonusSkill: ctx.hasMotoStables ? this.profile.stablesMoveBonus : 0,
+            skillStillNeeded: Math.max(Number(ctx.strengthNeeded) || 0,
+                Number(ctx.winSkillNeeded) || 0)
+        });
     }
 
     // Does moving this body in bring anything at all? Skill on the contested
@@ -207,6 +348,7 @@ export class UnicornTactics {
             // Preserve an unused Barcha for its own stronger bow+move action.
             (!ctx.requireCavalry || !ctx.barchaReadyBearerUuids?.[card.uuid]) &&
             (!card.bowed || this.hasReadyFollowUp(card, ctx) || this.hasWinningPayoff(card, ctx)) &&
+            this.moveBeatsDeclaring(card, ctx) &&
             this.arrivalBringsSomething(card, ctx));
         return legal.sort((a, b) => this.moveScore(b, ctx) - this.moveScore(a, ctx) ||
             String(a.uuid).localeCompare(String(b.uuid)))[0] || null;
@@ -226,9 +368,13 @@ export class UnicornTactics {
 
     // Order attackers for declaration and name the one being held back to move
     // in later — the deck's edge is arriving after the defenders commit.
+    //
+    // With the move gate on, a READY body is never a legal mover (declaring it
+    // is free), so `mover` is null unless the reserved body is one the gate
+    // still allows: an unused Barcha bearer, or a bowed body with a follow-up.
     orderDeclarationCandidates(cards: any[], ctx: UnicornMoveContext): { ordered: any[]; mover: any | null } {
         const barchaBearer = ctx.characters.filter((card) =>
-            !!ctx.barchaReadyBearerUuids?.[card.uuid])
+            !!ctx.barchaReadyBearerUuids?.[card.uuid] && this.moveBeatsDeclaring(card, ctx))
             .sort((a, b) => this.moveScore(b, ctx) - this.moveScore(a, ctx))[0] || null;
         const cavalryMover = this.pickMoveTarget({ ...ctx, requireCavalry: true });
         const mover = ctx.conflictType === 'military'

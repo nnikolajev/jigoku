@@ -48,6 +48,30 @@ const PAYOFF_WHILE_PARTICIPATING = new Set(['shinjo-shono', 'outskirts-sentry'])
 // Barcha bows an enemy participant and brings its bearer along, so judging that
 // move by the bearer's skill alone misses the entire point of the card.
 const PAYOFF_BY_SOURCE = new Set(['adorned-barcha']);
+// Same idea, conditional on the body: Even the Odds HONORS what it moves when
+// that body is a Commander, and an honor token is permanent +1/+1 and glory
+// whether or not the body is bowed for this conflict.
+const PAYOFF_BY_SOURCE_FOR_COMMANDER = new Set(['even-the-odds']);
+// A movement source is for a body DECLARATION cannot reach. Everything below
+// mirrors `MoveIntoConflictPolicy`'s exception list, because the two have to
+// agree or the gate and its watchdog are testing different rules.
+//
+//   adorned-barcha        the Action bows an ENEMY participant; the move rides
+//   formal-invitation     free, repeatable board ability: nothing is spent
+//   matsu-mitsuko         same
+//   golden-plains-outpost its cost is bowing the STRONGHOLD, which contributes
+//                         no skill and has no other ability, so the bow gives
+//                         up only this same move for the rest of the round
+//   diversionary-maneuver bows and sends home EVERY participant first, so the
+//                         declaration that preceded it no longer exists
+//   even-the-odds         also HONORS the body when it is a Commander
+//   twilight-rider        its reaction fires on MOVING, never on committing
+const DECLARABLE_MOVE_EXEMPT_SOURCES = new Set([
+    'adorned-barcha', 'formal-invitation', 'matsu-mitsuko', 'golden-plains-outpost',
+    'diversionary-maneuver'
+]);
+const DECLARABLE_MOVE_COMMANDER_HONOR_SOURCES = new Set(['even-the-odds']);
+const DECLARABLE_MOVE_EXEMPT_CARDS = new Set(['twilight-rider']);
 
 function cardId(card) {
     return (card && (card.id || (card.cardData && card.cardData.id))) || null;
@@ -75,9 +99,17 @@ class MoveValueMonitor {
         this.pending = [];
         this.wasted = [];
         this.redundant = [];
+        // Moves spent on a body its owner could have DECLARED into this same
+        // conflict for free. Orthogonal to the counterfactual classes below:
+        // such a move can still be decisive and still be a wasted card.
+        this.declarableWaste = [];
+        // player name -> Set of uuids that were legal to declare and were left
+        // at home when that side's declaration step closed.
+        this.declarable = new Map();
+        this.declarableConflict = null;
         this.counts = {
             total: 0, decisiveWin: 0, decisiveBreak: 0, decisiveDefence: 0,
-            payoff: 0, redundant: 0, wasted: 0
+            payoff: 0, redundant: 0, wasted: 0, declarableWaste: 0
         };
         this.reasons = new Map();
         this.unwrapEngines = [];
@@ -113,6 +145,19 @@ class MoveValueMonitor {
         }
         this.attached = true;
         this.handlers = {
+            // Both declaration steps are snapshotted the moment they CLOSE, so
+            // what is left ready at home is exactly what its owner chose not to
+            // declare. `canDeclareAsAttacker` / `canDeclareAsDefender` are the
+            // engine's own predicates, so covert, "cannot be declared" effects,
+            // dashes and bow state are already folded in and this helper needs
+            // to know no card text.
+            //
+            // The defender side is snapshotted at OnDefendersDeclared because
+            // `announceDefenderSkill` clears every covert flag immediately
+            // after it; the attacker side waits for OnConflictStarted so the
+            // "defenders chosen first" ordering cannot catch it mid-declaration.
+            [EventNames.OnDefendersDeclared]: () => this.snapshotDeclarable('defender'),
+            [EventNames.OnConflictStarted]: () => this.snapshotDeclarable('attacker'),
             [EventNames.OnMoveToConflict]: (event) => this.onMove(event),
             // `determineWinner` has run by the time AfterConflict is raised, so
             // the skills, the winner and the province strengths are all final.
@@ -138,6 +183,61 @@ class MoveValueMonitor {
             this.game.removeListener(name, handler);
         }
         this.settle();
+    }
+
+    // Record what one side could still have declared into this conflict.
+    snapshotDeclarable(side) {
+        const conflict = this.game.currentConflict;
+        if(!conflict) {
+            return;
+        }
+        if(this.declarableConflict !== conflict) {
+            this.declarableConflict = conflict;
+            this.declarable = new Map();
+        }
+        const player = side === 'attacker' ? conflict.attackingPlayer : conflict.defendingPlayer;
+        if(!player || this.declarable.has(player.name)) {
+            return;
+        }
+        const cards = player.cardsInPlay?.toArray?.() || [];
+        const legal = new Set();
+        for(const card of cards) {
+            if(card.type !== CardTypes.Character || card.isParticipating?.()) {
+                continue;
+            }
+            const canDeclare = side === 'attacker'
+                ? card.canDeclareAsAttacker?.(conflict.conflictType)
+                : card.canDeclareAsDefender?.(conflict.conflictType);
+            if(canDeclare) {
+                legal.add(card.uuid);
+            }
+        }
+        this.declarable.set(player.name, legal);
+    }
+
+    // Could this body have walked into the conflict for free, and is the source
+    // one of the two that pay for the move anyway?
+    declarableWasteFor(card, actor, sourceId, conflict) {
+        if(this.declarableConflict !== conflict) {
+            return false;
+        }
+        const legal = this.declarable.get(actor.name);
+        if(!legal || !legal.has(card.uuid)) {
+            return false;
+        }
+        if(DECLARABLE_MOVE_EXEMPT_SOURCES.has(sourceId)) {
+            return false;
+        }
+        if(DECLARABLE_MOVE_COMMANDER_HONOR_SOURCES.has(sourceId) &&
+            !card.isHonored && card.hasTrait?.('commander')) {
+            return false;
+        }
+        if(DECLARABLE_MOVE_EXEMPT_CARDS.has(cardId(card))) {
+            // Its on-move reaction still needs a bowed body to stand up.
+            const mine = actor.cardsInPlay?.toArray?.() || [];
+            return !mine.some((other) => other !== card && other.bowed);
+        }
+        return true;
     }
 
     onMove(event) {
@@ -169,6 +269,8 @@ class MoveValueMonitor {
             sourceId: cardId(context.source),
             reason: this.reasons.get(actor.name) || null,
             arrivedBowed: !!card.bowed,
+            // Read at ARRIVAL: by settle time the honor has already landed.
+            isCommander: !!card.hasTrait?.('commander'),
             // Skill AT ARRIVAL, which is what the decision could know. A body
             // that walked in ready and was bowed by the opponent afterwards
             // made a sound decision and a bad outcome; only the counterfactual
@@ -179,6 +281,14 @@ class MoveValueMonitor {
             conflict,
             outcome: null
         };
+        // Knowable NOW, not at resolution: the alternative was a free
+        // declaration in the step that already closed.
+        entry.declarableWaste = this.declarableWasteFor(
+            card, actor, cardId(context.source), conflict);
+        if(entry.declarableWaste) {
+            this.counts.declarableWaste++;
+            this.declarableWaste.push(entry);
+        }
         this.moves.push(entry);
         this.pending.push(entry);
     }
@@ -190,6 +300,9 @@ class MoveValueMonitor {
             return entry.cardId;
         }
         if(PAYOFF_BY_SOURCE.has(entry.sourceId)) {
+            return entry.sourceId;
+        }
+        if(PAYOFF_BY_SOURCE_FOR_COMMANDER.has(entry.sourceId) && entry.isCommander) {
             return entry.sourceId;
         }
         const mine = entry.conflict.getCharacters?.(entry.actor) || [];
@@ -281,6 +394,7 @@ function formatMoves(entries) {
         `${entry.source} moved ${entry.card} in ` +
         `(${entry.arrivedBowed ? 'bowed' : 'ready'}, ${entry.arrivalSkill ?? '?'} skill on arrival, ` +
         `${entry.contributedSkill ?? '?'} at resolution` +
+        `${entry.declarableWaste ? ', COULD HAVE BEEN DECLARED' : ''}` +
         `${entry.payoffCardId ? `, payoff ${entry.payoffCardId}` : ''})` +
         `${entry.reason ? ` [${entry.reason}]` : ''}`
     ).join('\n');

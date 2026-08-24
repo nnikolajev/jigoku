@@ -646,6 +646,7 @@ class JigokuBotController {
                     characterBaseMilitary: this.characterBaseMilitary(player),
                     participatingCharacterCounts: this.participatingCharacterCounts(player),
                     cavalryCharacterUuids: this.cavalryCharacterUuids(player),
+                    unicornFactionCharacterUuids: this.unicornFactionCharacterUuids(player),
                     readyAfterMoveCharacterUuids: this.readyAfterMoveCharacterUuids(player),
                     // Exact engine legality for the ready -> move sequencer.
                     sequenceSourceTargets: this.sequenceSourceTargets(player),
@@ -888,7 +889,7 @@ class JigokuBotController {
         'strongholdBow', 'conflictRecursion', 'dynastyEvents', 'saveFatePass',
         'aggressiveSpend', 'provinceTargeting', 'conflictDeckSafety',
         'conflictTempo', 'unopposedWindow', 'readyValue', 'defenderRingChoice',
-        'readyMove', 'attachmentTarget'
+        'readyMove', 'attachmentTarget', 'moveIntoConflict'
     ] as const;
 
     private decisionProfile(player: Player): DeckProfile | undefined {
@@ -1336,20 +1337,50 @@ class JigokuBotController {
         };
     }
 
-    private cavalryCharacterUuids(player: Player): Record<string, true> {
-        const result: Record<string, true> = {};
+    /**
+     * Both sides' characters in play, as the live engine cards. One traversal
+     * shared by every "which uuids have property X" publisher below.
+     */
+    private charactersInPlayBothSides(player: Player): any[] {
+        const characters: any[] = [];
         for(const side of [player, player.opponent]) {
-            const cards: any[] = typeof (side as any)?.cardsInPlay?.toArray === 'function'
-                ? (side as any).cardsInPlay.toArray()
-                : [];
+            // SAFETY: `Player.cardsInPlay` is an underscore collection whose
+            // `toArray` is not on the typed surface; the guard below is the
+            // check, and a side with no collection contributes nothing.
+            const collection = (side as any)?.cardsInPlay;
+            const cards: any[] = collection?.toArray?.() || [];
             for(const card of cards) {
                 const type = card?.type || card?.getType?.();
-                if(card?.uuid && type === 'character' && card.hasTrait?.('cavalry')) {
-                    result[card.uuid] = true;
+                if(card?.uuid && type === 'character') {
+                    characters.push(card);
                 }
             }
         }
+        return characters;
+    }
+
+    private characterUuidsWhere(player: Player, matches: (card: any) => boolean): Record<string, true> {
+        const result: Record<string, true> = {};
+        for(const card of this.charactersInPlayBothSides(player)) {
+            if(matches(card)) {
+                result[card.uuid] = true;
+            }
+        }
         return result;
+    }
+
+    /**
+     * Characters the ENGINE reports as Unicorn faction. Utaku Infantry counts
+     * participating Unicorn characters, and the serialized card summary a
+     * policy reads carries no faction at all — the same gap that made
+     * `legalAttachmentTargetUuidsBySource` necessary for attachment bearers.
+     */
+    private unicornFactionCharacterUuids(player: Player): Record<string, true> {
+        return this.characterUuidsWhere(player, (card) => !!card.isFaction?.('unicorn'));
+    }
+
+    private cavalryCharacterUuids(player: Player): Record<string, true> {
+        return this.characterUuidsWhere(player, (card) => !!card.hasTrait?.('cavalry'));
     }
 
     /** Live legality support omitted by serialized summaries. A bowed cavalry

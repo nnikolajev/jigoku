@@ -118,6 +118,7 @@ async function playAndWatch(deckA, deckB, base) {
             moveMonitor.wasted.filter((entry) => openMove.has(entry.sourceId)).length,
         planStages,
         moveRedundant: moveMonitor.redundant,
+        moveDeclarableWaste: moveMonitor.declarableWaste,
         moveCounts: moveMonitor.counts
     };
 }
@@ -145,9 +146,12 @@ describe('bot ready value (self-play field)', function() {
     const allUnused = [];
     const moveTotals = {
         total: 0, decisiveWin: 0, decisiveBreak: 0, decisiveDefence: 0,
-        payoff: 0, redundant: 0, wasted: 0
+        payoff: 0, redundant: 0, wasted: 0, declarableWaste: 0
     };
     const allRedundantMoves = [];
+    // Movement cards spent on a body the declaration step could have taken for
+    // free. Collected from BOTH seats for the same reason as `allWastedMoves`.
+    const allDeclarableWasteMoves = [];
     // Every wasted move in every game this suite plays, whichever seat made it.
     // The per-deck gate below only sees the deck under test, and a deck only
     // plays its own pairings, so a defect on the opposing seat would otherwise
@@ -189,6 +193,7 @@ describe('bot ready value (self-play field)', function() {
                         wastedMoves.push(...result.moveWasted.filter((entry) => entry.deck === deck));
                         allWastedMoves.push(...result.moveWasted);
                         allRedundantMoves.push(...result.moveRedundant.filter((entry) => entry.deck === deck));
+                        allDeclarableWasteMoves.push(...result.moveDeclarableWaste);
                     }
                 }
             }
@@ -267,7 +272,8 @@ describe('bot ready value (self-play field)', function() {
             `${moveTotals.decisiveDefence} stopped one, ` +
             `${moveTotals.payoff} paid off by participating, ` +
             `${moveTotals.redundant} redundant, ` +
-            `${moveTotals.wasted} wasted.`
+            `${moveTotals.wasted} wasted, ` +
+            `${moveTotals.declarableWaste} on a body that could have been declared.`
         );
         if(allRedundantMoves.length > 0) {
             console.log(`redundant moves (not a failure):` +
@@ -279,6 +285,15 @@ describe('bot ready value (self-play field)', function() {
         expect(allWastedMoves.length).withContext(
             `bodies moved into a conflict that could not contribute:` +
             `\n${formatMoves(allWastedMoves)}`
+        ).toBe(0);
+        // The other half of the question, and the one a counterfactual on the
+        // conflict cannot answer: a movement card spent on a body the
+        // DECLARATION step would have put in the same place for free. Seen live
+        // in the 2026-08-24 Dragon replay - Ride On moved a ready Border Rider
+        // into a conflict the bot had just declined to defend.
+        expect(allDeclarableWasteMoves.length).withContext(
+            'movement spent on a body that could have been declared:' +
+            formatMoves(allDeclarableWasteMoves)
         ).toBe(0);
         expect(moveTotals.total).withContext('no move was exercised at all').toBeGreaterThan(0);
         expect(decisive + moveTotals.payoff)

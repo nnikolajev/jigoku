@@ -73,6 +73,13 @@ export interface UnicornRevealProfile {
     provinceTextPriorityById: Record<string, number>;
     goodOmenCardId: string;
     laterRoundGoodOmenBidReduction: number;
+    // Good Omen buys ONE extra round of life: the token it places is spent by
+    // the next fate phase, and a character only leaves play when its fate
+    // reaches zero there. On a body still sitting on fate the card therefore
+    // buys nothing that was going to happen anyway (live 2026-08-24 r2c0: the
+    // bot placed it on an Aranat holding five fate). Only a character at or
+    // below this many fate is a real target.
+    goodOmenMaxTargetFate: number;
     scoutedTerrainCardId: string;
     scoutedTerrainCost: number;
     scoutedMinimumOpponentCompletedConflicts: number;
@@ -177,6 +184,7 @@ export const UNICORN_REVEAL_DEFAULTS: UnicornRevealProfile = {
     },
     goodOmenCardId: 'good-omen',
     laterRoundGoodOmenBidReduction: 1,
+    goodOmenMaxTargetFate: 1,
     scoutedTerrainCardId: 'scouted-terrain',
     scoutedTerrainCost: 4,
     scoutedMinimumOpponentCompletedConflicts: 1,
@@ -306,6 +314,24 @@ export class UnicornRevealTactics {
     pickStrongestCharacter(cards: any[]): any | null {
         return cards.filter((card) => card?.type === 'character')
             .sort((left, right) => characterValue(right) - characterValue(left) ||
+                String(left?.uuid || '').localeCompare(String(right?.uuid || '')))[0] || null;
+    }
+
+    // Is this body worth a Good Omen at all — i.e. is it close enough to
+    // leaving play that one more fate changes whether it survives?
+    isGoodOmenTarget(card: any): boolean {
+        return card?.type === 'character' &&
+            (Number(card?.fate) || 0) <= Math.max(0, Number(this.profile.goodOmenMaxTargetFate) || 0);
+    }
+
+    // Which body takes the Good Omen. `pickStrongestCharacter` cannot answer
+    // this: its value term counts fate at DOUBLE weight, so the fattest
+    // character on the board — the one that needs the token least — always
+    // won. Rank the qualifying bodies without that term.
+    pickGoodOmenTarget(cards: any[]): any | null {
+        const value = (card: any) => characterValue(card) - (Number(card?.fate) || 0) * 2;
+        return cards.filter((card) => this.isGoodOmenTarget(card))
+            .sort((left, right) => value(right) - value(left) ||
                 String(left?.uuid || '').localeCompare(String(right?.uuid || '')))[0] || null;
     }
 

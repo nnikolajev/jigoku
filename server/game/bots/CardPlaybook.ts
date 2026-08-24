@@ -1089,12 +1089,17 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     }),
     'good-omen': entry('good-omen', {
         targetSide: 'self',
-        targetPreference: 'most-fate',
+        // The fate this places is spent at the next fate phase, and a
+        // character only leaves play when its fate reaches zero there. On a
+        // body still holding fate the card buys a round that was already paid
+        // for, so it wants the EMPTIEST legal body, not the fattest.
+        targetPreference: 'least-fate',
         priority: 8,
         abilityValue: true,
         summary: 'with composure place 1 fate on a printed cost 3+ character',
         shouldPlay: (ctx) => ctx.myCharacters.some((card) =>
-            (Number(ctx.characterPrintedCosts?.[card.uuid]) || 0) >= 3)
+            (Number(ctx.characterPrintedCosts?.[card.uuid]) || 0) >= 3 &&
+            (Number(card.fate) || 0) <= 1)
     }),
     'outflank': entry('outflank', {
         targetSide: 'enemy',

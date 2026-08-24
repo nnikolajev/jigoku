@@ -90,7 +90,7 @@ Ratings describe value to this bot: **S** is a primary win/economy engine, **A**
 | Outflank | 3 | 0 | A | Always takes the reveal reaction and prevents the strongest ready legal non-unique opponent from defending. |
 | Speak to the Heart | 3 | 0 | B | Contribution equals the opposing faceup outer-province count and is spent only when conflict budgeting values the political swing. |
 | Captive Audience | 3 | 0 | A | Uses the existing axis-swing model: play only as the attacker in political when the military-vs-political swing helps and honor is safe enough. |
-| Good Omen | 3 | 0 | A | In later rounds, holding it reduces the normal draw bid by 1. With composure, it targets the strongest legal printed-cost-3+ character. |
+| Good Omen | 3 | 0 | A | In later rounds, holding it reduces the normal draw bid by 1. With composure, it is played only while a printed-cost-3+ character of ours is down to 0-1 fate, and it targets the most valuable of those. The token is spent at the next fate phase and a character only leaves play when its fate reaches zero there, so on a body still holding fate the card buys a round that was already paid for (live 2026-08-24 r2c0: placed on an Aranat sitting on five fate). `goodOmenMaxTargetFate` in `UNICORN_REVEAL_DEFAULTS` is the bar; the generic path uses the `least-fate` playbook target preference and the same 0-1 fate gate in `shouldPlay`. |
 | I Am Ready | 3 | 0 | A | Reuses Unicorn ready logic. Cheap reveal characters receive 1 fate, supporting two-conflict first-round lines. |
 | Banzai! | 3 | 0 | A | Reuses the mature generic military contribution and safe honor-repeat logic. |
 | Let Go | 3 | 0 | A | Reuses Dragon attachment-control scoring and removes the highest-value opposing attachment. |

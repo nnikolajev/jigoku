@@ -103,6 +103,23 @@ describe('UnicornRevealTactics', function() {
         expect(tactics.adjustDrawBid(5, 3, [])).toBe(5);
     });
 
+    it('spends Good Omen on a body one fate phase from leaving play', function() {
+        const tactics = new UnicornRevealTactics();
+        const aranat = { uuid: 'a', type: 'character', id: 'aranat', fate: 5, military: 4, political: 4, printedCost: 4 };
+        const empty = { uuid: 'b', type: 'character', id: 'moto-horde', fate: 0, military: 3, political: 1, printedCost: 3 };
+        const nearlyEmpty = { uuid: 'c', type: 'character', id: 'utaku-yumino', fate: 1, military: 2, political: 1, printedCost: 3 };
+
+        expect(tactics.isGoodOmenTarget(aranat)).toBe(false);
+        expect(tactics.isGoodOmenTarget(empty)).toBe(true);
+        expect(tactics.isGoodOmenTarget(nearlyEmpty)).toBe(true);
+
+        // The fat body is the strongest by the generic ranking and is exactly
+        // what the bot used to pick (live 2026-08-24 r2c0).
+        expect(tactics.pickStrongestCharacter([aranat, empty, nearlyEmpty]).uuid).toBe('a');
+        expect(tactics.pickGoodOmenTarget([aranat, empty, nearlyEmpty]).uuid).toBe('b');
+        expect(tactics.pickGoodOmenTarget([aranat])).toBeNull();
+    });
+
     it('keeps Khanbulak Benefactor dire and banks fate on durable threats', function() {
         const tactics = new UnicornRevealTactics();
 

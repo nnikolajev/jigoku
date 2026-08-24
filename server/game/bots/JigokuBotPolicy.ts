@@ -7746,8 +7746,13 @@ class JigokuBotPolicy {
             (Number(me?.stats?.conflictsRemaining) || 0) > 0) {
             const revealOpponent = this.opponentPlayer(playerState, me);
             const hasComposure = Number(me?.showBid) < Number(revealOpponent?.showBid);
+            // The card's own condition is printed cost 3+, but a legal target
+            // is not a useful one: the fate it places is spent at the next
+            // fate phase, so on a body still holding fate it changes nothing.
+            // Hold the card until a cost-3+ character is down to 0-1 fate.
             const hasGoodOmenTarget = this.myCharactersInPlay(me).some((card) =>
-                (Number(this.currentCharacterPrintedCosts?.[card.uuid]) || 0) >= 3);
+                (Number(this.currentCharacterPrintedCosts?.[card.uuid]) || 0) >= 3 &&
+                !!this.currentUnicornReveal?.isGoodOmenTarget(card));
             const goodOmen = (me?.cardPiles?.hand || []).find((card: any) =>
                 card?.id === this.currentUnicornReveal?.profile.goodOmenCardId &&
                 card?.uuid && card.isPlayableByMe &&
@@ -10555,12 +10560,20 @@ class JigokuBotPolicy {
                 return this.cardClickDecision(target, 'unicorn-reveal-outflank-strongest-defender');
             }
         }
-        if(reveal && ['speak-to-the-heart', 'good-omen'].includes(sourceId)) {
-            const target = sourceId === 'good-omen'
-                ? reveal.pickStrongestCharacter(mine)
-                : reveal.pickMilitaryBuffTarget(mine);
+        if(reveal && sourceId === 'good-omen') {
+            // Prefer a body one fate phase from leaving play; only when the
+            // prompt offers none of those (the play gate normally stops us
+            // getting here) fall back to the old strongest-body pick rather
+            // than hand the choice to the generic ranking.
+            const target = reveal.pickGoodOmenTarget(mine) || reveal.pickStrongestCharacter(mine);
             if(target) {
-                return this.cardClickDecision(target, `unicorn-reveal-${sourceId}-target`);
+                return this.cardClickDecision(target, 'unicorn-reveal-good-omen-target');
+            }
+        }
+        if(reveal && sourceId === 'speak-to-the-heart') {
+            const target = reveal.pickMilitaryBuffTarget(mine);
+            if(target) {
+                return this.cardClickDecision(target, 'unicorn-reveal-speak-to-the-heart-target');
             }
         }
         if(reveal && reveal.profile.revealSourceIds.includes(sourceId)) {
@@ -12772,6 +12785,13 @@ class JigokuBotPolicy {
                 const fateDiff = (Number(b.fate) || 0) - (Number(a.fate) || 0);
                 return fateDiff !== 0 ? fateDiff : String(a.uuid).localeCompare(String(b.uuid));
             });
+        }
+        // A character leaves play when its fate hits zero in the fate phase,
+        // so a token placed on a body that already holds several buys nothing.
+        // Cards that ADD fate want the emptiest body, then the strongest.
+        if(preference === 'least-fate') {
+            const bySkill = this.sortBySkillDesc(cards, skillType);
+            return bySkill.slice().sort((a, b) => (Number(a.fate) || 0) - (Number(b.fate) || 0));
         }
         const sorted = this.sortBySkillDesc(cards, skillType);
         // A free ready is worth nothing on an already-ready character, so this

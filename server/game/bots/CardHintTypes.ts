@@ -25,7 +25,7 @@ export type UseWhen = 'always' | 'losing' | 'winning' | 'attacked' | 'never';
 export type TargetSide = 'self' | 'enemy' | 'either' | 'none';
 
 /** How to rank legal targets once the side is settled. */
-export type TargetPreference = 'strongest' | 'weakest' | 'most-fate' | 'strongest-bowed' | 'any';
+export type TargetPreference = 'strongest' | 'weakest' | 'most-fate' | 'least-fate' | 'strongest-bowed' | 'any';
 
 export interface CardHint {
     cardId: string;

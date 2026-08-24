@@ -1520,6 +1520,32 @@ interface ProfileOverride {
 
 const OVERRIDES: ProfileOverride[] = [
     {
+        // GENERIC FAVOR-PAYOFF RULE. A deck that holds Censure spends the
+        // Imperial Favor for real board impact, and the glory count that
+        // awards the favor at the end of the conflict phase reads only
+        // characters that are NOT bowed (`DrawCard.getContributionToImperialFavor`).
+        // So for these decks a ready with no conflict left to use it still
+        // buys something, which is exactly the case `ReadyValuePolicy`
+        // otherwise withholds. Two field decks hold Censure: Scorpion bid-war
+        // (which restates this in its own override alongside the rest of its
+        // tuning) and the Phoenix glory list.
+        //
+        // This entry is FIRST so a deck-specific override can still restate
+        // `readyValue` and win — `resolveDeckProfile` replaces the field
+        // wholesale rather than merging it.
+        //
+        // Measured on Phoenix, probePaired ONLY=Phoenix, both seats, 48 bases
+        // / 1536 games: +0.29pp, 55 decided, 32 to / 23 away, p=0.281, ceiling
+        // 1.79pp. Positive on both independent 24-base halves (+0.13pp then
+        // +0.46pp). A null with the sign the mechanic predicts, shipped on the
+        // owner's rule that a positive read enables the knob.
+        name: 'favor-payoff-censure',
+        match: (ids) => ids.has('censure'),
+        apply: {
+            readyValue: { countFavorGlory: true }
+        }
+    },
+    {
         // Unicorn Reveal (EmeraldDB 6057d28e): reveal all four outer
         // provinces (and the hidden stronghold province when an effect can),
         // turn those flips into Shiro Shinjo income, then either buy durable
@@ -2561,13 +2587,18 @@ const OVERRIDES: ProfileOverride[] = [
             // its Action needs a FIRE province, which it supplies itself. Under
             // the stronghold it is the last thing an opponent has to break.
             strongholdProvinceId: 'honor-s-reward',
-            // THE Imperial Favor exception to `ReadyValuePolicy`. Every other
-            // deck stops paying for a ready that no conflict can use; this one
+            // The Imperial Favor exception to `ReadyValuePolicy`: most decks
+            // stop paying for a ready that no conflict can use, but this one
             // wants the favor for Censure, and the glory count that awards it
             // at the end of the conflict phase reads only UNBOWED characters
             // (`DrawCard.getContributionToImperialFavor`). So readying a glory
-            // body with no conflicts left is still real value here, and only
-            // here. Kyuden Bayushi's own ready is what this unblocks.
+            // body with no conflicts left is still real value. Kyuden Bayushi's
+            // own ready is what this unblocks.
+            //
+            // Restated here rather than left to the generic `favor-payoff-censure`
+            // override, so this deck's tuning reads complete on its own. The
+            // two carry the same value; if they ever diverge this one wins,
+            // because a deck override is applied after it.
             readyValue: { countFavorGlory: true },
             mulligan: {
                 // Two holdings are real engines here (Imperial Storehouse

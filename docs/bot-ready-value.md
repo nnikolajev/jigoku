@@ -43,9 +43,38 @@ while it is not bowed**. The glory count that awards the favor runs at the end
 of every conflict phase, so for a deck that races the favor, readying a glory
 body with no conflicts left is real value — it is points in that count.
 
-`readyValue.countFavorGlory` turns that on and is set for exactly one profile,
-`scorpion-bid-war`, which wants the favor for Censure. Kyuden Bayushi's own
-ready is what it unblocks. Every other deck stops paying.
+`readyValue.countFavorGlory` turns that on. It is keyed on the **card, not the
+archetype**: the generic `favor-payoff-censure` override sets it for any deck
+holding **Censure**, which is what turns the favor into board impact worth
+paying a card for. Two field decks qualify:
+
+| deck | archetype | note |
+|---|---|---|
+| `scorpion-bid-war` | bid-war | restates the knob in its own override; Kyuden Bayushi's ready is what it unblocks |
+| `phoenix-rally-stronghold` | glory | 3x Censure, 3x Against the Waves, and a board full of glory bodies |
+
+Every other deck stops paying. The generic entry is **first** in `OVERRIDES` so
+a deck-specific override can still restate `readyValue` and win —
+`resolveDeckProfile` replaces that field wholesale rather than merging it, and
+`ReadyValuePolicy`'s constructor restores the rest of the defaults.
+
+**Measured on Phoenix** (`probePaired ONLY=Phoenix`, `SEAT=0` + `SEAT=1` pooled
+through `perDeckFlips.js`, 48 bases / 1536 games): **+0.29pp, 55 decided,
+32 to / 23 away, p=0.281**, ceiling 1.79pp. Positive on both independent
+24-base halves (+0.13pp then +0.46pp) and on three of the four seat-arms. A
+null with the sign the mechanic predicts; shipped on the owner's rule that a
+positive read enables the knob.
+
+Two things the run pinned down that are worth keeping:
+
+- **The knob converts a lot of verdicts and almost no games.** On the first
+  three bases the treated Phoenix seat's `ready-no-conflict-left` withholdings
+  fell 180 → 46 (74% of them) while **48 of 48 games stayed bit-identical** —
+  lifting a veto only matters in the windows where the bot also holds the card
+  and wants to spend it. Do not read a firing census as a ceiling.
+- **A three-base ceiling of 0.00pp was wrong.** The same arm over 24 bases
+  flips 2.3-4.2% of games. A deck-scoped arm plays 16 pairings per base, so
+  three bases is 48 games — far too few to see a 3% flip rate at all.
 
 `elegance-and-grace` used to carry a hand-written version of rules 1 and 2 and
 a comment claiming "the Imperial Favor counts glory, not ready characters" —

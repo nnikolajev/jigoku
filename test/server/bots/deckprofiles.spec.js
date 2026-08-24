@@ -165,6 +165,32 @@ describe('DeckProfiles', function() {
         expect(resolveDeckProfile(['cavalry-reserves'], GENERIC).aggressiveFate).toBe(false);
     });
 
+    it('gives the Imperial Favor ready exception to every deck holding Censure', function() {
+        // The favor is awarded on a glory count that reads only UNBOWED
+        // characters, so a deck that spends the favor gets real value from a
+        // ready no conflict can use. Keyed on the card, not on the archetype:
+        // both the Scorpion bid-war list and the Phoenix glory list run it.
+        const { ReadyValuePolicy } = require('../../../build/server/game/bots/ReadyValuePolicy.js');
+
+        expect(resolveDeckProfile(['censure'], GENERIC).readyValue.countFavorGlory).toBe(true);
+        expect(resolveDeckProfile(['censure'], AGGRO).readyValue.countFavorGlory).toBe(true);
+        expect(resolveDeckProfile([], GENERIC).readyValue.countFavorGlory).toBe(false);
+        expect(resolveDeckProfile(['rally-to-the-cause'], GENERIC).readyValue.countFavorGlory)
+            .toBe(false);
+
+        // The override replaces the field wholesale, so the rest of the
+        // configuration has to come back from the policy's own defaults.
+        const policy = new ReadyValuePolicy(resolveDeckProfile(['censure'], GENERIC).readyValue);
+        expect(policy.config.enabled).toBe(true);
+        expect(policy.config.minFavorGlory).toBe(DEFAULT_PROFILE.readyValue.minFavorGlory);
+        expect(policy.config.allowMoveIntoConflict)
+            .toBe(DEFAULT_PROFILE.readyValue.allowMoveIntoConflict);
+        expect(policy.evaluate({
+            conflictsRemaining: 0, opponentConflictsRemaining: 0,
+            favorContested: true, gloryOnReady: 2
+        })).toEqual({ useful: true, reason: 'ready-for-imperial-favor-glory' });
+    });
+
     it('Phoenix Shugenja raises only the injectable pre-stronghold threat ratio', function() {
         const first = resolveDeckProfile(['vassal-fields'], SHUGENJA);
         const second = resolveDeckProfile(['vassal-fields'], SHUGENJA);

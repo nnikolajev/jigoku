@@ -268,7 +268,7 @@ export class DragonAttachmentTactics {
 
     // Which of our characters this attachment goes on, respecting the
     // restricted cap, stacking rules and any preferred bearer.
-    pickAttachmentTarget(mine: any[], attachmentId: string | undefined, preferredBearerUuid?: string, yokuniCopiedNiten = false): any {
+    pickAttachmentTarget(mine: any[], attachmentId: string | undefined, preferredBearerUuid?: string, yokuniCopiedNiten = false, preferParticipants = false): any {
         if(!this.isAttachment(attachmentId)) {
             return null;
         }
@@ -291,6 +291,17 @@ export class DragonAttachmentTactics {
         // a different character.
         if(preferredBearerUuid) {
             return candidates.find((card) => card.uuid === preferredBearerUuid) || null;
+        }
+
+        // While the running conflict still needs skill from us, the tower list
+        // is the wrong ranking: a body at home and a bowed body both add 0, so
+        // the weapon has to go on somebody who is actually fighting. Owned by
+        // `AttachmentTargetPolicy`; the caller passes its verdict.
+        if(preferParticipants) {
+            const fighting = candidates.filter((card) => card.inConflict && !card.bowed);
+            if(fighting.length > 0) {
+                candidates = fighting;
+            }
         }
 
         // Elegant Tessen's enter-play ready is worth more than tower stats on

@@ -1374,8 +1374,13 @@ describe('Jigoku heuristic bot', function() {
             }
         };
         const ctx = {
-            targetHint: { gameActions: ['attach'], sourceCardId: 'spyglass', sourceIsMine: true },
-            cardHint: (id) => id === 'spyglass' ? { targetSide: 'self', conflictTypes: [], targetPreference: 'strongest' } : undefined
+            // An unrestricted, unhinted attachment, deliberately: Spyglass pays
+            // its draw off a bearer COMMITTING to a conflict, so
+            // `AttachmentTargetPolicy` now keeps it on a body at home and it is
+            // no longer a stand-in for "any permanent attachment", while a
+            // Restricted weapon skips the tower branch by its own older rule.
+            targetHint: { gameActions: ['attach'], sourceCardId: 'seal-of-the-unicorn', sourceIsMine: true },
+            cardHint: (id) => id === 'seal-of-the-unicorn' ? { targetSide: 'self', conflictTypes: [], targetPreference: 'strongest' } : undefined
         };
         const decision = new JigokuBotPolicy('tower-attach').decide(state, 'Jigoku Bot', ctx);
         expect(decision.command).toBe('cardClicked');
@@ -1401,8 +1406,8 @@ describe('Jigoku heuristic bot', function() {
             }
         };
         const ctx = {
-            targetHint: { gameActions: ['attach'], sourceCardId: 'spyglass', sourceIsMine: true },
-            cardHint: (id) => id === 'spyglass' ? { targetSide: 'self', conflictTypes: [], targetPreference: 'strongest' } : undefined
+            targetHint: { gameActions: ['attach'], sourceCardId: 'seal-of-the-unicorn', sourceIsMine: true },
+            cardHint: (id) => id === 'seal-of-the-unicorn' ? { targetSide: 'self', conflictTypes: [], targetPreference: 'strongest' } : undefined
         };
         const decision = new JigokuBotPolicy('losing-attach').decide(state, 'Jigoku Bot', ctx);
         expect(decision.command).toBe('cardClicked');

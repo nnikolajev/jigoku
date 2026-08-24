@@ -23,10 +23,12 @@ import { DEFAULT_CONFLICT_TEMPO } from './ConflictTempoPolicy.js';
 import type { ConflictTempoConfig } from './ConflictTempoPolicy';
 import { DEFAULT_UNOPPOSED_WINDOW } from './UnopposedWindowPolicy.js';
 import type { UnopposedWindowConfig } from './UnopposedWindowPolicy';
+import { DEFAULT_ATTACHMENT_TARGET } from './AttachmentTargetPolicy.js';
 import { DEFAULT_READY_VALUE } from './ReadyValuePolicy.js';
 import { DEFAULT_READY_MOVE } from './ReadyMovePlanner.js';
 import type { ReadyMoveConfig } from './ReadyMovePlanner';
 import type { ReadyValueConfig } from './ReadyValuePolicy';
+import type { AttachmentTargetConfig } from './AttachmentTargetPolicy';
 import { DEFAULT_DEFENDER_RING_CHOICE } from './DefenderRingChoicePolicy.js';
 import type { DefenderRingChoiceConfig } from './DefenderRingChoicePolicy';
 import { DEFAULT_HONOR_RACE_LIMITS } from './CardPlaybook.js';
@@ -303,6 +305,12 @@ export interface DeckProfile {
     // adds the Imperial Favor exception for the decks that race it — a bowed
     // character contributes 0 glory to the count. `enabled: false` is V1.
     readyValue: Partial<ReadyValueConfig>;
+    // Where an attachment goes while a conflict is running, owned by
+    // `AttachmentTargetPolicy`. V1 pulled one onto a participant only when it
+    // was LOSING; every other board took the durable home tower, including a
+    // conflict that still needed skill to reach the break. `enabled: false` is
+    // V1 exactly.
+    attachmentTarget: Partial<AttachmentTargetConfig>;
     // The two-action ready -> move sequence, owned by `ReadyMovePlanner`. It
     // plans BOTH legs at once (budgeting the fate for both) so the bot cannot
     // ready a body and then fail to move it, and it only commits when the body
@@ -814,6 +822,17 @@ export const DEFAULT_PROFILE: DeckProfile = {
     // can use. See `ReadyValuePolicy` for the three uses that count and for the
     // Imperial Favor exception (off here, on for the decks that race it).
     readyValue: { ...DEFAULT_READY_VALUE },
+    // SHIPPED ON, field-wide. Two halves of one question, both generic:
+    // WHERE an attachment goes while a conflict still needs skill from us (on a
+    // body that is fighting, not on the durable home tower), and WHETHER to
+    // play it at all when the engine says none of its legal bearers is in that
+    // conflict. Measured a clean null - -0.03pp over 4896 games, 9 bases, both
+    // seats, 317 decided, p=0.91, ceiling 3.24pp - so this is a correctness
+    // class like `polarityGuards`, not a win-rate lever. Do not re-measure it
+    // hoping for a number. `enabled: false` is V1 exactly.
+    //
+    // See docs/bot-attachment-target.md.
+    attachmentTarget: { ...DEFAULT_ATTACHMENT_TARGET, enabled: true },
     // SHIPPED ON, field-wide. See `ReadyMovePlanner` and
     // `docs/bot-ready-move-sequence.md`.
     readyMove: { ...DEFAULT_READY_MOVE },
@@ -894,6 +913,7 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         conflictTempo: { ...DEFAULT_PROFILE.conflictTempo },
         unopposedWindow: { ...DEFAULT_PROFILE.unopposedWindow },
         readyValue: { ...DEFAULT_PROFILE.readyValue },
+        attachmentTarget: { ...DEFAULT_PROFILE.attachmentTarget },
         readyMove: { ...DEFAULT_PROFILE.readyMove },
         defenderRingChoice: { ...DEFAULT_PROFILE.defenderRingChoice },
         fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },

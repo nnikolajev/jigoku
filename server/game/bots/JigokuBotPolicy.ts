@@ -52,6 +52,7 @@ import { ConflictDeclarationPolicy, recordAxisChoice } from './ConflictDeclarati
 import { ConflictTempoPolicy, recordTempoRead } from './ConflictTempoPolicy.js';
 import type { ConflictTempoRead } from './ConflictTempoPolicy';
 import { UnopposedWindowPolicy, recordUnopposedWindow } from './UnopposedWindowPolicy.js';
+import { AttachmentTargetPolicy } from './AttachmentTargetPolicy.js';
 import { ReadyValuePolicy, gloryOf } from './ReadyValuePolicy.js';
 import { ReadyMovePlanner, sequenceOptionsFrom, moveSourceSpec } from './ReadyMovePlanner.js';
 import type { ReadyMovePlan, SequenceSourceTargets } from './ReadyMovePlanner';
@@ -374,6 +375,14 @@ interface DecideContext {
     // UUIDs already visible to the bot that the live prompt accepts as direct
     // clicks. Undefined preserves legacy behavior for synthetic/custom calls.
     legalDirectCardUuids?: Record<string, true>;
+    // Exact legal BEARERS for every attachment in hand, keyed by that card's
+    // uuid, straight from the engine's own target resolver. This is the only
+    // way the bot can know that Minami Kaze Regulars ("no attachments except
+    // Weapon") is not a legal home for Seal of the Unicorn: the player-state
+    // summary a policy sees carries no card text and no attachment
+    // restrictions at all. Published for V2 since it was added; V1 reads it
+    // too now. Undefined leaves every gate exactly as it was.
+    legalAttachmentTargetUuidsBySource?: Record<string, readonly string[]>;
     // Ring elements accepted by the live prompt. This matters while declaring
     // a conflict: the selected ring can only toggle to the other conflict type
     // when the engine says that declaration remains legal.
@@ -537,6 +546,12 @@ class JigokuBotPolicy {
     // playbook-context builders ask for it, so memoising keeps the telemetry
     // to one row per decision instead of one per builder.
     private currentReadyValueVerdict?: ReadyValueVerdict;
+    // One `AttachmentTargetPolicy` reading per decide() call: does the conflict
+    // on the table still need skill from us, so an attachment belongs on a body
+    // that is fighting rather than on the durable tower at home?
+    private currentPreferParticipantBearer?: boolean;
+    // Engine-exact legal bearers per hand attachment; see the context field.
+    private currentLegalAttachmentBearers?: Record<string, readonly string[]>;
     private currentSequenceSourceTargets?: SequenceSourceTargets;
     // The ready -> move plan, also one reading per decide() call. Null is a
     // real answer (no sequence is worth doing), so a separate `computed`
@@ -720,7 +735,9 @@ class JigokuBotPolicy {
         this.currentParticipatingCharacterCounts = context.participatingCharacterCounts;
         this.currentCavalryCharacterUuids = context.cavalryCharacterUuids;
         this.currentReadyAfterMoveCharacterUuids = context.readyAfterMoveCharacterUuids;
+        this.currentLegalAttachmentBearers = context.legalAttachmentTargetUuidsBySource;
         this.currentReadyValueVerdict = undefined;
+        this.currentPreferParticipantBearer = undefined;
         this.currentSequenceSourceTargets = context.sequenceSourceTargets;
         this.currentReadyMovePlan = undefined;
         this.readyMovePlanComputed = false;
@@ -997,6 +1014,10 @@ class JigokuBotPolicy {
         // paths) gets identical behavior to before the profile refactor.
         const profile = context.profile || profileFromStrategy(context.strategy);
         this.currentDeckProfile = profile;
+        // Resolved once, here, because both the attachment PLAY gate and the
+        // deck attachment overlays ask for it from call sites that have no
+        // player state of their own.
+        this.preferParticipantBearer(playerState, me);
         // Which rings WE hold, resolved once per decision: the ring summary
         // carries `claimedBy` as a player name, and `ringScore` has no view of
         // the player state to compare it against.
@@ -6400,6 +6421,31 @@ class JigokuBotPolicy {
                     if(this.inPlayActionScopedOut(card.id)) {
                         return false;
                     }
+                    // A move source whose Action moves its OWN bearer (Formal
+                    // Invitation) is only worth firing when that bearer arrives
+                    // with skill: a bowed body contributes 0 (`conflict.ts`) and
+                    // the move is spent for nothing, and one already in the
+                    // conflict cannot move into it at all. Keeping the bearer at
+                    // home is what `AttachmentTargetPolicy` does at attach time;
+                    // this is the same question at ACTIVATION time, where the
+                    // bearer was fixed a prompt earlier and there is no target
+                    // choice left to make.
+                    //
+                    // Adorned Barcha is exempt: its Action bows an enemy
+                    // participant whatever its own bearer's skill, which is the
+                    // value `test/helpers/movevalue.js` credits it with.
+                    if(!new AttachmentTargetPolicy(this.currentDeckProfile.attachmentTarget).inert &&
+                        moveSourceSpec(String(card.id || ''))?.selfOrBearerOnly &&
+                        card.id !== 'adorned-barcha') {
+                        const mover = card.type === 'character'
+                            ? card
+                            : (playCtx?.myCharacters || []).find((body: any) =>
+                                (body.attachments || []).some((attachment: any) =>
+                                    String(attachment.uuid) === String(card.uuid)));
+                        if(mover && (mover.bowed || mover.inConflict)) {
+                            return false;
+                        }
+                    }
                     // Silent Skirmisher and Stoic Gunso buy conflict skill with
                     // a PERMANENT body. The profile decides whether that trade
                     // needs to actually decide the conflict; a `PlaybookEntry`
@@ -7087,7 +7133,10 @@ class JigokuBotPolicy {
             this.intentDenyReason = why;
             return false;
         };
-        const myCharacters = playCtx?.myCharacters || [];
+        // Bearer legality first: an attachment can only ever be worth what its
+        // LEGAL bearers can do with it, and the player-state summary the rest
+        // of this gate reads has no idea which bodies those are.
+        const myCharacters = this.legalAttachmentBearers(card, playCtx?.myCharacters || [], cardHint);
         // `PlaybookEntry` is a static registry with no view of the deck profile,
         // so the live-event-pricing A/B switch travels on the context instead.
         if(playCtx) {
@@ -7215,10 +7264,39 @@ class JigokuBotPolicy {
                 myCharacters,
                 card.id,
                 forcedAttachmentBearerUuid,
-                this.yokuniCopiedNiten
+                this.yokuniCopiedNiten,
+                this.attachmentBearerNarrowingActive()
             );
             if(!target || (forcedAttachmentBearerUuid && target.uuid !== forcedAttachmentBearerUuid)) {
                 return deny('dragon-attachment-target');
+            }
+        }
+
+        // BEARER LEGALITY, the half the serialized board cannot express.
+        //
+        // `myCharacters` is already narrowed to the bodies the ENGINE would
+        // accept for this exact card. Two things follow, and both are what
+        // makes the bot reach for the Weapon in its hand instead of the Seal:
+        //   * no legal bearer at all -> the card cannot be played usefully;
+        //   * a conflict that still needs skill and no legal bearer fighting in
+        //     it -> hold the card for a window where one of them is.
+        // Both are behind the same profile flag, so `enabled: false` is V1.
+        const bearerGate = new AttachmentTargetPolicy(this.currentDeckProfile.attachmentTarget);
+        if(bearerGate.gatesPlayOnBearer && card.type === 'attachment' &&
+            !(hint?.targetSide === 'enemy' && hint?.attachSide !== 'self')) {
+            if(myCharacters.length === 0) {
+                return deny('no-legal-attachment-bearer');
+            }
+            if(this.currentPreferParticipantBearer === true && !forcedAttachmentBearerUuid) {
+                // A move-in card wants a bearer at HOME, so "usable" means a
+                // legal home body it can actually carry into the conflict.
+                const usable = bearerGate.wantsHomeBearer(card.id)
+                    ? myCharacters.filter((candidate: any) => !candidate.inConflict &&
+                        (!bearerGate.wantsReadyHomeBearer(card.id) || !candidate.bowed))
+                    : myCharacters.filter((candidate: any) => candidate.inConflict && !candidate.bowed);
+                if(usable.length === 0) {
+                    return deny('no-usable-attachment-bearer');
+                }
             }
         }
 
@@ -9850,12 +9928,46 @@ class JigokuBotPolicy {
 
     private polarityTargetDecision(cards: any[], playerState: any, me: any, skillType: string, targetHint: TargetHint, buttons: any[], personalHonor: PersonalHonorTactics, profile: DeckProfile, cardHint?: CardHintLookup, glory: GloryTactics | null = null, lion: LionTactics | null = null, dragon: DragonTactics | null = null, duelist: DuelTactics | null = null, shugenja: ShugenjaTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null, crane: CraneBaselineTactics | null = null, attachmentControl: AttachmentControlTactics | null = null): BotDecision | null {
         const myUuids = new Set(this.findVisibleCards(me).map((card) => card.uuid));
-        const mine = cards.filter((card) => this.cardBelongsToPlayer(card, me, myUuids));
+        let mine = cards.filter((card) => this.cardBelongsToPlayer(card, me, myUuids));
         const theirs = cards.filter((card) => !this.cardBelongsToPlayer(card, me, myUuids));
         const actionNames = targetHint.gameActions || [];
         const unicorn = this.currentUnicorn;
         const reveal = this.currentUnicornReveal;
         const sourceId = targetHint.sourceCardId || '';
+        // ATTACHMENT BEARERS, asked once for every path below.
+        //
+        // A bowed body and a body at home both add 0 to the conflict being
+        // fought, so while that conflict still needs skill from us the only
+        // bearers worth offering the deck pickers are the ones actually in it.
+        // Narrowing HERE rather than in each picker is what makes the rule
+        // generic: Dragon's tower list, Lion's cheap-Tessen ready, the Crab
+        // buff, the duel tower and the Unicorn steed all choose from the same
+        // list and all used to be able to send a weapon home mid-conflict.
+        // Cards whose value IS a home bearer are exempt, and a prompt with no
+        // participating own body is left exactly as it was.
+        const attachPolicy = new AttachmentTargetPolicy(this.currentDeckProfile.attachmentTarget);
+        // `inert` is the revert switch: with the lever off this whole block is
+        // skipped and the deck pickers see the list V1 handed them, including
+        // on a losing conflict — V1's own participant preference lives inside
+        // `attachmentTargetDecision` and is untouched.
+        if(!attachPolicy.inert && actionNames.includes('attach') &&
+            this.preferParticipantBearer(playerState, me)) {
+            const characters = mine.filter((card) => card.type === 'character');
+            const narrowed = attachPolicy.wantsHomeBearer(sourceId)
+                // A move-in card still needs a bearer that arrives with skill,
+                // so the bowed half of the home board is no better than a
+                // participant for it.
+                ? (attachPolicy.wantsReadyHomeBearer(sourceId)
+                    ? characters.filter((card) => !card.bowed)
+                    : [])
+                : characters.filter((card) => card.inConflict && !card.bowed);
+            if(narrowed.length > 0) {
+                // Province candidates survive untouched: a battlefield
+                // attachment (Prepared Ambush, Makeshift War Camp) goes on our
+                // own PROVINCE, and dropping those would hand it a character.
+                mine = narrowed.concat(mine.filter((card) => card.type !== 'character'));
+            }
+        }
 
         const bidWar = this.currentBidWar;
         const lionDuelist = this.currentLionDuelist;
@@ -11582,7 +11694,8 @@ class JigokuBotPolicy {
                     mine,
                     targetHint.sourceCardId,
                     pendingBearer || undefined,
-                    this.yokuniCopiedNiten
+                    this.yokuniCopiedNiten,
+                    this.attachmentBearerNarrowingActive()
                 );
                 if(target) {
                     if(pendingBearer) {
@@ -12130,12 +12243,30 @@ class JigokuBotPolicy {
         const conflictType = playerState?.conflict?.type || skillType;
         let pool = mine;
         const standing = this.conflictStanding(playerState, me);
-        if(standing && standing.losing) {
+        // `AttachmentTargetPolicy` owns the "participant or tower" call. V1
+        // asked only whether the conflict was LOST right now, which sent the
+        // weapon home on every board that was merely SHORT of the break. A card
+        // whose Action moves its own bearer INTO the conflict is exempt: a
+        // bearer already there cannot be moved and the card is thrown away.
+        const bearerPolicy = new AttachmentTargetPolicy(this.currentDeckProfile.attachmentTarget);
+        // Only while a conflict is actually asking for skill. With none running
+        // there is no participant to steer away from, and the tower branch
+        // below is the right home for a permanent attachment.
+        const wantsHomeBearer = !bearerPolicy.inert && bearerPolicy.wantsHomeBearer(sourceCardId) &&
+            standing !== null && this.preferParticipantBearer(playerState, me);
+        if(!wantsHomeBearer && standing !== null && this.preferParticipantBearer(playerState, me)) {
             // Bowed participants contribute no skill, so a pump on them is
             // wasted — only ready participants swing the conflict.
             const participants = mine.filter((card) => card.inConflict && !card.bowed);
             if(participants.length > 0) {
                 pool = participants;
+            }
+        } else if(wantsHomeBearer) {
+            // Its bearer has to be able to MOVE, so a body already fighting is
+            // the one placement that wastes it outright.
+            const home = mine.filter((card) => !card.inConflict);
+            if(home.length > 0) {
+                pool = home;
             }
         } else if(!restricted) {
             // Not fighting for a conflict we could lose right now: an
@@ -12162,6 +12293,71 @@ class JigokuBotPolicy {
             return scoreDiff !== 0 ? scoreDiff : String(a.uuid).localeCompare(String(b.uuid));
         });
         return this.cardClickDecision(scored[0], 'attach-to-own');
+    }
+
+    /**
+     * Should an attachment go on a body that is FIGHTING rather than on the
+     * durable tower at home? Owned by `AttachmentTargetPolicy`; one reading per
+     * decide() call so the play gate, the shared targeter and the deck overlays
+     * all answer it the same way.
+     */
+    private preferParticipantBearer(playerState: any, me: any): boolean {
+        if(this.currentPreferParticipantBearer !== undefined) {
+            return this.currentPreferParticipantBearer;
+        }
+        const standing = this.conflictStanding(playerState, me);
+        const verdict = !!standing &&
+            new AttachmentTargetPolicy(this.currentDeckProfile.attachmentTarget).preferParticipant({
+                losing: standing.losing,
+                skillNeeded: this.conflictStrengthNeeded(playerState, me)
+            });
+        this.currentPreferParticipantBearer = verdict;
+        return verdict;
+    }
+
+    /**
+     * The own characters this specific card could LEGALLY be attached to, from
+     * the engine's own target resolver. Everything else in the play gate reads
+     * a serialized summary with no card text in it, so without this the bot
+     * prices a weapon on a body the rules forbid it from ever reaching.
+     *
+     * Unknown card, no published map, or an enemy-aimed attachment: the list is
+     * returned unchanged, so every legacy and synthetic caller is unaffected.
+     */
+    private legalAttachmentBearers(card: any, characters: any[], cardHint?: CardHintLookup): any[] {
+        if(!new AttachmentTargetPolicy(this.currentDeckProfile.attachmentTarget).gatesPlayOnBearer) {
+            return characters;
+        }
+        if(!this.currentLegalAttachmentBearers || card?.type !== 'attachment' || !card?.uuid) {
+            return characters;
+        }
+        const hint: any = card.id && cardHint ? cardHint(card.id) : undefined;
+        // A debuff's legal targets are the OPPONENT's characters, so filtering
+        // our own board by them empties it and would veto the card entirely.
+        if(hint?.targetSide === 'enemy' && hint?.attachSide !== 'self') {
+            return characters;
+        }
+        const legal = this.currentLegalAttachmentBearers[String(card.uuid)];
+        if(!legal) {
+            return characters;
+        }
+        const allowed = new Set(legal.map((uuid) => String(uuid)));
+        const narrowed = characters.filter((candidate) => allowed.has(String(candidate?.uuid)));
+        // An empty result is a real answer for a self-side attachment (no body
+        // in play may carry it), and the caller's `no-legal-bearer` gate is
+        // what turns that into a decision.
+        return narrowed;
+    }
+
+    /**
+     * The same verdict, but false whenever the lever is off, so `enabled: false`
+     * reproduces V1 everywhere the NEW narrowing reaches. V1's own "pull it onto
+     * a participant while losing" rule lives in `attachmentTargetDecision` and
+     * is not gated by this.
+     */
+    private attachmentBearerNarrowingActive(): boolean {
+        return this.currentPreferParticipantBearer === true &&
+            !new AttachmentTargetPolicy(this.currentDeckProfile.attachmentTarget).inert;
     }
 
     private attachmentScore(card: any, conflictType: string): number {

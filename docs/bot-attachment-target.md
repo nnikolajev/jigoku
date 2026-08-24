@@ -200,6 +200,22 @@ Rig validation: injecting the knob at its own default runs **bit-identical** to
 the un-injected build (`refactorIdentity` SHA `1bba63cfbff9f1bc` both ways), so
 the injection path adds nothing of its own.
 
+Confirmed after shipping, on the exact released build and with the arm inverted
+(the treated seat REVERTS to V1, since the default is now on):
+
+| | games | decided | V1 wins | policy wins | effect | p |
+|---|---:|---:|---:|---:|---:|---:|
+| seat 0 | 2448 | 153 | 80 | 73 | | |
+| seat 1 | 2448 | 182 | 87 | 95 | | |
+| **pooled** | **4896** | **335** | **167** | **168** | **-0.01pp** | **1.0000** |
+
+Two independent arms, 9784 games, both dead flat. Two per-deck rows keep their
+sign across both runs — UnicornReveal prefers V1 (-1.04pp, then +1.56pp for the
+revert at p=0.049) and CrabSacrifice prefers the policy (+1.56pp, then -2.26pp
+for the revert) — but both runs used the SAME nine bases, so that is one
+observation, not two. Either is a scoped-arm hypothesis for fresh bases, not a
+result.
+
 **SHIPPED ON field-wide anyway, as a correctness class.** Same standing as
 `polarityGuards` (+0.43pp, p=0.73), `readyValue` (p=0.85) and `readyMove`
 (p=1.0): the payoff is that the bot stops making a play that is visibly wrong to

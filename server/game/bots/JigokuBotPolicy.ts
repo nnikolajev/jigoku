@@ -6965,9 +6965,8 @@ class JigokuBotPolicy {
             conflictsRemaining: Number(me?.stats?.conflictsRemaining) || 0,
             opponentConflictsRemaining: Number(opponent?.stats?.conflictsRemaining) || 0,
             canMoveIntoConflict: false,
-            // Glory is read off the candidate by `anyTargetUseful`; this
-            // board-level reading answers for a body that carries some, so the
-            // per-card check below can still veto a 0-glory target.
+            // This board-level reading answers for the best bowed home body;
+            // the per-card check below can still veto a 0-glory target.
             gloryOnReady: this.myCharactersInPlay(me)
                 .reduce((top: number, card: any) => card.bowed && !card.inConflict
                     ? Math.max(top, gloryOf(card))

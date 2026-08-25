@@ -29,7 +29,7 @@ import { BotTelemetry } from './BotTelemetry.js';
 export type DefenseCommitmentMode = 'win-only' | 'prevent-break';
 
 /** No cap: declare every ready body. What the stronghold branch has always done. */
-export const UNCAPPED = Number.POSITIVE_INFINITY;
+const UNCAPPED = Number.POSITIVE_INFINITY;
 
 export interface DefenseCommitmentConfig {
     /**

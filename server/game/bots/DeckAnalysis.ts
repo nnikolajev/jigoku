@@ -324,25 +324,6 @@ export function getCardModel(id?: string): CardModel | undefined {
     return id ? BY_ID.get(id) : undefined;
 }
 
-// A deck is "analyzed" for the omniscient bot when every conflict-side event it
-// runs has a curated entry (bodies/attachments are read live, so they never
-// gate). `missing` lists the uncurated event ids so the bot can log what it is
-// blind to; it still plays, it just cannot value those tricks.
-export function analyzeDeck(cardIds: string[]): { analyzed: boolean; missing: string[]; known: number } {
-    const missing: string[] = [];
-    let known = 0;
-    for(const id of new Set(cardIds)) {
-        const model = BY_ID.get(id);
-        if(model) {
-            known++;
-        }
-    }
-    // We only *require* events to be curated; unknown ids that are not events
-    // cannot be detected here (we have no live type), so callers pass the known
-    // conflict-event ids they see. Kept simple: report coverage.
-    return { analyzed: missing.length === 0, missing, known };
-}
-
 // One card the human holds, as the omniscient bot sees it. The controller fills
 // mil/pol/fate and flat printed attachment bonuses from the live card object
 // (exact for any deck) and overlays swing/tag from the registry (deck-specific

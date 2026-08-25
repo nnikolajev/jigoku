@@ -81,6 +81,7 @@ node tools/selfplay/compareProfileVariants.js --deck PhoenixShugenja --opponent 
 node tools/selfplay/auditCards.js Crane 20 3 PhoenixShugenja
 node tools/selfplay/auditCards.js --decks all --seeds 1,2,3 --opponents all --modes fair,omniscient --games 2
 node tools/selfplay/auditConflictBehavior.js --seed 3
+$env:BASES='91001,92001'; node tools/selfplay/auditReadyAndRingChoice.js
 node tools/selfplay/analyzeDuelBids.js
 node tools/selfplay/drawBidMatrix.js
 ```
@@ -526,6 +527,7 @@ forked by their parent script and are not run directly.
 | `auditCards.js` | live card-usage gate: which cards actually get played |
 | `cardUsageAudit.js` | shared runtime card-coverage helpers |
 | `auditConflictBehavior.js` | focused conflict-policy audit over real games |
+| `auditReadyAndRingChoice.js` | firing census for ready-value refusals, defender ring choices, and ready/move sequences (`BASES`, `DECKS`, `FULL`) |
 | `interactionAudit.js` | runtime instrumentation for bot interaction loops |
 | `validateBotInteractions.js` | all-deck click/rejection cycle detector |
 
@@ -570,6 +572,7 @@ forked by their parent script and are not run directly.
 | `deckLoader.js` | build a Jigoku deck object from a cached EmeraldDB fixture |
 | `deckRegistry.js` | the deck catalogue and `DECK_LABELS` order |
 | `reward.js` | the self-play reward signal |
+| `_omniH2hWorker.js` / `_omniProbeWorker.js` | child workers for the omniscient head-to-head and probe commands |
 
 One `match<Deck>.js` per piloted deck (`matchCrabSacrifice.js`, `matchCraneDuel.js`,
 `matchCraneHonor.js`, `matchDragon.js`, `matchLion.js`, `matchLionDuelist.js`,

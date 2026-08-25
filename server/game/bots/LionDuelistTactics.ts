@@ -66,7 +66,6 @@ export interface LionDuelistProfile {
     motsoSafeLeadMargin: number;
 
     // ---- recursion (Kitsu Spiritcaller, Forebearer's Echoes) ---------------
-    recursionMinimumSkill: number;
     recursionGloryWeight: number;
     recursionFateWeight: number;
 
@@ -181,7 +180,6 @@ export const LION_DUELIST_DEFAULTS: LionDuelistProfile = {
     motsoHopelessWinDeficit: 4,
     motsoSafeLeadMargin: 2,
 
-    recursionMinimumSkill: 2,
     recursionGloryWeight: 0.5,
     recursionFateWeight: 0,
 
@@ -283,46 +281,12 @@ export class LionDuelistTactics {
             (!!card?.id && this.profile.commanderCharacters.includes(card.id));
     }
 
-    // Champion by trait or id. Champions are exempt from the stronghold bow,
-    // which is why this is a separate predicate.
-    isChampion(card: any): boolean {
-        return this.hasTrait(card, 'champion') ||
-            (!!card?.id && this.profile.championCharacters.includes(card.id));
-    }
-
-    // Bushi by trait or id; public bot state omits printed traits.
-    isBushi(card: any): boolean {
-        return this.hasTrait(card, 'bushi') ||
-            (!!card?.id && this.profile.bushiCharacters.includes(card.id));
-    }
-
     // Per-character extra-fate table. Null means the generic economy decides.
     desiredAdditionalFate(cardId?: string): number | null {
         if(!cardId || !Object.prototype.hasOwnProperty.call(this.profile.additionalFateByCharacterId, cardId)) {
             return null;
         }
         return Math.max(0, numberOr(this.profile.additionalFateByCharacterId[cardId], 0));
-    }
-
-    // ---- Kyuden Ikoma -----------------------------------------------------
-
-    // Enemy characters Kyuden Ikoma's bow may legally target — Champions are
-    // excluded by the card.
-    strongholdBowCandidates(opponentCharacters: any[], axis: Axis): any[] {
-        return (opponentCharacters || [])
-            .filter((card) => card && !this.isChampion(card))
-            .filter((card) => !this.profile.strongholdBowRequiresReadyTarget || !card.bowed)
-            // A participant bows on its own when it returns home; spending the
-            // stronghold on one buys nothing.
-            .filter((card) => !this.profile.strongholdBowSkipsParticipants || !card.inConflict)
-            .filter((card) => this.bodyValue(card, axis) >= this.profile.strongholdBowMinimumSkill);
-    }
-
-    // Best of those candidates on the conflict's axis.
-    pickStrongholdBowTarget(opponentCharacters: any[], axis: Axis): any | null {
-        const candidates = this.strongholdBowCandidates(opponentCharacters, axis);
-        return candidates.slice().sort((left, right) =>
-            this.bodyValue(right, axis) - this.bodyValue(left, axis) || byUuid(left, right))[0] || null;
     }
 
     // ---- Frostbitten Crossing --------------------------------------------
@@ -457,36 +421,6 @@ export class LionDuelistTactics {
                 skillOf(card, axis) >= this.profile.motsoMinimumTargetSkill)
             .sort((left, right) => this.bodyValue(right, axis) - this.bodyValue(left, axis) ||
                 byUuid(left, right))[0] || null;
-    }
-
-    // ---- recursion (Spiritcaller / Forebearer's Echoes) -------------------
-
-    // Every recursion effect in this deck puts the chosen body into the conflict
-    // READY, so its whole skill on the contested axis lands immediately. Glory
-    // is a tiebreaker because an honored body carries it into the total.
-    recursionScore(card: any, axis: Axis): number {
-        return skillOf(card, axis) +
-            gloryOf(card) * this.profile.recursionGloryWeight +
-            numberOr(card?.fate, 0) * this.profile.recursionFateWeight;
-    }
-
-    // Best character to return from the discard on the conflict's axis.
-    pickRecursionTarget(bodies: any[], axis: Axis): any | null {
-        return (bodies || [])
-            .filter((card) => card?.type === 'character' || card?.type === undefined)
-            .sort((left, right) => this.recursionScore(right, axis) - this.recursionScore(left, axis) ||
-                byUuid(left, right))[0] || null;
-    }
-
-    // Skill this recursion would add, net of a bow-self cost when the source is
-    // itself a ready participant (Kitsu Spiritcaller bows to pay).
-    recursionGain(bodies: any[], axis: Axis, source?: any): number {
-        const best = this.pickRecursionTarget(bodies, axis);
-        if(!best) {
-            return 0;
-        }
-        const paid = source?.inConflict && !source?.bowed ? skillOf(source, axis) : 0;
-        return skillOf(best, axis) - paid;
     }
 
     // ---- Matsu Agetoki ----------------------------------------------------

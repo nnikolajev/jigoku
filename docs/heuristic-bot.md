@@ -416,6 +416,13 @@ McNemar p=0.00087) and **shipped into V1 on 2026-07-31**. It is `true` in both
 those two. Live path: `JigokuBotPolicy.ts:2456` (`useAttackerPlan`) →
 `plannedNext` → `conflict-lookahead-attacker`.
 
+One game-ending exception deliberately overrides that preservation logic. In
+Imperial, either Air-ring option is lethal at 23 own honor or 1 opponent honor.
+Since 2026-08-25 the bot selects Air ahead of hold-all/pass plans, clears every
+attacker reservation, and commits all legal skill to that conflict. Telemetry
+reasons start with `air-ring-honor-victory`; outside those exact honor rails the
+normal rollout and reserve rules are unchanged.
+
 `docs/bot-v2-deck-tuning.md` still said these flags "stay off globally"; that
 line is now marked stale. Verify with `tools/selfplay/analyzeAttackSize.js`
 rather than by reading a profile — a flag being true has twice failed to mean a

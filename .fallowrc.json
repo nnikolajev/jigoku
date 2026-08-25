@@ -20,17 +20,19 @@
     "server/game/cards/**/*.ts"
   ],
   "boundaries": {
-    "zones": {
-      "bot-v1": ["server/game/bots"],
-      "bot-shared": ["server/game/bots/shared"],
-      "bot-v2": ["server/game/bots/v2"],
-      "game": ["server/game"]
-    },
-    "rules": {
-      "bot-v1": ["bot-shared", "game"],
-      "bot-shared": ["game"],
-      "bot-v2": ["bot-shared", "bot-v1", "game"],
-      "game": []
-    }
+    "zones": [
+      { "name": "bot-router", "patterns": ["server/game/bots/BotEngineRouter.ts"] },
+      { "name": "bot-shared", "patterns": ["server/game/bots/shared/**"] },
+      { "name": "bot-v2", "patterns": ["server/game/bots/v2/**"] },
+      { "name": "bot-v1", "patterns": ["server/game/bots/*.{ts,js}"] },
+      { "name": "game", "patterns": ["server/game/**"] }
+    ],
+    "rules": [
+      { "from": "bot-router", "allow": ["bot-v1", "bot-v2", "bot-shared", "game"] },
+      { "from": "bot-v1", "allow": ["bot-router", "bot-shared", "game"] },
+      { "from": "bot-shared", "allow": ["bot-v1", "game"] },
+      { "from": "bot-v2", "allow": ["bot-shared", "bot-v1", "game"] },
+      { "from": "game", "allow": [] }
+    ]
   }
 }

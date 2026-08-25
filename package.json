@@ -72,6 +72,7 @@
         "@typescript-eslint/parser": "8.56.1",
         "eslint": "10.0.3",
         "eslint-plugin-jasmine": "4.2.2",
+        "fallow": "3.18.0",
         "globals": "17.4.0",
         "jasmine": "6.1.0",
         "oxlint": "1.79.0",

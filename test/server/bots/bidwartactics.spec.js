@@ -156,11 +156,6 @@ describe('BidWarTactics', function() {
     });
 
     describe('dial readings', function() {
-        it('reads no gap before the dials are shown', function() {
-            expect(tactics.dialDifference(0, 0)).toBe(0);
-            expect(tactics.dialDifference(5, undefined)).toBe(0);
-        });
-
         it('swaps dials to turn on I Can Swim when we bid low', function() {
             const hand = [{ id: 'i-can-swim' }];
             const dishonored = [character({ id: 'a', inConflict: true, isDishonored: true })];

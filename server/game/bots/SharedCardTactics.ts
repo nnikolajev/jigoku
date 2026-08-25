@@ -101,15 +101,6 @@ export interface StrongholdBowProfile {
     minimumSkill: number;
 }
 
-export const STRONGHOLD_BOW_DEFAULTS: StrongholdBowProfile = {
-    strongholdCardId: 'kyuden-ikoma',
-    championCharacterIds: [],
-    towerCharacterIds: [],
-    requiresReadyTarget: true,
-    skipsParticipants: true,
-    minimumSkill: 1
-};
-
 export class StrongholdBowTactics {
     constructor(public readonly profile: StrongholdBowProfile) {}
 
@@ -152,17 +143,9 @@ export class StrongholdBowTactics {
 // tiebreaker because an honored body carries it into the total.
 export interface ConflictRecursionProfile {
     sourceCardIds: readonly string[];
-    minimumSkill: number;
     gloryWeight: number;
     fateWeight: number;
 }
-
-export const CONFLICT_RECURSION_DEFAULTS: ConflictRecursionProfile = {
-    sourceCardIds: ['kitsu-spiritcaller', 'forebearer-s-echoes'],
-    minimumSkill: 2,
-    gloryWeight: 0.5,
-    fateWeight: 0
-};
 
 export class ConflictRecursionTactics {
     constructor(public readonly profile: ConflictRecursionProfile) {}
@@ -184,17 +167,6 @@ export class ConflictRecursionTactics {
             .filter((card) => card?.type === 'character' || card?.type === undefined)
             .sort((left, right) => this.score(right, axis) - this.score(left, axis) ||
                 byUuid(left, right))[0] || null;
-    }
-
-    // Skill this recursion adds, net of a bow-self cost when the source is
-    // itself a ready participant (Kitsu Spiritcaller bows to pay).
-    gain(bodies: any[], axis: Axis, source?: any): number {
-        const best = this.pickTarget(bodies, axis);
-        if(!best) {
-            return 0;
-        }
-        const paid = source?.inConflict && !source?.bowed ? skillOf(source, axis) : 0;
-        return skillOf(best, axis) - paid;
     }
 
 }
@@ -225,16 +197,6 @@ export interface DynastyEventProfile {
     // what we want — so the cap only exists to be tuned, not to block.
     alwaysPlayMaximumHonor: number;
 }
-
-export const DYNASTY_EVENT_DEFAULTS: DynastyEventProfile = {
-    honorBushiCardIds: [],
-    honorBushiMinimumGlory: 1,
-    rerollCardIds: [],
-    rerollMaxUsefulProvinceCards: 1,
-    rerollMinimumFate: 2,
-    alwaysPlayCardIds: [],
-    alwaysPlayMaximumHonor: Number.POSITIVE_INFINITY
-};
 
 export class DynastyEventTactics {
     constructor(public readonly profile: DynastyEventProfile) {}

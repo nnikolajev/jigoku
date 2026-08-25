@@ -49,7 +49,7 @@
 //   asamiCardId                        (used by politicalAxisBonus, but the
 //                                       Action gate itself is in the playbook)
 //   strongholdCardId / strongholdRequiresHonoredAttacker
-//   festivalMinimum* / eleganceMinimum* / eleganceMaxPrintedCost
+//   festivalMinimum* / eleganceMinimum*
 //   airProvinceIds
 //   honorVictoryTarget / honorSpendFloor — read only by `honorToVictory` and
 //     `canSpendHonor`, which no policy path calls yet. The shared
@@ -134,7 +134,6 @@ export interface CraneHonorProfile {
     // Elegance and Grace readies up to 2 honored characters totalling 6
     // printed cost or less.
     eleganceMinimumTargets: number;
-    eleganceMaxPrintedCost: number;
 
     // ---- Way of the Chrysanthemum ------------------------------------------
     // "After 1 or more honor is given to you from an honor bid – gain that
@@ -266,7 +265,6 @@ export const CRANE_HONOR_DEFAULTS: CraneHonorProfile = {
     festivalMinimumTargets: 3,
     festivalMinimumBoardLead: 1,
     eleganceMinimumTargets: 2,
-    eleganceMaxPrintedCost: 6,
 
     chrysanthemumCardId: 'way-of-the-chrysanthemum',
     chrysanthemumBid: 1,
@@ -486,28 +484,6 @@ export class CraneHonorTactics {
             skillOf(b, 'political') - skillOf(a, 'political') ||
             String(a?.uuid || '').localeCompare(String(b?.uuid || ''))
         )[0] || null;
-    }
-
-    /** Elegance and Grace: up to 2 honored characters, 6 printed cost total. */
-    eleganceTargets(myCharacters: any[], printedCosts?: Record<string, number>): any[] {
-        const bowed = (myCharacters || []).filter((card) => card && card.bowed && card.isHonored);
-        const cost = (card: any) => numberOr(printedCosts?.[String(card?.uuid || '')] ?? card?.cost, 0);
-        const ranked = bowed.slice().sort((a, b) =>
-            skillOf(b, 'political') + skillOf(b, 'military') -
-            (skillOf(a, 'political') + skillOf(a, 'military')) ||
-            cost(a) - cost(b));
-        const picked: any[] = [];
-        let total = 0;
-        for(const card of ranked) {
-            if(picked.length >= 2) {
-                break;
-            }
-            if(total + cost(card) <= this.profile.eleganceMaxPrintedCost) {
-                picked.push(card);
-                total += cost(card);
-            }
-        }
-        return picked;
     }
 
     // ---- Way of the Chrysanthemum ------------------------------------------

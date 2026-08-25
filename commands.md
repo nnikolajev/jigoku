@@ -22,7 +22,17 @@ selecting V2 does not change the strategy seed or information mode.
 ```powershell
 npm run typecheck
 npm test
+
+# Current bot architecture boundary gate
+npm exec fallow -- dead-code --boundary-violations
+
+# Type-aware dead-code check for a bot file changed in this branch
+npm exec fallow -- dead-code --unused-class-members --type-aware --file server/game/bots/JigokuBotPolicy.ts
 ```
+
+The unscoped Fallow scan also reports pre-existing findings in normal Jigoku
+code. For bot-only work, use the boundary gate and explicit bot `--file`
+targets above.
 
 ## Measuring a bot change
 
@@ -218,6 +228,18 @@ node tools/selfplay/validateBotInteractions.js --decks Crab,Phoenix --seeds 3 --
 
 The audit detects repeated/no-progress clicks, short action cycles, unsupported
 prompts, decision-budget exhaustion, stalls, timeouts, and engine errors.
+
+## Ready and ring-choice firing census
+
+This correctness census measures rare branches whose win-rate ceilings are
+below the noise floor. It reports ready-value refusals, defender-selected ring
+choices, and committed ready/move sequences. `DECKS` restricts the deck labels;
+`FULL=1` runs every ordered cross-deck pairing instead of the default ring.
+
+```powershell
+$env:BASES='91001,92001'
+node tools/selfplay/auditReadyAndRingChoice.js
+```
 
 ## Effect polarity gate
 

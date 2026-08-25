@@ -85,7 +85,7 @@ export const RUSH_MULLIGAN_PROFILE: MulliganProfile = {
     discardCheapOnStrongBoard: false
 };
 
-export interface MulliganInput {
+interface MulliganInput {
     cards: any[];
     board: any[];
     currentFate: number;
@@ -96,7 +96,7 @@ export interface MulliganInput {
     provinceIdsByLocation?: Record<string, string>;
 }
 
-export interface MulliganPick {
+interface MulliganPick {
     card?: any;
     reason: string;
     band?: MulliganBoardBand;

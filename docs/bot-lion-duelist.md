@@ -50,7 +50,7 @@ Two engine facts shape the whole profile:
 
 | Card | Value | Implementation |
 |---|---|---|
-| `+` **Kyūden Ikoma** | Moderate–high. After a character we control loses a conflict **as attacker**, bow the stronghold to bow a non-Champion character. Free: the stronghold has no competing use for its ready state. | Playbook entry (priority 9, reaction path) + `LionDuelistTactics.pickStrongholdBowTarget`, steered in `polarityTargetDecision` (decision reason `stronghold-bow-enemy`). Skips Champions (engine also filters), **bowed** bodies, and **current participants** — all three are worth zero. Ranks by `bodyValue` (skill + 2/fate + 2/attachment), so it takes the body they have invested in. |
+| `+` **Kyūden Ikoma** | Moderate–high. After a character we control loses a conflict **as attacker**, bow the stronghold to bow a non-Champion character. Free: the stronghold has no competing use for its ready state. | Playbook entry (priority 9, reaction path) + shared `StrongholdBowTactics.pickTarget`, steered in `polarityTargetDecision` (decision reason `stronghold-bow-enemy`). Skips Champions (engine also filters), **bowed** bodies, and **current participants** — all three are worth zero. Ranks by `bodyValue` (skill + 2/fate + 2/attachment), so it takes the body they have invested in. |
 | `+` **Keeper of Air** | Low–moderate on its own; **high as a ring signal**. Gain 1 fate after winning an air conflict on defense — and, far more importantly, the AIR element is what Keeper Initiate's reaction keys on. | Existing generic keeper-role entry, plus new ring steering: `LionDuelistTactics.ringBonus` adds `recursionRingBonus` to AIR whenever a Keeper Initiate is sitting in the dynasty discard. The generic `ringScore` has no notion of a ROLE at all, so nothing steered here before. |
 | `+` **Frostbitten Crossing** (4) | Moderate. Conflict Action at this province: discard **every** attachment on one participant. | Playbook `inPlayAction` + `actionBeforePass`; target via `LionDuelistTactics.pickStripTarget`, which reuses the shared `AttachmentControlProfile` score tables. Theirs scores every attachment; **ours is a NET reading** — the debuffs we shed minus everything good that comes off with them (`ownAttachmentLossWeight`), because the effect is not selective the way Let Go is and cannot take the Pacifism while leaving the katana. Cancels cleanly when nothing clears `stripMinimumValue`. The **click** is gated too (`JigokuBotPolicy.provinceActionWorthwhile`): the attacked-province paths otherwise fire an own province's Action on sight, and once this one is on the stack its only legal target may be our own loaded tower. Shipped as the **stronghold province** per the deck guide; measured against the alternatives in §5. |
 | `=` **Illustrious Forge** (4) | High. Reveal: dig the top 5 for an attachment and put it into play. | Existing province reaction. The "Choose an attachment" menu carries no stats, so the pick is a ranked list: `LionDuelistTactics.attachmentRanking` puts Blade of 10,000 Battles and Setting the Standard first (both convert every conflict win into cards). |
@@ -69,7 +69,7 @@ Two engine facts shape the whole profile:
 | `+` **Kitsu Motso** (3, 3/3, Commander) | Moderate, situational. Action while participating and behind on cards: move an **opponent** character into the conflict. It bows on the way home. | Playbook `inPlayAction` + `LionDuelistTactics.shouldDragOpponentIn`. Gated to conflicts whose outcome can no longer change — out of reach (`motsoHopelessWinDeficit`) or a lead beyond what the dragged body can answer (`motsoSafeLeadMargin`). Otherwise it just hands them skill. |
 | `+` **Akodo Zentaro** (3, 3/1, Commander) | High against holding decks, dead against the rest. Action while attacking: take control of a non-unique holding in the attacked province. | Playbook `inPlayAction` + `actionBeforePass`. Two prompts: `pickHoldingTarget` (valued by `holdingValueById`, engines over raw strength) and `pickHoldingDestination` — the destination province has **every other card in it discarded**, so it picks the one we would miss least (`provinceContentValueByLocation`). |
 | `+` **Matsu Agetoki** (3, 4/2, Commander) | Moderate. Action while attacking and more honorable: move the conflict to another province and reveal it. | Playbook gate + `pickConflictMoveProvince`. **The first gate was wrong**: `strengthNeeded > 0` is true at declaration for nearly every attack, so the deck moved the conflict before playing anything. Now `agetokiMinimumStrengthNeeded` (default 3), and the destination must be at least `agetokiMinimumStrengthSaving` weaker. A facedown province is priced at the field average, not at zero. |
-| `+` **Kitsu Spiritcaller** (3, 1/3) | High. Action: bow it to put **any** character from either discard pile into the conflict, ready. | Playbook `inPlayAction` + `worksWithoutReadyParticipant` (it answers a fully bowed board) + `pickRecursionTarget`. `recursionGain` nets off the skill lost when the source is itself a ready participant. |
+| `+` **Kitsu Spiritcaller** (3, 1/3) | High. Action: bow it to put **any** character from either discard pile into the conflict, ready. | Playbook `inPlayAction` + `worksWithoutReadyParticipant` (it answers a fully bowed board) + shared `ConflictRecursionTactics.pickTarget`, ranked by contested-axis skill with glory and fate tie-breaks. |
 | `+` **Matsu Mitsuko** (4, 4/2, Commander) | High. Action in a military conflict while more honorable: move one of ours in. | Playbook gate + shared move-in steering (strongest ready body at home). |
 | `=` **Akodo Toturi** (5, 6/3, Champion) | High. Resolve a claimed ring's effect a second time. | Existing entry, priority 8. A named tower: 2 extra dynasty fate, first claim on attachments. |
 | `+` **Matsu Tsuko** (5, 5/4, Champion/Commander) | **The deck's best card.** Reaction: winning a conflict she attacks in breaks the attacked non-stronghold province, whatever its strength. | Playbook entry priority 10 **plus a planning change**: `LionDuelistTactics.winIsBreak` collapses `conflictStrengthNeeded`'s attacker target from province strength to zero while she is a ready attacker, we hold the honor lead, and the target is not the stronghold province. Attacks are then sized to *win*, not to out-strength the province. |
@@ -83,7 +83,7 @@ discarded. See §3.
 
 | Card | Value | Implementation |
 |---|---|---|
-| `+` **Honored Veterans** (0) | Moderate. Honor a Bushi played this phase; the opponent honors one of theirs too, so it is only worth a card when our glory is the bigger half. | Measured **zero uses per game** before the fix. `LionDuelistTactics.pickDynastyEvent` now offers it when a Bushi bought *this phase* (`card.new`) is unhonored and carries at least `honoredVeteransMinimumGlory`. |
+| `+` **Honored Veterans** (0) | Moderate. Honor a Bushi played this phase; the opponent honors one of theirs too, so it is only worth a card when our glory is the bigger half. | Measured **zero uses per game** before the fix. Shared `DynastyEventTactics.pick` now offers it when a Bushi bought *this phase* (`card.new`) is unhonored and carries at least `honoredVeteransMinimumGlory`. |
 | `+` **A Season of War** (1) | Moderate. Discard and refill every province faceup, then take another dynasty phase. | Same hook. It is a **reroll**, so it is only offered once the visible provinces hold at most `seasonOfWarMaxUsefulProvinceCards` things we still want, and only with `seasonOfWarMinimumFate` left to spend in the extra phase. |
 | `=` **Proving Ground / Favorable Ground / Imperial Storehouse** | Moderate. | All three already had shared entries; no deck-specific code. Kept in the opening/late holding keep lists, and priced for Zentaro's theft in `holdingValueById`. |
 
@@ -100,7 +100,7 @@ discarded. See §3.
 | `=` **In Service to My Lord** (0) | High. | Existing entry, plays from discard. |
 | `=` **Regal Bearing** (1) | High. Set our dial to 1, draw the dial difference. | Existing entry, already dial-aware via `regalBearingDraw`. Needs a participating **Courtier** — Ikoma Prodigy is the only one, which is why Prodigy is a mulligan keep. |
 | `+` **Prepare for War** (1) | Moderate–high; three payoffs. Discard attachments and/or status tokens from one of ours, then honor it if a Commander. | Playbook gate (debuff, dishonored, or unhonored Commander) + target steering + **two new prompt handlers**: the "Choose any amount of attachments" selector takes only known debuffs then closes (the generic multi-select would have discarded our own weapons), and the per-token Yes/No keeps an Honored token and sheds a Dishonored/Tainted one. |
-| `=` **Forebearer's Echoes** (2) | High. | Existing entry; recursion target now goes through the same `pickRecursionTarget` as Spiritcaller. |
+| `=` **Forebearer's Echoes** (2) | High. | Existing entry; recursion target now goes through the same shared `ConflictRecursionTactics.pickTarget` as Spiritcaller. |
 | `+` **Formal Invitation** (0, attachment) | Moderate. Glory-2 bearer; move it into a political conflict. | `abilityValue: true` (zero printed stats), `attachSide` handled by the carrier picker with `formalInvitationMinimumGlory`. |
 | `+` **Fan of Command** (1, attachment) | Moderate. Ready a participating Bushi. | `abilityValue: true`, gated on an actual bowed participating Bushi. |
 | `=` **Duelist Training** (1) | High. | Existing entry; the duel target now routes through `LionDuelistTactics.duelAxes`. |
@@ -149,8 +149,8 @@ cards.
 Dynasty events are legal from a province exactly like a character, but every
 dynasty economy path ranks *characters* only, so an event sits face-up until the
 round ends and is discarded. Only the Kyuden Bayushi profile had a hook. Honored
-Veterans ×3 measured **zero uses per game**. `LionDuelistTactics.pickDynastyEvent`
-now runs ahead of the body ranking, gated on the Lion Duelist profile.
+Veterans ×3 measured **zero uses per game**. Shared `DynastyEventTactics.pick`
+now runs ahead of the body ranking, gated on an opted-in deck profile.
 
 ### 3.4 `AxisChoiceInput.axisBonusMilitary` / `.axisBonusPolitical`
 
@@ -223,7 +223,7 @@ up, and this deck trips no other strategy flag (both locked in
 
 ### 4.2 `LionDuelistProfile` — everything else is data
 
-All 40 knobs live in `server/game/bots/LionDuelistTactics.ts` and are injectable
+All 39 knobs live in `server/game/bots/LionDuelistTactics.ts` and are injectable
 per arm through `SUBJECT_PROFILE='{"deckProfile":{"lionDuelist":{...}}}'`
 (`lionDuelist` is in the controller's deep-merge list, so an arm names one knob
 instead of restating the whole object).
@@ -234,7 +234,7 @@ instead of restating the whole object).
 | Kyūden Ikoma | `strongholdBowRequiresReadyTarget`, `strongholdBowSkipsParticipants`, `strongholdBowMinimumSkill` |
 | Frostbitten Crossing | `stripMinimumValue`, `ownAttachmentLossWeight` |
 | Kitsu Motso | `motsoAllowOnDefense`, `motsoMinimumTargetSkill`, `motsoHopelessWinDeficit`, `motsoSafeLeadMargin` |
-| Recursion | `recursionMinimumSkill`, `recursionGloryWeight`, `recursionFateWeight` |
+| Recursion | `recursionGloryWeight`, `recursionFateWeight` |
 | Matsu Agetoki | `agetokiMinimumStrengthNeeded`, `agetokiMinimumStrengthSaving`, `facedownProvinceAssumedStrength` |
 | Matsu Tsuko | `winIsBreakCharacterIds` |
 | Akodo Zentaro | `holdingValueById`, `holdingDefaultValue`, `zentaroMinimumHoldingValue` |

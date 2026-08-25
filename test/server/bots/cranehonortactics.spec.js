@@ -157,25 +157,6 @@ describe('CraneHonorTactics', function() {
     });
 
     describe('Elegance and Grace', function() {
-        it('picks at most 2 bowed honored characters inside the printed-cost cap', function() {
-            const cards = [
-                { uuid: 'a', bowed: true, isHonored: true, cost: 1, political: 3 },
-                { uuid: 'b', bowed: true, isHonored: true, cost: 4, political: 4 },
-                { uuid: 'c', bowed: true, isHonored: true, cost: 5, political: 5 }
-            ];
-            const picked = tactics.eleganceTargets(cards);
-            expect(picked.length).toBe(2);
-            expect(picked.reduce((total, card) => total + card.cost, 0))
-                .toBeLessThanOrEqual(CRANE_HONOR_DEFAULTS.eleganceMaxPrintedCost);
-        });
-
-        it('ignores ready or unhonored characters', function() {
-            expect(tactics.eleganceTargets([
-                { uuid: 'a', bowed: false, isHonored: true, cost: 1 },
-                { uuid: 'b', bowed: true, isHonored: false, cost: 1 }
-            ])).toEqual([]);
-        });
-
         it('only spends the card when a ready body still has something to do', function() {
             // Seen live: two characters readied after the last conflict of the
             // round had already resolved. This gate was generalised into

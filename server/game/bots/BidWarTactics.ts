@@ -296,19 +296,6 @@ export class BidWarTactics {
             myHandCount <= this.profile.manipulatorMaxHandCount;
     }
 
-    // ---- dial-difference cards -------------------------------------------
-
-    // Absolute gap between the two honor dials, 0 while either is unknown.
-    // Several of this deck's cards are priced off exactly this.
-    dialDifference(myBid?: number, opponentBid?: number): number {
-        const mine = Number(myBid);
-        const theirs = Number(opponentBid);
-        if(!Number.isFinite(mine) || !Number.isFinite(theirs) || mine <= 0 || theirs <= 0) {
-            return 0;
-        }
-        return Math.abs(mine - theirs);
-    }
-
     // Social Puppeteer swaps the dials for the rest of the round. Worth the
     // Action when the swap turns something on that is off now: composure (our
     // bid becomes the lower one) or an I Can Swim that needs us higher.

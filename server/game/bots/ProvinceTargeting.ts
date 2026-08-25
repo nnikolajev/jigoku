@@ -16,7 +16,7 @@
  */
 const OUTER_PROVINCE_KEYS = ['one', 'two', 'three', 'four'];
 
-export const BROKEN_PROVINCES_TO_ATTACK_STRONGHOLD = 3;
+const BROKEN_PROVINCES_TO_ATTACK_STRONGHOLD = 3;
 
 export type ProvinceAbilityClass = 'none' | 'reveal' | 'reaction' | 'action' | 'unknown';
 

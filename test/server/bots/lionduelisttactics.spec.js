@@ -88,24 +88,6 @@ describe('LionDuelistTactics', function() {
         });
     });
 
-    describe('Kyuden Ikoma bow target', function() {
-        it('skips Champions, bowed bodies and current participants', function() {
-            const champion = character({ id: 'akodo-toturi', uuid: 'champ', military: 6 });
-            const bowed = character({ id: 'a', uuid: 'bowed', military: 5, bowed: true });
-            const participant = character({ id: 'b', uuid: 'inconflict', military: 5, inConflict: true });
-            const idle = character({ id: 'c', uuid: 'idle', military: 3 });
-            const pick = tactics.pickStrongholdBowTarget([champion, bowed, participant, idle], 'military');
-            expect(pick.uuid).toBe('idle');
-        });
-
-        it('prefers the body with the most investment sunk into it', function() {
-            const plain = character({ id: 'a', uuid: 'plain', military: 4 });
-            const invested = character({ id: 'b', uuid: 'invested', military: 3, fate: 2 });
-            const pick = tactics.pickStrongholdBowTarget([plain, invested], 'military');
-            expect(pick.uuid).toBe('invested');
-        });
-    });
-
     describe('Frostbitten Crossing strip', function() {
         const debuff = { id: 'pacifism', uuid: 'att-1' };
         const weapon = { id: 'fine-katana', uuid: 'att-2' };
@@ -226,30 +208,6 @@ describe('LionDuelistTactics', function() {
             const bowed = character({ uuid: 'bowed', military: 6, bowed: true });
             const inside = character({ uuid: 'inside', military: 6, inConflict: true });
             expect(tactics.pickDragTarget([bowed, inside], 'military')).toBeNull();
-        });
-    });
-
-    describe('recursion (Spiritcaller / Forebearer\'s Echoes)', function() {
-        const small = character({ uuid: 'small', military: 1 });
-        const big = character({ uuid: 'big', military: 5 });
-
-        it('takes the biggest body on the contested axis', function() {
-            expect(tactics.pickRecursionTarget([small, big], 'military').uuid).toBe('big');
-        });
-
-        it('reads the political axis for a political conflict', function() {
-            const politician = character({ uuid: 'pol', military: 0, political: 6 });
-            expect(tactics.pickRecursionTarget([big, politician], 'political').uuid).toBe('pol');
-        });
-
-        it('nets off the skill lost when the source bows to pay', function() {
-            const source = character({ uuid: 'src', military: 4, inConflict: true });
-            expect(tactics.recursionGain([big], 'military', source)).toBe(1);
-        });
-
-        it('pays nothing when the source is at home', function() {
-            const source = character({ uuid: 'src', military: 4 });
-            expect(tactics.recursionGain([big], 'military', source)).toBe(5);
         });
     });
 

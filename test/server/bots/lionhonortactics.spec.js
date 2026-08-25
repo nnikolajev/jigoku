@@ -102,7 +102,6 @@ describe('LionHonorTactics', function() {
             expect(duel.strongholdBow.championCharacterIds).toEqual(['akodo-toturi', 'matsu-tsuko-2']);
             expect(duel.strongholdBow.requiresReadyTarget).toBe(true);
             expect(duel.strongholdBow.skipsParticipants).toBe(true);
-            expect(duel.conflictRecursion.minimumSkill).toBe(2);
             expect(duel.conflictRecursion.gloryWeight).toBe(0.5);
             expect(duel.dynastyEvents.rerollCardIds).toEqual(['a-season-of-war']);
             expect(duel.commanderCharacterIds).toContain('matsu-agetoki');
@@ -400,10 +399,5 @@ describe('LionHonorTactics', function() {
             expect(recursion.pickTarget([small, big, glorious], 'military').id).toBe('glorious');
         });
 
-        it('nets off the bow-self cost when the source is a ready participant', function() {
-            const source = character('kitsu-spiritcaller', { military: 1, inConflict: true });
-            const body = character('body', { military: 4 });
-            expect(recursion.gain([body], 'military', source)).toBe(3);
-        });
     });
 });

@@ -1489,7 +1489,6 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         };
         profile.conflictRecursion = {
             sourceCardIds: ['kitsu-spiritcaller', 'forebearer-s-echoes'],
-            minimumSkill: 2,
             gloryWeight: 0.5,
             fateWeight: 0
         };
@@ -2411,7 +2410,6 @@ const OVERRIDES: ProfileOverride[] = [
             },
             conflictRecursion: {
                 sourceCardIds: ['kitsu-spiritcaller', 'forebearer-s-echoes'],
-                minimumSkill: LION_DUELIST_DEFAULTS.recursionMinimumSkill,
                 gloryWeight: LION_DUELIST_DEFAULTS.recursionGloryWeight,
                 fateWeight: LION_DUELIST_DEFAULTS.recursionFateWeight
             },

@@ -20,7 +20,7 @@ import BoardAwareJigokuBotPolicy from './BoardAwareJigokuBotPolicy.js';
 import type { JigokuBotConfig } from './JigokuBotConfig';
 import type { BotDecision, BotDecisionInput, BotEngine, BotEngineDecisionTrace } from './BotEngine';
 
-export function createV1Policy(config: JigokuBotConfig): JigokuBotPolicy {
+function createV1Policy(config: JigokuBotConfig): JigokuBotPolicy {
     const seed = config.seed || 1;
     const isBoardAware = config.policy === 'board-aware' ||
         (config.policy === undefined && (seed === 3 || seed === '3'));

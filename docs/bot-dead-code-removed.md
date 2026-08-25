@@ -15,10 +15,11 @@ both seats against a validated null arm.
 
 ## Method
 
-Candidates came from `npx fallow dead-code --unused-class-members`
-(fallow 3.15.0) over a `.fallowrc.json` that seeds the real entry points.
-Because fallow's type-aware companion does not run on Windows
-(`failed to spawn ... os error 193`), each candidate was then re-checked with
+The 2026-08-13 candidates came from
+`npx fallow dead-code --unused-class-members` (Fallow 3.15.0) over a
+`.fallowrc.json` that seeds the real entry points. At that time Fallow's
+type-aware companion did not run on Windows (`failed to spawn ... os error
+193`), so each candidate was then re-checked with
 the TypeScript LanguageService (`getReferencesAtPosition`), which is
 receiver-aware and so distinguishes `LionDuelistTactics.pickHoldingTarget`
 from an identically-named method on another tactics class. Specs and the
@@ -215,3 +216,49 @@ cross-deck games and prints winner, rounds, **step count** and win reason for
 each; step count diverges on the first changed decision, so an identical dump
 across three independent shuffle bases is stronger evidence of behaviour
 preservation than any win-rate run could be.
+
+---
+
+## 2026-08-25 revalidation
+
+Fallow is now pinned at 3.18.0 in `devDependencies`; use
+`npm exec fallow -- dead-code --unused-class-members --type-aware --file
+server/game/bots/<changed-file>.ts` for bot-only review. The Windows type-aware
+companion now runs (protocol 7). Fallow 3.18 changed boundary zones and rules
+from name-keyed maps to arrays, so the old configuration no longer parsed;
+`.fallowrc.json` now uses the current schema and gives `BotEngineRouter.ts` its
+documented exception zone.
+
+The compiled-JavaScript test edge still matters: specs and self-play tools load
+`build/*.js`, while `build/**` is intentionally ignored. Fallow therefore
+reports some source exports as unused even when a spec or probe consumes the
+compiled export. Every bot candidate was checked against source, specs, tools,
+and history before removal. Rejected V2 experiments and their documentation
+were retained.
+
+This pass removed only behavior-inert leftovers:
+
+- duplicated Lion stronghold/recursion helpers left behind after their live
+  implementation moved to `SharedCardTactics.ts`;
+- spec-only `BidWarTactics.dialDifference`,
+  `CraneHonorTactics.eleganceTargets`, and the two `ReadyValuePolicy` board
+  wrappers;
+- unused ready/move legality prototypes and their `SequenceBoard` type;
+- the never-called `DeckAnalysis.analyzeDeck`, three unreferenced shared
+  default objects, the unused recursion `minimumSkill` field, and dead export
+  modifiers/default exports.
+
+Specs that tested only those unreachable APIs were removed with them. Live
+shared tactics, self-play/probe exports, and knob-gated mechanisms remain.
+
+Final verification for this pass:
+
+| Gate | Result |
+|---|---|
+| `npx tsc` | clean |
+| targeted dead-code specs | 215 specs, 0 failures |
+| bot, self-play, integration, and bot-card specs | 1813 specs, 0 failures |
+| `npm run anti-slop` | clean; baseline tightened from 1231 to 1230 findings |
+| Fallow type-aware scan of all changed bot sources | 0 findings |
+| Fallow boundary-only scan | 0 findings |
+| ready/ring self-play smoke | 4 games completed |

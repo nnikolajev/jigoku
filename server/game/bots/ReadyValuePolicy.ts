@@ -140,34 +140,4 @@ export class ReadyValuePolicy {
         return NOT_USEFUL;
     }
 
-    /**
-     * Whole-board answer for a card that has not chosen its target yet: is ANY
-     * of the candidates worth readying? A bowed participant answers yes on its
-     * own; otherwise the home reading decides for all of them.
-     */
-    anyTargetUseful(candidates: readonly any[], input: Partial<ReadyValueInput>): ReadyValueVerdict {
-        const readyable = (candidates || []).filter((card) => card && card.bowed);
-        if(readyable.length === 0) {
-            return { useful: false, reason: 'ready-no-bowed-target' };
-        }
-        if(readyable.some((card) => card.inConflict)) {
-            return this.evaluate({ ...input, inConflict: true });
-        }
-        const bestGlory = readyable.reduce(
-            (top: number, card: any) => Math.max(top, gloryOf(card)), 0);
-        return this.evaluate({ ...input, inConflict: false, gloryOnReady: bestGlory });
-    }
-
-    /**
-     * Order ready targets by how much the ready is actually worth: bowed
-     * participants first (their skill re-enters the conflict being fought),
-     * then home bodies. Ties are broken by the caller's own value function,
-     * which keeps every existing per-deck preference intact.
-     */
-    sortTargets(candidates: readonly any[], valueOf: (card: any) => number): any[] {
-        return (candidates || []).slice().sort((a: any, b: any) => {
-            const participation = (b?.inConflict ? 1 : 0) - (a?.inConflict ? 1 : 0);
-            return participation !== 0 ? participation : valueOf(b) - valueOf(a);
-        });
-    }
 }

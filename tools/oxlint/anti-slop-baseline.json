@@ -6,12 +6,12 @@
         "test",
         "tools"
     ],
-    "generatedAt": "2026-08-24",
-    "total": 1231,
+    "generatedAt": "2026-08-25",
+    "total": 1230,
     "totalsByRule": {
         "require-safety-comment-for-type-assertion": 803,
         "no-runtime-typeof": 243,
-        "no-known-value-widening": 79,
+        "no-known-value-widening": 78,
         "no-unsafe-dictionary-type": 48,
         "no-shape-in-symbol-names": 24,
         "no-conditional-empty-object-spread": 21,
@@ -92,7 +92,7 @@
             "require-safety-comment-for-type-assertion": 6
         },
         "server/game/bots/DeckAnalysis.ts": {
-            "no-known-value-widening": 2,
+            "no-known-value-widening": 1,
             "require-safety-comment-for-type-assertion": 3
         },
         "server/game/bots/DeckProfiles.ts": {

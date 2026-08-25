@@ -454,5 +454,3 @@ export class DuelBidTactics {
         return stats[stats.length - 1].bid;
     }
 }
-
-export default DuelBidTactics;

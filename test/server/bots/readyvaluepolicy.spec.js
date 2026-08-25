@@ -4,8 +4,7 @@
 const {
     ReadyValuePolicy,
     DEFAULT_READY_VALUE,
-    MOVE_INTO_CONFLICT_SOURCE_IDS,
-    gloryOf
+    MOVE_INTO_CONFLICT_SOURCE_IDS
 } = require('../../../build/server/game/bots/ReadyValuePolicy.js');
 const { getPlaybookEntry } = require('../../../build/server/game/bots/CardPlaybook.js');
 const { DEFAULT_PROFILE, resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
@@ -116,43 +115,6 @@ describe('ReadyValuePolicy', function() {
             expect(legacy.inert).toBe(true);
             expect(legacy.evaluate(SPENT).useful).toBe(true);
             expect(legacy.evaluate({}).useful).toBe(true);
-        });
-    });
-
-    describe('anyTargetUseful', function() {
-        it('needs a bowed target at all', function() {
-            const verdict = policy.anyTargetUseful([{ bowed: false }], SPENT);
-            expect(verdict.useful).toBe(false);
-            expect(verdict.reason).toBe('ready-no-bowed-target');
-        });
-
-        it('takes the participant branch when any candidate is in the conflict', function() {
-            expect(policy.anyTargetUseful(
-                [{ bowed: true, inConflict: false }, { bowed: true, inConflict: true }],
-                SPENT
-            ).reason).toBe('ready-bowed-participant');
-        });
-
-        it('reads live glory off glorySummary, not the bare field', function() {
-            const scorpion = new ReadyValuePolicy({ countFavorGlory: true });
-            // In play, the engine fills `glorySummary.stat` and leaves `glory`
-            // at 0 — reading the bare field prices every board body at zero.
-            expect(scorpion.anyTargetUseful(
-                [{ bowed: true, inConflict: false, glory: 0, glorySummary: { stat: 2 } }],
-                SPENT
-            ).useful).toBe(true);
-            expect(gloryOf({ glory: 0, glorySummary: { stat: 2 } })).toBe(2);
-        });
-    });
-
-    describe('sortTargets', function() {
-        it('puts bowed participants ahead of home bodies, then the caller order', function() {
-            const home = { uuid: 'home', inConflict: false };
-            const weakParticipant = { uuid: 'weak', inConflict: true };
-            const strongParticipant = { uuid: 'strong', inConflict: true };
-            const value = (card) => (card.uuid === 'home' ? 99 : card.uuid === 'strong' ? 5 : 1);
-            expect(policy.sortTargets([home, weakParticipant, strongParticipant], value)
-                .map((card) => card.uuid)).toEqual(['strong', 'weak', 'home']);
         });
     });
 

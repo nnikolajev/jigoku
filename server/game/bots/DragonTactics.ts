@@ -90,7 +90,7 @@ export interface DragonRingPriorityProfile {
 // AND REJECTED (24 bases / 768 games / both seats: the fate bar read 54.5% on
 // the search bases and 45.0% on 24 fresh ones, pooled 49.4%; the fire bonus read
 // 46.7%). They ship at their inert values and stay here as A/B arms.
-export const DRAGON_RING_PRIORITY_DEFAULTS: DragonRingPriorityProfile = {
+const DRAGON_RING_PRIORITY_DEFAULTS: DragonRingPriorityProfile = {
     enabled: true,
     countKeepersInProvinces: true,
     // 0 = keep the policy's generic reading (1 for a fate-aware deck).
@@ -156,7 +156,7 @@ export interface TowerReuseProfile {
     towerProtectionCardIds: string[];
 }
 
-export const TOWER_REUSE_DEFAULTS: TowerReuseProfile = {
+const TOWER_REUSE_DEFAULTS: TowerReuseProfile = {
     readyBetweenConflicts: true,
     primaryTowerIds: ['togashi-mitsu-2'],
     fallbackTowerIds: ['togashi-ichi', 'togashi-tadakatsu'],

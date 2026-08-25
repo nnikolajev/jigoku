@@ -35,19 +35,22 @@ experimental, and now live in `shared/`:
 
 | Zone | Files | LOC | Rule |
 |---|---|---|---|
-| `bots/*.ts` (V1) | 52 | ~36k | ships; may import `shared/`, never `v2/` |
-| `bots/shared/` | 8 | ~3.1k | **used by both engines — editing it changes the shipping bot** |
-| `bots/v2/` | 42 | ~8.6k | measurement only; may import `shared/` and V1 |
+| `bots/*.ts` (V1 + router) | 58 | ~39.3k | ships; may import `shared/`, never `v2/` directly |
+| `bots/shared/` | 8 | ~3.0k | **used by both engines — editing it changes the shipping bot**; may use V1 profiles/analysis |
+| `bots/v2/` | 42 | ~8.3k | measurement only; may import `shared/` and V1 |
 
 `shared/` is `CardValueModel`, `CardValueTypes`, `ConflictActionPlanner`,
 `V2DeckProfiles` and the Duel / Economy / Holding / Support value models.
 Despite its name `applyV2DeckProfile` runs on **every** seat, V1 included — it
 is what merges an injected `--v2-profile` arm into a resolved deck profile.
 
-The one permitted V1→`v2/` import is `BotEngineRouter.ts`, which constructs the
-engine. Anything else is a boundary violation and `npx fallow dead-code` fails
-on it — the rule is encoded in `.fallowrc.json` under `boundaries`, so this
-cannot silently regress.
+The router is its own Fallow zone. `BotEngineRouter.ts` is the only shipping
+module that may construct V2; ordinary V1 may import the router and `shared/`,
+but may not import `v2/` directly. `shared/` may import V1 profile and analysis
+types because those are its live inputs. Anything outside those edges is a
+boundary violation. The current-schema rules are encoded in `.fallowrc.json`
+and checked with
+`npm exec fallow -- dead-code --boundary-violations`.
 
 Because `shared/` is load-bearing for live play, prove any edit to it
 behaviour-neutral with `tools/selfplay/refactorIdentity.js` on several bases

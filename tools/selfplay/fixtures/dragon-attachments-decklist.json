@@ -1,12 +1,12 @@
 {
-    "id": "46aaa220-2cf9-463b-bdf3-3019572432ff",
-    "deck_id": "86d2f1c8-2ab6-4f91-b2ff-6dcb83301bfb",
+    "id": "d3513a30-54c5-45bb-803e-80edbec5d5c6",
+    "deck_id": "ce8df8ae-ee05-4ab7-bc13-087a8fc092cb",
     "format": "standard",
     "name": "Dragon Attachments",
     "primary_clan": "dragon",
     "secondary_clan": "crab",
     "description": "Iron Mountain Castle tower deck.",
-    "version_number": "0.1",
+    "version_number": "0.2",
     "cards": {
         "let-go": 2,
         "ornate-fan": 3,
@@ -43,8 +43,7 @@
         "pathfinder-s-blade": 3,
         "riot-in-the-streets": 1,
         "iron-mountain-castle": 1,
-        "mountaintop-statuary": 2,
-        "alchemical-laboratory": 1,
+        "mountaintop-statuary": 3,
         "two-heavens-technique": 3
     }
 }

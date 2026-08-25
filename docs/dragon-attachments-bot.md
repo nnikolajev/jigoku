@@ -1,11 +1,14 @@
 # Dragon Attachments bot deck
 
-EmeraldDB deck: [Arsenal / Dragon Attachments](https://www.emeralddb.org/decks/46aaa220-2cf9-463b-bdf3-3019572432ff) (Dragon with Crab splash).
+EmeraldDB deck: [Dragon Attachments](https://www.emeralddb.org/decks/ce8df8ae-ee05-4ab7-bc13-087a8fc092cb/) (Dragon with Crab splash).
 
 This is an Iron Mountain Castle attachment-tower deck. The bot builds two
 durable characters, puts 3-4 fate on them, searches for attachments, and uses
 Weapons to ready Niten Master for additional conflicts. The deck is registered
 as `DragonAttachments` in the self-play tools.
+
+Deck revision 0.2 replaces Alchemical Laboratory with a third Mountaintop
+Statuary.
 
 ## Profile and economy
 
@@ -101,19 +104,10 @@ play if no strategic bearer has a free slot. Specific steering:
 - Agasha Sumiko, Kitsuki Yuikimi, Keen Warrior, Hiruma Skirmisher, Niten
   Master, Finger of Jade, Pathfinder's Blade, Seeker of Fire, and province
   reactions have explicit trigger priorities.
-- Mountaintop Statuary is reserved for the stronghold defense and sends home a
-  legal cheap attacker. Manicured Garden and Riot in the Streets use the
-  generic attacked-province action path. Pilgrimage and Ancestral Lands are
-  passive engine effects.
-
-## Alchemical Laboratory rules note
-
-The rules-authority implementation differs from the proposed description.
-Alchemical Laboratory says that, while Fire is claimed, attachments you
-control **on another player's character** gain ancestral. It does not make
-attachments on your own tower ancestral. Own attachment recursion comes from
-Adopted Kin and cards with printed Ancestral (Ancestral Daisho and Kitsuki's
-Method). The bot keeps the Jigoku card behavior unchanged.
+- All three Mountaintop Statuary copies are reserved for stronghold defense and
+  send home a legal cheap attacker. Manicured Garden and Riot in the Streets
+  use the generic attacked-province action path. Pilgrimage and Ancestral Lands
+  are passive engine effects.
 
 ## Verification and tuning
 
@@ -150,13 +144,18 @@ matchups remain noisy; the aggregate is the tuning signal. Raising maximum
 tower fate to 5 (34.8%) and buying support immediately after a tower (36.7%)
 were tested and rejected.
 
-Final all-deck validation at N=40 per matchup finished **178-182 (49.4%)**,
-up from the pre-fix **103-257 (28.6%)** snapshot. A separate N=100 run against
-the Crane precon finished **68-32 (68%)**, up from 42% in the reported
-pre-fix run. Seats alternate and both players use seed 1 fate-aware logic.
+The deck-revision 0.2 standard 17-deck round robin completed all **5,440 games**
+at N=40 per matchup with no failed jobs. Dragon Attachments finished
+**279-357 with 4 undecided (43.9% of decided games)** across its 640 games, with
+a **43.8%** macro-average win rate against all 16 opponents. Seats alternate;
+both players use the v1 engine, seed 1, fair information, and adaptive draw bids.
 
-The reducer-validation snapshot passed **278 bot specs with 0 failures**, and
-TypeScript typechecking passed. The suite has since expanded, so that count is
-historical rather than a current total. The card integration specs require the repository's
-external `test/json/Card` fixture data; deterministic self-play confirms the
-runtime reducer sequence when those fixtures are unavailable locally.
+The earlier 10-deck all-deck validation finished **178-182 (49.4%)**, up from
+the pre-fix **103-257 (28.6%)** snapshot. A separate historical N=100 run
+against the Crane precon finished **68-32 (68%)**, up from 42% in the reported
+pre-fix run.
+
+On 2026-08-25, the server `npm test` suite passed TypeScript typechecking and
+**11,598 specs with 0 failures and 8 pending**; anti-slop reported no new
+findings. The client `npm test` suite passed **185 tests with 2 skipped**, also
+with no new anti-slop findings.

@@ -211,7 +211,7 @@ function loadDragonDeck() {
     return buildDeck(decklist, cardsById);
 }
 
-// Dragon "Attachments" (EmeraldDB 46aaa220) — Iron Mountain Castle tower
+// Dragon "Attachments" (EmeraldDB ce8df8ae) — Iron Mountain Castle tower
 // deck with Crab splash.
 function loadDragonAttachmentsDeck() {
     const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-attachments-decklist.json'), 'utf8'));

@@ -75,7 +75,6 @@ export const HOLDING_ABILITY_VALUE: Readonly<Record<string, number>> = Object.fr
     'kakita-dojo': 3, // a duel on demand
     'moto-stables': 2,
     'licensed-quarter': 2,
-    'alchemical-laboratory': 2,
     'revered-bonsho': 2,
     'staging-ground': 2,
     'proving-ground': 2,

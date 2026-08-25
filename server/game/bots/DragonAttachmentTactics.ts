@@ -366,9 +366,7 @@ export class DragonAttachmentTactics {
             (card.attachments || []).some((attachment: any) => attachment.id === 'inscribed-tanto'))) {
             return 18;
         }
-        // Fire honors a built tower. Alchemical Laboratory does not preserve
-        // attachments on our characters: its printed effect applies only to
-        // attachments we control on another player's character.
+        // Fire honors a built tower.
         if(element === 'fire' && (board || []).some((card) =>
             this.isTowerCharacter(card.id) && (card.attachments || []).length > 0 && !card.isHonored)) {
             return 22;

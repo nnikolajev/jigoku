@@ -6,6 +6,7 @@ const { deriveDeckStrategy, getPlaybookEntry } = require('../../../build/server/
 const { profileFromStrategy, resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
 const JigokuBotPolicy = require('../../../build/server/game/bots/JigokuBotPolicy.js');
 const FateAwareJigokuBotPolicy = require('../../../build/server/game/bots/FateAwareJigokuBotPolicy.js');
+const dragonAttachmentDecklist = require('../../../tools/selfplay/fixtures/dragon-attachments-decklist.json');
 
 describe('DragonAttachmentTactics', function() {
     const tactics = new DragonAttachmentTactics(DRAGON_ATTACHMENT_DEFAULTS);
@@ -22,6 +23,12 @@ describe('DragonAttachmentTactics', function() {
     };
 
     describe('strategy and profile gating', function() {
+        it('uses the v0.2 EmeraldDB deck with three Statuaries and no Laboratory', function() {
+            expect(dragonAttachmentDecklist.deck_id).toBe('ce8df8ae-ee05-4ab7-bc13-087a8fc092cb');
+            expect(dragonAttachmentDecklist.cards['mountaintop-statuary']).toBe(3);
+            expect(dragonAttachmentDecklist.cards['alchemical-laboratory']).toBeUndefined();
+        });
+
         it('keys only on Iron Mountain Castle', function() {
             expect(deriveDeckStrategy(['iron-mountain-castle']).attachmentTower).toBe(true);
             expect(deriveDeckStrategy(['high-house-of-light']).attachmentTower).toBe(false);

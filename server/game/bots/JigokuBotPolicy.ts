@@ -2614,6 +2614,14 @@ class JigokuBotPolicy {
         };
     }
 
+    /** Imperial honor thresholds: either Air-ring choice ends the game on a win. */
+    private airRingHonorVictoryInReach(me: any, opponent: any): boolean {
+        const myHonor = Number(me?.stats?.honor);
+        const opponentHonor = Number(opponent?.stats?.honor);
+        return (Number.isFinite(myHonor) && myHonor >= 23) ||
+            (Number.isFinite(opponentHonor) && opponentHonor <= 1);
+    }
+
     private strongholdDefensePlan(me: any, opponent: any, profile: DeckProfile,
         omni?: Omniscient, exactStrength?: number, exactWeakestOuterStrength?: number): StrongholdDefensePlan {
         const strongholdProfile = profile.strongholdDefense || DEFAULT_PROFILE.strongholdDefense;
@@ -3691,18 +3699,6 @@ class JigokuBotPolicy {
 
         if(lowerMenu.includes('elemental ring')) {
             const passButton = this.findButton(buttons, ['pass conflict']);
-            if(strongholdPlan.active && strongholdPlan.mode === 'hold-all' && passButton) {
-                return this.buttonDecision(passButton, strongholdPlan.reason);
-            }
-            const canAttack = ready.some((card) => !reserved.has(String(card.uuid)) &&
-                ((this.skillValue(card, 'military') || 0) > 0 || (this.skillValue(card, 'political') || 0) > 0));
-            if(!canAttack && passButton) {
-                return this.buttonDecision(passButton, strongholdPlan.active ? 'stronghold-no-free-attacker' : 'pass-no-attackers');
-            }
-            if(profile.conflictPlanning?.applyPassPlan && lookahead?.action === 'pass' && passButton) {
-                return this.buttonDecision(passButton, lookahead.reason);
-            }
-
             const rings = Object.values(playerState?.rings || {})
                 .filter((ring: any) => ring && ring.unselectable !== true && !ring.claimed)
                 .sort((a: any, b: any) => {
@@ -3712,12 +3708,28 @@ class JigokuBotPolicy {
                     }
                     return RING_ORDER.indexOf(a.element) - RING_ORDER.indexOf(b.element);
                 });
+            const honorVictoryAirRing: any = this.airRingHonorVictoryInReach(me, opponent) &&
+                (!legalRingElements || !!legalRingElements.air)
+                ? rings.find((candidate: any) => candidate.element === 'air' &&
+                    !this.isAttempted('ringClicked', [candidate.element]))
+                : undefined;
+            if(!honorVictoryAirRing && strongholdPlan.active && strongholdPlan.mode === 'hold-all' && passButton) {
+                return this.buttonDecision(passButton, strongholdPlan.reason);
+            }
+            const canAttack = ready.some((card) => (honorVictoryAirRing || !reserved.has(String(card.uuid))) &&
+                ((this.skillValue(card, 'military') || 0) > 0 || (this.skillValue(card, 'political') || 0) > 0));
+            if(!canAttack && passButton) {
+                return this.buttonDecision(passButton, strongholdPlan.active ? 'stronghold-no-free-attacker' : 'pass-no-attackers');
+            }
+            if(!honorVictoryAirRing && profile.conflictPlanning?.applyPassPlan && lookahead?.action === 'pass' && passButton) {
+                return this.buttonDecision(passButton, lookahead.reason);
+            }
 
             const plannedRing = useRingPlan && lookahead?.ringElement
                 ? rings.find((candidate: any) => candidate.element === lookahead.ringElement &&
                     !this.isAttempted('ringClicked', [candidate.element]))
                 : undefined;
-            const ring: any = plannedRing || rings.find((candidate: any) =>
+            const ring: any = honorVictoryAirRing || plannedRing || rings.find((candidate: any) =>
                 !this.isAttempted('ringClicked', [candidate.element]));
             if(ring) {
                 // Ring fate goes to the ATTACKER at declaration
@@ -3741,9 +3753,11 @@ class JigokuBotPolicy {
                     command: 'ringClicked',
                     args: [ring.element],
                     target: ring.element,
-                    reason: plannedRing
-                        ? (intentPlan ? `${lookahead!.reason}-ring` : 'conflict-lookahead-ring')
-                        : 'declare-conflict-ring'
+                    reason: honorVictoryAirRing
+                        ? 'air-ring-honor-victory'
+                        : plannedRing
+                            ? (intentPlan ? `${lookahead!.reason}-ring` : 'conflict-lookahead-ring')
+                            : 'declare-conflict-ring'
                 };
             }
 
@@ -3855,18 +3869,21 @@ class JigokuBotPolicy {
             const type = conflictType || 'military';
             const committed = this.myCharactersInPlay(me).filter((card) => card.inConflict);
             const finalStrongholdPush = this.strongholdUnderAttack(opponent);
+            const honorVictoryPush = selectedElement === 'air' &&
+                this.airRingHonorVictoryInReach(me, opponent);
             // The winning deck option may want bodies held out of THIS
             // declaration (a cavalry mover that joins later, a wall that stays
-            // home). A final stronghold push overrides every reserve.
-            const declarationReserved = intentPlan && !finalStrongholdPush &&
-                (lookahead?.reserveUuids || []).length > 0
-                ? new Set([...reserved, ...lookahead!.reserveUuids!])
-                : reserved;
+            // home). A game-ending stronghold or Air-ring push overrides every reserve.
+            const declarationReserved = honorVictoryPush
+                ? new Set<string>()
+                : intentPlan && !finalStrongholdPush && (lookahead?.reserveUuids || []).length > 0
+                    ? new Set([...reserved, ...lookahead!.reserveUuids!])
+                    : reserved;
             const legalUncommitted = ready.filter((card) =>
                 !card.inConflict && !declarationReserved.has(String(card.uuid)));
             const eligible = legalUncommitted.filter((card) => (this.skillValue(card, type) || 0) > 0);
             let candidates = this.sortBySkillDesc(
-                finalStrongholdPush
+                finalStrongholdPush || honorVictoryPush
                     ? eligible
                     : this.withoutHonorCostDeclares(eligible, dishonor, me?.stats?.honor ?? 10, cardHint),
                 type
@@ -4036,6 +4053,7 @@ class JigokuBotPolicy {
                 keepHome: Math.max(1, profile.attackKeepHome),
                 attackCommitment: profile.attackCommitment,
                 finalStrongholdPush,
+                honorVictoryPush,
                 plannedNext: !!plannedNext,
                 plannedComplete
             });
@@ -4061,6 +4079,7 @@ class JigokuBotPolicy {
                 totalEligible: totalEligible,
                 attackCommitment: profile.attackCommitment,
                 finalStrongholdPush: finalStrongholdPush,
+                honorVictoryPush: honorVictoryPush,
                 // Hidden-information contribution to THIS break target: the
                 // exact province strength that replaced the guess-4 fallback,
                 // and the bounded response buffer.
@@ -4069,7 +4088,8 @@ class JigokuBotPolicy {
                 fairProvinceStrength: omni ? this.attackedProvinceStrength(opponent, 4) : provinceStrength
             }));
 
-            if(profile.conflictPlanning?.applyPassPlan && lookahead?.action === 'pass' && committed.length === 0) {
+            if(!honorVictoryPush && profile.conflictPlanning?.applyPassPlan &&
+                lookahead?.action === 'pass' && committed.length === 0) {
                 const passButton = this.findButton(buttons, ['pass conflict']);
                 if(passButton) {
                     return this.buttonDecision(passButton, lookahead.reason);
@@ -4098,25 +4118,24 @@ class JigokuBotPolicy {
             const hopelessKeepHome = Math.max(0,
                 Number(profile.conflictPlanning?.hopelessAttackKeepHome) || 0);
             const attackIsHopeless = profile.conflictPlanning?.hopelessAttackKeepHome !== undefined &&
-                !finalStrongholdPush && !strongholdPlan.forceAllAttackers &&
+                !finalStrongholdPush && !honorVictoryPush && !strongholdPlan.forceAllAttackers &&
                 (potentialSkill - breakTarget) < (profile.conflictPlanning?.hopelessAttackReach ?? -4);
             const hopelessCap = Math.max(1, totalEligible - hopelessKeepHome);
             const hopelessTrimmed = attackIsHopeless && committed.length >= hopelessCap;
 
-            // A stronghold race is the one place the rollout's objective is
-            // simply wrong. It commits the smallest set that wins the PHASE,
-            // but breaking a stronghold ends the GAME, so there is no later
-            // conflict to preserve bodies for. Hand these back to the generic
-            // commitment path, which sends everything.
-            const strongholdRace = finalStrongholdPush || strongholdPlan.forceAllAttackers ||
+            // A game-ending push is where the rollout's phase objective is
+            // wrong. Breaking a stronghold or resolving lethal Air ends the
+            // game, so there is no later conflict to preserve bodies for.
+            const gameEndingPush = finalStrongholdPush || honorVictoryPush ||
+                strongholdPlan.forceAllAttackers ||
                 profile.attackCommitment === 'all';
 
-            if(plannedNext && !hopelessTrimmed && !strongholdRace) {
+            if(plannedNext && !hopelessTrimmed && !gameEndingPush) {
                 return this.cardClickDecision(plannedNext,
                     intentPlan ? `${lookahead!.reason}-attacker` : 'conflict-lookahead-attacker');
             }
             if((plannedComplete || hopelessTrimmed) && !payoffCandidate && !planShortOfBreak &&
-                !strongholdRace) {
+                !gameEndingPush) {
                 const initiate = this.findButton(buttons, ['initiate conflict']);
                 if(initiate) {
                     return this.buttonDecision(initiate,
@@ -4127,7 +4146,8 @@ class JigokuBotPolicy {
             // A pure turtle ('breakable-or-hold') only commits an attack it can
             // actually break; when the break is out of reach it keeps every body
             // home and passes the conflict rather than throwing skill away.
-            if(!finalStrongholdPush && profile.attackCommitment === 'breakable-or-hold' && potentialSkill < breakTarget) {
+            if(!finalStrongholdPush && !honorVictoryPush &&
+                profile.attackCommitment === 'breakable-or-hold' && potentialSkill < breakTarget) {
                 const passButton = this.findButton(buttons, ['pass conflict']);
                 if(committed.length === 0 && passButton) {
                     return this.buttonDecision(passButton, 'defensive-hold');
@@ -4152,7 +4172,8 @@ class JigokuBotPolicy {
             // the same number of bodies whether the break is one point away or
             // fifteen. Undefined leaves the mode exactly as V1 sized it.
             let unbreakableCommit: boolean;
-            if(strongholdPlan.forceAllAttackers || finalStrongholdPush || profile.attackCommitment === 'all') {
+            if(strongholdPlan.forceAllAttackers || finalStrongholdPush || honorVictoryPush ||
+                profile.attackCommitment === 'all') {
                 unbreakableCommit = committed.length < totalEligible;
             } else if(profile.attackCommitment === 'breakable-or-hold') {
                 unbreakableCommit = false;
@@ -4176,7 +4197,7 @@ class JigokuBotPolicy {
                 !moverIsDirectCandidate
                 ? this.currentUnicorn?.projectedMoveSwing(unicornMover, unicornMoveCtx) || 0
                 : 0;
-            const needMore = strongholdPlan.forceAllAttackers
+            const needMore = strongholdPlan.forceAllAttackers || honorVictoryPush
                 ? committed.length < totalEligible
                 : potentialSkill >= breakTarget
                     ? committedSkill + projectedMoveSkill < breakTarget || !!payoffCandidate
@@ -4198,13 +4219,15 @@ class JigokuBotPolicy {
                     !this.isAttempted('cardClicked', [card.uuid])) ||
                     (committed.length === 0 && moverIsDirectCandidate ? unicornMover : null);
                 if(next) {
-                    return this.cardClickDecision(next, 'declare-attacker');
+                    return this.cardClickDecision(next,
+                        honorVictoryPush ? 'air-ring-honor-victory-attacker' : 'declare-attacker');
                 }
             }
 
             const initiate = this.findButton(buttons, ['initiate conflict']);
             if(committed.length > 0 && initiate) {
-                return this.buttonDecision(initiate, 'initiate-conflict');
+                return this.buttonDecision(initiate,
+                    honorVictoryPush ? 'air-ring-honor-victory-initiate' : 'initiate-conflict');
             }
 
             const forcedPick = candidates.find((card) => !this.isAttempted('cardClicked', [card.uuid]));

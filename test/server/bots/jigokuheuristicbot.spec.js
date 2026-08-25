@@ -1884,15 +1884,20 @@ describe('Jigoku heuristic bot', function() {
                 { text: 'Gain 2 Honor', arg: 0, uuid: 'gain' },
                 { text: 'Take 1 Honor from opponent', arg: 1, uuid: 'take' }
             ];
-            const makeAirState = (opponentHonor) => ({
+            const makeAirState = (opponentHonor, myHonor = 10) => ({
                 players: {
-                    'Jigoku Bot': { name: 'Jigoku Bot', promptTitle: 'Air Ring', menuTitle: '', buttons: airButtons, cardPiles: {} },
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', promptTitle: 'Air Ring', menuTitle: '', buttons: airButtons,
+                        stats: { honor: myHonor }, cardPiles: {}
+                    },
                     'Human': { name: 'Human', stats: { honor: opponentHonor } }
                 }
             });
             const policy = new JigokuBotPolicy('air');
             expect(policy.decide(makeAirState(18), 'Jigoku Bot').target).toBe('Take 1 Honor from opponent');
             expect(policy.decide(makeAirState(10), 'Jigoku Bot').target).toBe('Gain 2 Honor');
+            expect(policy.decide(makeAirState(5, 23), 'Jigoku Bot').target).toBe('Gain 2 Honor');
+            expect(policy.decide(makeAirState(1), 'Jigoku Bot').target).toBe('Take 1 Honor from opponent');
         });
     });
 
@@ -2609,11 +2614,37 @@ describe('Jigoku heuristic bot', function() {
         });
 
         it('passes the conflict and keeps every body when one defender cannot save the stronghold', function() {
-            const state = makeState('Choose an elemental ring', [character('army', 12, 0)]);
+            const state = makeState('Choose an elemental ring', [character('army', 12, 0)], { honor: 2 });
+            state.players['Jigoku Bot'].stats.honor = 22;
             const decision = new JigokuBotPolicy('last-province-hold').decide(
                 state, 'Jigoku Bot', { strongholdProvinceStrength: 4 });
             expect(decision.target).toBe('Pass Conflict');
             expect(decision.reason).toBe('stronghold-defense-uncertain');
+        });
+
+        it('declares Air through an exposed-stronghold hold at 23 honor', function() {
+            const state = makeState('Choose an elemental ring', [character('army', 12, 0)], { honor: 5 });
+            state.players['Jigoku Bot'].stats.honor = 23;
+            state.rings.earth = { element: 'earth', claimed: false, unselectable: false, fate: 3 };
+
+            const decision = new JigokuBotPolicy('air-honor-win').decide(
+                state, 'Jigoku Bot', { strongholdProvinceStrength: 4 });
+
+            expect(decision.command).toBe('ringClicked');
+            expect(decision.args[0]).toBe('air');
+            expect(decision.reason).toBe('air-ring-honor-victory');
+        });
+
+        it('declares Air through an exposed-stronghold hold against 1 honor', function() {
+            const state = makeState('Choose an elemental ring', [character('army', 12, 0)], { honor: 1 });
+            state.rings.earth = { element: 'earth', claimed: false, unselectable: false, fate: 3 };
+
+            const decision = new JigokuBotPolicy('air-dishonor-win').decide(
+                state, 'Jigoku Bot', { strongholdProvinceStrength: 4 });
+
+            expect(decision.command).toBe('ringClicked');
+            expect(decision.args[0]).toBe('air');
+            expect(decision.reason).toBe('air-ring-honor-victory');
         });
 
         it('uses the same stronghold plan on Tadakatsu\'s button-only declaration prompt', function() {
@@ -2650,6 +2681,38 @@ describe('Jigoku heuristic bot', function() {
                 state, 'Jigoku Bot', { strongholdProvinceStrength: 4 });
             expect(decision.command).toBe('cardClicked');
             expect(decision.args[0]).toBe('weak');
+        });
+
+        [
+            { label: '23 own honor', myHonor: 23, opponentHonor: 5 },
+            { label: '1 opponent honor', myHonor: 10, opponentHonor: 1 }
+        ].forEach(({ label, myHonor, opponentHonor }) => {
+            it(`commits every attacker for lethal Air at ${label}`, function() {
+                const state = makeState(
+                    'Choose attackers',
+                    [character('army', 12, 0)],
+                    { honor: opponentHonor }
+                );
+                const me = state.players['Jigoku Bot'];
+                me.stats.honor = myHonor;
+                const policy = new JigokuBotPolicy(`air-all-in-${myHonor}-${opponentHonor}`);
+
+                const first = policy.decide(state, 'Jigoku Bot', { strongholdProvinceStrength: 4 });
+                expect(first.args[0]).toBe('strong');
+                expect(first.reason).toBe('air-ring-honor-victory-attacker');
+
+                me.cardPiles.cardsInPlay[0].inConflict = true;
+                me.menuTitle = 'Choose attackers - Attacker: 6 Defender: 0';
+                const second = policy.decide(state, 'Jigoku Bot', { strongholdProvinceStrength: 4 });
+                expect(second.args[0]).toBe('weak');
+                expect(second.reason).toBe('air-ring-honor-victory-attacker');
+
+                me.cardPiles.cardsInPlay[1].inConflict = true;
+                me.menuTitle = 'Choose attackers - Attacker: 8 Defender: 0';
+                const initiate = policy.decide(state, 'Jigoku Bot', { strongholdProvinceStrength: 4 });
+                expect(initiate.target).toBe('Initiate Conflict');
+                expect(initiate.reason).toBe('air-ring-honor-victory-initiate');
+            });
         });
 
         it('commits the weakest reserved body when a defender-chosen-ring prompt cannot pass', function() {

@@ -399,6 +399,26 @@ export interface DeckProfile {
     // resolution rather than strip our own fate. `false` restores the
     // pre-fix (highest-fate / highest-skill) ordering EXACTLY.
     fateRemovalKillFirst: boolean;
+    // Court Games' dishonor half resolves with `player: Players.Opponent`: the
+    // OPPONENT chooses which of their participants takes the token, so the
+    // realised value of that half is their LOWEST-glory eligible participant,
+    // not their highest. On, the honor-vs-dishonor menu compares our best
+    // honorable participant against that minimum instead of the maximum. Off
+    // restores the pre-2026-08-25 comparison exactly.
+    //
+    // Not for decks that WIN on the honor track or that run a dishonor engine
+    // (`CraneHonor`, `LionHonor`, the Scorpion lists): there the token is a
+    // trigger, not a stat swing, and those decks answer this menu from their
+    // own branch or want the dishonor regardless of glory.
+    courtGamesOpponentPicksDishonor: boolean;
+    // Attachment-removal urgency (2026-08-25). A debilitating attachment on OUR
+    // board -- Pacifism, Stolen Breath -- shuts a body out of a whole conflict
+    // type, and the cards printed to answer it were gated on the OPPONENT
+    // carrying an attachment instead (`miya-mystic`). On, an own debuff is a
+    // reason to fire the remover, with Let Go (a free hand card) taking
+    // priority over Miya Mystic (which sacrifices the body). Off restores the
+    // pre-fix gate exactly.
+    debuffRemovalUrgency: boolean;
     // The honor decks rank honor targets from a printed priority list. A bowed
     // character, and one at home, contribute no skill, so during a live
     // conflict that list happily spends the token for zero swing. On, a ready
@@ -890,6 +910,8 @@ export const DEFAULT_PROFILE: DeckProfile = {
     shamefulDisplaySplitSides: true,
     polarityGuards: true,
     fateRemovalKillFirst: true,
+    courtGamesOpponentPicksDishonor: true,
+    debuffRemovalUrgency: true,
     honorTargetLiveSwing: true,
     eleganceRequiresUse: true,
     bidWarAware: false,
@@ -1052,7 +1074,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         // Monk/card-engine deck: generic balanced attack/defense knobs stay;
         // the playstyle (play many cards, void recursion, Mitsu steering)
         // lives in the DragonTactics knobs.
-        profile.dragon = { ...DRAGON_DEFAULTS };
+        profile.dragon = {
+            ...DRAGON_DEFAULTS,
+            towerReuse: { ...DRAGON_DEFAULTS.towerReuse },
+            ringPriority: { ...DRAGON_DEFAULTS.ringPriority }
+        };
         profile.drawBidding = { ...CARD_ENGINE_DRAW_BID_PROFILE };
         profile.legacyDrawBidding = { ...DRAGON_LEGACY_DRAW_BID_PROFILE };
         profile.fateAwareEconomy = {
@@ -1204,6 +1230,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             ...DISHONOR_DEFAULTS,
             importantCharacterIds: [...DISHONOR_DEFAULTS.importantCharacterIds]
         };
+        // Court Games: this deck's honor/dishonor token is an ENGINE TRIGGER,
+        // not a stat swing, so the glory comparison that drives
+        // `courtGamesOpponentPicksDishonor` is the wrong question here. Off, at
+        // the owner's instruction; flip it per archetype to A/B it.
+        profile.courtGamesOpponentPicksDishonor = false;
         profile.drawBidding = { ...DISHONOR_DRAW_BID_PROFILE };
         profile.legacyDrawBidding = { ...DISHONOR_LEGACY_DRAW_BID_PROFILE };
         profile.duelBidding = {
@@ -1232,6 +1263,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             kachikoImportantCharacterIds: [...BID_WAR_DEFAULTS.kachikoImportantCharacterIds],
             reverseHonorCardIds: [...BID_WAR_DEFAULTS.reverseHonorCardIds]
         };
+        // Court Games: this deck's honor/dishonor token is an ENGINE TRIGGER,
+        // not a stat swing, so the glory comparison that drives
+        // `courtGamesOpponentPicksDishonor` is the wrong question here. Off, at
+        // the owner's instruction; flip it per archetype to A/B it.
+        profile.courtGamesOpponentPicksDishonor = false;
         // Cards are the resource this deck converts its honor into.
         profile.drawBidding = {
             ...CARD_ENGINE_DRAW_BID_PROFILE,
@@ -1276,6 +1312,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         };
     }
     if(strategy.craneHonor) {
+        // Court Games: this deck's honor/dishonor token is an ENGINE TRIGGER,
+        // not a stat swing, so the glory comparison that drives
+        // `courtGamesOpponentPicksDishonor` is the wrong question here. Off, at
+        // the owner's instruction; flip it per archetype to A/B it.
+        profile.courtGamesOpponentPicksDishonor = false;
         // Applied AFTER the `duelist` overlay above, because Tsuma makes this
         // deck derive `duelist` too and the shared duel package's economy
         // (durable towers, deep fate) is the opposite of what an honor race
@@ -1353,6 +1394,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
         };
     }
     if(strategy.lionHonor) {
+        // Court Games: this deck's honor/dishonor token is an ENGINE TRIGGER,
+        // not a stat swing, so the glory comparison that drives
+        // `courtGamesOpponentPicksDishonor` is the wrong question here. Off, at
+        // the owner's instruction; flip it per archetype to A/B it.
+        profile.courtGamesOpponentPicksDishonor = false;
         profile.lionHonor = {
             ...LION_HONOR_DEFAULTS,
             additionalFateByCharacterId: { ...LION_HONOR_DEFAULTS.additionalFateByCharacterId },

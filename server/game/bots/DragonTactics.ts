@@ -45,7 +45,62 @@ export interface DragonProfile {
     ringFateOnKihoCharacters: string[];
     kihoCards: string[];
     towerReuse: TowerReuseProfile;
+    ringPriority: DragonRingPriorityProfile;
 }
+
+// Which ring this deck wants, before any fate pile is considered.
+export interface DragonRingPriorityProfile {
+    // `false` reproduces V1's ring ordering exactly.
+    enabled: boolean;
+    // Keeper Initiate returns from the dynasty discard OR from a PROVINCE when
+    // a matching ring is claimed (`KeeperInitiate.location`). V1's void bonus
+    // counted only the discard, so the copies sitting faceup in provinces —
+    // which is where they start — were invisible.
+    countKeepersInProvinces: boolean;
+    // Fate on a ring only outranks the element plan from this much up. V1 uses
+    // 1 for every fate-aware deck, which makes a single fate beat a free 2-cost
+    // body out of the dynasty discard.
+    fateDominanceThreshold: number;
+    // Fire honors a character, and the tower is the body whose glory the deck
+    // actually cashes. Bonus added while a tower is in play and NOT honored.
+    unhonoredTowerFireBonus: number;
+    // Tranquil Philosopher moves 1 fate between unclaimed rings. Worth an
+    // activation whenever a fate is sitting on a ring the plan does not want
+    // and it can be carried onto the ring the plan does want.
+    philosopherFateMove: boolean;
+    // How many unclaimed rings may sit at or above `fateDominanceThreshold` and
+    // still leave the move worth making. One 2-fate ring is a DONOR: taking one
+    // fate off it and attacking the wanted element beats attacking the wrong
+    // element for two. Two such rings mean a real pile exists on both sides of
+    // the choice, so take one instead of shuffling fate around.
+    philosopherMaxRichRings: number;
+    // Fate at which a ring counts as RICH for the philosopher's own decision.
+    // Deliberately independent of `fateDominanceThreshold`: the two components
+    // measured separately, and the fate bar for "which ring do I attack" was
+    // rejected while this one was not.
+    philosopherRichThreshold: number;
+    // Never break up a pile bigger than this. A three-fate ring is worth taking
+    // for the fate alone.
+    philosopherMaxDonorFate: number;
+}
+
+// SHIPPED with only the two halves that measured clean.
+//
+// `fateDominanceThreshold: 2` and `unhonoredTowerFireBonus: 45` were MEASURED
+// AND REJECTED (24 bases / 768 games / both seats: the fate bar read 54.5% on
+// the search bases and 45.0% on 24 fresh ones, pooled 49.4%; the fire bonus read
+// 46.7%). They ship at their inert values and stay here as A/B arms.
+export const DRAGON_RING_PRIORITY_DEFAULTS: DragonRingPriorityProfile = {
+    enabled: true,
+    countKeepersInProvinces: true,
+    // 0 = keep the policy's generic reading (1 for a fate-aware deck).
+    fateDominanceThreshold: 0,
+    unhonoredTowerFireBonus: 0,
+    philosopherFateMove: true,
+    philosopherMaxRichRings: 1,
+    philosopherRichThreshold: 2,
+    philosopherMaxDonorFate: 2
+};
 
 // Keeping the tower on the table for the NEXT conflict.
 //
@@ -129,7 +184,8 @@ export const DRAGON_DEFAULTS: DragonProfile = {
     ringFateProducerCards: ['written-in-the-stars', 'army-of-the-rising-wave'],
     ringFateOnKihoCharacters: ['togashi-dreamer'],
     kihoCards: ['hurricane-punch', 'void-fist', 'swell-of-seafoam', 'iron-foundations-stance'],
-    towerReuse: { ...TOWER_REUSE_DEFAULTS }
+    towerReuse: { ...TOWER_REUSE_DEFAULTS },
+    ringPriority: { ...DRAGON_RING_PRIORITY_DEFAULTS }
 };
 
 // Decision helpers the policy delegates to when (and only when) the deck's
@@ -141,14 +197,110 @@ export class DragonTactics {
         this.profile = profile;
     }
 
-    // Void ring recursion: each Keeper Initiate in the dynasty discard is a
-    // free body the moment void is claimed.
-    ringBonus(element: string, dynastyDiscard: any[]): number {
+    // Void ring recursion: each Keeper Initiate is a free body the moment void
+    // is claimed. `provinceCards` is the faceup dynasty side of our provinces,
+    // which `KeeperInitiate` reads as a second legal source — V1 counted only
+    // the discard, so the copies sitting where they START were worth nothing.
+    ringBonus(element: string, dynastyDiscard: any[], provinceCards: any[] = []): number {
         if(element !== 'void') {
             return 0;
         }
-        const keepers = (dynastyDiscard || []).filter((card) => card.id === 'keeper-initiate').length;
+        const countIn = (pile: any[]) => (pile || []).filter((card) => card?.id === 'keeper-initiate').length;
+        const keepers = countIn(dynastyDiscard) +
+            (this.profile.ringPriority.enabled && this.profile.ringPriority.countKeepersInProvinces
+                ? countIn(provinceCards)
+                : 0);
         return keepers * this.profile.voidRecursionBonus;
+    }
+
+    /** Is the Tranquil Philosopher fate-move plan live? Both the activation
+     * gate and the two ring picks hang off this, so the component ablates
+     * cleanly out of the ring-priority arm. */
+    philosopherPlanActive(): boolean {
+        return this.profile.ringPriority.enabled && this.profile.ringPriority.philosopherFateMove;
+    }
+
+    /** Fate on a ring only outranks the element plan from here up. Null keeps
+     * whatever generic threshold the policy would use, which is what ships:
+     * raising it to 2 was measured and rejected (see the profile comment). */
+    ringFateDominanceThreshold(): number | null {
+        const value = Math.max(0, Number(this.profile.ringPriority.fateDominanceThreshold) || 0);
+        return this.profile.ringPriority.enabled && value >= 1 ? value : null;
+    }
+
+    /**
+     * Fire honors a character. The tower is the body whose glory this deck
+     * cashes — Mitsu is glory 3 and every card-count payoff runs through him —
+     * so with a tower standing unhonored the fire ring is a live upgrade, and
+     * the generic score files fire at 30, below earth and void.
+     */
+    ringElementPlanBonus(element: string, myCharacters: any[], roundNumber = 1): number {
+        if(!this.profile.ringPriority.enabled || element !== 'fire') {
+            return 0;
+        }
+        const tower = this.pickTower(myCharacters || [], roundNumber);
+        return tower && !tower.isHonored ? this.profile.ringPriority.unhonoredTowerFireBonus : 0;
+    }
+
+    /**
+     * Is Tranquil Philosopher's "move 1 fate between unclaimed rings" worth an
+     * activation right now?
+     *
+     * Pick the ring the plan wants with the fate piles IGNORED, then ask
+     * whether a fate can be carried onto it. A single 2-fate ring is a DONOR,
+     * not a destination: one fate on the right element beats two on the wrong
+     * one, and the donor keeps the other fate for whoever takes it. The move is
+     * off in both extremes — every ring empty (nothing to carry) and two rings
+     * already rich (a real pile exists whichever way the choice goes) — and off
+     * for a pile too big to break up (`philosopherMaxDonorFate`).
+     */
+    philosopherShouldMoveFate(rings: any[], wantedElement: string): boolean {
+        if(!this.profile.ringPriority.enabled || !this.profile.ringPriority.philosopherFateMove) {
+            return false;
+        }
+        const unclaimed = (rings || []).filter((ring) => ring && !ring.claimed && !ring.claimedBy);
+        const threshold = Math.max(1, Number(this.profile.ringPriority.philosopherRichThreshold) || 1);
+        const fateOf = (ring: any) => Number(ring?.fate) || 0;
+        const rich = unclaimed.filter((ring) => fateOf(ring) >= threshold);
+        if(rich.length > this.profile.ringPriority.philosopherMaxRichRings ||
+            rich.some((ring) => fateOf(ring) > this.profile.ringPriority.philosopherMaxDonorFate)) {
+            return false;
+        }
+        const donors = unclaimed.filter((ring) => fateOf(ring) > 0 &&
+            String(ring.element) !== String(wantedElement));
+        return donors.length > 0 &&
+            unclaimed.some((ring) => String(ring.element) === String(wantedElement));
+    }
+
+    /**
+     * The unclaimed ring to take the fate FROM.
+     *
+     * The ability ALWAYS resolves its "then, gain 1 honor" rider, whether or
+     * not a fate moves, so it is never worth declining — only worth aiming.
+     * Two answers, and the second is the one V1 got wrong:
+     *
+     *   - the move is worth making: the fattest unclaimed ring that is not the
+     *     one the plan wants;
+     *   - it is not: the EMPTIEST ring that is not the one we want, so the
+     *     second select has no legal target, nothing moves, and we collect the
+     *     honor. V1 sorted this prompt by "best ring" like every other ring
+     *     prompt, which named the ring we wanted as the DONOR and moved the
+     *     fate off it.
+     */
+    philosopherDonorRing(rings: any[], wantedElement: string): any {
+        const fateOf = (ring: any) => Number(ring?.fate) || 0;
+        const unclaimed = (rings || []).filter((ring) => ring && !ring.claimed && !ring.claimedBy &&
+            String(ring.element) !== String(wantedElement));
+        if(this.philosopherShouldMoveFate(rings, wantedElement)) {
+            const donor = unclaimed.filter((ring) => fateOf(ring) > 0)
+                .sort((left, right) => fateOf(right) - fateOf(left) ||
+                    String(left.element).localeCompare(String(right.element)))[0];
+            if(donor) {
+                return donor;
+            }
+        }
+        return unclaimed.slice().sort((left, right) => fateOf(left) - fateOf(right) ||
+            String(left.element).localeCompare(String(right.element)))[0] || null;
     }
 
     // Several Dragon cards require a participating Monk, so this gates them.

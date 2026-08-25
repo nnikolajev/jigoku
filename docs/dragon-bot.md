@@ -241,3 +241,39 @@ defect censuses carry allowance lists tuned to the primary base and must not
 see them. Every other base carries its own unrelated open defects
 (`unicorn-ride-on-move-target` on 93001/94001, `waves-ready-bowed` on 93001),
 which is why the primary base could not simply be widened.
+
+## Replay 2026-08-25: ring aiming, and two rejected plans
+
+Full record in `docs/bot-dragon-replay-2026-08-25.md`. Summary of what changed
+in this profile:
+
+- `ringPriority.countKeepersInProvinces` (**shipped**, default `true`). Keeper
+  Initiate returns to play from a **province** as readily as from the dynasty
+  discard (`KeeperInitiate.location`), and the void-ring bonus counted only the
+  discard, so the copies sitting faceup where they start were invisible to the
+  ring choice. Inert on its own -- 4 flips in 768 games -- because a ring
+  holding one fate already outranks every element bonus; it ships because it
+  removes a blind spot rather than expressing a preference.
+- `ringPriority.philosopherFateMove` (**shipped**, default `true`). Tranquil
+  Philosopher's two ring prompts want OPPOSITE answers and V1 answered both with
+  its ordinary "best ring" sort, naming the ring we wanted as the fate DONOR.
+  The donor is now the fattest OTHER unclaimed ring when the move is worth
+  making, and the EMPTIEST other ring when it is not -- the ability gains an
+  honor either way, so it is never declined, only aimed. The destination ring is
+  chosen with fate IGNORED, because the fate is the thing being moved.
+- `ringPriority.fateDominanceThreshold` (**rejected**, ships at `0` = the
+  generic reading) and `ringPriority.unhonoredTowerFireBonus` (**rejected**,
+  ships at `0`). 54.5% on the search bases, 45.0% on 24 fresh ones, 49.4%
+  pooled over 48; and 46.7% respectively.
+- `towerFocus` (**rejected and REMOVED**). "One tower, then cheap bodies, hold
+  fate for the conflict hand" is decisive -- 25-42% of the Dragon seat's games
+  flip -- and loses in all eight scopings measured, 31-43%. The mechanism is the
+  buy ORDERING, not the reserve: the reserve-0 / never-hold arm withholds no fate
+  and still read 40.8%. What loses is trading a tower for a cheap body -- every
+  non-tower body in the list is 1-2 skill against the towers' 4. (The deck's
+  conflict hand is cheap but not free: **40 slots, 26 at cost 0, 10 at 1, 4 at
+  2** -- 35% paid, mean 0.45, joint-cheapest in the field with Crane.) Wrong
+  sign, not wrong scope. The code is gone rather than parked at
+  `enabled: false`, because the seed-coverage guard is there to catch dead
+  branches; `docs/bot-dragon-replay-2026-08-25.md` records how to rebuild an arm
+  if a NEW mechanism ever justifies one. Do not re-propose it.

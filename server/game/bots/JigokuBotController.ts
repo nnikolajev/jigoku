@@ -648,6 +648,18 @@ class JigokuBotController {
                     cavalryCharacterUuids: this.cavalryCharacterUuids(player),
                     unicornFactionCharacterUuids: this.unicornFactionCharacterUuids(player),
                     readyAfterMoveCharacterUuids: this.readyAfterMoveCharacterUuids(player),
+                    // Engine-read: bodies that will NOT bow out of this
+                    // conflict. The serialized card summary publishes `bowed`
+                    // and nothing about the coming resolution, and that is
+                    // exactly what an honor token has to know — a token on a
+                    // body that bows out and is discarded in the fate phase is
+                    // worth nothing. `bowsOnReturnHome()` is the engine's own
+                    // answer, so every card that grants it (Sacred Sanctuary,
+                    // Iron Foundations Stance, Swell of Seafoam, Centipede
+                    // Tattoo, Clarity of Purpose, ...) is covered with no
+                    // hand-written id list.
+                    noBowCharacterUuids: this.characterNumberHint(player,
+                        (card) => card?.bowsOnReturnHome?.() === false ? 1 : undefined),
                     // Exact engine legality for the ready -> move sequencer.
                     sequenceSourceTargets: this.sequenceSourceTargets(player),
                     // Exact live duel skills/honor/Iaijutsu state for shared

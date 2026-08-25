@@ -105,7 +105,7 @@ import {
     UnicornRevealTactics
 } from './UnicornRevealTactics.js';
 import type { ProvinceKnowledgeSnapshot, ScoutedAttackReadiness } from './UnicornRevealTactics';
-import type { PersonalHonorConflict } from './PersonalHonorTactics';
+import type { HonorPersistenceBoard, PersonalHonorConflict } from './PersonalHonorTactics';
 import MulliganTactics from './MulliganTactics.js';
 import type { MulliganPolicyVariant } from './MulliganTactics';
 import BoardAwareDynastyTactics from './BoardAwareDynastyTactics.js';
@@ -345,6 +345,10 @@ interface DecideContext {
     // summary carries no faction at all.
     unicornFactionCharacterUuids?: Record<string, true>;
     readyAfterMoveCharacterUuids?: Record<string, true>;
+    // Engine-read: characters (both sides) under a `DoesNotBow` effect, i.e.
+    // bodies that stay READY through the conflict's resolution. Nothing in the
+    // serialized card summary says this.
+    noBowCharacterUuids?: Record<string, number>;
     sequenceSourceTargets?: SequenceSourceTargets;
     // Seed-3 cheat view: the human's true hand/fate/province strengths. Present
     // only for the omniscient bot; every omniscient branch is gated on it, so
@@ -546,6 +550,7 @@ class JigokuBotPolicy {
     private currentParticipatingCharacterCounts: { self: number; opponent: number } | undefined;
     private currentCavalryCharacterUuids: Record<string, true> | undefined;
     private currentReadyAfterMoveCharacterUuids: Record<string, true> | undefined;
+    private currentNoBowCharacterUuids: Record<string, number> | undefined;
     // One `ReadyValuePolicy` reading per decide() call. The verdict is a pure
     // function of a board that cannot change inside one prompt, and both
     // playbook-context builders ask for it, so memoising keeps the telemetry
@@ -594,6 +599,9 @@ class JigokuBotPolicy {
     // Fushicho-rotation tactics for the current decision, so helpers reached
     // below `decideForPrompt` do not each need the profile threaded through.
     private currentRebirth: RebirthTactics | null = null;
+    // Monk/card-engine deck; null for every other profile. Stored so the
+    // shared playbook context can read the deck's ring plan.
+    private currentDragon: DragonTactics | null = null;
     private currentBidWar: BidWarTactics | null = null;
     private currentLionDuelist: LionDuelistTactics | null = null;
     private currentCrabSacrifice: CrabSacrificeTactics | null = null;
@@ -749,6 +757,7 @@ class JigokuBotPolicy {
         this.currentCavalryCharacterUuids = context.cavalryCharacterUuids;
         this.currentUnicornFactionCharacterUuids = context.unicornFactionCharacterUuids;
         this.currentReadyAfterMoveCharacterUuids = context.readyAfterMoveCharacterUuids;
+        this.currentNoBowCharacterUuids = context.noBowCharacterUuids;
         this.currentLegalAttachmentBearers = context.legalAttachmentTargetUuidsBySource;
         this.currentReadyValueVerdict = undefined;
         this.currentPreferParticipantBearer = undefined;
@@ -1154,6 +1163,7 @@ class JigokuBotPolicy {
         const glory = profile.glory ? new GloryTactics(profile.glory) : null;
         // Monk/card-engine decks likewise; null for every other deck.
         const dragon = profile.dragon ? new DragonTactics(profile.dragon) : null;
+        this.currentDragon = dragon;
         // Duel-centric decks likewise; null for every other deck.
         const duelist = profile.duelist ? new DuelTactics(profile.duelist) : null;
         const duelBidding = new DuelBidTactics(profile.duelBidding);
@@ -1782,7 +1792,9 @@ class JigokuBotPolicy {
                 if(attachmentFate !== null) {
                     return this.buttonDecision(this.closestBidButton(buttons, attachmentFate), 'attachment-tower-fate');
                 }
-                const dragonFate = dragon ? dragon.desiredAdditionalFate(context.playCardId, context.playCost) : null;
+                const dragonFate = dragon
+                    ? dragon.desiredAdditionalFate(context.playCardId, context.playCost)
+                    : null;
                 if(dragonFate !== null) {
                     return this.buttonDecision(this.closestBidButton(buttons, dragonFate), 'dragon-tower-fate');
                 }
@@ -2023,7 +2035,12 @@ class JigokuBotPolicy {
                 .filter((card) => card.inConflict && !card.isHonored);
             const enemy = (opponent?.cardPiles?.cardsInPlay || [])
                 .filter((card: any) => card.type === 'character' && card.inConflict && !card.isDishonored);
-            const honorOwn = personalHonor.shouldHonorOwn(own, enemy);
+            const honorOwn = personalHonor.shouldHonorOwn(
+                own,
+                enemy,
+                0,
+                this.honorPersistenceBoard(playerState, me),
+                this.currentDeckProfile.courtGamesOpponentPicksDishonor === true);
             return this.buttonDecision(honorOwn ? courtHonorBtn : courtDishonorBtn,
                 honorOwn ? 'court-games-honor-own-high-glory' : 'court-games-dishonor-enemy-high-glory');
         }
@@ -2306,6 +2323,20 @@ class JigokuBotPolicy {
         const withMenu = names.find((name) => players[name]?.menuTitle);
         const activeName = withPrompt || withMenu;
         return activeName ? players[activeName] : null;
+    }
+
+    /**
+     * Board reading `PersonalHonorTactics.persistenceTier` needs: which bodies
+     * stay standing through this conflict, and whether a conflict is still
+     * coming for one of them to fight in.
+     */
+    private honorPersistenceBoard(playerState: any, me: any): HonorPersistenceBoard {
+        const opponent = this.opponentPlayer(playerState, me);
+        return {
+            noBowUuids: this.currentNoBowCharacterUuids,
+            conflictsRemaining: Math.max(0, Number(me?.stats?.conflictsRemaining) || 0),
+            opponentConflictsRemaining: Math.max(0, Number(opponent?.stats?.conflictsRemaining) || 0)
+        };
     }
 
     private opponentPlayer(playerState: any, me: any): any {
@@ -2624,6 +2655,38 @@ class JigokuBotPolicy {
             isFirstPlayer: !!me?.firstPlayer,
             weakestOuterProvinceStrength: weakestOuterStrength
         });
+    }
+
+    /**
+     * The ring element this deck's plan wants, WITH THE FATE PILES IGNORED.
+     *
+     * The fate is the thing the Philosopher is about to move, so scoring the
+     * rings as they stand answers the wrong question: a single 2-fate ring
+     * would name itself as the destination and the move would become a no-op.
+     * Score every candidate at zero fate and the ordering is purely the element
+     * plan — void for the Keeper recursion, fire for an unhonored tower.
+     */
+    private dragonWantedRingElement(playerState: any, me: any, dragon: DragonTactics): string {
+        const opponent = this.opponentPlayer(playerState, me);
+        const rings: any[] = Object.values(playerState?.rings || {})
+            .filter((ring: any) => ring && !ring.claimed && !ring.claimedBy);
+        const scoreFateless = (ring: any) =>
+            this.ringScore({ ...ring, fate: 0 }, me, opponent, null, null, dragon, null);
+        const best = rings.slice().sort((left: any, right: any) =>
+            scoreFateless(right) - scoreFateless(left) ||
+            RING_ORDER.indexOf(left.element) - RING_ORDER.indexOf(right.element))[0];
+        return String(best?.element || '');
+    }
+
+    /** Faceup DYNASTY cards waiting in our own provinces. Keeper Initiate
+     * returns to play from a province as readily as from the dynasty discard
+     * (`KeeperInitiate.location`), and the ring score had no way to see them. */
+    private ownProvinceDynastyCards(me: any): any[] {
+        return PROVINCE_KEYS
+            .map((key) => me?.provinces?.[key] || [])
+            .concat([me?.strongholdProvince || []])
+            .reduce((all: any[], list: any[]) => all.concat(
+                (list || []).filter((card: any) => card && !card.isProvince && !card.facedown)), []);
     }
 
     // The own province currently under attack (regular slots or stronghold).
@@ -4244,7 +4307,12 @@ class JigokuBotPolicy {
 
     private ringScore(ring: any, me: any, opponent: any, dishonor: DishonorTactics | null = null, glory: GloryTactics | null = null, dragon: DragonTactics | null = null, shugenja: ShugenjaTactics | null = null, duelist: DuelTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): number {
         const fate = Number(ring.fate) || 0;
-        const fateThreshold = this.usesFateAwareEconomy() ? 1 : 2;
+        // A fate pile normally outranks every element preference. For a deck
+        // whose ELEMENT is the payoff (Dragon's void recursion, its fire honor
+        // on the tower) one fate is not worth giving up the plan, so that deck
+        // can raise the bar it has to clear. Null keeps the generic reading.
+        const fateThreshold = dragon?.ringFateDominanceThreshold() ??
+            (this.usesFateAwareEconomy() ? 1 : 2);
         const fateComponent = fate >= fateThreshold ? 1000 + fate * 100 : 0;
 
         // The dishonor deck's honor-drain engine is the air ring: boost it
@@ -4264,7 +4332,10 @@ class JigokuBotPolicy {
         // Dragon: void recursion (Keeper Initiate returns from the dynasty
         // discard when void is claimed).
         const dragonBonus = dragon
-            ? dragon.ringBonus(String(ring.element || ''), me?.cardPiles?.dynastyDiscardPile || [])
+            ? dragon.ringBonus(String(ring.element || ''), me?.cardPiles?.dynastyDiscardPile || [],
+                this.ownProvinceDynastyCards(me)) +
+                dragon.ringElementPlanBonus(String(ring.element || ''),
+                    this.myCharactersInPlay(me), this.currentRoundNumber)
             : 0;
         const shugenjaBonus = shugenja
             ? shugenja.ringBonus(String(ring.element || ''), this.myCharactersInPlay(me), me?.cardPiles?.hand || [])
@@ -5569,6 +5640,8 @@ class JigokuBotPolicy {
             myBid: Number(me?.showBid) || 0,
             opponentBid: Number(opponent?.showBid) || 0,
             bidWarAware: this.currentDeckProfile.bidWarAware === true,
+            debuffRemovalUrgency: this.currentDeckProfile.debuffRemovalUrgency === true,
+            removeOwnDebuffsOnly: this.currentDeckProfile.attachmentControl.removeOwnDebuffsOnly !== false,
             myCharacters,
             opponentCharacters,
             // Exact live printed cost for every character in play, BOTH sides
@@ -5749,9 +5822,21 @@ class JigokuBotPolicy {
             }
             return false;
         };
-        const abilitySource = this.conflictAbilitySources(me, playCtx, cardHint, dishonor, lion, dragon, glory, shugenja, attachmentTower, crane, duelist)
-            .filter((card) => this.isDirectCardLegal(card, legalDirectCardUuids))
-            .find(canSelectAbility);
+        const abilityCandidates = this.conflictAbilitySources(me, playCtx, cardHint, dishonor, lion, dragon, glory, shugenja, attachmentTower, crane, duelist);
+        const legalAbilityCandidates = abilityCandidates
+            .filter((card) => this.isDirectCardLegal(card, legalDirectCardUuids));
+        if(BotTelemetry.enabled && abilityCandidates.some((card: any) => card.id === 'miya-mystic')) {
+            BotTelemetry.record('debuff-removal-candidate', () => ({
+                round: this.currentRoundNumber,
+                urgencyOn: this.currentDeckProfile.debuffRemovalUrgency === true,
+                legal: legalAbilityCandidates.some((card: any) => card.id === 'miya-mystic'),
+                selectable: legalAbilityCandidates.filter(canSelectAbility)
+                    .some((card: any) => card.id === 'miya-mystic'),
+                ahead: legalAbilityCandidates.filter(canSelectAbility)
+                    .map((card: any) => String(card.id)).join(',')
+            }));
+        }
+        const abilitySource = legalAbilityCandidates.find(canSelectAbility);
         if(abilitySource) {
             // Record once-per-round board abilities so they are not re-fired for
             // the rest of the round (stops the Tranquil Philosopher fate loop).
@@ -5767,6 +5852,12 @@ class JigokuBotPolicy {
             if(attachmentTower && abilitySource.id === 'daimyo-s-favor') {
                 this.pendingDaimyoBearerUuid =
                     attachmentTower.daimyoFavorBearerUuid(abilitySource, myCharacters) || null;
+            }
+            if(BotTelemetry.enabled && abilitySource.id === 'miya-mystic') {
+                BotTelemetry.record('debuff-removal-fire', () => ({
+                    round: this.currentRoundNumber,
+                    urgencyOn: this.currentDeckProfile.debuffRemovalUrgency === true
+                }));
             }
             return this.cardClickDecision(abilitySource, 'use-board-ability');
         }
@@ -6662,7 +6753,12 @@ class JigokuBotPolicy {
                     )) {
                         return false;
                     }
-                    return typeof hint.shouldUseAction !== 'function' || !playCtx || hint.shouldUseAction(playCtx);
+                    const gatePassed = typeof hint.shouldUseAction !== 'function' || !playCtx ||
+                        hint.shouldUseAction(playCtx);
+                    if(BotTelemetry.enabled && card.id === 'miya-mystic') {
+                        this.recordDebuffRemovalWindow(playCtx, card, gatePassed);
+                    }
+                    return gatePassed;
                 })
                 .sort((a, b) => {
                     const priorityOf = (card: any) =>
@@ -6673,6 +6769,26 @@ class JigokuBotPolicy {
         }
 
         return stronghold.concat(attacked, playbookSources);
+    }
+
+    /** One row per prompt at which an attachment-remover BODY was on the board,
+     * so a probe can tell "the gate refused" apart from "the window never
+     * opened". Only built while a telemetry sink is attached. */
+    private recordDebuffRemovalWindow(playCtx: any, source: any, gatePassed: boolean): void {
+        BotTelemetry.record('debuff-removal-window', () => {
+            const ownDebuff = (playCtx?.myCharacters || []).some((card: any) =>
+                (card.attachments || []).some((attachment: any) => isNegativeAttachmentId(attachment.id)));
+            return {
+                round: this.currentRoundNumber,
+                source: String(source?.id || ''),
+                ownDebuff: ownDebuff,
+                enemyAttachment: (playCtx?.opponentCharacters || []).some((card: any) =>
+                    (card.attachments || []).length > 0),
+                letGoInHand: (playCtx?.hand || []).some((card: any) => card?.id === 'let-go'),
+                urgencyOn: this.currentDeckProfile.debuffRemovalUrgency === true,
+                gatePassed: gatePassed
+            };
+        });
     }
 
     // One zone-neutral context for normal hand plays and paid replay effects.
@@ -7953,6 +8069,39 @@ class JigokuBotPolicy {
                     this.recordBoardAbility(phaseSource);
                 }
                 return this.cardClickDecision(phaseSource, 'use-conflict-phase-ability');
+            }
+        }
+
+        // ATTACHMENT-REMOVAL URGENCY.
+        //
+        // Pacifism and Stolen Breath do not cost a conflict — they cost every
+        // conflict of that type for as long as they sit there, and they are
+        // attached in the action window BEFORE the conflict is declared. The
+        // answer has to be given in that same window; a remover held until the
+        // conflict window has already conceded the declaration. Seen live
+        // (2026-08-25, Dragon vs Phoenix round 4): Pacifism landed on Togashi
+        // Mitsu twice, Let Go answered the first copy a whole conflict later,
+        // and Miya Mystic sat ready on the board through the second.
+        //
+        // Ordered by what the removal COSTS: a free hand card before a card
+        // that sacrifices the body carrying it.
+        if(this.currentDeckProfile.debuffRemovalUrgency === true && me?.phase === 'conflict') {
+            const debuffed = this.myCharactersInPlay(me).some((card: any) =>
+                (card.attachments || []).some((attachment: any) =>
+                    isNegativeAttachmentId(attachment.id)));
+            if(debuffed) {
+                const sources = this.currentDeckProfile.attachmentControl.debuffRemovalSourceIds || [];
+                const candidates = (me?.cardPiles?.hand || [])
+                    .concat(this.findVisibleCards(me)
+                        .filter((card: any) => String(card.location || '') === 'play area'));
+                const pick = sources
+                    .map((id) => candidates.find((card: any) => card?.id === id && card.uuid &&
+                        this.isDirectCardLegal(card, legalDirectCardUuids) &&
+                        !this.isAttempted('cardClicked', [card.uuid])))
+                    .find(Boolean);
+                if(pick) {
+                    return this.cardClickDecision(pick, 'debuff-removal-urgent');
+                }
             }
         }
 
@@ -9345,6 +9494,28 @@ class JigokuBotPolicy {
         // Same value ordering as conflict declaration — a random pick here
         // hands weak rings (air) to card abilities that ask for a ring.
         const opponent = this.opponentPlayer(playerState, me);
+        // Tranquil Philosopher moves 1 fate BETWEEN unclaimed rings, so its two
+        // prompts want opposite answers and the generic "best ring" ordering
+        // answers both the same way. Taking the best ring as the SOURCE is the
+        // worse half: the second select then has no legal target (its
+        // `ringCondition` needs `context.ring.fate > 0`) and the whole card
+        // collapses into its rider honor.
+        if(dragon && dragon.philosopherPlanActive() &&
+            /move fate (from|to)/i.test(title)) {
+            const wanted = this.dragonWantedRingElement(playerState, me, dragon);
+            const takingFrom = /move fate from/i.test(title);
+            const pick = takingFrom
+                ? dragon.philosopherDonorRing(rings, wanted)
+                : rings.find((ring: any) => String(ring.element) === wanted);
+            if(pick) {
+                return {
+                    command: 'ringClicked',
+                    args: [pick.element],
+                    target: pick.element,
+                    reason: takingFrom ? 'dragon-philosopher-fate-donor' : 'dragon-philosopher-fate-target'
+                };
+            }
+        }
         const rebirth = this.currentRebirth;
         if(rebirth) {
             // Way of the Phoenix denies the OPPONENT an element for the phase,
@@ -11775,7 +11946,7 @@ class JigokuBotPolicy {
             const unhonored = mine.filter((card) => !card.isHonored);
             if(unhonored.length > 0) {
                 this.diplomatChoice = 'honor';
-                return this.cardClickDecision(personalHonor.pickOwnHonor(unhonored), 'diplomat-honor-own');
+                return this.cardClickDecision(personalHonor.pickOwnHonor(unhonored, this.honorPersistenceBoard(playerState, me)), 'diplomat-honor-own');
             }
             // An ALREADY dishonored enemy cannot take a second dishonor token,
             // so the follow-up menu would offer only "Honor this character" and
@@ -11826,7 +11997,7 @@ class JigokuBotPolicy {
             const pickOwnHonor = (pool: any[]) =>
                 (deckRanks && craneHonor ? craneHonor.pickHonorTarget(pool, honorOpts) : null) ||
                 (deckRanks && lionHonor ? lionHonor.pickHonorTarget(pool, honorOpts) : null) ||
-                personalHonor.pickOwnHonor(pool);
+                personalHonor.pickOwnHonor(pool, this.honorPersistenceBoard(playerState, me));
             // Follow-up prompts after both targets are picked: the honored
             // character must be OURS and the dishonored one THEIRS. When the
             // right side is not legal (own pick already honored / enemy pick
@@ -12060,7 +12231,7 @@ class JigokuBotPolicy {
         if(actionNames.includes('honor') && !actionNames.includes('dishonor')) {
             const honorable = mine.filter((card) => !card.isHonored);
             if(honorable.length > 0) {
-                return this.cardClickDecision(personalHonor.pickOwnHonor(honorable), 'honor-own-highest-glory');
+                return this.cardClickDecision(personalHonor.pickOwnHonor(honorable, this.honorPersistenceBoard(playerState, me)), 'honor-own-highest-glory');
             }
             if(cancel && targetHint.sourceIsMine) {
                 return this.buttonDecision(cancel, 'cancel-wrong-side-target');
@@ -12371,7 +12542,9 @@ class JigokuBotPolicy {
                 }
                 if(ownTargets.length > 0) {
                     this.fireRingTargetSide = 'own';
-                    return this.cardClickDecision(personalHonor.pickOwnHonor(ownTargets), 'fire-ring-honor-own');
+                    return this.cardClickDecision(
+                        personalHonor.pickOwnHonor(ownTargets, this.honorPersistenceBoard(playerState, me)),
+                        'fire-ring-honor-own');
                 }
                 if(enemyTargets.length > 0) {
                     this.fireRingTargetSide = 'enemy';

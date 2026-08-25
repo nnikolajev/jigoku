@@ -4002,16 +4002,30 @@ describe('Jigoku heuristic bot', function() {
         });
 
         it('honors highest-glory own characters and dishonors highest-glory enemies', function() {
+            // All three survive the fate phase, so `honorTargetPersistence`
+            // ranks them equal and glory alone decides.
             const own = new JigokuBotPolicy('honor-glory').decide(
                 makeTargetState([
-                    character('skill-6', 6, { glorySummary: { stat: '0' } }),
-                    character('glory-3', 2, { glorySummary: { stat: '3' } }),
+                    character('skill-6', 6, { fate: 2, glorySummary: { stat: '0' } }),
+                    character('glory-3', 2, { fate: 2, glorySummary: { stat: '3' } }),
                     character('tower', 1, { fate: 2, glorySummary: { stat: '1' } })
                 ], []),
                 'Jigoku Bot',
                 { targetHint: { gameActions: ['honor'], sourceIsMine: true } }
             );
             expect(own.args[0]).toBe('glory-3');
+
+            // Same board with the high-glory body about to be discarded: the
+            // token goes to the one that can still use it.
+            const persistent = new JigokuBotPolicy('honor-glory').decide(
+                makeTargetState([
+                    character('glory-3', 2, { glorySummary: { stat: '3' } }),
+                    character('tower', 1, { fate: 2, glorySummary: { stat: '1' } })
+                ], []),
+                'Jigoku Bot',
+                { targetHint: { gameActions: ['honor'], sourceIsMine: true } }
+            );
+            expect(persistent.args[0]).toBe('tower');
 
             const enemy = new JigokuBotPolicy('dishonor-glory').decide(
                 makeTargetState([], [

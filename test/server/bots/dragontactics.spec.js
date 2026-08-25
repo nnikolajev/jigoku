@@ -127,6 +127,102 @@ describe('DragonTactics', function() {
             expect(pick.id).toBe('togashi-acolyte');
         });
 
+        it('counts Keeper Initiates in PROVINCES toward the void ring, not only the discard', function() {
+            const ring = (profile) => new DragonTactics({
+                ...DRAGON_DEFAULTS,
+                ringPriority: { ...DRAGON_DEFAULTS.ringPriority, ...profile }
+            });
+            const discard = [{ id: 'keeper-initiate' }];
+            const provinces = [{ id: 'keeper-initiate' }, { id: 'togashi-ichi' }];
+
+            // Shipped: the province copy counts too.
+            expect(ring({}).ringBonus('void', discard, provinces))
+                .toBe(2 * DRAGON_DEFAULTS.voidRecursionBonus);
+            // Off: only the discard copy counts, exactly as V1 did.
+            expect(ring({ countKeepersInProvinces: false }).ringBonus('void', discard, provinces))
+                .toBe(DRAGON_DEFAULTS.voidRecursionBonus);
+            expect(ring({}).ringBonus('fire', discard, provinces)).toBe(0);
+        });
+
+        it('ships the fate bar at the generic reading (raising it measured null)', function() {
+            expect(tactics.ringFateDominanceThreshold()).toBeNull();
+            expect(new DragonTactics({
+                ...DRAGON_DEFAULTS,
+                ringPriority: { ...DRAGON_DEFAULTS.ringPriority, fateDominanceThreshold: 2 }
+            }).ringFateDominanceThreshold()).toBe(2);
+        });
+
+        it('ships the unhonored-tower fire bonus OFF (it measured negative)', function() {
+            const ring = new DragonTactics({
+                ...DRAGON_DEFAULTS,
+                ringPriority: { ...DRAGON_DEFAULTS.ringPriority, unhonoredTowerFireBonus: 45 }
+            });
+
+            expect(tactics.ringElementPlanBonus('fire', [{ id: 'togashi-mitsu-2' }])).toBe(0);
+            expect(ring.ringElementPlanBonus('fire', [{ id: 'togashi-mitsu-2' }])).toBe(45);
+            expect(ring.ringElementPlanBonus('fire', [{ id: 'togashi-mitsu-2', isHonored: true }])).toBe(0);
+            expect(ring.ringElementPlanBonus('fire', [{ id: 'keeper-initiate' }])).toBe(0);
+            expect(ring.ringElementPlanBonus('void', [{ id: 'togashi-mitsu-2' }])).toBe(0);
+        });
+
+        describe('Tranquil Philosopher fate move', function() {
+            const philosopher = new DragonTactics({
+                ...DRAGON_DEFAULTS,
+                ringPriority: { ...DRAGON_DEFAULTS.ringPriority, enabled: true }
+            });
+            const rings = (fateByElement) => ['air', 'earth', 'fire', 'water', 'void']
+                .map((element) => ({ element, fate: fateByElement[element] || 0, claimed: false }));
+
+            it('is off unless the ring plan is on', function() {
+                const off = new DragonTactics({
+                    ...DRAGON_DEFAULTS,
+                    ringPriority: { ...DRAGON_DEFAULTS.ringPriority, philosopherFateMove: false }
+                });
+                expect(off.philosopherPlanActive()).toBe(false);
+                expect(off.philosopherShouldMoveFate(rings({ air: 1 }), 'void')).toBe(false);
+                expect(philosopher.philosopherPlanActive()).toBe(true);
+            });
+
+            it('names the emptiest other ring as donor when the move is not worth making', function() {
+                // Every ring empty: nothing to carry, so the move no-ops and the
+                // ability still collects its honor rider. The donor must never be
+                // the ring we want.
+                expect(philosopher.philosopherDonorRing(rings({}), 'void').fate).toBe(0);
+                expect(philosopher.philosopherDonorRing(rings({}), 'void').element).not.toBe('void');
+                // A pile too big to break up stays where it is.
+                expect(philosopher.philosopherDonorRing(rings({ air: 3 }), 'void').fate).toBe(0);
+            });
+
+            it('carries a stray fate onto the ring the plan wants', function() {
+                expect(philosopher.philosopherShouldMoveFate(rings({ air: 1 }), 'void')).toBe(true);
+                expect(philosopher.philosopherDonorRing(rings({ air: 1 }), 'void').element).toBe('air');
+            });
+
+            it('breaks up a single 2-fate ring rather than attacking the wrong element', function() {
+                expect(philosopher.philosopherShouldMoveFate(rings({ air: 2 }), 'void')).toBe(true);
+                expect(philosopher.philosopherDonorRing(rings({ air: 2 }), 'void').element).toBe('air');
+            });
+
+            it('leaves a real pile alone', function() {
+                // Two rich rings: a pile exists whichever way the choice goes.
+                expect(philosopher.philosopherShouldMoveFate(rings({ air: 2, fire: 2 }), 'void')).toBe(false);
+                // One pile too big to break up.
+                expect(philosopher.philosopherShouldMoveFate(rings({ air: 3 }), 'void')).toBe(false);
+            });
+
+            it('does nothing with every ring empty, or with the fate already where we want it', function() {
+                expect(philosopher.philosopherShouldMoveFate(rings({}), 'void')).toBe(false);
+                expect(philosopher.philosopherShouldMoveFate(rings({ void: 1 }), 'void')).toBe(false);
+            });
+
+            it('never names a claimed ring as the donor', function() {
+                const board = rings({ air: 2 }).map((ring) =>
+                    ring.element === 'air' ? { ...ring, claimed: true } : ring);
+                expect(philosopher.philosopherShouldMoveFate(board, 'void')).toBe(false);
+                expect(philosopher.philosopherDonorRing(board, 'void').claimed).toBeFalsy();
+            });
+        });
+
         it('uses Void Fist only when an opposing participant is a legal military target', function() {
             const shouldPlay = require('../../../build/server/game/bots/CardPlaybook.js')
                 .getPlaybookEntry('void-fist').shouldPlay;

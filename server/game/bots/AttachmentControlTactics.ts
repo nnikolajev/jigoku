@@ -6,6 +6,22 @@ export interface AttachmentControlProfile {
     enemyAttachmentScores: Record<string, number>;
     carrierFateWeight: number;
     carrierSkillWeight: number;
+    // Ordered removal sources for the urgency rule, cheapest first. A debuff on
+    // our own board (Pacifism, Stolen Breath) shuts a body out of a whole
+    // conflict type for as long as it sits there, and the answer belongs in the
+    // action window it lands in -- not two conflicts later. Let Go is a free
+    // hand card; Miya Mystic pays with the body, so it goes second.
+    debuffRemovalSourceIds: readonly string[];
+    // A debilitating attachment on THEIR character is working for us. Removing
+    // it hands them the body back, which is the exact opposite of what Let Go
+    // and Miya Mystic are for. On, an attachment listed in `ownDebuffScores` is
+    // never a removal target while an OPPONENT controls the carrier.
+    //
+    // It was reachable: `attachmentWorth` prices an unknown enemy attachment at
+    // `6 + granted skill`, a debuff grants none, and the carrier weighting then
+    // lifts a Pacifism on a fat enemy body (5 fate, 8 skill -> 20) above the
+    // same Pacifism on one of ours (18 + our carrier). `false` restores that.
+    removeOwnDebuffsOnly: boolean;
 }
 
 export const ATTACHMENT_CONTROL_DEFAULTS: AttachmentControlProfile = {
@@ -28,7 +44,9 @@ export const ATTACHMENT_CONTROL_DEFAULTS: AttachmentControlProfile = {
         'finger-of-jade': 13
     },
     carrierFateWeight: 2,
-    carrierSkillWeight: 0.5
+    carrierSkillWeight: 0.5,
+    debuffRemovalSourceIds: ['let-go', 'miya-mystic'],
+    removeOwnDebuffsOnly: true
 };
 
 export function isNegativeAttachmentId(id: string | undefined): boolean {
@@ -70,6 +88,10 @@ export class AttachmentControlTactics {
         }
         for(const carrier of theirs) {
             for(const attachment of carrier.attachments || []) {
+                // Never take a debuff off one of THEIR characters.
+                if(this.profile.removeOwnDebuffsOnly && isNegativeAttachmentId(attachment?.id)) {
+                    continue;
+                }
                 const base = attachmentWorth(attachment, this.profile.enemyAttachmentScores);
                 candidates.push({ attachment, score: base + carrierScore(carrier) });
             }

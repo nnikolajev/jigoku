@@ -38,6 +38,9 @@ single-base measurement has produced false positives here.
 | [bot-ready-value.md](bot-ready-value.md) | **SHIPPED** - never spend a card readying a body no conflict can use; watched in real games |
 | [bot-ready-move-sequence.md](bot-ready-move-sequence.md) | **SHIPPED** - ready -> move AND move -> ready, both legs budgeted; the move-value counterfactual monitor; Unicorn keeps its own scorer (measured -1.17pp for the generic one) |
 | [bot-defender-ring-choice.md](bot-defender-ring-choice.md) | **SHIPPED** - Togashi Tadakatsu hands the element choice to the defender: give the attacker their WORST ring |
+| [bot-honor-target-persistence.md](bot-honor-target-persistence.md) | **SHIPPED** - an honor token goes on a body that survives the fate phase or is still standing after this conflict |
+| [bot-court-games-target.md](bot-court-games-target.md) | **SHIPPED** - Court Games' dishonor half is chosen BY THE OPPONENT, so price it at their worst participant |
+| [bot-debuff-removal-urgency.md](bot-debuff-removal-urgency.md) | **SHIPPED** - answer Pacifism / Stolen Breath in the window it lands in; debuffs come off ours, buffs come off theirs |
 
 ## Measured experiments
 
@@ -47,6 +50,7 @@ single-base measurement has produced false positives here.
 | [bot-unopposed-window.md](bot-unopposed-window.md) | **SHIPPED** +0.53pp — buy a body and declare into an all-bowed board |
 | [bot-fate-strip.md](bot-fate-strip.md) | **SHIPPED** +1.13pp — fate removal aims at the lowest-fate enemy, not the fattest |
 | [bot-phoenix-replay-2026-08-23.md](bot-phoenix-replay-2026-08-23.md) | **SHIPPED** +3.13pp on the two Kyuden Isawa decks, plus two field-wide correctness fixes, all four read off one lost game |
+| [bot-dragon-replay-2026-08-25.md](bot-dragon-replay-2026-08-25.md) | **MIXED** - three correctness fixes SHIPPED off one lost game; Dragon's "one tower, then cheap bodies" REJECTED across eight scopings, and the ring fate bar REJECTED after a search-base false positive |
 | [bot-conflict-tempo.md](bot-conflict-tempo.md) | **MIXED** — the water ready-loop SHIPPED (+0.32pp) and `tradeDefenseWinOnly` ships on a measured null at the owner’s call; the rest is why defense *sizing* is settled as a free parameter in both directions |
 | [bot-fate-starvation.md](bot-fate-starvation.md) | **REFERENCE** — the conflict-window census behind the fate levers |
 | [bot-fate-experiments-recovery.md](bot-fate-experiments-recovery.md) | **HISTORY** — removed fate experiments and how to rebuild them |

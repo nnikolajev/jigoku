@@ -870,6 +870,35 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
             }
         }));
 
+        // Tranquil Philosopher's two ring prompts. The prompt title is what
+        // separates them, and each wants the OPPOSITE ring: the donor is the
+        // fattest ring the plan does not want, the destination is the ring it
+        // does.
+        run(profile, makeState({
+            promptTitle: 'Tranquil Philosopher',
+            menuTitle: 'Choose an unclaimed ring to move fate from',
+            buttons: [CANCEL], selectRing: true,
+            cardPiles: { cardsInPlay: [mitsu] }
+        }, {}, {
+            rings: {
+                air: { element: 'air', fate: 1 }, earth: { element: 'earth', fate: 0 },
+                fire: { element: 'fire', fate: 0 }, water: { element: 'water', fate: 0 },
+                void: { element: 'void', fate: 0 }
+            }
+        }));
+        run(profile, makeState({
+            promptTitle: 'Tranquil Philosopher',
+            menuTitle: 'Choose an unclaimed ring to move fate to',
+            buttons: [CANCEL], selectRing: true,
+            cardPiles: { cardsInPlay: [mitsu] }
+        }, {}, {
+            rings: {
+                air: { element: 'air', fate: 1 }, earth: { element: 'earth', fate: 0 },
+                fire: { element: 'fire', fate: 0 }, water: { element: 'water', fate: 0 },
+                void: { element: 'void', fate: 0 }
+            }
+        }));
+
         const buyer = policyGroup('dragon-fate-coverage');
         buyer.decide(makeState({
             phase: 'dynasty', promptTitle: 'Action Window', menuTitle: 'Initiate an action', buttons: [PASS],

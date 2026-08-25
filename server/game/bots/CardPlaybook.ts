@@ -65,6 +65,16 @@ export interface PlaybookContext {
     // its legacy gate (any bowed honored body, whether or not anything can use
     // the ready).
     eleganceRequiresUse?: boolean;
+    // DeckProfile A/B switch for the attachment-removal urgency rule: a
+    // debilitating attachment on OUR board is a reason to fire an attachment
+    // remover, not only an enemy buff. Off holds `miya-mystic` at its legacy
+    // enemy-attachment-only gate.
+    debuffRemovalUrgency?: boolean;
+    // `AttachmentControlProfile.removeOwnDebuffsOnly`, carried here so the two
+    // remover gates ask the same question the target picker does. Off restores
+    // the pre-2026-08-25 reading, where ANY enemy attachment was a reason to
+    // spend a remover.
+    removeOwnDebuffsOnly?: boolean;
     strongholdConflict?: boolean; // do not retreat from the game-ending defense
     preferFavorableRetreat?: boolean; // Dragon preserves its tower for another conflict
     conflictCosts?: Record<string, number>; // live printed costs for hand/discard cards
@@ -643,6 +653,23 @@ const stripWeight = (card: any, mine: boolean): number =>
         }
         return total + 1;
     }, 0);
+
+// Is this a removal target worth spending a remover on?
+//
+// An attachment on THEIR character is worth removing only when it is helping
+// them: a debuff sitting on an enemy body is working FOR us, and taking it off
+// hands them the body back. Mirror on our own side: only a debuff is worth
+// clearing, never one of our own buffs. `AttachmentControlTactics.pickTarget`
+// enforces the same rule when it picks the card; these gates stop the remover
+// being PLAYED with nothing legal to aim at.
+const enemyAttachmentWorthRemoving = (ctx: PlaybookContext): boolean =>
+    (ctx.opponentCharacters || []).some((card) => (card.attachments || [])
+        .some((attachment: any) => ctx.removeOwnDebuffsOnly === false ||
+            !isNegativeAttachmentId(attachment?.id)));
+
+const ownDebuffToClear = (ctx: PlaybookContext): boolean =>
+    (ctx.myCharacters || []).some((card) => (card.attachments || [])
+        .some((attachment: any) => isNegativeAttachmentId(attachment?.id)));
 
 const PLAYBOOK: Record<string, PlaybookEntry> = {
     // +2 military to a participating character, optionally twice for 1 honor.
@@ -3179,8 +3206,18 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 6,
         summary: 'discard an attachment',
         inPlayAction: true,
-        shouldUseAction: (ctx) => ctx.opponentCharacters.some((card) =>
-            (card.attachments || []).length > 0)
+        // The legacy gate fired only on an ENEMY attachment, so the one thing
+        // this card is printed to answer -- Pacifism / Stolen Breath shutting
+        // our own tower out of a conflict type -- never reached it (2026-08-25,
+        // Dragon vs Phoenix round 4: Pacifism sat on Togashi Mitsu for two
+        // conflicts with Miya Mystic ready on the board).
+        //
+        // Let Go does the same job for no body, so it goes FIRST: with a copy
+        // in hand this stays passed and the hand card answers instead.
+        shouldUseAction: (ctx) => enemyAttachmentWorthRemoving(ctx) ||
+            (ctx.debuffRemovalUrgency === true &&
+                !(ctx.hand || []).some((card: any) => card?.id === 'let-go') &&
+                ownDebuffToClear(ctx))
     }),
 
     // Action: opponent discards a random card.
@@ -3201,6 +3238,9 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         // Its "move 1 fate between two rings" action has no per-use limit and
         // reverses itself, so cap it at once per round to stop a fate ping-pong.
         oncePerRound: true
+        // No `shouldUseAction`: the ability resolves "then, gain 1 honor"
+        // whether or not a fate moves, so it is never worth declining. What was
+        // wrong is where it AIMED -- see `DragonTactics.philosopherDonorRing`.
     }),
 
     // ---- Kiho / conflict events ----
@@ -3264,10 +3304,7 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         priority: 7,
         summary: 'discard an attachment',
         abilityValue: true,
-        shouldPlay: (ctx) => (ctx.opponentCharacters || []).some((card) =>
-            (card.attachments || []).length > 0) ||
-            (ctx.myCharacters || []).some((card) => (card.attachments || [])
-                .some((attachment: any) => isNegativeAttachmentId(attachment.id)))
+        shouldPlay: (ctx) => enemyAttachmentWorthRemoving(ctx) || ownDebuffToClear(ctx)
     }),
 
     // Interrupt: cancel an enemy event by winning a military duel. It is an

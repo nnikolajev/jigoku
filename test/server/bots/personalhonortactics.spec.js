@@ -28,7 +28,11 @@ describe('Personal honor tactics', function() {
             card('high', 4)
         ];
 
-        expect(tactics().pickOwnHonor(cards).uuid).toBe('high');
+        // Glory alone, i.e. the ordering before `honorTargetPersistence`.
+        expect(tactics({ honorTargetPersistence: false }).pickOwnHonor(cards).uuid).toBe('high');
+        // Shipped: the glory-0 body is the only one that survives the fate
+        // phase, so it is the only one that can still USE the token.
+        expect(tactics().pickOwnHonor(cards).uuid).toBe('zero');
         expect(tactics().pickForcedOwnDishonor(cards).uuid).toBe('zero');
     });
 
@@ -159,6 +163,118 @@ describe('Personal honor tactics', function() {
         expect(tactics().pickEnemyDishonor(cards, conflict).uuid).toBe('home');
         expect(tactics({ preferHomeWhenConflictUnaffected: false })
             .pickEnemyDishonor(cards, conflict).uuid).toBe('participant');
+    });
+
+    describe('honor target persistence', function() {
+        const board = (extra = {}) => ({
+            conflictsRemaining: 1,
+            opponentConflictsRemaining: 1,
+            ...extra
+        });
+
+        it('ships ON; `false` restores the pure glory ordering exactly', function() {
+            const cards = [
+                card('doomed', 3, { inConflict: true }),
+                card('lives', 2, { inConflict: true, fate: 2 })
+            ];
+
+            expect(tactics().pickOwnHonor(cards, board()).uuid).toBe('lives');
+            expect(tactics({ honorTargetPersistence: false })
+                .pickOwnHonor(cards, board()).uuid).toBe('doomed');
+            // With no board reading at all the tier is unknowable and the
+            // ordering falls back to glory.
+            expect(tactics().pickOwnHonor(cards).uuid).toBe('lives');
+        });
+
+        it('prefers a body with fate over a higher-glory body that is about to die', function() {
+            const cards = [
+                card('doomed', 3, { inConflict: true }),
+                card('lives', 2, { inConflict: true, fate: 2 })
+            ];
+
+            expect(tactics({ honorTargetPersistence: true })
+                .pickOwnHonor(cards, board()).uuid).toBe('lives');
+        });
+
+        it('counts a body that will not bow out of the conflict as usable again', function() {
+            const cards = [
+                card('doomed', 3, { inConflict: true }),
+                card('protected', 2, { inConflict: true })
+            ];
+            const input = board({ noBowUuids: { protected: 1 } });
+
+            expect(tactics({ honorTargetPersistence: true })
+                .pickOwnHonor(cards, input).uuid).toBe('protected');
+        });
+
+        it('counts a ready body that is not in this conflict as usable again', function() {
+            const cards = [
+                card('doomed', 3, { inConflict: true }),
+                card('home', 2)
+            ];
+
+            expect(tactics({ honorTargetPersistence: true })
+                .pickOwnHonor(cards, board()).uuid).toBe('home');
+        });
+
+        it('falls back to the highest glory when nothing persists', function() {
+            const cards = [
+                card('low', 1, { inConflict: true }),
+                card('high', 3, { inConflict: true })
+            ];
+
+            expect(tactics({ honorTargetPersistence: true })
+                .pickOwnHonor(cards, board()).uuid).toBe('high');
+        });
+
+        it('caps how much glory the persistence rule may give up', function() {
+            const cards = [
+                card('doomed', 4, { inConflict: true }),
+                card('lives', 1, { inConflict: true, fate: 2 })
+            ];
+
+            // Uncapped: persistence wins.
+            expect(tactics({ honorTargetPersistence: true })
+                .pickOwnHonor(cards, board()).uuid).toBe('lives');
+            // Capped at 1: giving up 3 glory is too much, so glory decides.
+            expect(tactics({
+                honorTargetPersistence: true,
+                honorTargetPersistenceMaxGloryGap: 1
+            }).pickOwnHonor(cards, board()).uuid).toBe('doomed');
+        });
+
+        it('ignores "still standing" once no conflict is left to use it', function() {
+            const cards = [
+                card('doomed', 3, { inConflict: true }),
+                card('home', 2)
+            ];
+            const input = board({ conflictsRemaining: 0, opponentConflictsRemaining: 0 });
+
+            expect(tactics({ honorTargetPersistence: true })
+                .pickOwnHonor(cards, input).uuid).toBe('doomed');
+        });
+    });
+
+    describe('court games: the opponent picks the dishonor target', function() {
+        it('prices the dishonor half at their WORST participant when they choose', function() {
+            const own = [card('mine', 3, { inConflict: true })];
+            const enemy = [
+                card('their-best', 4, { inConflict: true }),
+                card('their-worst', 2, { inConflict: true })
+            ];
+
+            // Legacy reading: their best glory (4) beats our 3, so dishonor.
+            expect(tactics().shouldHonorOwn(own, enemy)).toBe(false);
+            // They hand over the cheapest body they can, so the honor is worth more.
+            expect(tactics().shouldHonorOwn(own, enemy, 0, null, true)).toBe(true);
+        });
+
+        it('still dishonors when even their worst participant outglories ours', function() {
+            const own = [card('mine', 1, { inConflict: true })];
+            const enemy = [card('theirs', 3, { inConflict: true })];
+
+            expect(tactics().shouldHonorOwn(own, enemy, 0, null, true)).toBe(false);
+        });
     });
 
     it('reads both live glory summaries and normalized glory fields', function() {

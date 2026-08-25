@@ -29,6 +29,47 @@ export interface PersonalHonorProfile {
     // every copy, and honor is that deck's whole switch (five of its cards read
     // "if you are more honorable"). These price the trade instead.
     honorGiftResponse: HonorGiftResponseProfile;
+    // An honor token is only worth its glory if the honored body can still USE
+    // that glory. Two ways it can:
+    //
+    //   1. it survives the fate phase (`fate > 0`), so the token pays in every
+    //      later round;
+    //   2. it is still STANDING when this conflict resolves and a conflict
+    //      opportunity remains on either side, so the token pays again this
+    //      round -- either because a `DoesNotBow` effect is on it (Sacred
+    //      Sanctuary, Iron Foundations Stance, Swell of Seafoam, Centipede
+    //      Tattoo) or because it is a ready body that is not in this conflict
+    //      at all.
+    //
+    // A 0-fate PARTICIPANT is neither: it bows out of the conflict and is
+    // discarded in the fate phase, so its glory is spent on nothing. Seen live
+    // (2026-08-25, Dragon vs Phoenix, round 2 conflict 1): the fire ring
+    // honored a 0-fate participating Togashi Mitsu (glory 3) over a 2-fate
+    // participating Togashi Ichi (glory 2), and Mitsu was discarded that fate
+    // phase.
+    //
+    // `false` reproduces the pure highest-glory ordering exactly.
+    honorTargetPersistence: boolean;
+    // How much GLORY the persistence rule may give up. The token is worth the
+    // body's glory, so demoting a glory-4 body for a glory-1 one that survives
+    // trades a large present swing for a small future one. A candidate more
+    // than this far below the best glory on the board keeps tier 0 and is only
+    // reached by the ordinary glory ordering. 99 = no cap, which is the rule as
+    // first written.
+    honorTargetPersistenceMaxGloryGap: number;
+}
+
+/** Board facts the persistence tier needs; nothing in a card summary says
+ * whether a body will still be standing after the conflict resolves. */
+export interface HonorPersistenceBoard {
+    // Engine-read: characters under a `DoesNotBow` effect, published as a
+    // number map because the controller builds it with the shared
+    // `characterNumberHint` walker.
+    noBowUuids?: Record<string, number>;
+    // Conflict opportunities left AFTER the one running, both sides. With none
+    // left, "still standing this round" buys nothing and only fate counts.
+    conflictsRemaining?: number;
+    opponentConflictsRemaining?: number;
 }
 
 export interface HonorGiftResponseProfile {
@@ -63,6 +104,8 @@ export const PERSONAL_HONOR_DEFAULTS: PersonalHonorProfile = {
     persistentCharacterFate: 2,
     reverseHonorCardIds: [],
     ownDishonorCostSourceIds: [],
+    honorTargetPersistence: true,
+    honorTargetPersistenceMaxGloryGap: 99,
     honorGiftResponse: {
         enabled: true,
         minimumOwnHonorAfterGift: 8,
@@ -86,9 +129,45 @@ export class PersonalHonorTactics {
         return Number.isFinite(printed) ? Math.max(printed, 0) : 0;
     }
 
-    // Which of OUR characters to honor: highest glory gains the most.
-    pickOwnHonor(cards: any[]): any | null {
+    /**
+     * How much LATER use an honor token on this body can still have.
+     *
+     *   2 - it has fate, so it survives the fate phase and pays every round;
+     *   1 - it is still standing when this conflict resolves and a conflict
+     *       opportunity remains, so it pays again this round;
+     *   0 - it bows out of this conflict and is discarded in the fate phase.
+     *
+     * Always 0 when the knob is off, which reproduces the pure glory ordering.
+     */
+    persistenceTier(card: any, board?: HonorPersistenceBoard | null): number {
+        if(!this.profile.honorTargetPersistence) {
+            return 0;
+        }
+        if((Number(card?.fate) || 0) > 0) {
+            return 2;
+        }
+        const conflictsLeft = (Number(board?.conflictsRemaining) || 0) +
+            (Number(board?.opponentConflictsRemaining) || 0);
+        if(conflictsLeft <= 0) {
+            return 0;
+        }
+        const staysReady = !!board?.noBowUuids?.[String(card?.uuid || '')] ||
+            (!card?.inConflict && !card?.bowed);
+        return staysReady ? 1 : 0;
+    }
+
+    // Which of OUR characters to honor: highest glory gains the most, among
+    // the bodies that can still use it (see `persistenceTier`).
+    pickOwnHonor(cards: any[], board?: HonorPersistenceBoard | null): any | null {
+        const bestGlory = cards.reduce(
+            (top: number, card: any) => Math.max(top, this.gloryValue(card)), 0);
+        const gap = Number(this.profile.honorTargetPersistenceMaxGloryGap);
+        const tier = (card: any) =>
+            bestGlory - this.gloryValue(card) <= (Number.isFinite(gap) ? gap : 99)
+                ? this.persistenceTier(card, board)
+                : 0;
         return cards.slice().sort((a, b) =>
+            tier(b) - tier(a) ||
             this.gloryValue(b) - this.gloryValue(a) ||
             this.booleanDiff(!b.bowed, !a.bowed) ||
             this.booleanDiff(b.inConflict, a.inConflict) ||
@@ -195,12 +274,29 @@ export class PersonalHonorTactics {
     // For a combined honor/dishonor prompt: is honoring ours worth more than
     // dishonoring theirs? Getting this backwards is the defect class the
     // polarity gate watches for — see docs/bot-honor-token-targeting.md.
-    shouldHonorOwn(ownCards: any[], enemyCards: any[], ownValueBonus = 0): boolean {
-        const own = this.pickOwnHonor(ownCards);
+    shouldHonorOwn(
+        ownCards: any[],
+        enemyCards: any[],
+        ownValueBonus = 0,
+        board?: HonorPersistenceBoard | null,
+        opponentChoosesTarget = false
+    ): boolean {
+        const own = this.pickOwnHonor(ownCards, board);
         if(!own) {
             return false;
         }
-        const enemy = this.rankEnemyDishonor(enemyCards)[0];
+        // WHO PICKS THE TARGET decides which enemy body to price.
+        //
+        // Court Games' dishonor half resolves with `player: Players.Opponent`,
+        // so the opponent chooses which of THEIR participants takes the token
+        // -- and they will hand over the one that loses them the least. The
+        // realised value of that half is therefore their LOWEST-glory eligible
+        // participant, not their highest. Pricing it at the highest overvalues
+        // the dishonor and refuses honors that are worth more (2026-08-25,
+        // Dragon vs Phoenix round 3: own Mitsu glory 3 lost to enemy Tsukune
+        // glory 4, and the dishonor then landed on a glory-2 Shiba Yojimbo).
+        const ranked = this.rankEnemyDishonor(enemyCards);
+        const enemy = opponentChoosesTarget ? ranked[ranked.length - 1] : ranked[0];
         return !enemy || this.gloryValue(own) + ownValueBonus >= this.gloryValue(enemy);
     }
 

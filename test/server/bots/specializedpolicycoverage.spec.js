@@ -1287,7 +1287,7 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
         expectComplete(spies);
     });
 
-    it('reaches Crane utility actions and Keen Warrior reaction through every seed and information mode', function() {
+    it('reaches Crane utility actions through every seed and information mode', function() {
         const profile = profileFromStrategy(flags());
         const securedAttack = (source, opponentCardsInPlay) => makeState({
             promptTitle: 'Conflict Action Window', menuTitle: 'Military Conflict', buttons: [PASS],
@@ -1326,18 +1326,6 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
                 expect(decision.args[0]).withContext(policyCase.label).toBe('guardian');
             });
 
-        const keen = character('keen', 'keen-warrior', {
-            location: 'play area', selectable: true, inConflict: false, bowed: false
-        });
-        const keenWindow = makeState({
-            promptTitle: 'Any reactions to cards being revealed?',
-            menuTitle: 'Choose a reaction', buttons: [PASS],
-            cardPiles: { cardsInPlay: [keen] }
-        });
-        expectEveryPolicy(decideWithEveryPolicy(profile, keenWindow), (decision, policyCase) => {
-            expect(decision.reason).withContext(policyCase.label).toBe('trigger-hinted-ability');
-            expect(decision.args[0]).withContext(policyCase.label).toBe('keen');
-        });
     });
 
     it('executes every Lion tactic method', function() {
@@ -2152,8 +2140,7 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
             provinces: { one: [raitsugu, character('discard', 'doomed-shugenja')], two: [], three: [], four: [] }
         }));
         run(profile, ringState([
-            { ...raitsugu, attachments: [attachment('tanto', 'inscribed-tanto')] },
-            character('inventive', 'inventive-mirumoto')
+            { ...raitsugu, attachments: [attachment('tanto', 'inscribed-tanto')] }
         ], [], [attachment('discarded', 'fine-katana')]));
 
         run(profile, makeState({
@@ -2170,20 +2157,125 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
             promptTitle: 'Search', menuTitle: 'Choose an attachment', buttons: [CANCEL],
             cardPiles: { hand: [attachment('low', 'ornate-fan'), attachment('high', 'tetsubo-of-blood')] }
         }), { targetHint: { sourceCardId: 'agasha-swordsmith', sourceIsMine: true, gameActions: [] } });
-        run(profile, makeState({
-            promptTitle: 'Keen Warrior', menuTitle: 'Choose a card to put on the bottom', buttons: [CANCEL],
-            cardPiles: { hand: [attachment('low2', 'ornate-fan'), attachment('high2', 'tetsubo-of-blood')] }
-        }), { targetHint: { sourceCardId: 'keen-warrior', sourceIsMine: true, gameActions: [] } });
         run(profile, targetState('togashi-yokuni', ['copy'], [
             character('yokuni', 'togashi-yokuni'), character('niten2', 'niten-master')
         ], [character('enemy-ability', 'tengu-sensei')]), {
             targetHint: { sourceCardId: 'togashi-yokuni', sourceIsMine: true, gameActions: ['copy'] }
         });
-        for(const id of ['fine-katana', 'two-heavens-technique', 'adopted-kin', 'elegant-tessen']) {
+        for(const id of ['fine-katana', 'adopted-kin', 'elegant-tessen', 'self-understanding']) {
             run(profile, targetState(id, ['attach'], [niten, raitsugu], []), {
                 targetHint: { sourceCardId: id, sourceIsMine: true, gameActions: ['attach'] }
             });
         }
+
+        // ---- revision 0.5 ----
+
+        // Illustrious Forge picks by the axis of the conflict being declared
+        // against the province it sits under.
+        run(profile, makeState({
+            promptTitle: 'Illustrious Forge', menuTitle: 'Choose an attachment', buttons: [CANCEL],
+            cardPiles: { hand: [attachment('forge-mil', 'tetsubo-of-blood'), attachment('forge-pol', 'ornate-fan')] }
+        }, {}, {
+            conflict: {
+                conflictType: 'political', type: 'political',
+                attackingPlayerId: 'opponent-id', defendingPlayerId: 'bot-id'
+            }
+        }), { targetHint: { sourceCardId: 'illustrious-forge', sourceIsMine: true, gameActions: [] } });
+
+        // Agasha Taiko protects one of OUR non-stronghold provinces.
+        run(profile, makeState({
+            promptTitle: 'Choose a province', menuTitle: 'Choose a province', buttons: [CANCEL],
+            provinces: {
+                one: [{ uuid: 'garden', id: 'manicured-garden', type: 'province', isProvince: true,
+                    selectable: true, location: 'province 1', strengthSummary: { stat: '4' } }],
+                two: [{ uuid: 'pilgrim', id: 'pilgrimage', type: 'province', isProvince: true,
+                    selectable: true, location: 'province 2', strengthSummary: { stat: '5' } }],
+                three: [], four: []
+            }
+        }), { targetHint: { sourceCardId: 'agasha-taiko', sourceIsMine: true, gameActions: [] } });
+
+        // Agasha Shunsen: the activation gate, the ring-return cost, the bearer
+        // pick and the tutor menu are four separate prompts.
+        const shunsen = character('shunsen', 'agasha-shunsen', {
+            location: 'play area', selectable: true, fate: 1, inConflict: true, bowed: false
+        });
+        const claimedRings = {
+            rings: {
+                air: { element: 'air', fate: 0, claimed: true, claimedBy: BOT, unselectable: false },
+                earth: { element: 'earth', fate: 0, claimed: true, claimedBy: BOT, unselectable: false },
+                fire: { element: 'fire', fate: 0, claimed: true, claimedBy: BOT, unselectable: false },
+                water: { element: 'water', fate: 0 }, void: { element: 'void', fate: 0 }
+            }
+        };
+        run(profile, makeState({
+            phase: 'conflict', promptTitle: 'Conflict Action Window', menuTitle: 'Conflict',
+            buttons: [PASS], stats: { fate: 2, honor: 10, conflictsRemaining: 0 },
+            cardPiles: { cardsInPlay: [shunsen, { ...raitsugu, inConflict: true, bowed: false }] }
+        }, { stats: { conflictsRemaining: 0 } }, {
+            ...claimedRings,
+            conflict: {
+                type: 'military', conflictType: 'military',
+                attackingPlayerId: 'opponent-id', defendingPlayerId: 'bot-id',
+                attackerSkill: 5, defenderSkill: 4
+            }
+        }));
+        run(profile, makeState({
+            promptTitle: 'Choose a ring to return', menuTitle: 'Choose a ring to return',
+            selectRing: true, buttons: [DONE], cardPiles: { cardsInPlay: [shunsen] }
+        }, {}, claimedRings), {
+            targetHint: { sourceCardId: 'agasha-shunsen', sourceIsMine: true, gameActions: [] }
+        });
+        run(profile, targetState('agasha-shunsen', [], [niten, raitsugu], []), {
+            targetHint: { sourceCardId: 'agasha-shunsen', sourceIsMine: true, gameActions: [] }
+        });
+        run(profile, makeState({
+            promptTitle: 'Agasha Shunsen', menuTitle: 'Select a card:', buttons: [CANCEL],
+            cardPiles: { hand: [attachment('tutor-a', 'jade-tetsubo', { cost: 2 }),
+                attachment('tutor-b', 'self-understanding', { cost: 3 })] }
+        }), { targetHint: { sourceCardId: 'agasha-shunsen', sourceIsMine: true, gameActions: [] } });
+
+        // Waterfall Tattoo and The Stone of Sorrows are both timing decisions
+        // taken in the pre-conflict window.
+        run(profile, makeState({
+            phase: 'conflict', promptTitle: 'Action Window', menuTitle: 'Initiate an action',
+            buttons: [PASS], stats: { fate: 5 },
+            provinces: { one: [{ uuid: 'hidden', type: 'province', isProvince: true, facedown: true,
+                location: 'province 1' }], two: [], three: [], four: [] },
+            cardPiles: {
+                cardsInPlay: [{ ...raitsugu, bowed: true }],
+                hand: [attachment('tattoo', 'waterfall-tattoo', { cost: 2 }),
+                    attachment('stone', 'the-stone-of-sorrows', { cost: 2 })]
+            }
+        }, {
+            cardPiles: { cardsInPlay: [character('enemy', 'enemy-bushi', { bowed: false })] }
+        }, {
+            rings: {
+                air: { element: 'air', fate: 2 }, earth: { element: 'earth', fate: 0 },
+                fire: { element: 'fire', fate: 0 }, water: { element: 'water', fate: 0 },
+                void: { element: 'void', fate: 0 }
+            }
+        }));
+
+        // The Stone's bearer stays home while a Revered Bonsho is stacking the
+        // rings, which is asked at the attacker declaration.
+        run(profile, makeState({
+            phase: 'conflict', promptTitle: 'Military Void Conflict', menuTitle: 'Choose attackers',
+            buttons: [{ text: 'Initiate Conflict', arg: 'done', uuid: 'initiate' }],
+            provinces: {
+                one: [{ uuid: 'bonsho', id: 'revered-bonsho', type: 'holding',
+                    facedown: false, location: 'province 1' }],
+                two: [], three: [], four: []
+            },
+            cardPiles: {
+                cardsInPlay: [
+                    { ...character('stone-bearer', 'niten-master', { bowed: false }),
+                        attachments: [attachment('stone2', 'the-stone-of-sorrows')] },
+                    character('free-attacker', 'mirumoto-raitsugu', { bowed: false })
+                ]
+            }
+        }, {
+            cardPiles: { cardsInPlay: [character('enemy2', 'enemy-bushi', { bowed: false })] }
+        }));
 
         expectComplete(spies);
     });

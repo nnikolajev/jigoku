@@ -108,6 +108,8 @@ import type {
     ProvinceRevealResponseProfile,
     UnicornRevealProfile
 } from './UnicornRevealTactics';
+import { DEFAULT_REVEAL_READY } from './RevealReadyPolicy.js';
+import type { RevealReadyConfig } from './RevealReadyPolicy';
 import { DEFAULT_MULLIGAN_PROFILE, RUSH_MULLIGAN_PROFILE } from './MulliganTactics.js';
 import type { MulliganProfile } from './MulliganTactics';
 import {
@@ -330,6 +332,13 @@ export interface DeckProfile {
     // declared against them. `enabled: false` restores V1's answer, which was
     // its own attacking preference — i.e. the best ring, handed to the enemy.
     defenderRingChoice: Partial<DefenderRingChoiceConfig>;
+    // Which of our bodies the OPPONENT'S OWN DECLARATION readies, owned by
+    // `RevealReadyPolicy`. Waterfall Tattoo readies its bearer after a province
+    // we control is revealed, and the opponent's attack is what reveals one --
+    // so while we still hold a facedown province, that bearer defends whether
+    // or not it attacked, and every keep-a-body-home rule must stop reserving
+    // it. `enabled: false` (the default) is V1 exactly.
+    revealReady: Partial<RevealReadyConfig>;
 
     // Honor is a win condition on both ends — 0 loses, 25 wins — and the bot
     // pays honor costs (Assassination is 3) with no budget at all outside the
@@ -872,6 +881,10 @@ export const DEFAULT_PROFILE: DeckProfile = {
     // SHIPPED ON, field-wide, and generic: the prompt exists because the
     // OPPONENT has Togashi Tadakatsu in play, so every deck can be asked it.
     defenderRingChoice: { ...DEFAULT_DEFENDER_RING_CHOICE },
+    // OFF by default and therefore inert for every deck without a
+    // reveal-ready attachment. The Dragon attachment tower turns it on with
+    // Waterfall Tattoo; see `RevealReadyPolicy`.
+    revealReady: { ...DEFAULT_REVEAL_READY },
     // SHIPPED ON. V1 used to choose the conflict axis from its own ready board
     // alone, ignoring the opponent's board even though that board is public and
     // the fair `ringScore` already reads it. Weight 1 subtracts the opponent's
@@ -960,6 +973,10 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             moveReactionCardIds: [...(DEFAULT_PROFILE.moveIntoConflict.moveReactionCardIds || [])]
         },
         defenderRingChoice: { ...DEFAULT_PROFILE.defenderRingChoice },
+        revealReady: {
+            ...DEFAULT_PROFILE.revealReady,
+            attachmentIds: [...(DEFAULT_PROFILE.revealReady.attachmentIds || [])]
+        },
         fateAwareEconomy: { ...DEFAULT_PROFILE.fateAwareEconomy },
         boardAwareDynasty: {
             ...DEFAULT_PROFILE.boardAwareDynasty,
@@ -1203,7 +1220,34 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
     if(strategy.attachmentTower) {
         profile.attachmentTower = {
             ...DRAGON_ATTACHMENT_DEFAULTS,
-            stackableAttachments: [...DRAGON_ATTACHMENT_DEFAULTS.stackableAttachments]
+            towerCharacters: [...DRAGON_ATTACHMENT_DEFAULTS.towerCharacters],
+            dragonCharacters: [...DRAGON_ATTACHMENT_DEFAULTS.dragonCharacters],
+            supportCharacters: [...DRAGON_ATTACHMENT_DEFAULTS.supportCharacters],
+            attachments: [...DRAGON_ATTACHMENT_DEFAULTS.attachments],
+            stackableAttachments: [...DRAGON_ATTACHMENT_DEFAULTS.stackableAttachments],
+            restrictedAttachments: [...DRAGON_ATTACHMENT_DEFAULTS.restrictedAttachments],
+            weaponAttachments: [...DRAGON_ATTACHMENT_DEFAULTS.weaponAttachments],
+            attachmentPriority: [...DRAGON_ATTACHMENT_DEFAULTS.attachmentPriority],
+            yokuniCopyPriority: [...DRAGON_ATTACHMENT_DEFAULTS.yokuniCopyPriority],
+            cheapCharacters: [...DRAGON_ATTACHMENT_DEFAULTS.cheapCharacters],
+            grantedAbilityAttachmentIds: [...DRAGON_ATTACHMENT_DEFAULTS.grantedAbilityAttachmentIds],
+            attachmentSkillBonuses: Object.fromEntries(
+                Object.entries(DRAGON_ATTACHMENT_DEFAULTS.attachmentSkillBonuses)
+                    .map(([id, bonus]) => [id, { ...bonus }])),
+            shunsen: {
+                ...DRAGON_ATTACHMENT_DEFAULTS.shunsen,
+                searchOrder: [...DRAGON_ATTACHMENT_DEFAULTS.shunsen.searchOrder]
+            },
+            stoneOfSorrows: { ...DRAGON_ATTACHMENT_DEFAULTS.stoneOfSorrows },
+            waterfallTattoo: { ...DRAGON_ATTACHMENT_DEFAULTS.waterfallTattoo },
+            agashaTaiko: {
+                ...DRAGON_ATTACHMENT_DEFAULTS.agashaTaiko,
+                provincePriority: [...DRAGON_ATTACHMENT_DEFAULTS.agashaTaiko.provincePriority]
+            },
+            illustriousForge: {
+                ...DRAGON_ATTACHMENT_DEFAULTS.illustriousForge,
+                tiePriority: [...DRAGON_ATTACHMENT_DEFAULTS.illustriousForge.tiePriority]
+            }
         };
         profile.drawBidding = { ...TOWER_DRAW_BID_PROFILE };
         profile.fateAwareEconomy = {
@@ -1730,10 +1774,17 @@ const OVERRIDES: ProfileOverride[] = [
         // Dragon Arsenal (EmeraldDB 46aaa220): the political +5 province is
         // the hardest final target; the rest of the playstyle is data-gated
         // by Iron Mountain Castle in DragonAttachmentTactics.
-        name: 'dragon-attachments-ancestral-lands',
-        match: (ids, strategy) => strategy.attachmentTower && ids.has('ancestral-lands'),
+        // Dragon Attachments (EmeraldDB ce8df8ae, revision 0.5). Illustrious
+        // Forge sits under the stronghold: it is the only province in the deck
+        // whose reveal reaction PAYS, and the stronghold province is the one
+        // province guaranteed to be revealed in a game the deck is losing —
+        // the free attachment arrives exactly at the game-deciding defense.
+        // (Ancestral Lands left the deck in 0.5, and City of the Rich Frog is
+        // Eminent, so it cannot be a stronghold province at all.)
+        name: 'dragon-attachments-illustrious-forge',
+        match: (ids, strategy) => strategy.attachmentTower && ids.has('illustrious-forge'),
         apply: {
-            strongholdProvinceId: 'ancestral-lands',
+            strongholdProvinceId: 'illustrious-forge',
             boardAwareDynasty: {
                 urgentTowerAdditionalFate: 2,
                 fullPlannerAtUrgent: false,
@@ -1744,6 +1795,23 @@ const OVERRIDES: ProfileOverride[] = [
             attackKeepHome: 1,
             chumpBlock: true,
             defenseSkillBuffer: 2,
+            // HONOR IS NOT A RESOURCE THIS DECK CAN SPEND. `cardsOverHonor`
+            // keeps bidding high to buy draw until our honor reaches 2, and
+            // the field punishes that twice over: the honor we pay is the
+            // honor a dishonor deck is trying to strip, and it is also the
+            // honor a Crane/Lion honor deck needs to reach 25. Off, the tower
+            // profile still bids 4+ for its cards but stops paying for them
+            // out of the honor track.
+            drawBidding: { cardsOverHonor: false },
+            // Waterfall Tattoo readies its bearer after a province we control
+            // is revealed, and the opponent's declaration is what reveals one.
+            // A tattooed body therefore defends whether or not it attacked, so
+            // no keep-a-body-home rule may reserve it. See `RevealReadyPolicy`.
+            revealReady: {
+                enabled: true,
+                attachmentIds: ['waterfall-tattoo'],
+                requireAllProvincesFacedown: false
+            },
             mulligan: {
                 openingHoldingLimit: 0,
                 preferredCharacterIds: [

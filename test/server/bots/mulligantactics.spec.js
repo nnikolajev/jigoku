@@ -177,7 +177,7 @@ describe('MulliganTactics', function() {
     it('provides injectable mulligan profiles for every supported deck family', function() {
         const cases = [
             {
-                ids: ['ancestral-lands'], strategy: { attachmentTower: true },
+                ids: ['illustrious-forge'], strategy: { attachmentTower: true },
                 check: (profile) => profile.mulligan.preferredCharacterIds.includes('niten-master')
             },
             {

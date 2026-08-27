@@ -231,4 +231,69 @@ describe('StrongholdDefenseTactics', function() {
         });
         expect(result.mode).toBe('hold-all');
     });
+
+    describe('reveal-ready free defenders', function() {
+        // A Waterfall Tattoo bearer is readied by the opponent's own
+        // declaration (it reveals a facedown province of ours), so it defends
+        // whether or not it attacked. `RevealReadyPolicy` names those bodies
+        // and this planner must stop reserving them.
+        it('opens the attack when a free defender alone keeps the stronghold safe', function() {
+            const result = plan({
+                strongholdProvinceStrength: 4,
+                myReady: [card('tattooed', 6, 6), card('other', 3, 3)],
+                opponentReady: [card('enemy', 5, 5)],
+                opponentMilitaryRemaining: 1,
+                opponentPoliticalRemaining: 1,
+                freeDefenderUuids: ['tattooed']
+            });
+            expect(result.mode).toBe('open-attack');
+            expect(result.reserveUuids).toEqual([]);
+            expect(result.reason).toBe('stronghold-reveal-ready-safe');
+        });
+
+        it('still reserves a body when the free defender is not enough', function() {
+            const result = plan({
+                strongholdProvinceStrength: 4,
+                myReady: [card('tattooed', 1, 1), card('tower', 9, 9)],
+                opponentReady: [card('enemy', 9, 9)],
+                opponentMilitaryRemaining: 1,
+                opponentPoliticalRemaining: 1,
+                freeDefenderUuids: ['tattooed']
+            });
+            expect(result.mode).toBe('reserve');
+            expect(result.reserveUuids).toEqual(['tower']);
+        });
+
+        it('never names a free defender in the reserve', function() {
+            const result = plan({
+                strongholdProvinceStrength: 1,
+                myReady: [card('tattooed', 4, 4), card('tower', 4, 4)],
+                opponentReady: [card('enemy', 40, 40)],
+                opponentMilitaryRemaining: 1,
+                opponentPoliticalRemaining: 1,
+                freeDefenderUuids: ['tattooed']
+            });
+            expect(result.mode).toBe('hold-all');
+            expect(result.reserveUuids).toEqual(['tower']);
+        });
+
+        it('releases a free defender against covert too', function() {
+            // Covert stops a body DECLARING as a defender whether or not it
+            // attacked, so keeping it home buys nothing.
+            const result = plan({
+                myReady: [card('tattooed', 4, 4), card('tower', 4, 4)],
+                opponentReady: [card('enemy', 6, 6, true)],
+                freeDefenderUuids: ['tattooed']
+            });
+            expect(result.mode).toBe('hold-all');
+            expect(result.reason).toBe('stronghold-covert-risk');
+            expect(result.reserveUuids).toEqual(['tower']);
+        });
+
+        it('is bit-identical to the old planner with no free defender named', function() {
+            const withField = plan({ freeDefenderUuids: [] });
+            const without = plan({});
+            expect(withField).toEqual(without);
+        });
+    });
 });

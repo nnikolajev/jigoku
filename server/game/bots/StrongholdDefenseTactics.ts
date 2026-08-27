@@ -98,6 +98,14 @@ export interface StrongholdDefenseInput {
     myBrokenOuterProvinces?: number;
     isFirstPlayer?: boolean;
     weakestOuterProvinceStrength?: number;
+    // Bodies the OPPONENT'S OWN DECLARATION will ready again — a Waterfall
+    // Tattoo bearer while the province being defended is still facedown, since
+    // the attack reveals it and the reaction stands the bearer back up before
+    // defenders are declared. They defend whether or not they attacked, so
+    // reserving them is pure waste: they are counted as defenders
+    // unconditionally and never appear in `reserveUuids`. Owned by
+    // `RevealReadyPolicy`; the caller passes its verdict.
+    freeDefenderUuids?: string[];
 }
 
 export type StrongholdDefenseMode = 'inactive' | 'open-attack' | 'last-conflict-all-in' |
@@ -133,13 +141,22 @@ export class StrongholdDefenseTactics {
         const axes = this.remainingAxes(input);
         const disables = input.omniscient ? Math.max(0, Math.floor(Number(input.defenderDisables) || 0)) : 0;
         const opponentConflictCount = Number(input.opponentConflictsRemaining);
+        // A body the opponent's own attack readies is a defender we get for
+        // free: it is added to every survival test and removed from the pool
+        // the reserve is chosen out of. Empty for every deck without a
+        // reveal-ready attachment, which is V1 exactly.
+        const freeUuids = new Set((input.freeDefenderUuids || []).map((uuid) => String(uuid)));
+        const free = input.myReady.filter((card) => freeUuids.has(String(card.uuid)));
+        const reservable = input.myReady.filter((card) => !freeUuids.has(String(card.uuid)));
+        const survivesWith = (defenders: StrongholdDefenseCharacter[]) =>
+            this.survives(defenders.concat(free), axes, threats, input.strongholdProvinceStrength, disables);
         // Both players are one province from defeat. The bot has the current
         // conflict opportunity, so race for the enemy stronghold before the
         // opponent gets a counterattack.
         if(input.opponentStrongholdExposed) {
             const opponentCanAnswer = this.profile.raceRequiresSafety &&
                 (!Number.isFinite(opponentConflictCount) || opponentConflictCount > 0) &&
-                !this.survives([], axes, threats, input.strongholdProvinceStrength, disables);
+                !survivesWith([]);
             if(!opponentCanAnswer) {
                 return this.result('last-conflict-all-in', [], true, 'stronghold-race-all-in', threats);
             }
@@ -155,26 +172,32 @@ export class StrongholdDefenseTactics {
         }
 
         if(this.profile.holdAllAgainstCovert && input.opponentReady.some((card) => card.covert)) {
-            return this.result('hold-all', input.myReady.map((card) => card.uuid), false,
+            // Covert stops a body DECLARING as a defender, which it does
+            // whether or not that body attacked first — so a free defender is
+            // no safer at home and is still released.
+            return this.result('hold-all', reservable.map((card) => card.uuid), false,
                 preStronghold ? 'two-broken-covert-risk' : 'stronghold-covert-risk', threats);
         }
 
         const maxConfigured = input.omniscient ? this.profile.maxOmniscientDefenders : this.profile.maxFairDefenders;
-        const maxDefenders = Math.min(input.myReady.length,
-            Number.isFinite(maxConfigured) ? Math.max(0, Math.floor(maxConfigured)) : input.myReady.length);
+        const maxDefenders = Math.min(reservable.length,
+            Number.isFinite(maxConfigured) ? Math.max(0, Math.floor(maxConfigured)) : reservable.length);
 
         // Stronghold can already absorb every possible counterattack. No body
         // needs reserving, so ordinary attack commitment may use all of them.
+        // A free defender counts here too, which is the whole point: with the
+        // tattooed body standing back up by itself, no other body is needed.
         const minimumDefenders = preStronghold
-            ? Math.min(input.myReady.length, Math.max(1, Math.floor(this.profile.preStrongholdMinDefenders)))
+            ? Math.min(reservable.length, Math.max(1, Math.floor(this.profile.preStrongholdMinDefenders)))
             : 0;
-        if(minimumDefenders === 0 && this.survives([], axes, threats, input.strongholdProvinceStrength, disables)) {
-            return this.result('open-attack', [], false, 'stronghold-strength-safe', threats);
+        if(minimumDefenders === 0 && survivesWith([])) {
+            return this.result('open-attack', [], false,
+                free.length > 0 ? 'stronghold-reveal-ready-safe' : 'stronghold-strength-safe', threats);
         }
 
         for(let size = Math.max(1, minimumDefenders); size <= maxDefenders; size++) {
-            const safe = this.combinations(input.myReady, size)
-                .filter((cards) => this.survives(cards, axes, threats, input.strongholdProvinceStrength, disables))
+            const safe = this.combinations(reservable, size)
+                .filter((cards) => survivesWith(cards))
                 .sort((left, right) => this.coverage(right, axes, disables) - this.coverage(left, axes, disables));
             if(safe.length > 0) {
                 const reserve = safe[0].map((card) => card.uuid);
@@ -188,8 +211,10 @@ export class StrongholdDefenseTactics {
         }
 
         // No allowed reserve can prove the stronghold safe. Primary directive
-        // wins: skip the attack and make every body available to defend.
-        return this.result('hold-all', input.myReady.map((card) => card.uuid), false,
+        // wins: skip the attack and make every body available to defend — but
+        // never hold back a body that defends anyway, so free defenders are
+        // still released.
+        return this.result('hold-all', reservable.map((card) => card.uuid), false,
             preStronghold ? 'two-broken-defense-uncertain' : 'stronghold-defense-uncertain', threats);
     }
 

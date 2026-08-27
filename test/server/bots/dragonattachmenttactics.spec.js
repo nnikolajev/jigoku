@@ -23,10 +23,58 @@ describe('DragonAttachmentTactics', function() {
     };
 
     describe('strategy and profile gating', function() {
-        it('uses the v0.2 EmeraldDB deck with three Statuaries and no Laboratory', function() {
+        it('uses the v0.5 EmeraldDB deck with the new attachment package', function() {
             expect(dragonAttachmentDecklist.deck_id).toBe('ce8df8ae-ee05-4ab7-bc13-087a8fc092cb');
+            expect(dragonAttachmentDecklist.version_number).toBe('0.5');
             expect(dragonAttachmentDecklist.cards['mountaintop-statuary']).toBe(3);
-            expect(dragonAttachmentDecklist.cards['alchemical-laboratory']).toBeUndefined();
+            for(const added of ['agasha-shunsen', 'agasha-taiko', 'waterfall-tattoo',
+                'self-understanding', 'the-stone-of-sorrows', 'revered-bonsho',
+                'restoration-of-balance', 'city-of-the-rich-frog']) {
+                expect(dragonAttachmentDecklist.cards[added]).withContext(added).toBeGreaterThan(0);
+            }
+            for(const removed of ['alchemical-laboratory', 'keen-warrior', 'ancestral-lands',
+                'hiruma-skirmisher', 'tattooed-wanderer', 'inventive-mirumoto',
+                'riot-in-the-streets', 'two-heavens-technique']) {
+                expect(dragonAttachmentDecklist.cards[removed]).withContext(removed).toBeUndefined();
+            }
+        });
+
+        it('drops every removed card from the profile lists', function() {
+            const lists = [
+                DRAGON_ATTACHMENT_DEFAULTS.towerCharacters,
+                DRAGON_ATTACHMENT_DEFAULTS.dragonCharacters,
+                DRAGON_ATTACHMENT_DEFAULTS.supportCharacters,
+                DRAGON_ATTACHMENT_DEFAULTS.attachments,
+                DRAGON_ATTACHMENT_DEFAULTS.stackableAttachments,
+                DRAGON_ATTACHMENT_DEFAULTS.restrictedAttachments,
+                DRAGON_ATTACHMENT_DEFAULTS.weaponAttachments,
+                DRAGON_ATTACHMENT_DEFAULTS.attachmentPriority,
+                DRAGON_ATTACHMENT_DEFAULTS.yokuniCopyPriority,
+                DRAGON_ATTACHMENT_DEFAULTS.cheapCharacters
+            ];
+            for(const removed of ['keen-warrior', 'hiruma-skirmisher', 'inventive-mirumoto',
+                'tattooed-wanderer', 'two-heavens-technique']) {
+                for(const list of lists) {
+                    expect(list).withContext(removed).not.toContain(removed);
+                }
+            }
+            expect(getPlaybookEntry('keen-warrior')).toBeUndefined();
+            expect(getPlaybookEntry('hiruma-skirmisher')).toBeUndefined();
+            expect(getPlaybookEntry('inventive-mirumoto')).toBeUndefined();
+            expect(getPlaybookEntry('two-heavens-technique')).toBeUndefined();
+        });
+
+        it('carries every deck attachment in the profile', function() {
+            const deckAttachments = ['tetsubo-of-blood', 'jade-tetsubo', 'adopted-kin',
+                'daimyo-s-favor', 'ancestral-daisho', 'elegant-tessen', 'finger-of-jade',
+                'fine-katana', 'inscribed-tanto', 'ornate-fan', 'pathfinder-s-blade',
+                'kitsuki-s-method', 'self-understanding', 'the-stone-of-sorrows',
+                'waterfall-tattoo'];
+            for(const id of deckAttachments) {
+                expect(DRAGON_ATTACHMENT_DEFAULTS.attachments).withContext(id).toContain(id);
+                expect(DRAGON_ATTACHMENT_DEFAULTS.attachmentPriority).withContext(id).toContain(id);
+                expect(DRAGON_ATTACHMENT_DEFAULTS.attachmentSkillBonuses[id]).withContext(id).toBeDefined();
+            }
         });
 
         it('keys only on Iron Mountain Castle', function() {
@@ -41,14 +89,42 @@ describe('DragonAttachmentTactics', function() {
             expect(profile.attackCommitment).toBe('all-but-one');
         });
 
-        it('parks Ancestral Lands under the stronghold', function() {
+        it('parks Illustrious Forge under the stronghold', function() {
             const profile = resolveDeckProfile(
-                ['iron-mountain-castle', 'ancestral-lands'],
+                ['iron-mountain-castle', 'illustrious-forge'],
                 ATTACHMENTS
             );
-            expect(profile.strongholdProvinceId).toBe('ancestral-lands');
+            expect(profile.strongholdProvinceId).toBe('illustrious-forge');
             expect(profile.attackCommitment).toBe('all-but-one');
             expect(profile.attackKeepHome).toBe(1);
+        });
+
+        it('stops paying for cards out of the honor track', function() {
+            const profile = resolveDeckProfile(
+                ['iron-mountain-castle', 'illustrious-forge'],
+                ATTACHMENTS
+            );
+            // `cardsOverHonor` keeps bidding high until our honor reaches 2,
+            // and the field punishes that twice: the honor paid is the honor a
+            // dishonor deck strips, and the honor an honor deck needs to reach
+            // 25. Measured +4.03pp over 12 bases / 3818 games (p=0.012).
+            expect(profile.drawBidding.cardsOverHonor).toBe(false);
+            // The rest of the tower bid profile is untouched: this deck still
+            // needs to draw its Weapons and reducers.
+            expect(profile.drawBidding.objective).toBe('cards');
+            expect(profile.drawBidding.minimumRoutineBid).toBe(4);
+        });
+
+        it('turns the reveal-ready policy on for Waterfall Tattoo only', function() {
+            const profile = resolveDeckProfile(
+                ['iron-mountain-castle', 'illustrious-forge'],
+                ATTACHMENTS
+            );
+            expect(profile.revealReady.enabled).toBe(true);
+            expect(profile.revealReady.attachmentIds).toEqual(['waterfall-tattoo']);
+            // Every other deck keeps V1: the policy is inert without an entry.
+            expect(profileFromStrategy({ ...ATTACHMENTS, attachmentTower: false })
+                .revealReady.enabled).toBe(false);
         });
     });
 
@@ -111,9 +187,7 @@ describe('DragonAttachmentTactics', function() {
         });
 
         it('distributes every non-stacking attachment before adding a duplicate', function() {
-            const stackable = new Set([
-                'fine-katana', 'ornate-fan', 'ancestral-daisho', 'kitsuki-s-method'
-            ]);
+            const stackable = new Set(DRAGON_ATTACHMENT_DEFAULTS.stackableAttachments);
             const singletonAttachments = DRAGON_ATTACHMENT_DEFAULTS.attachments
                 .filter((id) => !stackable.has(id));
 
@@ -154,6 +228,20 @@ describe('DragonAttachmentTactics', function() {
                     .withContext(`${id} at Restricted cap`)
                     .toBe(fallback);
             }
+        });
+
+        it('stacks all three Pathfinder Blades on one bearer', function() {
+            // Not Restricted, so the cap never applies: the whole point of the
+            // axis split is that +1 three times on one body is +3 military.
+            const tower = {
+                id: 'togashi-yokuni', uuid: 'yokuni', fate: 5, bowed: false,
+                attachments: [{ id: 'pathfinder-s-blade' }, { id: 'pathfinder-s-blade' }]
+            };
+            const fallback = {
+                id: 'niten-master', uuid: 'niten', fate: 3, bowed: false, attachments: []
+            };
+            expect(tactics.pickAttachmentTarget([tower, fallback], 'pathfinder-s-blade'))
+                .toBe(tower);
         });
 
         it('copies the requested Yokuni ability order', function() {
@@ -235,63 +323,375 @@ describe('DragonAttachmentTactics', function() {
             ], [yokuni], 'yokuni').id).toBe('ancestral-daisho');
         });
 
-        it('steers Water to Inventive Mirumoto recursion', function() {
-            const board = [{ id: 'inventive-mirumoto' }];
+        it('no longer steers Water, whose recursion card left the deck', function() {
+            const board = [{ id: 'mirumoto-raitsugu' }];
             const discard = [{ id: 'fine-katana' }];
-            expect(tactics.ringBonus('water', board, discard)).toBeGreaterThan(0);
-            expect(tactics.ringBonus('earth', board, discard)).toBe(0);
+            expect(tactics.ringBonus('water', board, discard)).toBe(0);
         });
 
-        it('applies normal attachment target limits to Inventive Mirumoto replay', function() {
-            const inventive = {
-                id: 'inventive-mirumoto', uuid: 'inventive', type: 'character',
-                location: 'play area',
-                attachments: [
-                    { id: 'ancestral-daisho' },
-                    { id: 'elegant-tessen' },
-                    { id: 'ornate-fan' }
-                ]
-            };
-            const blockedTetsubo = {
-                id: 'tetsubo-of-blood', uuid: 'aaa-tetsubo', type: 'attachment',
-                location: 'conflict discard pile', selectable: true
-            };
-            const legalJade = {
-                id: 'finger-of-jade', uuid: 'zzz-jade', type: 'attachment',
-                location: 'conflict discard pile', selectable: true
-            };
-            const state = {
-                players: {
-                    'Jigoku Bot': {
-                        name: 'Jigoku Bot', promptTitle: 'Inventive Mirumoto',
-                        menuTitle: 'Choose an attachment',
-                        buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
-                        stats: { fate: 3 },
-                        cardPiles: {
-                            cardsInPlay: [inventive], hand: [],
-                            conflictDiscardPile: [blockedTetsubo, legalJade]
-                        }
-                    },
-                    Opponent: { name: 'Opponent', cardPiles: { cardsInPlay: [], hand: [] } }
-                }
-            };
+        it('still steers Void for Inscribed Tanto and Fire for an unhonored tower', function() {
+            const tanto = [{ id: 'niten-master', attachments: [{ id: 'inscribed-tanto' }] }];
+            expect(tactics.ringBonus('void', tanto, [])).toBeGreaterThan(0);
+            const built = [{ id: 'niten-master', attachments: [{ id: 'fine-katana' }], isHonored: false }];
+            expect(tactics.ringBonus('fire', built, [])).toBeGreaterThan(0);
+        });
 
-            const decision = new JigokuBotPolicy('inventive-shared-target-gate').decide(
-                state,
-                'Jigoku Bot',
-                {
-                    strategy: ATTACHMENTS,
-                    cardHint: getPlaybookEntry,
-                    targetHint: {
-                        sourceCardId: 'inventive-mirumoto', sourceUuid: 'inventive',
-                        sourceIsMine: true, gameActions: ['playCard']
-                    },
-                    conflictCosts: { 'aaa-tetsubo': 2, 'zzz-jade': 0 }
-                }
-            );
+    });
 
-            expect(decision.reason).toBe('replay-card-shared-play-intent');
-            expect(decision.args[0]).toBe('zzz-jade');
+
+    // ==================================================================
+    // Deck revision 0.5
+    // ==================================================================
+
+    describe('axis tower split', function() {
+        const military = { uuid: 'mil', id: 'niten-master', fate: 3, attachments: [],
+            militarySkillSummary: { stat: '6' }, politicalSkillSummary: { stat: '2' } };
+        const political = { uuid: 'pol', id: 'togashi-yokuni', fate: 3, attachments: [],
+            militarySkillSummary: { stat: '2' }, politicalSkillSummary: { stat: '6' } };
+
+        it('classifies each attachment by the axis it actually buffs', function() {
+            expect(tactics.attachmentAxis('tetsubo-of-blood')).toBe('military');
+            expect(tactics.attachmentAxis('pathfinder-s-blade')).toBe('military');
+            expect(tactics.attachmentAxis('self-understanding')).toBe('political');
+            expect(tactics.attachmentAxis('ornate-fan')).toBe('political');
+            // Symmetric and ability-only cards go on either tower.
+            expect(tactics.attachmentAxis('elegant-tessen')).toBe('either');
+            expect(tactics.attachmentAxis('waterfall-tattoo')).toBe('either');
+            expect(tactics.attachmentAxis('the-stone-of-sorrows')).toBe('either');
+            expect(tactics.attachmentAxis('adopted-kin')).toBe('either');
+            expect(tactics.attachmentAxis('daimyo-s-favor')).toBe('either');
+            expect(tactics.attachmentAxis('finger-of-jade')).toBe('either');
+        });
+
+        it('names one military tower and one political tower', function() {
+            const axes = tactics.towerAxes([military, political]);
+            expect(axes.get('mil')).toBe('military');
+            expect(axes.get('pol')).toBe('political');
+        });
+
+        it('sends military attachments to the military tower', function() {
+            expect(tactics.pickAttachmentTarget([political, military], 'pathfinder-s-blade').uuid)
+                .toBe('mil');
+            expect(tactics.pickAttachmentTarget([political, military], 'fine-katana').uuid)
+                .toBe('mil');
+        });
+
+        it('sends political attachments to the political tower', function() {
+            expect(tactics.pickAttachmentTarget([political, military], 'ornate-fan').uuid)
+                .toBe('pol');
+            expect(tactics.pickAttachmentTarget([political, military], 'kitsuki-s-method').uuid)
+                .toBe('pol');
+        });
+
+        it('lets a symmetric attachment follow the ordinary tower ranking', function() {
+            // Fate is the ordinary tie-break, so the richer body wins whichever
+            // axis it is being built for.
+            const rich = { ...political, fate: 5 };
+            expect(tactics.pickAttachmentTarget([military, rich], 'finger-of-jade').uuid)
+                .toBe('pol');
+        });
+
+        it('leaves the split off when the profile disables it', function() {
+            const flat = new DragonAttachmentTactics({
+                ...DRAGON_ATTACHMENT_DEFAULTS, axisTowerSplit: false
+            });
+            // With the split off, ornate-fan follows raw tower ranking (equal
+            // fate, equal attachment counts) and lands on the ranked-first body.
+            const chosen = flat.pickAttachmentTarget([political, military], 'ornate-fan');
+            expect(chosen.uuid).toBe('pol');
+            // ...and the military card no longer avoids the political tower.
+            const withRichPolitical = flat.pickAttachmentTarget(
+                [military, { ...political, fate: 9 }], 'fine-katana');
+            expect(withRichPolitical.uuid).toBe('pol');
+        });
+
+        it('never breaks the Restricted cap to satisfy the axis', function() {
+            const cappedMilitary = {
+                ...military,
+                attachments: [{ id: 'fine-katana' }, { id: 'jade-tetsubo' }, { id: 'ancestral-daisho' }]
+            };
+            // Three Restricted already on a Dragon body: the military card has
+            // to go somewhere legal instead.
+            expect(tactics.pickAttachmentTarget([cappedMilitary, political], 'elegant-tessen').uuid)
+                .toBe('pol');
+        });
+    });
+
+    describe('Agasha Shunsen', function() {
+        const lastConflict = {
+            myConflictsRemaining: 0,
+            opponentConflictsRemaining: 0,
+            claimedRingCount: 3,
+            selfUnderstandingParticipating: false
+        };
+
+        it('holds the ability while either player still has a conflict', function() {
+            expect(tactics.shouldUseShunsen(lastConflict)).toBe(true);
+            expect(tactics.shouldUseShunsen({ ...lastConflict, myConflictsRemaining: 1 })).toBe(false);
+            expect(tactics.shouldUseShunsen({ ...lastConflict, opponentConflictsRemaining: 1 })).toBe(false);
+        });
+
+        it('does nothing without a claimed ring to spend', function() {
+            expect(tactics.shouldUseShunsen({ ...lastConflict, claimedRingCount: 0 })).toBe(false);
+        });
+
+        it('refuses to empty the pool a participating Self-Understanding reads', function() {
+            expect(tactics.shouldUseShunsen({ ...lastConflict, selfUnderstandingParticipating: true }))
+                .toBe(false);
+        });
+
+        it('returns as many rings as possible, capped at the deck maximum cost', function() {
+            expect(tactics.shunsenRingsToReturn(0)).toBe(0);
+            expect(tactics.shunsenRingsToReturn(2)).toBe(2);
+            expect(tactics.shunsenRingsToReturn(3)).toBe(3);
+            // A fourth ring buys nothing: the deck's dearest attachment is 3.
+            expect(tactics.shunsenRingsToReturn(5)).toBe(3);
+        });
+
+        it('follows the owner search order inside the ring budget', function() {
+            const pool = [
+                { uuid: 'a', id: 'tetsubo-of-blood', cost: 1 },
+                { uuid: 'b', id: 'the-stone-of-sorrows', cost: 2 },
+                { uuid: 'c', id: 'jade-tetsubo', cost: 2 },
+                { uuid: 'd', id: 'waterfall-tattoo', cost: 2 },
+                { uuid: 'e', id: 'self-understanding', cost: 3 },
+                { uuid: 'f', id: 'ornate-fan', cost: 0 }
+            ];
+            expect(tactics.pickShunsenAttachment(pool, 3).id).toBe('self-understanding');
+            expect(tactics.pickShunsenAttachment(pool, 2).id).toBe('waterfall-tattoo');
+            expect(tactics.pickShunsenAttachment(pool, 1).id).toBe('tetsubo-of-blood');
+            // Nothing from the ranked list is affordable at zero, so the last
+            // entry ("any other attachment") answers.
+            expect(tactics.pickShunsenAttachment(pool, 0).id).toBe('ornate-fan');
+        });
+
+        it('puts the attachment on a tower that still has fate', function() {
+            const towerWithFate = { uuid: 'tower', id: 'niten-master', fate: 2, attachments: [] };
+            const towerNoFate = { uuid: 'broke', id: 'togashi-yokuni', fate: 0, attachments: [] };
+            expect(tactics.pickShunsenTarget([towerNoFate, towerWithFate]).uuid).toBe('tower');
+        });
+
+        it('falls back to the strongest body with fate when no tower has any', function() {
+            const towerNoFate = { uuid: 'broke', id: 'niten-master', fate: 0, attachments: [] };
+            const helper = {
+                uuid: 'helper', id: 'agasha-swordsmith', fate: 1, attachments: [],
+                militarySkillSummary: { stat: '1' }, politicalSkillSummary: { stat: '2' }
+            };
+            const stronger = {
+                uuid: 'stronger', id: 'doomed-shugenja', fate: 1, attachments: [],
+                militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '3' }
+            };
+            expect(tactics.pickShunsenTarget([towerNoFate, helper, stronger], 'military').uuid)
+                .toBe('stronger');
+        });
+
+        it('still answers when nothing on the board has fate', function() {
+            const only = { uuid: 'only', id: 'niten-master', fate: 0, attachments: [] };
+            expect(tactics.pickShunsenTarget([only]).uuid).toBe('only');
+        });
+
+        it('is not bought as a body until a tower is standing', function() {
+            const playable = [{ uuid: 'shunsen', id: 'agasha-shunsen', type: 'character' }];
+            const costs = { shunsen: 3 };
+            expect(tactics.pickSupportCharacter(playable, costs, 8, [])).toBeNull();
+            const withTower = [{ id: 'niten-master', type: 'character' }];
+            expect(tactics.pickSupportCharacter(playable, costs, 8, withTower).id)
+                .toBe('agasha-shunsen');
+        });
+    });
+
+    describe('The Stone of Sorrows', function() {
+        const empty = { ringFate: 0, activeConflict: false, skillNeeded: null, bonshoInPlay: false };
+
+        it('plays it as soon as there is ring fate to lock away', function() {
+            expect(tactics.shouldPlayStoneOfSorrows({ ...empty, ringFate: 1 })).toBe(true);
+        });
+
+        it('plays it on sight while a Revered Bonsho is stacking the rings', function() {
+            expect(tactics.shouldPlayStoneOfSorrows({ ...empty, bonshoInPlay: true })).toBe(true);
+        });
+
+        it('holds it with the rings empty', function() {
+            expect(tactics.shouldPlayStoneOfSorrows(empty)).toBe(false);
+        });
+
+        it('spends it as a plain +1 only when that flips the conflict', function() {
+            expect(tactics.shouldPlayStoneOfSorrows({
+                ...empty, activeConflict: true, skillNeeded: 1
+            })).toBe(true);
+            expect(tactics.shouldPlayStoneOfSorrows({
+                ...empty, activeConflict: true, skillNeeded: 2
+            })).toBe(false);
+            expect(tactics.shouldPlayStoneOfSorrows({
+                ...empty, activeConflict: true, skillNeeded: 0
+            })).toBe(false);
+        });
+
+        it('keeps the bearer home while a Bonsho is in play', function() {
+            const bearer = { uuid: 'b', id: 'niten-master', attachments: [{ id: 'the-stone-of-sorrows' }] };
+            const plain = { uuid: 'p', id: 'mirumoto-raitsugu', attachments: [] };
+            expect(tactics.stoneBearerStaysHome(bearer, true)).toBe(true);
+            // No Bonsho: the lock is worth nothing, so the body attacks.
+            expect(tactics.stoneBearerStaysHome(bearer, false)).toBe(false);
+            expect(tactics.stoneBearerStaysHome(plain, true)).toBe(false);
+        });
+    });
+
+    describe('Waterfall Tattoo', function() {
+        const bowed = { uuid: 'bowed', id: 'mirumoto-raitsugu', bowed: true, attachments: [],
+            militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '2' } };
+        const ready = { uuid: 'ready', id: 'niten-master', bowed: false, attachments: [],
+            militarySkillSummary: { stat: '4' }, politicalSkillSummary: { stat: '4' } };
+        const base = {
+            myCharacters: [bowed, ready],
+            opponentConflictsRemaining: 1,
+            opponentMilitaryRemaining: 1,
+            opponentPoliticalRemaining: 1,
+            opponentReady: [{ military: 3, political: 2 }],
+            facedownProvinceCount: 2
+        };
+
+        it('attaches to a bowed body when all three legs hold', function() {
+            expect(tactics.waterfallTattooBearer(base).uuid).toBe('bowed');
+        });
+
+        it('needs a bowed body', function() {
+            expect(tactics.waterfallTattooBearer({ ...base, myCharacters: [ready] })).toBeNull();
+        });
+
+        it('needs the opponent to still have a conflict opportunity', function() {
+            expect(tactics.waterfallTattooBearer({
+                ...base, opponentConflictsRemaining: 0
+            })).toBeNull();
+        });
+
+        it('needs a ready enemy legally able to declare a remaining type', function() {
+            // Only a military opportunity left, and their board is all dashes
+            // on military: nothing can be declared, so nothing reveals.
+            expect(tactics.waterfallTattooBearer({
+                ...base,
+                opponentMilitaryRemaining: 1,
+                opponentPoliticalRemaining: 0,
+                opponentReady: [{ military: null, political: 4 }]
+            })).toBeNull();
+            // The same board with a political opportunity CAN declare.
+            expect(tactics.waterfallTattooBearer({
+                ...base,
+                opponentMilitaryRemaining: 0,
+                opponentPoliticalRemaining: 1,
+                opponentReady: [{ military: null, political: 4 }]
+            }).uuid).toBe('bowed');
+        });
+
+        it('needs a facedown province for the reveal to happen at all', function() {
+            expect(tactics.waterfallTattooBearer({ ...base, facedownProvinceCount: 0 })).toBeNull();
+        });
+
+        it('does not need a Restricted slot, because it is not Restricted', function() {
+            // Three Restricted attachments on a Dragon body is the legal cap,
+            // and the tattoo does not consume one.
+            const full = {
+                ...bowed,
+                attachments: [{ id: 'fine-katana' }, { id: 'jade-tetsubo' }, { id: 'ancestral-daisho' }]
+            };
+            expect(DRAGON_ATTACHMENT_DEFAULTS.restrictedAttachments).not.toContain('waterfall-tattoo');
+            expect(tactics.waterfallTattooBearer({ ...base, myCharacters: [full] }).uuid).toBe('bowed');
+        });
+
+        it('never doubles up on a bearer that already carries one', function() {
+            const carried = { ...bowed, attachments: [{ id: 'waterfall-tattoo' }] };
+            expect(tactics.waterfallTattooBearer({ ...base, myCharacters: [carried] })).toBeNull();
+        });
+
+        it('prefers the bowed body that gives the most back when it stands up', function() {
+            const small = { uuid: 'small', id: 'kitsuki-counselor', bowed: true, attachments: [],
+                militarySkillSummary: { stat: '1' }, politicalSkillSummary: { stat: '1' } };
+            expect(tactics.waterfallTattooBearer({
+                ...base, myCharacters: [small, bowed]
+            }).uuid).toBe('bowed');
+        });
+
+        it('reads the opponent declaration rules directly', function() {
+            expect(tactics.opponentCanDeclare({
+                opponentReady: [], opponentMilitaryRemaining: 1, opponentPoliticalRemaining: 1
+            })).toBe(false);
+            expect(tactics.opponentCanDeclare({
+                opponentReady: [{ military: null, political: null }],
+                opponentMilitaryRemaining: 1, opponentPoliticalRemaining: 1
+            })).toBe(false);
+            // Both typed counters at zero can still mean a forced extra
+            // conflict, so treat either axis as possible.
+            expect(tactics.opponentCanDeclare({
+                opponentReady: [{ military: 2, political: 2 }],
+                opponentMilitaryRemaining: 0, opponentPoliticalRemaining: 0
+            })).toBe(true);
+        });
+    });
+
+    describe('Agasha Taiko', function() {
+        const province = (id, extras = {}) => ({
+            uuid: id, id, type: 'province', isProvince: true,
+            strengthSummary: { stat: '4' }, ...extras
+        });
+
+        it('protects the owner order, top first', function() {
+            const provinces = [
+                province('manicured-garden'), province('pilgrimage'),
+                province('restoration-of-balance')
+            ];
+            expect(tactics.pickTaikoProvince(provinces).id).toBe('pilgrimage');
+        });
+
+        it('steps to the next entry only once the one before it is broken', function() {
+            const provinces = [
+                province('manicured-garden'), province('pilgrimage', { isBroken: true })
+            ];
+            expect(tactics.pickTaikoProvince(provinces).id).toBe('manicured-garden');
+        });
+
+        it('protects the strongest unbroken province when the list is exhausted', function() {
+            const provinces = [
+                province('restoration-of-balance', { strengthSummary: { stat: '3' } }),
+                province('city-of-the-rich-frog', { strengthSummary: { stat: '5' } })
+            ];
+            expect(tactics.pickTaikoProvince(provinces).id).toBe('city-of-the-rich-frog');
+        });
+
+        it('answers nothing when every province is already broken', function() {
+            expect(tactics.pickTaikoProvince([
+                province('pilgrimage', { isBroken: true })
+            ])).toBeNull();
+        });
+    });
+
+    describe('Illustrious Forge', function() {
+        const card = (id) => ({ uuid: id, id, type: 'attachment' });
+
+        it('takes the biggest military bonus in a military conflict', function() {
+            const pool = [card('ornate-fan'), card('tetsubo-of-blood'), card('elegant-tessen')];
+            expect(tactics.pickForgeAttachment(pool, 'military').id).toBe('tetsubo-of-blood');
+        });
+
+        it('takes the biggest political bonus in a political conflict', function() {
+            const pool = [card('tetsubo-of-blood'), card('self-understanding'), card('ornate-fan')];
+            expect(tactics.pickForgeAttachment(pool, 'political').id).toBe('self-understanding');
+        });
+
+        it('breaks equal-skill ties in the owner order', function() {
+            // Every one of these is +1/+1 or +0/+0.
+            const tied = [card('adopted-kin'), card('finger-of-jade'), card('elegant-tessen'),
+                card('the-stone-of-sorrows'), card('waterfall-tattoo'), card('daimyo-s-favor')];
+            expect(tactics.pickForgeAttachment(tied, 'military').id).toBe('waterfall-tattoo');
+            const withoutTattoo = tied.filter((entry) => entry.id !== 'waterfall-tattoo');
+            expect(tactics.pickForgeAttachment(withoutTattoo, 'military').id)
+                .toBe('the-stone-of-sorrows');
+            const zeroesOnly = [card('adopted-kin'), card('finger-of-jade'), card('daimyo-s-favor')];
+            expect(tactics.pickForgeAttachment(zeroesOnly, 'political').id).toBe('finger-of-jade');
+        });
+
+        it('defaults to the military reading with no conflict type published', function() {
+            const pool = [card('ornate-fan'), card('fine-katana')];
+            expect(tactics.pickForgeAttachment(pool).id).toBe('fine-katana');
         });
     });
 
@@ -1112,6 +1512,639 @@ describe('DragonAttachmentTactics', function() {
             bot.buttons = [{ text: 'Pass', arg: 'pass', uuid: 'pass' }];
             const afterRejection = policy.decide(state, 'Jigoku Bot', context);
             expect(afterRejection.reason).toBe('pass-window');
+        });
+
+        // ==============================================================
+        // Deck revision 0.5 — live prompt integration
+        // ==============================================================
+
+        const facedownProvince = (location) => ({
+            uuid: `hidden-${location}`, type: 'province', isProvince: true,
+            facedown: true, location
+        });
+        const faceupProvince = (location, id) => ({
+            uuid: `open-${location}`, id, type: 'province', isProvince: true,
+            facedown: false, location, strengthSummary: { stat: '4' }
+        });
+
+        it('plays Waterfall Tattoo onto a bowed body before the opponent declares', function() {
+            const bowedTower = {
+                uuid: 'bowed-tower', id: 'mirumoto-raitsugu', type: 'character',
+                location: 'play area', bowed: true, fate: 2, attachments: [],
+                militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '2' }
+            };
+            const readyTower = {
+                uuid: 'ready-tower', id: 'niten-master', type: 'character',
+                location: 'play area', bowed: false, fate: 3, attachments: [],
+                militarySkillSummary: { stat: '4' }, politicalSkillSummary: { stat: '4' }
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict', promptTitle: 'Action Window',
+                        menuTitle: 'Initiate an action',
+                        buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stats: { honor: 10, fate: 4, conflictsRemaining: 1 },
+                        provinces: { one: [facedownProvince('province 1')], two: [], three: [], four: [] },
+                        strongholdProvince: [],
+                        cardPiles: {
+                            cardsInPlay: [bowedTower, readyTower],
+                            hand: [{
+                                uuid: 'tattoo', id: 'waterfall-tattoo', type: 'attachment',
+                                cost: '2', isPlayableByMe: true
+                            }]
+                        }
+                    },
+                    Opponent: {
+                        name: 'Opponent',
+                        stats: { conflictsRemaining: 1, militaryRemaining: 1, politicalRemaining: 1 },
+                        provinces: { one: [], two: [], three: [], four: [] },
+                        strongholdProvince: [],
+                        cardPiles: {
+                            cardsInPlay: [{
+                                uuid: 'enemy', id: 'enemy-bushi', type: 'character',
+                                location: 'play area', bowed: false,
+                                militarySkillSummary: { stat: '3' },
+                                politicalSkillSummary: { stat: '3' }
+                            }],
+                            hand: []
+                        }
+                    }
+                }
+            };
+            const policy = new JigokuBotPolicy('waterfall-window');
+            const play = policy.decide(state, 'Jigoku Bot', {
+                strategy: ATTACHMENTS, cardHint: getPlaybookEntry
+            });
+            expect(play.reason).toBe('attachment-tower-waterfall-tattoo');
+            expect(play.target).toBe('tattoo');
+
+            // The follow-up attach prompt must land on the BOWED body, not on
+            // the better tower the ordinary ranking would pick.
+            const me = state.players['Jigoku Bot'];
+            me.promptTitle = 'Choose a character';
+            me.menuTitle = 'Choose a character';
+            me.buttons = [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }];
+            bowedTower.selectable = true;
+            readyTower.selectable = true;
+            const target = policy.decide(state, 'Jigoku Bot', {
+                strategy: ATTACHMENTS,
+                cardHint: getPlaybookEntry,
+                targetHint: {
+                    sourceCardId: 'waterfall-tattoo', sourceIsMine: true, gameActions: ['attach']
+                }
+            });
+            expect(target.reason).toBe('attachment-tower-waterfall-bearer');
+            expect(target.target).toBe('bowed-tower');
+        });
+
+        it('holds Waterfall Tattoo when the opponent has no conflict left', function() {
+            const bowedTower = {
+                uuid: 'bowed-tower', id: 'mirumoto-raitsugu', type: 'character',
+                location: 'play area', bowed: true, fate: 2, attachments: [],
+                militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '2' }
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict', promptTitle: 'Action Window',
+                        menuTitle: 'Initiate an action',
+                        buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stats: { honor: 10, fate: 4, conflictsRemaining: 1 },
+                        provinces: { one: [facedownProvince('province 1')], two: [], three: [], four: [] },
+                        strongholdProvince: [],
+                        cardPiles: {
+                            cardsInPlay: [bowedTower],
+                            hand: [{
+                                uuid: 'tattoo', id: 'waterfall-tattoo', type: 'attachment',
+                                cost: '2', isPlayableByMe: true
+                            }]
+                        }
+                    },
+                    Opponent: {
+                        name: 'Opponent',
+                        stats: { conflictsRemaining: 0, militaryRemaining: 0, politicalRemaining: 0 },
+                        provinces: { one: [], two: [], three: [], four: [] },
+                        strongholdProvince: [],
+                        cardPiles: {
+                            cardsInPlay: [{
+                                uuid: 'enemy', id: 'enemy-bushi', type: 'character',
+                                location: 'play area', bowed: false,
+                                militarySkillSummary: { stat: '3' },
+                                politicalSkillSummary: { stat: '3' }
+                            }],
+                            hand: []
+                        }
+                    }
+                }
+            };
+            const decision = new JigokuBotPolicy('waterfall-hold').decide(state, 'Jigoku Bot', {
+                strategy: ATTACHMENTS, cardHint: getPlaybookEntry
+            });
+            expect(decision.reason).toBe('pass-window');
+        });
+
+        it('holds The Stone of Sorrows while the rings are empty', function() {
+            const tower = {
+                uuid: 'tower', id: 'niten-master', type: 'character',
+                location: 'play area', bowed: false, fate: 3, attachments: []
+            };
+            const build = (ringFate) => ({
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict', promptTitle: 'Action Window',
+                        menuTitle: 'Initiate an action',
+                        buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stats: { honor: 10, fate: 4, conflictsRemaining: 1 },
+                        provinces: { one: [], two: [], three: [], four: [] },
+                        strongholdProvince: [],
+                        cardPiles: {
+                            cardsInPlay: [tower],
+                            hand: [{
+                                uuid: 'stone', id: 'the-stone-of-sorrows', type: 'attachment',
+                                cost: '2', isPlayableByMe: true
+                            }]
+                        }
+                    },
+                    Opponent: { name: 'Opponent', cardPiles: { cardsInPlay: [], hand: [] } }
+                },
+                rings: {
+                    air: { element: 'air', fate: ringFate },
+                    earth: { element: 'earth', fate: 0 },
+                    fire: { element: 'fire', fate: 0 },
+                    water: { element: 'water', fate: 0 },
+                    void: { element: 'void', fate: 0 }
+                }
+            });
+            expect(new JigokuBotPolicy('stone-empty').decide(build(0), 'Jigoku Bot', {
+                strategy: ATTACHMENTS, cardHint: getPlaybookEntry
+            }).reason).toBe('pass-window');
+
+            const played = new JigokuBotPolicy('stone-fate').decide(build(2), 'Jigoku Bot', {
+                strategy: ATTACHMENTS, cardHint: getPlaybookEntry
+            });
+            expect(played.reason).toBe('attachment-tower-preconflict');
+            expect(played.target).toBe('stone');
+        });
+
+        it('answers the Agasha Shunsen ring-return cost up to three rings, then Done', function() {
+            const shunsen = {
+                uuid: 'shunsen', id: 'agasha-shunsen', type: 'character',
+                location: 'play area', selectable: true, fate: 1
+            };
+            const rings = {
+                air: { element: 'air', fate: 0, claimed: true, claimedBy: 'Jigoku Bot' },
+                earth: { element: 'earth', fate: 0, claimed: true, claimedBy: 'Jigoku Bot' },
+                fire: { element: 'fire', fate: 0, claimed: true, claimedBy: 'Jigoku Bot' },
+                water: { element: 'water', fate: 0, claimed: true, claimedBy: 'Jigoku Bot' },
+                void: { element: 'void', fate: 0 }
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict',
+                        promptTitle: 'Choose a ring to return', menuTitle: 'Choose a ring to return',
+                        selectRing: true,
+                        buttons: [{ text: 'Done', arg: 'done', uuid: 'done' }],
+                        stats: { honor: 10, fate: 2 },
+                        cardPiles: { cardsInPlay: [shunsen], hand: [] }
+                    },
+                    Opponent: { name: 'Opponent', cardPiles: { cardsInPlay: [], hand: [] } }
+                },
+                rings
+            };
+            const policy = new JigokuBotPolicy('shunsen-rings');
+            const context = {
+                strategy: ATTACHMENTS, cardHint: getPlaybookEntry,
+                targetHint: { sourceCardId: 'agasha-shunsen', sourceIsMine: true, gameActions: [] }
+            };
+            const returned = [];
+            for(let step = 0; step < 4; step++) {
+                const decision = policy.decide(state, 'Jigoku Bot', context);
+                if(decision.command === 'ringClicked') {
+                    returned.push(decision.target);
+                    continue;
+                }
+                expect(decision.reason).toBe('attachment-tower-shunsen-rings-returned');
+                break;
+            }
+            expect(returned.length).toBe(3);
+            // Only rings we actually hold claimed may be returned.
+            expect(returned).not.toContain('void');
+            expect(new Set(returned).size).toBe(3);
+        });
+
+        it('holds Agasha Shunsen until the last conflict of the round', function() {
+            const shunsen = {
+                uuid: 'shunsen', id: 'agasha-shunsen', type: 'character',
+                location: 'play area', selectable: true, fate: 1,
+                inConflict: true, bowed: false,
+                militarySkillSummary: { stat: '1' }, politicalSkillSummary: { stat: '2' }
+            };
+            const build = (mine, theirs) => ({
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict',
+                        promptTitle: 'Conflict Action Window', menuTitle: 'Conflict',
+                        buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stats: { honor: 10, fate: 2, conflictsRemaining: mine },
+                        provinces: { one: [], two: [], three: [], four: [] },
+                        strongholdProvince: [],
+                        cardPiles: { cardsInPlay: [shunsen], hand: [] }
+                    },
+                    Opponent: {
+                        name: 'Opponent',
+                        stats: { conflictsRemaining: theirs },
+                        provinces: { one: [], two: [], three: [], four: [] },
+                        strongholdProvince: [],
+                        cardPiles: { cardsInPlay: [], hand: [] }
+                    }
+                },
+                rings: {
+                    air: { element: 'air', fate: 0, claimed: true, claimedBy: 'Jigoku Bot' },
+                    earth: { element: 'earth', fate: 0, claimed: true, claimedBy: 'Jigoku Bot' },
+                    fire: { element: 'fire', fate: 0, claimed: true, claimedBy: 'Jigoku Bot' },
+                    water: { element: 'water', fate: 0 },
+                    void: { element: 'void', fate: 0 }
+                },
+                conflict: {
+                    type: 'military', conflictType: 'military',
+                    attackingPlayerId: 'opponent-id', defendingPlayerId: 'bot-id',
+                    attackerSkill: 5, defenderSkill: 4
+                }
+            });
+            const held = new JigokuBotPolicy('shunsen-early').decide(build(1, 1), 'Jigoku Bot', {
+                strategy: ATTACHMENTS, cardHint: getPlaybookEntry
+            });
+            expect(held.target).not.toBe('shunsen');
+
+            const fired = new JigokuBotPolicy('shunsen-last').decide(build(0, 0), 'Jigoku Bot', {
+                strategy: ATTACHMENTS, cardHint: getPlaybookEntry
+            });
+            expect(fired.reason).toBe('use-board-ability');
+            expect(fired.args[0]).toBe('shunsen');
+        });
+
+        it('lets a Waterfall Tattoo bearer attack while a province is still facedown', function() {
+            // `attackKeepHome: 1` with two ready bodies: V1 sends one and keeps
+            // one back to defend. The tattooed body is readied by the
+            // opponent's own declaration, so keeping it home buys nothing and
+            // both may attack.
+            const build = (tattooed) => {
+                const one = {
+                    uuid: 'one', id: 'niten-master', type: 'character', location: 'play area',
+                    bowed: false, selectable: true, fate: 2, inConflict: true,
+                    militarySkillSummary: { stat: '4' }, politicalSkillSummary: { stat: '4' },
+                    attachments: tattooed ? [{ uuid: 'tat', id: 'waterfall-tattoo' }] : []
+                };
+                const two = {
+                    uuid: 'two', id: 'mirumoto-raitsugu', type: 'character', location: 'play area',
+                    bowed: false, selectable: true, fate: 2,
+                    militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '2' },
+                    attachments: []
+                };
+                return {
+                    players: {
+                        'Jigoku Bot': {
+                            id: 'bot-id', name: 'Jigoku Bot', phase: 'conflict',
+                            promptTitle: 'Military Void Conflict', menuTitle: 'Choose attackers',
+                            buttons: [{ text: 'Initiate Conflict', arg: 'done', uuid: 'initiate' }],
+                            stats: { honor: 10, fate: 2, conflictsRemaining: 1 },
+                            provinces: {
+                                one: [facedownProvince('province 1')],
+                                two: [facedownProvince('province 2')],
+                                three: [facedownProvince('province 3')],
+                                four: [facedownProvince('province 4')]
+                            },
+                            strongholdProvince: [facedownProvince('stronghold province')],
+                            cardPiles: { cardsInPlay: [one, two], hand: [] }
+                        },
+                        Opponent: {
+                            id: 'opponent-id', name: 'Opponent',
+                            stats: { conflictsRemaining: 1, militaryRemaining: 1, politicalRemaining: 1 },
+                            provinces: {
+                                one: [{
+                                    ...faceupProvince('province 1', 'manicured-garden'),
+                                    inConflict: true, strengthSummary: { stat: '12' }
+                                }],
+                                two: [faceupProvince('province 2', 'pilgrimage')],
+                                three: [faceupProvince('province 3', 'ancestral-lands')],
+                                four: [faceupProvince('province 4', 'meditations-on-the-tao')]
+                            },
+                            strongholdProvince: [faceupProvince('stronghold province', 'shameful-display')],
+                            cardPiles: {
+                                cardsInPlay: [{
+                                    uuid: 'enemy', id: 'enemy-bushi', type: 'character',
+                                    location: 'play area', bowed: false,
+                                    militarySkillSummary: { stat: '2' },
+                                    politicalSkillSummary: { stat: '2' }
+                                }],
+                                hand: []
+                            }
+                        }
+                    },
+                    conflict: {
+                        type: 'military', conflictType: 'military',
+                        attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                        attackerSkill: 4, defenderSkill: 0
+                    }
+                };
+            };
+            const profile = resolveDeckProfile(
+                ['iron-mountain-castle', 'illustrious-forge'], ATTACHMENTS);
+            const context = { profile, strategy: ATTACHMENTS, cardHint: getPlaybookEntry };
+
+            const plain = new JigokuBotPolicy('keep-home-plain')
+                .decide(build(false), 'Jigoku Bot', context);
+            expect(plain.reason).toBe('initiate-conflict');
+
+            const freed = new JigokuBotPolicy('keep-home-free')
+                .decide(build(true), 'Jigoku Bot', context);
+            expect(freed.reason).toBe('declare-attacker');
+            expect(freed.args[0]).toBe('two');
+        });
+
+        it('keeps the tattooed body home once every province is faceup', function() {
+            // No facedown province left means nothing can be revealed, so the
+            // reaction cannot fire and the body is an ordinary defender again.
+            const one = {
+                uuid: 'one', id: 'niten-master', type: 'character', location: 'play area',
+                bowed: false, selectable: true, fate: 2, inConflict: true,
+                militarySkillSummary: { stat: '4' }, politicalSkillSummary: { stat: '4' },
+                attachments: [{ uuid: 'tat', id: 'waterfall-tattoo' }]
+            };
+            const two = {
+                uuid: 'two', id: 'mirumoto-raitsugu', type: 'character', location: 'play area',
+                bowed: false, selectable: true, fate: 2,
+                militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '2' },
+                attachments: []
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        id: 'bot-id', name: 'Jigoku Bot', phase: 'conflict',
+                        promptTitle: 'Military Void Conflict', menuTitle: 'Choose attackers',
+                        buttons: [{ text: 'Initiate Conflict', arg: 'done', uuid: 'initiate' }],
+                        stats: { honor: 10, fate: 2, conflictsRemaining: 1 },
+                        provinces: {
+                            one: [faceupProvince('province 1', 'manicured-garden')],
+                            two: [faceupProvince('province 2', 'pilgrimage')],
+                            three: [faceupProvince('province 3', 'restoration-of-balance')],
+                            four: [faceupProvince('province 4', 'city-of-the-rich-frog')]
+                        },
+                        strongholdProvince: [faceupProvince('stronghold province', 'illustrious-forge')],
+                        cardPiles: { cardsInPlay: [one, two], hand: [] }
+                    },
+                    Opponent: {
+                        id: 'opponent-id', name: 'Opponent',
+                        stats: { conflictsRemaining: 1, militaryRemaining: 1, politicalRemaining: 1 },
+                        provinces: {
+                            one: [{
+                                ...faceupProvince('province 1', 'manicured-garden'),
+                                inConflict: true, strengthSummary: { stat: '12' }
+                            }],
+                            two: [faceupProvince('province 2', 'pilgrimage')],
+                            three: [faceupProvince('province 3', 'ancestral-lands')],
+                            four: [faceupProvince('province 4', 'meditations-on-the-tao')]
+                        },
+                        strongholdProvince: [faceupProvince('stronghold province', 'shameful-display')],
+                        cardPiles: {
+                            cardsInPlay: [{
+                                uuid: 'enemy', id: 'enemy-bushi', type: 'character',
+                                location: 'play area', bowed: false,
+                                militarySkillSummary: { stat: '2' },
+                                politicalSkillSummary: { stat: '2' }
+                            }],
+                            hand: []
+                        }
+                    }
+                },
+                conflict: {
+                    type: 'military', conflictType: 'military',
+                    attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                    attackerSkill: 4, defenderSkill: 0
+                }
+            };
+            const profile = resolveDeckProfile(
+                ['iron-mountain-castle', 'illustrious-forge'], ATTACHMENTS);
+            const decision = new JigokuBotPolicy('keep-home-faceup')
+                .decide(state, 'Jigoku Bot', { profile, strategy: ATTACHMENTS, cardHint: getPlaybookEntry });
+            expect(decision.reason).toBe('initiate-conflict');
+        });
+
+        it('keeps The Stone of Sorrows bearer home while a Revered Bonsho is in play', function() {
+            const bearer = {
+                uuid: 'bearer', id: 'niten-master', type: 'character', location: 'play area',
+                bowed: false, selectable: true, fate: 2,
+                militarySkillSummary: { stat: '5' }, politicalSkillSummary: { stat: '5' },
+                attachments: [{ uuid: 'stone', id: 'the-stone-of-sorrows' }]
+            };
+            const other = {
+                uuid: 'other', id: 'mirumoto-raitsugu', type: 'character', location: 'play area',
+                bowed: false, selectable: true, fate: 2,
+                militarySkillSummary: { stat: '3' }, politicalSkillSummary: { stat: '2' },
+                attachments: []
+            };
+            const build = (withBonsho) => ({
+                players: {
+                    'Jigoku Bot': {
+                        id: 'bot-id', name: 'Jigoku Bot', phase: 'conflict',
+                        promptTitle: 'Military Void Conflict', menuTitle: 'Choose attackers',
+                        buttons: [{ text: 'Initiate Conflict', arg: 'done', uuid: 'initiate' }],
+                        stats: { honor: 10, fate: 2, conflictsRemaining: 1 },
+                        provinces: {
+                            one: withBonsho ? [{
+                                uuid: 'bonsho', id: 'revered-bonsho', type: 'holding',
+                                facedown: false, location: 'province 1'
+                            }] : [],
+                            two: [], three: [], four: []
+                        },
+                        strongholdProvince: [],
+                        cardPiles: { cardsInPlay: [bearer, other], hand: [] }
+                    },
+                    Opponent: {
+                        id: 'opponent-id', name: 'Opponent',
+                        stats: { conflictsRemaining: 1, militaryRemaining: 1, politicalRemaining: 1 },
+                        provinces: {
+                            one: [faceupProvince('province 1', 'manicured-garden')],
+                            two: [], three: [], four: []
+                        },
+                        strongholdProvince: [],
+                        cardPiles: { cardsInPlay: [], hand: [] }
+                    }
+                },
+                conflict: {
+                    type: 'military', conflictType: 'military',
+                    attackingPlayerId: 'bot-id', defendingPlayerId: 'opponent-id',
+                    attackerSkill: 0, defenderSkill: 0
+                }
+            });
+            const context = { strategy: ATTACHMENTS, cardHint: getPlaybookEntry };
+            // With no Bonsho the lock is worth nothing, so the best body attacks.
+            expect(new JigokuBotPolicy('stone-no-bonsho')
+                .decide(build(false), 'Jigoku Bot', context).target).toBe('bearer');
+            // With one, the bearer stays ready and the other body goes instead.
+            expect(new JigokuBotPolicy('stone-bonsho')
+                .decide(build(true), 'Jigoku Bot', context).target).toBe('other');
+        });
+
+        it('fires the Self-Understanding granted reaction on a bearer with no playbook hint', function() {
+            // The ability is granted to the CHARACTER, so the reaction window
+            // offers the bearer. Doomed Shugenja has no printed triggered
+            // ability and therefore no playbook entry, which used to make the
+            // whole card unreachable on that body.
+            const bearer = {
+                uuid: 'bearer', id: 'doomed-shugenja', type: 'character',
+                location: 'play area', selectable: true, inConflict: true, bowed: false,
+                attachments: [{ uuid: 'su', id: 'self-understanding', type: 'attachment' }]
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict',
+                        promptTitle: 'Any reactions to the conflict finishing?',
+                        menuTitle: 'Choose a reaction',
+                        buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stats: { honor: 10, fate: 2 },
+                        cardPiles: { cardsInPlay: [bearer], hand: [] }
+                    },
+                    Opponent: { name: 'Opponent', cardPiles: { cardsInPlay: [], hand: [] } }
+                }
+            };
+            expect(getPlaybookEntry('doomed-shugenja')).toBeUndefined();
+            const decision = new JigokuBotPolicy('granted-reaction').decide(state, 'Jigoku Bot', {
+                strategy: ATTACHMENTS, cardHint: getPlaybookEntry
+            });
+            expect(decision.reason).toBe('trigger-hinted-ability');
+            expect(decision.args[0]).toBe('bearer');
+        });
+
+        it('leaves a hintless bearer alone without the granting attachment', function() {
+            const bare = {
+                uuid: 'bare', id: 'doomed-shugenja', type: 'character',
+                location: 'play area', selectable: true, inConflict: true, bowed: false,
+                attachments: [{ uuid: 'katana', id: 'fine-katana', type: 'attachment' }]
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict',
+                        promptTitle: 'Any reactions to the conflict finishing?',
+                        menuTitle: 'Choose a reaction',
+                        buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stats: { honor: 10, fate: 2 },
+                        cardPiles: { cardsInPlay: [bare], hand: [] }
+                    },
+                    Opponent: { name: 'Opponent', cardPiles: { cardsInPlay: [], hand: [] } }
+                }
+            };
+            const decision = new JigokuBotPolicy('no-granted-reaction').decide(state, 'Jigoku Bot', {
+                strategy: ATTACHMENTS, cardHint: getPlaybookEntry
+            });
+            expect(decision.reason).not.toBe('trigger-hinted-ability');
+        });
+
+        it('reads the conflict axis from the serialized `type` field for the Forge', function() {
+            // `Conflict.getSummary()` publishes the axis as `type`. Reading the
+            // engine-internal `conflictType` instead silently defaulted the
+            // Forge to its military ranking on every political attack.
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        name: 'Jigoku Bot', phase: 'conflict',
+                        promptTitle: 'Illustrious Forge', menuTitle: 'Choose an attachment',
+                        buttons: [{ text: 'Cancel', arg: 'cancel', uuid: 'cancel' }],
+                        stats: { honor: 10, fate: 2 },
+                        cardPiles: {
+                            cardsInPlay: [],
+                            hand: [
+                                { uuid: 'mil', id: 'tetsubo-of-blood', type: 'attachment', selectable: true },
+                                { uuid: 'pol', id: 'self-understanding', type: 'attachment', selectable: true }
+                            ]
+                        }
+                    },
+                    Opponent: { name: 'Opponent', cardPiles: { cardsInPlay: [], hand: [] } }
+                },
+                conflict: {
+                    type: 'political',
+                    attackingPlayerId: 'opponent-id', defendingPlayerId: 'bot-id'
+                }
+            };
+            const decision = new JigokuBotPolicy('forge-axis').decide(state, 'Jigoku Bot', {
+                strategy: ATTACHMENTS,
+                cardHint: getPlaybookEntry,
+                targetHint: { sourceCardId: 'illustrious-forge', sourceIsMine: true, gameActions: [] }
+            });
+            expect(decision.reason).toBe('attachment-tower-pick-attachment');
+            expect(decision.args[0]).toBe('pol');
+        });
+
+        it('holds The Stone of Sorrows using the serialized conflict `type`', function() {
+            // Same field-name trap on the other reader: with `activeConflict`
+            // stuck false, the "+1 that flips the conflict" branch could never
+            // fire and the card sat in hand forever on an empty ring pool.
+            const participant = {
+                uuid: 'tower', id: 'niten-master', type: 'character',
+                location: 'play area', bowed: false, fate: 3, inConflict: true,
+                attachments: [],
+                militarySkillSummary: { stat: '4' }, politicalSkillSummary: { stat: '4' }
+            };
+            const state = {
+                players: {
+                    'Jigoku Bot': {
+                        id: 'bot-id', name: 'Jigoku Bot', phase: 'conflict',
+                        promptTitle: 'Action Window', menuTitle: 'Initiate an action',
+                        buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
+                        stats: { honor: 10, fate: 4, conflictsRemaining: 1 },
+                        provinces: {
+                            one: [{
+                                uuid: 'attacked', id: 'manicured-garden', type: 'province',
+                                isProvince: true, facedown: false, location: 'province 1',
+                                inConflict: true, strengthSummary: { stat: '1' }
+                            }],
+                            two: [], three: [], four: []
+                        },
+                        strongholdProvince: [],
+                        cardPiles: {
+                            cardsInPlay: [participant],
+                            hand: [{
+                                uuid: 'stone', id: 'the-stone-of-sorrows', type: 'attachment',
+                                cost: '2', isPlayableByMe: true
+                            }]
+                        }
+                    },
+                    Opponent: {
+                        id: 'opponent-id', name: 'Opponent',
+                        provinces: { one: [], two: [], three: [], four: [] },
+                        strongholdProvince: [],
+                        cardPiles: {
+                            cardsInPlay: [{
+                                uuid: 'enemy', id: 'enemy-bushi', type: 'character',
+                                location: 'play area', bowed: false, inConflict: true,
+                                militarySkillSummary: { stat: '4' },
+                                politicalSkillSummary: { stat: '4' }
+                            }],
+                            hand: []
+                        }
+                    }
+                },
+                rings: {
+                    air: { element: 'air', fate: 0 }, earth: { element: 'earth', fate: 0 },
+                    fire: { element: 'fire', fate: 0 }, water: { element: 'water', fate: 0 },
+                    void: { element: 'void', fate: 0 }
+                },
+                conflict: {
+                    type: 'military',
+                    attackingPlayerId: 'opponent-id', defendingPlayerId: 'bot-id',
+                    attackerSkill: 5, defenderSkill: 4
+                }
+            };
+            const decision = new JigokuBotPolicy('stone-flip').decide(state, 'Jigoku Bot', {
+                strategy: ATTACHMENTS, cardHint: getPlaybookEntry
+            });
+            // One point short with an empty ring pool: the +1 is the whole
+            // reason to spend it, so it goes down.
+            expect(decision.args[0]).toBe('stone');
         });
     });
 });

@@ -342,10 +342,12 @@ export class UnicornRevealTactics {
                 characterValue(right) - characterValue(left))[0] || null;
     }
 
-    // Best non-unique ready body for Outflank.
-    pickOutflankTarget(cards: any[]): any | null {
+    // Highest current-conflict skill among legal ready Outflank targets.
+    pickOutflankTarget(cards: any[], axis: 'military' | 'political'): any | null {
         return cards.filter((card) => card?.type === 'character' && !card.bowed && !card.isUnique)
-            .sort((left, right) => characterValue(right) - characterValue(left))[0] || null;
+            .sort((left, right) => rawSkill(right, axis) - rawSkill(left, axis) ||
+                characterValue(right) - characterValue(left) ||
+                String(left?.uuid || '').localeCompare(String(right?.uuid || '')))[0] || null;
     }
 
     // Which province to flip — this deck wants provinces revealed, so a

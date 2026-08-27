@@ -139,14 +139,20 @@ describe('UnicornRevealTactics', function() {
         expect(tactics.pickRevealTarget([ancestral, massing])).toBe(massing);
     });
 
-    it('uses Outflank on the strongest ready non-unique defender', function() {
+    it('uses Outflank on the highest current-conflict skill among legal ready defenders', function() {
         const tactics = new UnicornRevealTactics();
-        const weak = { type: 'character', uuid: 'a', military: 2, political: 1, bowed: false, isUnique: false };
-        const strong = { type: 'character', uuid: 'b', military: 5, political: 2, bowed: false, isUnique: false };
-        const unique = { type: 'character', uuid: 'c', military: 8, political: 8, bowed: false, isUnique: true };
-        const bowed = { type: 'character', uuid: 'd', military: 9, political: 9, bowed: true, isUnique: false };
+        const military = { type: 'character', uuid: 'a', military: 5, political: 1, bowed: false, isUnique: false };
+        const political = { type: 'character', uuid: 'b', military: 2, political: 6, bowed: false, isUnique: false };
+        const expensive = {
+            type: 'character', uuid: 'c', military: 3, political: 3, printedCost: 5, fate: 3,
+            bowed: false, isUnique: false
+        };
+        const unique = { type: 'character', uuid: 'd', military: 8, political: 8, bowed: false, isUnique: true };
+        const bowed = { type: 'character', uuid: 'e', military: 9, political: 9, bowed: true, isUnique: false };
+        const cards = [military, political, expensive, unique, bowed];
 
-        expect(tactics.pickOutflankTarget([weak, strong, unique, bowed])).toBe(strong);
+        expect(tactics.pickOutflankTarget(cards, 'military')).toBe(military);
+        expect(tactics.pickOutflankTarget(cards, 'political')).toBe(political);
     });
 
     it('fires resource reactions only when they can produce value', function() {

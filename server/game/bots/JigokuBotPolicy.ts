@@ -93,6 +93,8 @@ import type { ShugenjaRingPlanContext } from './ShugenjaTactics';
 import { RebirthTactics } from './RebirthTactics.js';
 import { DragonAttachmentTactics } from './DragonAttachmentTactics.js';
 import { StrongholdDefenseTactics } from './StrongholdDefenseTactics.js';
+import { RevealReadyPolicy } from './RevealReadyPolicy.js';
+import type { RevealReadyProvinces } from './RevealReadyPolicy';
 import type { StrongholdDefenseCharacter, StrongholdDefensePlan } from './StrongholdDefenseTactics';
 import { CraneBaselineTactics } from './CraneBaselineTactics.js';
 import { AttachmentControlTactics, isNegativeAttachmentId } from './AttachmentControlTactics.js';
@@ -504,6 +506,11 @@ class JigokuBotPolicy {
     // its buttons with a card NAME, which both decks can share, so the side has
     // to be carried rather than re-derived.
     private fireRingTargetSide: 'own' | 'enemy' | null = null;
+    private fireRingTargetUuid: string | null = null;
+    // Fire first asks for a character, then reveals which of honor/dishonor is
+    // legal for that character. Keep targets that cannot take the desired
+    // token across Back's new prompt signature so the bot tries another body.
+    private fireRingRejectedTargetUuids = new Set<string>();
     private favorableGroundRetreatPending = false;
     // Clarity lasts until conflict end. Player summaries do not serialize the
     // lasting-effect source, so remember accepted targets and distribute later
@@ -589,6 +596,16 @@ class JigokuBotPolicy {
     private conflictDeclarableSerial = '';
     private conflictDeclarableIdentity = '';
     private currentUnicornFactionCharacterUuids?: Record<string, true>;
+    // The body a Waterfall Tattoo was just played for. The attach target prompt
+    // that follows carries no memory of WHY the card was played, and the
+    // ordinary tower ranking would put the tattoo on the best tower — which is
+    // exactly the body that does not need it, because the reaction only pays on
+    // a bowed bearer.
+    private pendingRevealReadyBearerUuid: string | null = null;
+    // How many rings Agasha Shunsen's cost actually returned. The tutor menu
+    // that follows is a separate prompt, so the attempted-set has already been
+    // cleared by then and the budget has to be carried across.
+    private shunsenRingsReturned = 0;
     private currentUnicorn: UnicornTactics | null = null;
     private currentUnicornReveal: UnicornRevealTactics | null = null;
     private currentProvinceRevealResponse = new ProvinceRevealResponseTactics();
@@ -820,6 +837,8 @@ class JigokuBotPolicy {
             this.yokuniCopyUsed = false;
             this.yokuniCopiedNiten = false;
             this.pendingDaimyoBearerUuid = null;
+            this.pendingRevealReadyBearerUuid = null;
+            this.shunsenRingsReturned = 0;
             this.clarityConflictKey = '';
             this.clarityProtectedUuids.clear();
             // Way of the Phoenix is max one per PHASE and there is one conflict
@@ -1904,13 +1923,37 @@ class JigokuBotPolicy {
             (title.includes('illustrious forge') || context.targetHint?.sourceCardId === 'illustrious-forge')) {
             const selectable = this.findVisibleCards(playerState).filter((card) =>
                 card.selectable && card.uuid && !this.isAttempted('cardClicked', [card.uuid]));
+            // The Forge fires on the province being REVEALED, i.e. at the
+            // declaration of a conflict against it — so the type being fought
+            // is already known and the right card is whichever adds the most
+            // skill on THAT axis. The menu lists conflict-deck cards, which
+            // carry no live summaries, so the ranking is printed data from the
+            // deck profile.
             const pick = attachmentTower
-                ? attachmentTower.pickAttachment(selectable)
+                ? attachmentTower.pickForgeAttachment(selectable, playerState?.conflict?.type)
                 : (lionDuelist ? lionDuelist.pickForgeAttachment(selectable) : lion?.pickForgeAttachment(selectable));
             if(pick) {
                 return this.cardClickDecision(pick, attachmentTower
                     ? 'attachment-tower-pick-attachment'
                     : 'forge-pick-attachment');
+            }
+        }
+
+        // Agasha Shunsen's tutor menu ('Select a card:'): the engine has
+        // already filtered the conflict deck to attachments costing no more
+        // than the number of rings returned, so the only decision left is
+        // which of them the deck wants. Owner's order, best first.
+        if(attachmentTower && me.selectRing !== true &&
+            context.targetHint?.sourceCardId === attachmentTower.profile.shunsen.cardId) {
+            // ATTACHMENTS ONLY. Shunsen's own body is selectable at his ring-
+            // return and bearer prompts, and an unfiltered card sweep here
+            // answered the ring prompt by clicking the source character.
+            const selectable = this.findVisibleCards(playerState).filter((card) =>
+                card.selectable && card.uuid && card.type === 'attachment' &&
+                !this.isAttempted('cardClicked', [card.uuid]));
+            const pick = attachmentTower.pickShunsenAttachment(selectable, this.shunsenRingsReturned);
+            if(pick) {
+                return this.cardClickDecision(pick, 'attachment-tower-shunsen-attachment');
             }
         }
 
@@ -2661,8 +2704,105 @@ class JigokuBotPolicy {
             omniscient: useHiddenStrongholdPlan,
             myBrokenOuterProvinces: brokenOuterProvinceCount(me),
             isFirstPlayer: !!me?.firstPlayer,
-            weakestOuterProvinceStrength: weakestOuterStrength
+            weakestOuterProvinceStrength: weakestOuterStrength,
+            // Only the STRONGHOLD province's own facedown state counts here:
+            // this reserve exists to survive an attack on that province, and
+            // that attack is the reveal which readies the bearer.
+            freeDefenderUuids: this.revealReadyFreeUuids(me, profile, true)
         });
+    }
+
+    /**
+     * Unbroken provinces we control, split by whether they are still FACEDOWN.
+     *
+     * The split is the whole question `RevealReadyPolicy` asks: a facedown
+     * province is revealed when the opponent declares a conflict at it, and
+     * that reveal is what readies a Waterfall Tattoo bearer. A faceup province
+     * reveals nothing.
+     */
+    private myProvinceRevealCounts(me: any, strongholdOnly = false): RevealReadyProvinces {
+        const lists = strongholdOnly
+            ? [me?.strongholdProvince || []]
+            : PROVINCE_KEYS.map((key) => me?.provinces?.[key] || [])
+                .concat([me?.strongholdProvince || []]);
+        let facedown = 0;
+        let faceup = 0;
+        for(const list of lists) {
+            const province = (list || []).find((card: any) => card &&
+                card.isProvince !== false &&
+                (card.isProvince || card.type === 'province' || card.facedown));
+            if(!province || province.isBroken) {
+                continue;
+            }
+            if(province.facedown) {
+                facedown += 1;
+            } else {
+                faceup += 1;
+            }
+        }
+        return { facedown, faceup };
+    }
+
+    /**
+     * Agasha Shunsen's Action, asked from the live board.
+     *
+     * The ability is held until neither player has a conflict opportunity left
+     * (a claimed ring is worth something until then) and refused while a
+     * Self-Understanding is participating, because its gained reaction resolves
+     * every ring in the claimed pool Shunsen's cost would empty.
+     */
+    private shouldUseShunsen(playCtx: any, attachmentTower: DragonAttachmentTactics): boolean {
+        const selfUnderstandingId = attachmentTower.profile.shunsen.selfUnderstandingId;
+        return attachmentTower.shouldUseShunsen({
+            myConflictsRemaining: Math.max(0, Number(playCtx?.conflictsRemaining) || 0),
+            opponentConflictsRemaining: Math.max(0, Number(playCtx?.opponentConflictsRemaining) || 0),
+            claimedRingCount: (playCtx?.myClaimedRingElements || []).length,
+            selfUnderstandingParticipating: (playCtx?.myCharacters || []).some((card: any) =>
+                card.inConflict && (card.attachments || []).some((attachment: any) =>
+                    attachment?.id === selfUnderstandingId))
+        });
+    }
+
+    /** `RevealReadyPolicy` for the deck currently being piloted. */
+    private revealReadyPolicy(profile: DeckProfile): RevealReadyPolicy {
+        return new RevealReadyPolicy(profile.revealReady);
+    }
+
+    /**
+     * Bodies that will be READY when the opponent declares, whether or not
+     * they attack. `strongholdOnly` asks the narrower question the stronghold
+     * planner needs: the reserve there exists to defend the stronghold
+     * province, so only that province's own facedown state matters.
+     */
+    private revealReadyFreeUuids(me: any, profile: DeckProfile, strongholdOnly: boolean): string[] {
+        const policy = this.revealReadyPolicy(profile);
+        if(policy.inert) {
+            return [];
+        }
+        return policy.freeAttackerUuids({
+            myCharacters: this.myCharactersInPlay(me),
+            provinces: this.myProvinceRevealCounts(me, strongholdOnly)
+        });
+    }
+
+    /** Fate sitting on every ring, claimed or not. */
+    private totalRingFate(playerState: any): number {
+        return Object.values(playerState?.rings || {})
+            .reduce((total: number, ring: any) => total + Math.max(0, Number(ring?.fate) || 0), 0);
+    }
+
+    /**
+     * The opponent's ready bodies, reduced to what the declaration rules care
+     * about: a `null` on an axis is a printed dash, and a dash cannot declare
+     * that conflict type.
+     */
+    private opponentDeclarableReady(opponent: any): Array<{ military: number | null; political: number | null }> {
+        return this.myCharactersInPlay(opponent)
+            .filter((card) => !card.bowed)
+            .map((card) => ({
+                military: this.rawSkillValue(card, 'military'),
+                political: this.rawSkillValue(card, 'political')
+            }));
     }
 
     /**
@@ -3889,6 +4029,20 @@ class JigokuBotPolicy {
                 type
             );
             const allOwnCharacters = this.myCharactersInPlay(me);
+            // THE STONE OF SORROWS ONLY LOCKS WHILE ITS BEARER IS READY. With a
+            // Revered Bonsho stacking the fate phase's fate onto the unclaimed
+            // rings every round, bowing that bearer for one attack hands the
+            // opponent everything the lock has accumulated. Keep it home; a
+            // game-ending push still overrides.
+            if(attachmentTower && !finalStrongholdPush && !honorVictoryPush) {
+                const bonshoInPlay = this.findVisibleCards(me).some((card: any) =>
+                    card?.id === attachmentTower.profile.stoneOfSorrows.bonshoHoldingId && !card.facedown);
+                const held = candidates.filter((card) =>
+                    !attachmentTower.stoneBearerStaysHome(card, bonshoInPlay));
+                if(held.length > 0) {
+                    candidates = held;
+                }
+            }
             const skillOf = (card: any) => Math.max(this.skillValue(card, type) || 0, 0);
             // Everything clickable here is a body that could be DECLARED into
             // this conflict for free, so nothing in this set is worth a
@@ -4164,7 +4318,16 @@ class JigokuBotPolicy {
             //                            the whole conflict (keeps wall bodies home).
             // Final stronghold pushes override these caps and commit all eligible
             // attackers when a guaranteed break is not yet reachable.
-            const keepHome = Math.max(1, profile.attackKeepHome);
+            // A body the opponent's own declaration readies is not a body the
+            // keep-home rule is protecting anything by keeping. Each one of
+            // them raises the commitment cap by exactly one, because it
+            // defends whether or not it attacked. Zero for every deck without a
+            // reveal-ready attachment, which is V1 exactly.
+            const eligibleUuids = new Set(committed.concat(candidates)
+                .map((card: any) => String(card.uuid)));
+            const revealReadyFree = this.revealReadyFreeUuids(me, profile, false)
+                .filter((uuid) => eligibleUuids.has(uuid)).length;
+            const keepHome = Math.max(0, Math.max(1, profile.attackKeepHome) - revealReadyFree);
             const attackTempo = this.conflictTempoRead(
                 me, opponent, type === 'political' ? 'political' : 'military', 'attack');
             // V2 declaration sizing, part two: the same hopeless cap applied to
@@ -4187,11 +4350,13 @@ class JigokuBotPolicy {
                 // Winning board running the ready loop: one body stays back to
                 // defend and be readied by the water ring.
                 unbreakableCommit = committed.length <
-                    Math.max(1, totalEligible - attackTempo.attackKeepHome);
+                    Math.max(1, totalEligible -
+                        Math.max(0, attackTempo.attackKeepHome - revealReadyFree));
             } else if(profile.attackCommitment === 'breakable-or-pressure') {
                 unbreakableCommit = committed.length < Math.max(1, totalEligible - keepHome);
             } else {
-                unbreakableCommit = committed.length < Math.max(1, totalEligible - 1);
+                unbreakableCommit = committed.length <
+                    Math.max(1, totalEligible - Math.max(0, 1 - revealReadyFree));
             }
             const projectedMoveSkill = committed.length > 0 && unicornMover && unicornMoveCtx &&
                 !moverIsDirectCandidate
@@ -6635,6 +6800,9 @@ class JigokuBotPolicy {
                     if(attachmentTower && card.id === 'daimyo-s-favor') {
                         return attachmentTower.shouldUseDaimyoFavor(card, playCtx);
                     }
+                    if(attachmentTower && card.id === attachmentTower.profile.shunsen.cardId) {
+                        return this.shouldUseShunsen(playCtx, attachmentTower);
+                    }
                     if(this.inPlayActionScopedOut(card.id)) {
                         return false;
                     }
@@ -8045,7 +8213,9 @@ class JigokuBotPolicy {
                 yokuniCopiedNiten: this.yokuniCopiedNiten,
                 stronghold: me?.stronghold,
                 rings: Object.values(playerState?.rings || {}),
-                myClaimedRingElements: this.claimedRingElements(playerState, me)
+                myClaimedRingElements: this.claimedRingElements(playerState, me),
+                conflictsRemaining: me?.stats?.conflictsRemaining ?? 0,
+                opponentConflictsRemaining: opponent?.stats?.conflictsRemaining ?? 0
             };
             const onBoard = (location: string) =>
                 location === 'play area' || /^(province [1-4]|stronghold province)$/.test(location);
@@ -8068,6 +8238,10 @@ class JigokuBotPolicy {
                         }
                         if(card.id === 'daimyo-s-favor' &&
                             !attachmentTower.shouldUseDaimyoFavor(card, phaseCtx)) {
+                            return false;
+                        }
+                        if(card.id === attachmentTower.profile.shunsen.cardId &&
+                            !this.shouldUseShunsen(phaseCtx, attachmentTower)) {
                             return false;
                         }
                     }
@@ -8252,6 +8426,7 @@ class JigokuBotPolicy {
         if(attachmentTower && me?.phase === 'conflict') {
             const mine = this.myCharactersInPlay(me);
             const hand = me?.cardPiles?.hand || [];
+            const opponent = this.opponentPlayer(playerState, me);
             const reducedAttachment = this.pendingDaimyoBearerUuid
                 ? attachmentTower.pickDaimyoReducedAttachment(
                     hand,
@@ -8261,6 +8436,26 @@ class JigokuBotPolicy {
                     this.yokuniCopiedNiten
                 )
                 : null;
+            // WATERFALL TATTOO is not a tower buff, it is a defender bought in
+            // the window before the opponent declares: the declaration reveals
+            // one of our facedown provinces, and the reaction stands the bowed
+            // bearer back up in time to defend that same conflict. All three
+            // legs have to hold or the card is a wasted +1/+1.
+            const tattooBearer = attachmentTower.waterfallTattooBearer({
+                myCharacters: mine,
+                opponentConflictsRemaining: Math.max(0, Number(opponent?.stats?.conflictsRemaining) || 0),
+                opponentMilitaryRemaining: Number(opponent?.stats?.militaryRemaining),
+                opponentPoliticalRemaining: Number(opponent?.stats?.politicalRemaining),
+                opponentReady: this.opponentDeclarableReady(opponent),
+                facedownProvinceCount: this.myProvinceRevealCounts(me).facedown
+            });
+            const stoneContext = {
+                ringFate: this.totalRingFate(playerState),
+                activeConflict: !!playerState?.conflict?.type,
+                skillNeeded: this.conflictStrengthNeeded(playerState, me),
+                bonshoInPlay: this.findVisibleCards(me).some((card: any) =>
+                    card?.id === attachmentTower.profile.stoneOfSorrows.bonshoHoldingId && !card.facedown)
+            };
             const preConflict = hand
                 .filter((card: any) => {
                     if(!card.uuid || !card.id || !card.isPlayableByMe || !this.isDirectCardLegal(card, legalDirectCardUuids) ||
@@ -8274,13 +8469,26 @@ class JigokuBotPolicy {
                     if(this.pendingDaimyoBearerUuid) {
                         return card.uuid === reducedAttachment?.uuid;
                     }
+                    if(card.id === attachmentTower.profile.waterfallTattoo.cardId) {
+                        return !!tattooBearer;
+                    }
+                    if(card.id === attachmentTower.profile.stoneOfSorrows.cardId) {
+                        return attachmentTower.shouldPlayStoneOfSorrows(stoneContext);
+                    }
                     return attachmentTower.isAttachment(card.id) &&
                         !!attachmentTower.pickAttachmentTarget(mine, card.id, undefined, this.yokuniCopiedNiten);
                 })
                 .sort((a: any, b: any) => attachmentTower.attachmentPriority(b.id) -
                     attachmentTower.attachmentPriority(a.id) || String(a.uuid).localeCompare(String(b.uuid)));
             if(preConflict.length > 0) {
-                return this.cardClickDecision(preConflict[0], 'attachment-tower-preconflict');
+                const chosen = preConflict[0];
+                this.pendingRevealReadyBearerUuid =
+                    chosen.id === attachmentTower.profile.waterfallTattoo.cardId && tattooBearer
+                        ? String(tattooBearer.uuid)
+                        : null;
+                return this.cardClickDecision(chosen, chosen.id === attachmentTower.profile.waterfallTattoo.cardId
+                    ? 'attachment-tower-waterfall-tattoo'
+                    : 'attachment-tower-preconflict');
             }
         }
 
@@ -9585,6 +9793,46 @@ class JigokuBotPolicy {
                 }
             }
         }
+        // AGASHA SHUNSEN'S COST. `returnRings()` re-prompts after every pick
+        // until the claimed pool is empty or Done is taken, and each ring past
+        // the most expensive attachment in the deck buys nothing — so return
+        // as many as the budget allows and then stop. Least valuable first:
+        // under an arm that fires this before the last conflict, the rings we
+        // keep should be the ones still worth holding.
+        if(attachmentTower && title.includes('ring to return') &&
+            (sourceCardId === attachmentTower.profile.shunsen.cardId || !sourceCardId)) {
+            const myName = String(me?.name || '');
+            const claimed: any[] = Object.values(playerState?.rings || {}).filter((ring: any) =>
+                ring?.claimed && String(ring?.claimedBy || '') === myName);
+            const budget = attachmentTower.shunsenRingsToReturn(claimed.length);
+            const alreadyReturned = claimed.filter((ring: any) =>
+                this.isAttempted('ringClicked', [ring.element])).length;
+            if(alreadyReturned < budget) {
+                // Only a ring WE have claimed can be returned. The prompt's own
+                // `ringCondition` says so, but the serialized ring list is
+                // filtered on selectability alone, so restrict it here too.
+                const returnable = rings.filter((ring: any) => claimed.some((mine: any) =>
+                    mine.element === ring.element));
+                const next: any = returnable.slice().sort((a: any, b: any) =>
+                    this.ringScore(a, me, opponent, dishonor, glory, dragon, shugenja, undefined, attachmentTower) -
+                    this.ringScore(b, me, opponent, dishonor, glory, dragon, shugenja, undefined, attachmentTower) ||
+                    RING_ORDER.indexOf(a.element) - RING_ORDER.indexOf(b.element))[0];
+                if(next) {
+                    this.shunsenRingsReturned = alreadyReturned + 1;
+                    return {
+                        command: 'ringClicked',
+                        args: [next.element],
+                        target: next.element,
+                        reason: 'attachment-tower-shunsen-return-ring'
+                    };
+                }
+            }
+            this.shunsenRingsReturned = Math.max(this.shunsenRingsReturned, alreadyReturned);
+            const done = this.findButton(buttons, ['done']);
+            if(done) {
+                return this.buttonDecision(done, 'attachment-tower-shunsen-rings-returned');
+            }
+        }
         if(shugenja && title.includes('claim and resolve')) {
             const mine = this.myCharactersInPlay(me);
             const theirs = this.myCharactersInPlay(opponent);
@@ -9694,6 +9942,8 @@ class JigokuBotPolicy {
             // so a low priority is not a preference there — it is a structural
             // block. See `triggeredAbilityAllowIds`.
             const allowLowPriority = new Set(profile.conflictPlanning?.triggeredAbilityAllowIds || []);
+            const grantedAbilityAttachmentIds = new Set(
+                attachmentTower?.profile.grantedAbilityAttachmentIds || []);
             // Attachments remain nested under their bearer in the public state.
             // An attachment we own on an opposing character therefore is not in
             // `me`, even when its interrupt is selectable for us (Tainted Koku).
@@ -9721,9 +9971,25 @@ class JigokuBotPolicy {
                         !this.provinceReactionWorthIt(card, playerState, me, cardHint)) {
                         return false;
                     }
-                    const hint = cardHint(card.id);
+                    // A GAINED ability is offered on the BEARER, not on the
+                    // card that grants it. Self-Understanding hangs its
+                    // "resolve every claimed ring" reaction on the character
+                    // (`whileAttached` + `gainAbility`), so the window presents
+                    // that character — and a bearer with no playbook entry, or
+                    // a sub-6 one, made the whole card unreachable. Credit the
+                    // bearer with the GRANTING attachment's own hint. The id
+                    // list is per deck and empty by default, so no other deck
+                    // moves.
+                    const granting = grantedAbilityAttachmentIds.size === 0
+                        ? undefined
+                        : (card.attachments || []).map((attachment: any) => attachment?.id)
+                            .filter((id: string) => grantedAbilityAttachmentIds.has(id))
+                            .map((id: string) => cardHint(id))
+                            .filter((entry: any) => entry && entry.useWhen !== 'never')
+                            .sort((left: any, right: any) => (right?.priority ?? 0) - (left?.priority ?? 0))[0];
+                    const hint = cardHint(card.id) || granting;
                     if(!hint || hint.useWhen === 'never' ||
-                        (hint.priority < 6 && !allowLowPriority.has(card.id))) {
+                        (hint.priority < 6 && !granting && !allowLowPriority.has(card.id))) {
                         return false;
                     }
                     if(allowLowPriority.has(card.id) &&
@@ -9989,10 +10255,7 @@ class JigokuBotPolicy {
             playCtx.fate = Number.MAX_SAFE_INTEGER;
         }
         playCtx.conflictCosts = effectiveCosts;
-        const forcedBearerUuid = sourceId === 'inventive-mirumoto'
-            ? targetHint?.sourceUuid || playCtx.myCharacters.find((card: any) =>
-                card.id === 'inventive-mirumoto')?.uuid
-            : undefined;
+        const forcedBearerUuid = undefined;
         const allowWithoutReadyParticipant = sourceId === 'kuro';
         let candidates = discardCards.filter((card) => this.conflictCardHasPlayIntent(
             card,
@@ -10185,15 +10448,21 @@ class JigokuBotPolicy {
             }
         }
 
-        if(attachmentTower && targetHint?.sourceCardId === 'keen-warrior' && title.includes('bottom')) {
-            const bottom = attachmentTower.pickLeastValuable(cards);
-            if(bottom) {
-                return this.cardClickDecision(bottom, 'keen-warrior-bottom-weakest');
+        if(attachmentTower && targetHint?.sourceCardId === attachmentTower.profile.shunsen.cardId) {
+            const attachment = attachmentTower.pickShunsenAttachment(cards, this.shunsenRingsReturned);
+            if(attachment) {
+                return this.cardClickDecision(attachment, 'attachment-tower-shunsen-attachment');
             }
         }
 
-        if(attachmentTower && ['illustrious-forge', 'agasha-swordsmith']
-            .includes(targetHint?.sourceCardId || '')) {
+        if(attachmentTower && targetHint?.sourceCardId === 'illustrious-forge') {
+            const attachment = attachmentTower.pickForgeAttachment(cards, playerState?.conflict?.type);
+            if(attachment) {
+                return this.cardClickDecision(attachment, 'attachment-tower-search-pick');
+            }
+        }
+
+        if(attachmentTower && targetHint?.sourceCardId === 'agasha-swordsmith') {
             const attachment = attachmentTower.pickAttachment(cards);
             if(attachment) {
                 return this.cardClickDecision(attachment, 'attachment-tower-search-pick');
@@ -10784,9 +11053,10 @@ class JigokuBotPolicy {
             }
         }
         if(reveal && sourceId === 'outflank') {
-            const target = reveal.pickOutflankTarget(theirs);
+            const conflictAxis = playerState?.conflict?.type === 'political' ? 'political' : 'military';
+            const target = reveal.pickOutflankTarget(theirs, conflictAxis);
             if(target) {
-                return this.cardClickDecision(target, 'unicorn-reveal-outflank-strongest-defender');
+                return this.cardClickDecision(target, 'unicorn-reveal-outflank-highest-conflict-skill');
             }
         }
         if(reveal && sourceId === 'good-omen') {
@@ -12133,6 +12403,33 @@ class JigokuBotPolicy {
             return null;
         }
 
+        // AGASHA SHUNSEN picks the BEARER before the tutor menu opens, and the
+        // choice is not a skill sort: a body with no fate on it is discarded in
+        // the fate phase and takes the attachment with it. Tower with fate
+        // first, then the strongest body that has any.
+        if(attachmentTower && targetHint.sourceCardId === attachmentTower.profile.shunsen.cardId) {
+            const bearer = attachmentTower.pickShunsenTarget(mine, skillType);
+            if(bearer) {
+                return this.cardClickDecision(bearer, 'attachment-tower-shunsen-bearer');
+            }
+        }
+
+        // AGASHA TAIKO protects one of OUR non-stronghold provinces. The engine
+        // offers both players' provinces (its `cardCondition` only excludes the
+        // stronghold slot), so picking from `mine` is load bearing — protecting
+        // an enemy province is the exact inverse of the effect.
+        if(attachmentTower && targetHint.sourceCardId === attachmentTower.profile.agashaTaiko.cardId) {
+            const provinces = mine.filter((card) => (card.type === 'province' || card.isProvince) &&
+                String(card.location || '') !== 'stronghold province');
+            const pick = attachmentTower.pickTaikoProvince(provinces);
+            if(pick) {
+                return this.cardClickDecision(pick, 'attachment-tower-taiko-province');
+            }
+            if(cancel) {
+                return this.buttonDecision(cancel, 'cancel-wrong-side-target');
+            }
+        }
+
         // Time for War (lost-political reaction) attaches a permanent weapon to
         // one of our Bushi. Its character pick runs through a selectCard, not the
         // generic 'attach' gameAction, so route it to the tower-biased attachment
@@ -12159,6 +12456,19 @@ class JigokuBotPolicy {
 
         if((targetHint.gameActions || []).includes('attach')) {
             if(attachmentTower?.isAttachment(targetHint.sourceCardId)) {
+                // The tattoo was played FOR a specific bowed body; the tower
+                // ranking would put it on the best tower, which is the one body
+                // whose reaction has nothing to ready.
+                if(targetHint.sourceCardId === attachmentTower.profile.waterfallTattoo.cardId &&
+                    this.pendingRevealReadyBearerUuid) {
+                    const bearer = mine.find((card) =>
+                        String(card.uuid) === this.pendingRevealReadyBearerUuid);
+                    if(bearer) {
+                        this.pendingRevealReadyBearerUuid = null;
+                        return this.cardClickDecision(bearer, 'attachment-tower-waterfall-bearer');
+                    }
+                    this.pendingRevealReadyBearerUuid = null;
+                }
                 const pendingBearer = this.pendingDaimyoBearerUuid;
                 const target = attachmentTower.pickAttachmentTarget(
                     mine,
@@ -12507,11 +12817,25 @@ class JigokuBotPolicy {
         return this.homeReadyVerdict(playerState, me, this.opponentPlayer(playerState, me)).useful;
     }
 
+    private clearFireRingResolutionState(): void {
+        this.fireRingTargetSide = null;
+        this.fireRingTargetUuid = null;
+        this.fireRingRejectedTargetUuids.clear();
+    }
+
     private ringResolutionDecision(playerState: any, me: any, promptTitle: string, menuTitle: string, buttons: any[], personalHonor: PersonalHonorTactics, dishonor: DishonorTactics | null = null): BotDecision | null {
         const dontResolve = this.findButton(buttons, ['don\'t resolve']);
+        const honorButtons = buttons.filter((button) => String(button.text || '').startsWith('Honor '));
+        const dishonorButtons = buttons.filter((button) => String(button.text || '').startsWith('Dishonor '));
+        const isFireTargetPrompt = menuTitle === 'Choose character to honor or dishonor';
+        const isFireChoicePrompt = honorButtons.length > 0 || dishonorButtons.length > 0;
+        if(!isFireTargetPrompt && !isFireChoicePrompt &&
+            (this.fireRingTargetUuid || this.fireRingRejectedTargetUuids.size > 0)) {
+            this.clearFireRingResolutionState();
+        }
         const isWaterTargetPrompt = menuTitle === 'Choose character to bow or unbow' ||
             (/water ring/i.test(promptTitle) && /choose (a )?character/i.test(menuTitle));
-        const isRingTargetPrompt = ['Choose character to remove fate from', 'Choose character to honor or dishonor'].includes(menuTitle) ||
+        const isRingTargetPrompt = menuTitle === 'Choose character to remove fate from' || isFireTargetPrompt ||
             isWaterTargetPrompt;
 
         if(isRingTargetPrompt) {
@@ -12550,32 +12874,63 @@ class JigokuBotPolicy {
                 return null;
             }
 
-            if(menuTitle === 'Choose character to honor or dishonor') {
-                const ownTargets = mine.filter((card) => !card.isHonored);
-                const enemyTargets = theirs.filter((card) => !card.isDishonored);
+            if(isFireTargetPrompt) {
+                const ownTargets = mine.filter((card) =>
+                    !card.isHonored && !this.fireRingRejectedTargetUuids.has(card.uuid));
+                const enemyTargets = theirs.filter((card) =>
+                    !card.isDishonored && !this.fireRingRejectedTargetUuids.has(card.uuid));
+                const selectTarget = (target: any, side: 'own' | 'enemy'): BotDecision | null => {
+                    this.fireRingTargetSide = side;
+                    this.fireRingTargetUuid = target?.uuid || null;
+                    return this.cardClickDecision(
+                        target,
+                        side === 'own' ? 'fire-ring-honor-own' : 'fire-ring-dishonor-enemy'
+                    );
+                };
                 // Dishonor decks flip the order: a dishonored enemy fights
                 // worse and bleeds its controller 1 honor when it dies.
                 if(dishonor?.preferDishonorEnemy() && enemyTargets.length > 0) {
-                    this.fireRingTargetSide = 'enemy';
-                    return this.cardClickDecision(
-                        personalHonor.pickEnemyDishonor(enemyTargets),
-                        'fire-ring-dishonor-enemy'
-                    );
+                    return selectTarget(personalHonor.pickEnemyDishonor(enemyTargets), 'enemy');
                 }
-                if(ownTargets.length > 0) {
-                    this.fireRingTargetSide = 'own';
-                    return this.cardClickDecision(
-                        personalHonor.pickOwnHonor(ownTargets, this.honorPersistenceBoard(playerState, me)),
-                        'fire-ring-honor-own');
+                // Crane and Lion honor decks value the token as an engine
+                // trigger and future honor, not only its immediate glory swing.
+                // Their own target order therefore stays authoritative.
+                const honorOptions = this.honorTargetOptions(playerState);
+                const honorDeckTarget = this.currentCraneHonor?.pickHonorTarget(ownTargets, honorOptions) ||
+                    this.currentLionHonor?.pickHonorTarget(ownTargets, honorOptions);
+                if(honorDeckTarget) {
+                    return selectTarget(honorDeckTarget, 'own');
                 }
-                if(enemyTargets.length > 0) {
-                    this.fireRingTargetSide = 'enemy';
-                    return this.cardClickDecision(
-                        personalHonor.pickEnemyDishonor(enemyTargets),
-                        'fire-ring-dishonor-enemy'
-                    );
+
+                if(this.currentCraneHonor || this.currentLionHonor || dishonor) {
+                    if(ownTargets.length > 0) {
+                        return selectTarget(personalHonor.pickOwnHonor(
+                            ownTargets,
+                            this.honorPersistenceBoard(playerState, me)
+                        ), 'own');
+                    }
+                    if(enemyTargets.length > 0) {
+                        return selectTarget(personalHonor.pickEnemyDishonor(enemyTargets), 'enemy');
+                    }
+                } else {
+                    // For ordinary decks both sides change the board by the
+                    // target's glory: honor ours or dishonor theirs. Rank one
+                    // combined queue by that actual stat swing, then walk it
+                    // through Back/retry when the desired token is restricted.
+                    const ranked: Array<{ card: any; side: 'own' | 'enemy' }> = [
+                        ...ownTargets.map((card) => ({ card, side: 'own' as const })),
+                        ...enemyTargets.map((card) => ({ card, side: 'enemy' as const }))
+                    ];
+                    ranked.sort((a, b) =>
+                        personalHonor.gloryValue(b.card) - personalHonor.gloryValue(a.card) ||
+                        (a.side === b.side ? 0 : a.side === 'own' ? -1 : 1) ||
+                        this.combinedSkillValue(b.card) - this.combinedSkillValue(a.card) ||
+                        String(a.card.uuid).localeCompare(String(b.card.uuid)));
+                    if(ranked.length > 0) {
+                        return selectTarget(ranked[0].card, ranked[0].side);
+                    }
                 }
-                this.fireRingTargetSide = null;
+                this.clearFireRingResolutionState();
                 return dontResolve ? this.buttonDecision(dontResolve, 'fire-ring-skip') : null;
             }
 
@@ -12627,45 +12982,67 @@ class JigokuBotPolicy {
 
         // Fire ring second step: 'Honor <name>' / 'Dishonor <name>' menu for
         // the chosen character.
-        const honorButtons = buttons.filter((button) => String(button.text || '').startsWith('Honor '));
-        const dishonorButtons = buttons.filter((button) => String(button.text || '').startsWith('Dishonor '));
-        if(honorButtons.length > 0 || dishonorButtons.length > 0) {
+        if(isFireChoicePrompt) {
             // The target step recorded which SIDE it aimed at. Trust that over
             // the button text: the text carries a card NAME, and both decks can
             // run the same card — a name collision made this honor the enemy's
             // copy of a character we also control.
             const ringGuards = this.currentDeckProfile.polarityGuards !== false;
             if(ringGuards && this.fireRingTargetSide === 'own' && honorButtons.length > 0) {
-                return this.buttonDecision(honorButtons[0], 'fire-ring-honor');
+                const decision = this.buttonDecision(honorButtons[0], 'fire-ring-honor');
+                this.clearFireRingResolutionState();
+                return decision;
             }
             if(ringGuards && this.fireRingTargetSide === 'enemy' && dishonorButtons.length > 0) {
-                return this.buttonDecision(dishonorButtons[0], 'fire-ring-dishonor');
+                const decision = this.buttonDecision(dishonorButtons[0], 'fire-ring-dishonor');
+                this.clearFireRingResolutionState();
+                return decision;
+            }
+            // A remembered side with no desired button means the engine found
+            // a restriction only after the target click. Reject that physical
+            // card and continue down the same deck-specific or glory queue.
+            if(ringGuards && this.fireRingTargetSide && this.fireRingTargetUuid) {
+                const back = this.findButton(buttons, ['back']);
+                if(back) {
+                    this.fireRingRejectedTargetUuids.add(this.fireRingTargetUuid);
+                    this.fireRingTargetUuid = null;
+                    this.fireRingTargetSide = null;
+                    return this.buttonDecision(back, 'fire-ring-retry-target');
+                }
             }
             const myNames = new Set(this.myCharactersInPlay(me).map((card) => card.name));
             const honorOwn = honorButtons.find((button) => myNames.has(String(button.text).slice('Honor '.length)));
             const dishonorEnemy = dishonorButtons.find((button) => !myNames.has(String(button.text).slice('Dishonor '.length)));
             if(dishonor?.preferDishonorEnemy() && dishonorEnemy) {
-                return this.buttonDecision(dishonorEnemy, 'fire-ring-dishonor');
+                const decision = this.buttonDecision(dishonorEnemy, 'fire-ring-dishonor');
+                this.clearFireRingResolutionState();
+                return decision;
             }
             if(honorOwn) {
-                return this.buttonDecision(honorOwn, 'fire-ring-honor');
+                const decision = this.buttonDecision(honorOwn, 'fire-ring-honor');
+                this.clearFireRingResolutionState();
+                return decision;
             }
             if(dishonorEnemy) {
-                return this.buttonDecision(dishonorEnemy, 'fire-ring-dishonor');
+                const decision = this.buttonDecision(dishonorEnemy, 'fire-ring-dishonor');
+                this.clearFireRingResolutionState();
+                return decision;
             }
             // Every remaining button would honor THEIR character or dishonor
             // OURS. That happens when the target step picked one of ours whose
             // honor turned out to be illegal (already honored, or a restriction
-            // on receiving the token), leaving only `Dishonor <our card>`.
-            // `Back` re-opens the target step, which re-picks the same card and
-            // loops — the attempted set is cleared when the prompt signature
-            // returns — so take the ring off the table instead. A skipped fire
-            // ring costs one token; dishonouring our own body costs more.
+            // on receiving the token), leaving only `Dishonor <our card>`. Go
+            // back and remember the rejected UUID beyond the prompt-signature
+            // reset, allowing another friendly or an enemy target to resolve.
             const skipRing = ringGuards ? this.findButton(buttons, ['don\'t resolve']) : undefined;
             if(skipRing) {
-                return this.buttonDecision(skipRing, 'fire-ring-skip-wrong-side');
+                const decision = this.buttonDecision(skipRing, 'fire-ring-skip-wrong-side');
+                this.clearFireRingResolutionState();
+                return decision;
             }
-            return this.buttonDecision(honorButtons[0] || dishonorButtons[0], 'fire-ring-choice');
+            const decision = this.buttonDecision(honorButtons[0] || dishonorButtons[0], 'fire-ring-choice');
+            this.clearFireRingResolutionState();
+            return decision;
         }
 
         // Air ring menu: taking 1 pushes the opponent toward the dishonor

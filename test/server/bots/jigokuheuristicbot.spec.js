@@ -2,7 +2,10 @@ const JigokuBotController = require('../../../build/server/game/bots/JigokuBotCo
 const JigokuBotPolicy = require('../../../build/server/game/bots/JigokuBotPolicy.js');
 const FateAwareJigokuBotPolicy = require('../../../build/server/game/bots/FateAwareJigokuBotPolicy.js');
 const { getPlaybookEntry, deriveDeckStrategy } = require('../../../build/server/game/bots/CardPlaybook.js');
-const { profileFromStrategy, resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
+const { DEFAULT_PROFILE, profileFromStrategy, resolveDeckProfile } = require('../../../build/server/game/bots/DeckProfiles.js');
+const { CRANE_HONOR_DEFAULTS } = require('../../../build/server/game/bots/CraneHonorTactics.js');
+const { LION_HONOR_DEFAULTS } = require('../../../build/server/game/bots/LionHonorTactics.js');
+const { DISHONOR_DEFAULTS } = require('../../../build/server/game/bots/DishonorTactics.js');
 const { UNICORN_REVEAL_DEFAULTS } = require('../../../build/server/game/bots/UnicornRevealTactics.js');
 
 describe('Jigoku heuristic bot', function() {
@@ -1834,6 +1837,86 @@ describe('Jigoku heuristic bot', function() {
             expect(policy.decide(menuState, 'Jigoku Bot').target).toBe('Honor own-hero');
         });
 
+        it('fire ring uses the highest glory swing across both sides', function() {
+            const policy = new JigokuBotPolicy('fire-glory');
+            const decision = policy.decide(makeRingResolutionState(
+                'Choose character to honor or dishonor',
+                [character('own-zero', { glorySummary: { stat: '0' } })],
+                [character('enemy-two', { glorySummary: { stat: '2' } })],
+                [dontResolve]
+            ), 'Jigoku Bot');
+
+            expect(decision.args[0]).toBe('enemy-two');
+            expect(decision.reason).toBe('fire-ring-dishonor-enemy');
+        });
+
+        it('fire ring preserves Crane, Lion, and Scorpion token priorities', function() {
+            const ownLowEnemyHigh = makeRingResolutionState(
+                'Choose character to honor or dishonor',
+                [character('own-zero', { glorySummary: { stat: '0' } })],
+                [character('enemy-three', { glorySummary: { stat: '3' } })],
+                [dontResolve]
+            );
+            const craneProfile = Object.assign({}, DEFAULT_PROFILE, { craneHonor: CRANE_HONOR_DEFAULTS });
+            const lionProfile = Object.assign({}, DEFAULT_PROFILE, { lionHonor: LION_HONOR_DEFAULTS });
+
+            expect(new JigokuBotPolicy('fire-crane').decide(
+                ownLowEnemyHigh,
+                'Jigoku Bot',
+                { profile: craneProfile }
+            ).args[0]).toBe('own-zero');
+            expect(new JigokuBotPolicy('fire-lion').decide(
+                ownLowEnemyHigh,
+                'Jigoku Bot',
+                { profile: lionProfile }
+            ).args[0]).toBe('own-zero');
+
+            const ownHighEnemyLow = makeRingResolutionState(
+                'Choose character to honor or dishonor',
+                [character('own-three', { glorySummary: { stat: '3' } })],
+                [character('enemy-zero', { glorySummary: { stat: '0' } })],
+                [dontResolve]
+            );
+            const scorpionProfile = Object.assign({}, DEFAULT_PROFILE, { dishonor: DISHONOR_DEFAULTS });
+            expect(new JigokuBotPolicy('fire-scorpion').decide(
+                ownHighEnemyLow,
+                'Jigoku Bot',
+                { profile: scorpionProfile }
+            ).args[0]).toBe('enemy-zero');
+        });
+
+        it('fire ring retries an enemy when its preferred own target cannot be honored', function() {
+            const policy = new JigokuBotPolicy('fire-tetsubo-retry');
+            const targetState = () => makeRingResolutionState(
+                'Choose character to honor or dishonor',
+                [character('solitary-hero', { name: 'Solitary Hero', fate: 2 })],
+                [character('togashi-mitsu', { name: 'Togashi Mitsu', fate: 2 })],
+                [dontResolve]
+            );
+
+            expect(policy.decide(targetState(), 'Jigoku Bot').args[0]).toBe('solitary-hero');
+
+            const restrictedChoice = makeRingResolutionState('', [
+                character('solitary-hero', { name: 'Solitary Hero', fate: 2 })
+            ], [character('togashi-mitsu', { name: 'Togashi Mitsu', fate: 2 })], [
+                { text: 'Dishonor Solitary Hero', arg: 0, uuid: 'dishonor' },
+                { text: 'Back', arg: 1, uuid: 'back' },
+                { text: 'Don\'t resolve the fire ring', arg: 2, uuid: 'skip' }
+            ]);
+            expect(policy.decide(restrictedChoice, 'Jigoku Bot').target).toBe('Back');
+
+            expect(policy.decide(targetState(), 'Jigoku Bot').args[0]).toBe('togashi-mitsu');
+
+            const enemyChoice = makeRingResolutionState('', [
+                character('solitary-hero', { name: 'Solitary Hero', fate: 2 })
+            ], [character('togashi-mitsu', { name: 'Togashi Mitsu', fate: 2 })], [
+                { text: 'Honor Togashi Mitsu', arg: 0, uuid: 'honor' },
+                { text: 'Dishonor Togashi Mitsu', arg: 1, uuid: 'dishonor' },
+                { text: 'Back', arg: 2, uuid: 'back' }
+            ]);
+            expect(policy.decide(enemyChoice, 'Jigoku Bot').target).toBe('Dishonor Togashi Mitsu');
+        });
+
         it('water ring bows a ready enemy or readies a bowed friendly', function() {
             const policy = new JigokuBotPolicy('water-bow');
             expect(policy.decide(makeRingResolutionState(
@@ -2302,6 +2385,65 @@ describe('Jigoku heuristic bot', function() {
 
         expect(decision.command).toBe('facedownCardClicked');
         expect(decision.args).toEqual(['province 1', 'Human', true]);
+    });
+
+    it('aims Unicorn Reveal Outflank by the declared conflict skill', function() {
+        const character = (uuid, military, political, extras = {}) => ({
+            uuid: uuid,
+            name: uuid,
+            type: 'character',
+            location: 'play area',
+            selectable: true,
+            bowed: false,
+            isUnique: false,
+            controller: { name: 'Human' },
+            militarySkillSummary: { stat: String(military) },
+            politicalSkillSummary: { stat: String(political) },
+            ...extras
+        });
+        const state = {
+            conflict: { type: 'political' },
+            players: {
+                'Jigoku Bot': {
+                    name: 'Jigoku Bot',
+                    id: 'bot',
+                    promptTitle: 'Outflank',
+                    menuTitle: 'Choose a character',
+                    selectCard: true,
+                    buttons: [],
+                    cardPiles: { cardsInPlay: [], hand: [] },
+                    provinces: { one: [], two: [], three: [], four: [] }
+                },
+                'Human': {
+                    name: 'Human',
+                    id: 'human',
+                    cardPiles: {
+                        cardsInPlay: [
+                            character('military-defender', 5, 1),
+                            character('political-defender', 2, 6),
+                            character('unique-defender', 9, 9, { isUnique: true })
+                        ]
+                    },
+                    provinces: { one: [], two: [], three: [], four: [] },
+                    strongholdProvince: []
+                }
+            }
+        };
+        const profile = {
+            ...profileFromStrategy({}),
+            unicornReveal: UNICORN_REVEAL_DEFAULTS
+        };
+        const decision = new JigokuBotPolicy('outflank-conflict-axis').decide(state, 'Jigoku Bot', {
+            profile: profile,
+            targetHint: {
+                gameActions: ['cardLastingEffect'], sourceIsMine: true,
+                sourceType: 'event', sourceCardId: 'outflank'
+            }
+        });
+
+        expect(decision.command).toBe('cardClicked');
+        expect(decision.args[0]).toBe('political-defender');
+        expect(decision.reason).toBe('unicorn-reveal-outflank-highest-conflict-skill');
     });
 
     describe('reveal targets that are still facedown', function() {

@@ -2904,10 +2904,11 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     }),
 
     // ==================================================================
-    // Dragon "Attachments" / Arsenal (EmeraldDB 46aaa220).
-    // Build two deep-fate towers, search and recycle attachments, and use
-    // Weapon plays to ready Niten Master repeatedly. Target selection and
-    // three-slot Restricted handling live in DragonAttachmentTactics.
+    // Dragon "Attachments" / Arsenal (EmeraldDB ce8df8ae, revision 0.5).
+    // Build two deep-fate towers -- one military, one political -- search and
+    // recycle attachments, and use Weapon plays to ready Niten Master
+    // repeatedly. Target selection, the axis split and three-slot Restricted
+    // handling live in DragonAttachmentTactics.
     // ==================================================================
 
     'iron-mountain-castle': entry('iron-mountain-castle', {
@@ -3003,16 +3004,6 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         summary: 'ring fate gained: become immune to enemy triggered targeting'
     }),
 
-    'keen-warrior': entry('keen-warrior', {
-        priority: 9,
-        summary: 'after seeing enemy hand: draw two, bottom one card'
-    }),
-
-    'hiruma-skirmisher': entry('hiruma-skirmisher', {
-        priority: 9,
-        summary: 'after play: gain covert for the phase'
-    }),
-
     // ---- attachment search / recursion ----
 
     'agasha-swordsmith': entry('agasha-swordsmith', {
@@ -3023,18 +3014,36 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         oncePerRound: true
     }),
 
-    'inventive-mirumoto': entry('inventive-mirumoto', {
-        priority: 9,
-        summary: 'with Water claimed: play an attachment from discard on itself',
-        inPlayAction: true,
-        conflictPhaseAction: true,
-        oncePerRound: true,
-        shouldUseAction: (ctx) => (ctx.conflictDiscard || []).some((card) => card.type === 'attachment')
-    }),
-
     'illustrious-forge': entry('illustrious-forge', {
         priority: 10,
         summary: 'reveal: put the best top-five attachment into play'
+    }),
+
+    // ---- revision 0.5 ----
+
+    // Return claimed rings, tutor an attachment costing no more than the
+    // number returned, attach it to a character we control. Held until the
+    // last conflict of the round (a claimed ring is worth something until
+    // then) and gated on a tower being on the board to receive the card --
+    // both in `DragonAttachmentTactics.shouldUseShunsen` / `canBuyBody`.
+    'agasha-shunsen': entry('agasha-shunsen', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 10,
+        summary: 'last conflict: return up to 3 claimed rings, tutor an attachment',
+        // The real gate is `DragonAttachmentTactics.shouldUseShunsen`, applied
+        // in the policy where the live claimed-ring pool and the participating
+        // Self-Understanding are both readable.
+        inPlayAction: true,
+        oncePerRound: true
+    }),
+
+    // After you play this character, a non-stronghold province cannot be
+    // attacked this round. Province choice is in `pickTaikoProvince`.
+    'agasha-taiko': entry('agasha-taiko', {
+        targetSide: 'self',
+        priority: 9,
+        summary: 'after play: a province cannot be attacked this round'
     }),
 
     // ---- attachments ----
@@ -3112,13 +3121,45 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         preConflict: true
     }),
 
-    'two-heavens-technique': entry('two-heavens-technique', {
+    // Restricted +0/+3, and the reaction is the card: after its bearer wins a
+    // conflict, resolve the effect of EVERY ring in our claimed pool. Priority
+    // 10 so `triggeredWindowDecision` fires the gained reaction.
+    'self-understanding': entry('self-understanding', {
         targetSide: 'self',
         targetPreference: 'most-fate',
-        priority: 8,
-        summary: '+1 military; exactly two Weapons grant covert',
+        priority: 10,
+        summary: 'won conflict: resolve every claimed ring effect',
         abilityValue: true,
         preConflict: true
+    }),
+
+    // +1/+1, and while its bearer is READY the opponent can neither remove nor
+    // gain fate from rings. With Revered Bonsho pushing the fate-phase fate
+    // onto the unclaimed rings each round, that lock compounds. Play timing is
+    // `shouldPlayStoneOfSorrows`: pre-conflict once there is ring fate to deny,
+    // otherwise only as a +1 that flips the conflict.
+    'the-stone-of-sorrows': entry('the-stone-of-sorrows', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 9,
+        summary: 'bearer ready: opponent cannot take or gain ring fate',
+        abilityValue: true,
+        preConflict: true
+    }),
+
+    // +1/+1 and "after a province you control is revealed - ready attached
+    // character". Attached to a BOWED body before the opponent declares, it
+    // converts that body into a defender for the conflict they are about to
+    // declare -- and makes the same body free to attack, which is
+    // `RevealReadyPolicy`'s half.
+    'waterfall-tattoo': entry('waterfall-tattoo', {
+        targetSide: 'self',
+        targetPreference: 'most-fate',
+        priority: 9,
+        summary: 'own province revealed: ready the bearer',
+        abilityValue: true,
+        preConflict: true,
+        maxCopiesPerTarget: 1
     }),
 
     'pathfinder-s-blade': entry('pathfinder-s-blade', {

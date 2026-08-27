@@ -1485,12 +1485,18 @@ class JigokuBotPolicy {
                 context.strongholdProvinceStrength,
                 context.weakestOuterProvinceStrength
             );
-            if(strongholdPlan.active && strongholdPlan.mode === 'hold-all' && pass) {
+            // Same last-window exception as the elemental-ring prompt: with no
+            // conflict coming from either side, passing strands Agasha
+            // Shunsen's Action for the rest of the game.
+            const shunsenLastWindow = this.shunsenWantsDeclaration(
+                me, opponent, playerState, attachmentTower);
+            if(!shunsenLastWindow && strongholdPlan.active &&
+                strongholdPlan.mode === 'hold-all' && pass) {
                 return this.buttonDecision(pass, strongholdPlan.reason);
             }
             const reserved = new Set(strongholdPlan.reserveUuids);
             const canAttack = this.readyCharacters(me).some((card) =>
-                !reserved.has(String(card.uuid)) &&
+                (shunsenLastWindow || !reserved.has(String(card.uuid))) &&
                 ((this.skillValue(card, 'military') || 0) > 0 ||
                     (this.skillValue(card, 'political') || 0) > 0));
             if(!canAttack && pass) {
@@ -2744,6 +2750,24 @@ class JigokuBotPolicy {
     }
 
     /**
+     * Unbroken FACEDOWN provinces among our four outer slots only.
+     *
+     * Waterfall Tattoo needs the opponent's declaration to reveal something,
+     * and the stronghold province is the one slot where that reveal is worth
+     * nothing: it only becomes attackable once three outer provinces are
+     * broken, and the conflict that reveals it is the conflict that ends the
+     * game.
+     */
+    private myOuterFacedownProvinceCount(me: any): number {
+        return PROVINCE_KEYS
+            .map((key) => me?.provinces?.[key] || [])
+            .filter((list: any[]) => (list || []).some((card: any) => card &&
+                (card.isProvince || card.type === 'province' || card.facedown) &&
+                !card.isBroken && card.facedown))
+            .length;
+    }
+
+    /**
      * Agasha Shunsen's Action, asked from the live board.
      *
      * The ability is held until neither player has a conflict opportunity left
@@ -2761,6 +2785,49 @@ class JigokuBotPolicy {
                 card.inConflict && (card.attachments || []).some((attachment: any) =>
                     attachment?.id === selfUnderstandingId))
         });
+    }
+
+    /**
+     * Is passing THIS conflict about to strand Agasha Shunsen's Action?
+     *
+     * His Action's own condition is `game.isDuringConflict()`, so the card is
+     * only ever playable while a conflict is running. When this is our last
+     * opportunity AND the opponent has none left, passing ends the round
+     * without another window and the whole card is thrown away — so the
+     * cheapest possible declaration is worth more than the conflict we were
+     * declining. Anywhere else this is false and the normal pass logic stands.
+     */
+    private shunsenWantsDeclaration(
+        me: any,
+        opponent: any,
+        playerState: any,
+        attachmentTower: DragonAttachmentTactics | null
+    ): boolean {
+        if(!attachmentTower) {
+            return false;
+        }
+        const shunsenId = attachmentTower.profile.shunsen.cardId;
+        const mine = this.myCharactersInPlay(me);
+        const shunsen = mine.find((card: any) => card?.id === shunsenId &&
+            !this.boardAbilityIsUsed(card));
+        const wants = attachmentTower.shouldDeclareForShunsen({
+            myConflictOpportunities: Math.max(0, Number(me?.stats?.conflictsRemaining) || 0),
+            opponentConflictsRemaining: Math.max(0, Number(opponent?.stats?.conflictsRemaining) || 0),
+            claimedRingCount: this.claimedRingElements(playerState, me).length,
+            shunsenActionAvailable: !!shunsen,
+            hasBearer: !!attachmentTower.pickShunsenTarget(mine)
+        });
+        if(BotTelemetry.enabled && shunsen) {
+            BotTelemetry.record('shunsen-declare-window', () => ({
+                player: me?.name,
+                wants,
+                myConflictOpportunities: Math.max(0, Number(me?.stats?.conflictsRemaining) || 0),
+                opponentConflictsRemaining: Math.max(0,
+                    Number(opponent?.stats?.conflictsRemaining) || 0),
+                claimedRingCount: this.claimedRingElements(playerState, me).length
+            }));
+        }
+        return wants;
     }
 
     /** `RevealReadyPolicy` for the deck currently being piloted. */
@@ -3837,6 +3904,16 @@ class JigokuBotPolicy {
             (intentPlan?.requiredAttackerUuids || []).length > 0 ||
             !!profile.conflictPlanning?.applyAttackerPlan;
 
+        // AGASHA SHUNSEN'S LAST WINDOW. His Action is `During a conflict`, so
+        // passing our last opportunity while the opponent has none left ends
+        // the round without a window and throws the card away. Suppress the
+        // voluntary passes below in exactly that state; the mandatory ones
+        // (no legal attacker at all) are untouched, and the attacker prompt
+        // falls through to `declare-required-attacker`, which sends the
+        // WEAKEST body — the cheapest declaration that opens the window.
+        const shunsenLastWindow = this.shunsenWantsDeclaration(
+            me, opponent, playerState, attachmentTower);
+
         if(lowerMenu.includes('elemental ring')) {
             const passButton = this.findButton(buttons, ['pass conflict']);
             const rings = Object.values(playerState?.rings || {})
@@ -3853,10 +3930,12 @@ class JigokuBotPolicy {
                 ? rings.find((candidate: any) => candidate.element === 'air' &&
                     !this.isAttempted('ringClicked', [candidate.element]))
                 : undefined;
-            if(!honorVictoryAirRing && strongholdPlan.active && strongholdPlan.mode === 'hold-all' && passButton) {
+            if(!honorVictoryAirRing && !shunsenLastWindow && strongholdPlan.active &&
+                strongholdPlan.mode === 'hold-all' && passButton) {
                 return this.buttonDecision(passButton, strongholdPlan.reason);
             }
-            const canAttack = ready.some((card) => (honorVictoryAirRing || !reserved.has(String(card.uuid))) &&
+            const canAttack = ready.some((card) => (honorVictoryAirRing || shunsenLastWindow ||
+                !reserved.has(String(card.uuid))) &&
                 ((this.skillValue(card, 'military') || 0) > 0 || (this.skillValue(card, 'political') || 0) > 0));
             if(!canAttack && passButton) {
                 return this.buttonDecision(passButton, strongholdPlan.active ? 'stronghold-no-free-attacker' : 'pass-no-attackers');
@@ -4303,7 +4382,7 @@ class JigokuBotPolicy {
             if(!finalStrongholdPush && !honorVictoryPush &&
                 profile.attackCommitment === 'breakable-or-hold' && potentialSkill < breakTarget) {
                 const passButton = this.findButton(buttons, ['pass conflict']);
-                if(committed.length === 0 && passButton) {
+                if(committed.length === 0 && passButton && !shunsenLastWindow) {
                     return this.buttonDecision(passButton, 'defensive-hold');
                 }
             }
@@ -4413,7 +4492,7 @@ class JigokuBotPolicy {
             }
 
             const passButton = this.findButton(buttons, ['pass conflict']);
-            if(passButton) {
+            if(passButton && !shunsenLastWindow) {
                 return this.buttonDecision(passButton, 'pass-no-attackers');
             }
 
@@ -8447,7 +8526,9 @@ class JigokuBotPolicy {
                 opponentMilitaryRemaining: Number(opponent?.stats?.militaryRemaining),
                 opponentPoliticalRemaining: Number(opponent?.stats?.politicalRemaining),
                 opponentReady: this.opponentDeclarableReady(opponent),
-                facedownProvinceCount: this.myProvinceRevealCounts(me).facedown
+                facedownProvinceCount: this.myProvinceRevealCounts(me).facedown,
+                facedownOuterProvinceCount: this.myOuterFacedownProvinceCount(me),
+                brokenOuterProvinceCount: brokenOuterProvinceCount(me)
             });
             const stoneContext = {
                 ringFate: this.totalRingFate(playerState),

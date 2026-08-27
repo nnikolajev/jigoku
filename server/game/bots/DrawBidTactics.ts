@@ -86,6 +86,23 @@ export interface DrawBidProfile {
     // hand over is ammunition. Used in place of the budget above when the
     // opponent's known decklist has an honor or dishonor plan.
     cardsOverHonorConservativeBudget: number;
+    // ...or refuse the whole trade against that opponent rather than merely
+    // shrinking the budget. L5R decklists are public, so which archetype sits
+    // across the table is fair information: against a dishonor deck the honor
+    // we spend on cards is the honor they are trying to strip, and against an
+    // honor deck it is the honor they need to reach 25. Against every OTHER
+    // deck the game is decided on the board and cards are the right buy, so
+    // this is per-OPPONENT rather than per-deck.
+    //
+    // MEASURED AND REJECTED on Dragon Attachments, where the per-DECK
+    // `cardsOverHonor: false` is worth +4.03pp: narrowing that to only the
+    // decks with an honor plan reads **-1.83pp, 85 decided, p=0.0001** over
+    // 1909 games / 6 bases. The four honor-plan opponents flip zero games (the
+    // disable reproduces the per-deck setting against exactly them) and every
+    // deck that DID move mostly moved the wrong way — dishonor losses 160->218.
+    // Honor bled at a bid is honor gone whoever is opposite. Ships off; kept so
+    // the arm is a JSON string. See `docs/dragon-attachments-bot.md`.
+    cardsOverHonorDisableVsHonorPlan: boolean;
     forceLowAfterOpening: boolean;
     ringFateConversion: number;
     ringFateCap: number;
@@ -175,6 +192,7 @@ export const DEFAULT_DRAW_BID_PROFILE: DrawBidProfile = {
     cardsOverHonorRequiresOpenStronghold: true,
     cardsOverHonorTransferBudget: 2,
     cardsOverHonorConservativeBudget: 1,
+    cardsOverHonorDisableVsHonorPlan: false,
     forceLowAfterOpening: false,
     // Ring fate is not guaranteed, so value only a fraction and cap how much
     // future income can excuse an aggressive draw.
@@ -389,6 +407,7 @@ export class DrawBidTactics extends BaseDrawBidTactics {
         const strongholdOpen = context.myBrokenProvinces >= 3 ||
             context.opponentBrokenProvinces >= 3;
         const cardsFirst = this.profile.cardsOverHonor &&
+            !(this.profile.cardsOverHonorDisableVsHonorPlan && context.opponentHonorPlan) &&
             (strongholdOpen || !this.profile.cardsOverHonorRequiresOpenStronghold) &&
             context.myHonor >= this.profile.cardsOverHonorSafetyFloor &&
             context.myHonor < this.profile.cardsOverHonorMyWinFloor &&

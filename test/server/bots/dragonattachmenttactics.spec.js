@@ -89,17 +89,41 @@ describe('DragonAttachmentTactics', function() {
             expect(profile.attackCommitment).toBe('all-but-one');
         });
 
-        it('parks Illustrious Forge under the stronghold', function() {
+        it('parks Pilgrimage under the stronghold', function() {
             const profile = resolveDeckProfile(
                 ['iron-mountain-castle', 'illustrious-forge'],
                 ATTACHMENTS
             );
-            expect(profile.strongholdProvinceId).toBe('illustrious-forge');
+            // Illustrious Forge earns more in an OUTER province, where it is
+            // revealed early enough for its top-five search to fire. Measured
+            // +1.17pp over 12 bases / 7627 games; see the doc.
+            expect(profile.strongholdProvinceId).toBe('pilgrimage');
             expect(profile.attackCommitment).toBe('all-but-one');
             expect(profile.attackKeepHome).toBe(1);
         });
 
-        it('stops paying for cards out of the honor track', function() {
+        it('keys the Agasha Taiko order to the stronghold choice', function() {
+            const profile = resolveDeckProfile(
+                ['iron-mountain-castle', 'illustrious-forge'],
+                ATTACHMENTS
+            );
+            // Pilgrimage sits under the stronghold and cannot be targeted, so
+            // it leaves the list. Illustrious Forge only enters it once it has
+            // been REVEALED; while facedown its own on-reveal search is a card
+            // we still want, so Restoration of Balance is protected instead.
+            expect(profile.attachmentTower.agashaTaiko.provincePriority).toEqual([
+                'city-of-the-rich-frog', 'manicured-garden',
+                'illustrious-forge', 'restoration-of-balance'
+            ]);
+            expect(profile.attachmentTower.agashaTaiko.requireRevealedIds)
+                .toEqual(['illustrious-forge']);
+            // A partial `attachmentTower` override must not drop everything
+            // else the strategy pass filled in.
+            expect(profile.attachmentTower.towerCharacters.length).toBeGreaterThan(0);
+            expect(profile.attachmentTower.shunsen.searchOrder[0]).toBe('self-understanding');
+        });
+
+        it('stops paying for cards out of the honor track, against everyone', function() {
             const profile = resolveDeckProfile(
                 ['iron-mountain-castle', 'illustrious-forge'],
                 ATTACHMENTS
@@ -108,7 +132,12 @@ describe('DragonAttachmentTactics', function() {
             // and the field punishes that twice: the honor paid is the honor a
             // dishonor deck strips, and the honor an honor deck needs to reach
             // 25. Measured +4.03pp over 12 bases / 3818 games (p=0.012).
+            //
+            // Narrowing it to only the decks that can END the game on the honor
+            // track was measured and REJECTED at -1.83pp (p=0.0001): honor bled
+            // at a bid is honor gone whoever is sitting opposite.
             expect(profile.drawBidding.cardsOverHonor).toBe(false);
+            expect(profile.drawBidding.cardsOverHonorDisableVsHonorPlan).toBe(false);
             // The rest of the tower bid profile is untouched: this deck still
             // needs to draw its Weapons and reducers.
             expect(profile.drawBidding.objective).toBe('cards');
@@ -425,14 +454,75 @@ describe('DragonAttachmentTactics', function() {
             selfUnderstandingParticipating: false
         };
 
-        it('holds the ability while either player still has a conflict', function() {
+        it('holds the ability until OUR last conflict opportunity is the one running', function() {
             expect(tactics.shouldUseShunsen(lastConflict)).toBe(true);
             expect(tactics.shouldUseShunsen({ ...lastConflict, myConflictsRemaining: 1 })).toBe(false);
-            expect(tactics.shouldUseShunsen({ ...lastConflict, opponentConflictsRemaining: 1 })).toBe(false);
+        });
+
+        it('fires during the opponent’s conflict once we have none left', function() {
+            // The Action's condition is `game.isDuringConflict()`, so whose
+            // conflict it is does not matter. Waiting for the opponent to run
+            // out too is waiting for a window that may never open.
+            expect(tactics.shouldUseShunsen({ ...lastConflict, opponentConflictsRemaining: 2 }))
+                .toBe(true);
+        });
+
+        it('keeps the stricter both-players-out reading available as an arm', function() {
+            const strict = new DragonAttachmentTactics({
+                shunsen: { ...DRAGON_ATTACHMENT_DEFAULTS.shunsen, requireOpponentOutOfConflicts: true }
+            });
+            expect(strict.shouldUseShunsen(lastConflict)).toBe(true);
+            expect(strict.shouldUseShunsen({ ...lastConflict, opponentConflictsRemaining: 1 }))
+                .toBe(false);
         });
 
         it('does nothing without a claimed ring to spend', function() {
             expect(tactics.shouldUseShunsen({ ...lastConflict, claimedRingCount: 0 })).toBe(false);
+        });
+
+        describe('declaring to open the last window', function() {
+            const stranded = {
+                myConflictOpportunities: 1,
+                opponentConflictsRemaining: 0,
+                claimedRingCount: 2,
+                shunsenActionAvailable: true,
+                hasBearer: true
+            };
+
+            it('declares the conflict rather than strand the Action', function() {
+                expect(tactics.shouldDeclareForShunsen(stranded)).toBe(true);
+            });
+
+            it('waits while we still hold another conflict opportunity', function() {
+                expect(tactics.shouldDeclareForShunsen({
+                    ...stranded, myConflictOpportunities: 2
+                })).toBe(false);
+            });
+
+            it('passes when the opponent can still open a window for us', function() {
+                // The Action does not care whose conflict it is, so a conflict
+                // the OPPONENT is going to declare is a free window and our
+                // bodies stay home.
+                expect(tactics.shouldDeclareForShunsen({
+                    ...stranded, opponentConflictsRemaining: 1
+                })).toBe(false);
+            });
+
+            it('needs the whole payoff already on the table', function() {
+                expect(tactics.shouldDeclareForShunsen({ ...stranded, claimedRingCount: 0 }))
+                    .toBe(false);
+                expect(tactics.shouldDeclareForShunsen({ ...stranded, shunsenActionAvailable: false }))
+                    .toBe(false);
+                expect(tactics.shouldDeclareForShunsen({ ...stranded, hasBearer: false }))
+                    .toBe(false);
+            });
+
+            it('is a knob, so the whole override is an A/B arm', function() {
+                const off = new DragonAttachmentTactics({
+                    shunsen: { ...DRAGON_ATTACHMENT_DEFAULTS.shunsen, declareToTrigger: false }
+                });
+                expect(off.shouldDeclareForShunsen(stranded)).toBe(false);
+            });
         });
 
         it('refuses to empty the pool a participating Self-Understanding reads', function() {
@@ -587,6 +677,39 @@ describe('DragonAttachmentTactics', function() {
             expect(tactics.waterfallTattooBearer({ ...base, facedownProvinceCount: 0 })).toBeNull();
         });
 
+        it('needs the reveal to be LIKELY, not merely possible', function() {
+            // One outer province left facedown out of four: the opponent's
+            // next declaration almost certainly lands on one already faceup,
+            // which reveals nothing and the card is a wasted +1/+1.
+            expect(tactics.waterfallTattooBearer({
+                ...base, facedownOuterProvinceCount: 1
+            })).toBeNull();
+            expect(tactics.waterfallTattooBearer({
+                ...base, facedownOuterProvinceCount: 2
+            }).uuid).toBe('bowed');
+        });
+
+        it('stops once the stronghold province is attackable', function() {
+            // Three broken outer provinces open the stronghold province
+            // (`ProvinceCard.canBeAttacked`). From there the opponent attacks
+            // that, not the one outer province we have left, and the stronghold
+            // province is usually already faceup from an earlier attack.
+            expect(tactics.waterfallTattooBearer({
+                ...base, facedownOuterProvinceCount: 2, brokenOuterProvinceCount: 3
+            })).toBeNull();
+            expect(tactics.waterfallTattooBearer({
+                ...base, facedownOuterProvinceCount: 2, brokenOuterProvinceCount: 2
+            }).uuid).toBe('bowed');
+        });
+
+        it('falls back to the aggregate count for callers without the split', function() {
+            // Synthetic callers that omit `facedownOuterProvinceCount` keep the
+            // pre-0.6 behaviour instead of silently refusing every play.
+            expect(tactics.waterfallTattooBearer({
+                ...base, facedownProvinceCount: 2, facedownOuterProvinceCount: undefined
+            }).uuid).toBe('bowed');
+        });
+
         it('does not need a Restricted slot, because it is not Restricted', function() {
             // Three Restricted attachments on a Dragon body is the legal cap,
             // and the tattoo does not consume one.
@@ -637,7 +760,22 @@ describe('DragonAttachmentTactics', function() {
         it('protects the owner order, top first', function() {
             const provinces = [
                 province('manicured-garden'), province('pilgrimage'),
-                province('restoration-of-balance')
+                province('restoration-of-balance'), province('city-of-the-rich-frog')
+            ];
+            expect(tactics.pickTaikoProvince(provinces).id).toBe('city-of-the-rich-frog');
+        });
+
+        it('has no Public Forum in revision 0.5', function() {
+            // The province was cut from the deck; City of the Rich Frog took
+            // its place at the head of the list.
+            expect(DRAGON_ATTACHMENT_DEFAULTS.agashaTaiko.provincePriority)
+                .toEqual(['city-of-the-rich-frog', 'pilgrimage', 'manicured-garden']);
+        });
+
+        it('steps past City of the Rich Frog once it is broken', function() {
+            const provinces = [
+                province('manicured-garden'), province('pilgrimage'),
+                province('city-of-the-rich-frog', { isBroken: true })
             ];
             expect(tactics.pickTaikoProvince(provinces).id).toBe('pilgrimage');
         });
@@ -652,9 +790,34 @@ describe('DragonAttachmentTactics', function() {
         it('protects the strongest unbroken province when the list is exhausted', function() {
             const provinces = [
                 province('restoration-of-balance', { strengthSummary: { stat: '3' } }),
-                province('city-of-the-rich-frog', { strengthSummary: { stat: '5' } })
+                province('illustrious-forge', { strengthSummary: { stat: '5' } })
             ];
-            expect(tactics.pickTaikoProvince(provinces).id).toBe('city-of-the-rich-frog');
+            expect(tactics.pickTaikoProvince(provinces).id).toBe('illustrious-forge');
+        });
+
+        it('skips a facedown province whose own on-reveal reaction is still owed', function() {
+            const shipped = new DragonAttachmentTactics({
+                agashaTaiko: {
+                    ...DRAGON_ATTACHMENT_DEFAULTS.agashaTaiko,
+                    provincePriority: [
+                        'city-of-the-rich-frog', 'manicured-garden',
+                        'illustrious-forge', 'restoration-of-balance'
+                    ],
+                    requireRevealedIds: ['illustrious-forge']
+                }
+            });
+            const facedownForge = province('illustrious-forge', { facedown: true });
+            const revealedForge = province('illustrious-forge', { facedown: false });
+            const restoration = province('restoration-of-balance');
+
+            // Facedown: protecting it would give up its own top-five search,
+            // which only fires when the province is revealed.
+            expect(shipped.pickTaikoProvince([facedownForge, restoration]).id)
+                .toBe('restoration-of-balance');
+            // Revealed: the reaction is spent, so the province is worth saving
+            // and it outranks Restoration of Balance again.
+            expect(shipped.pickTaikoProvince([revealedForge, restoration]).id)
+                .toBe('illustrious-forge');
         });
 
         it('answers nothing when every province is already broken', function() {
@@ -1545,7 +1708,12 @@ describe('DragonAttachmentTactics', function() {
                         menuTitle: 'Initiate an action',
                         buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
                         stats: { honor: 10, fate: 4, conflictsRemaining: 1 },
-                        provinces: { one: [facedownProvince('province 1')], two: [], three: [], four: [] },
+                        provinces: {
+                            one: [facedownProvince('province 1')],
+                            two: [facedownProvince('province 2')],
+                            three: [faceupProvince('province 3', 'pilgrimage')],
+                            four: []
+                        },
                         strongholdProvince: [],
                         cardPiles: {
                             cardsInPlay: [bowedTower, readyTower],
@@ -1611,7 +1779,12 @@ describe('DragonAttachmentTactics', function() {
                         menuTitle: 'Initiate an action',
                         buttons: [{ text: 'Pass', arg: 'pass', uuid: 'pass' }],
                         stats: { honor: 10, fate: 4, conflictsRemaining: 1 },
-                        provinces: { one: [facedownProvince('province 1')], two: [], three: [], four: [] },
+                        provinces: {
+                            one: [facedownProvince('province 1')],
+                            two: [facedownProvince('province 2')],
+                            three: [faceupProvince('province 3', 'pilgrimage')],
+                            four: []
+                        },
                         strongholdProvince: [],
                         cardPiles: {
                             cardsInPlay: [bowedTower],

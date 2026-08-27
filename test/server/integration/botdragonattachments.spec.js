@@ -171,9 +171,47 @@ describe('bot Dragon attachments (scripted boards)', function() {
                         province.anyEffect('cannotBeAttacked'));
                 expect(protectedProvinces.length).toBe(1);
                 expect(protectedProvinces[0].controller).toBe(this.player1Object);
-                // Pilgrimage is the top entry of the owner's list that this
-                // deck actually runs (Public Forum is not in revision 0.5).
-                expect(protectedProvinces[0].id).toBe('pilgrimage');
+                // City of the Rich Frog is the head of the owner's list for
+                // revision 0.5 (Public Forum is not in the deck, and Pilgrimage
+                // sits under the stronghold where Taiko cannot reach it).
+                expect(protectedProvinces[0].id).toBe('city-of-the-rich-frog');
+            });
+
+            it('leaves Illustrious Forge exposed while its own reveal is still owed', function() {
+                this.setupTest({
+                    phase: 'dynasty',
+                    player1: dragonTower({
+                        fate: 10,
+                        dynastyDiscard: ['agasha-taiko'],
+                        provinces: ['illustrious-forge', 'restoration-of-balance',
+                            'manicured-garden', 'city-of-the-rich-frog']
+                    }),
+                    player2: {
+                        provinces: ['ancestral-lands', 'meditations-on-the-tao',
+                            'shameful-display', 'elemental-fury']
+                    }
+                });
+                // Break the two entries above the Forge so the list reaches it.
+                for(const id of ['city-of-the-rich-frog', 'manicured-garden']) {
+                    const province = this.player1Object.getProvinces()
+                        .find((card) => card.id === id);
+                    province.isBroken = true;
+                }
+                const taiko = this.player1.placeCardInProvince('agasha-taiko', 'province 2');
+                this.player1.clickCard(taiko);
+                this.player1.clickPrompt('0');
+                this.game.continue();
+
+                runBot(this, botFor(this));
+
+                const protectedProvinces = this.player1Object.getProvinces()
+                    .filter((province) => province.anyEffect &&
+                        province.anyEffect('cannotBeAttacked'));
+                expect(protectedProvinces.length).toBe(1);
+                // The Forge is still FACEDOWN, so its own top-five search has
+                // not fired yet and an attack on it is a card we want. The list
+                // skips it and protects Restoration of Balance instead.
+                expect(protectedProvinces[0].id).toBe('restoration-of-balance');
             });
         });
 

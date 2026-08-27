@@ -2239,8 +2239,16 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
         run(profile, makeState({
             phase: 'conflict', promptTitle: 'Action Window', menuTitle: 'Initiate an action',
             buttons: [PASS], stats: { fate: 5 },
-            provinces: { one: [{ uuid: 'hidden', type: 'province', isProvince: true, facedown: true,
-                location: 'province 1' }], two: [], three: [], four: [] },
+            // TWO facedown outer provinces: with only one left the opponent's
+            // next declaration is unlikely to reveal anything and the tattoo
+            // gate refuses before it ever asks who can declare.
+            provinces: {
+                one: [{ uuid: 'hidden', type: 'province', isProvince: true, facedown: true,
+                    location: 'province 1' }],
+                two: [{ uuid: 'hidden-2', type: 'province', isProvince: true, facedown: true,
+                    location: 'province 2' }],
+                three: [], four: []
+            },
             cardPiles: {
                 cardsInPlay: [{ ...raitsugu, bowed: true }],
                 hand: [attachment('tattoo', 'waterfall-tattoo', { cost: 2 }),
@@ -2276,6 +2284,17 @@ describe('seed 1, 2, and 3 specialized policy execution coverage', function() {
         }, {
             cardPiles: { cardsInPlay: [character('enemy2', 'enemy-bushi', { bowed: false })] }
         }));
+
+        // Agasha Shunsen's last window: with no conflict opportunity left on
+        // either side, passing would strand the Action, so the declaration
+        // prompt asks whether to declare anyway.
+        run(profile, makeState({
+            phase: 'conflict', promptTitle: 'Choose an elemental ring',
+            menuTitle: 'Choose an elemental ring',
+            buttons: [{ text: 'Pass Conflict', arg: 'pass', uuid: 'pass-conflict' }],
+            stats: { fate: 2, honor: 10, conflictsRemaining: 1 },
+            cardPiles: { cardsInPlay: [{ ...shunsen, inConflict: false }, raitsugu] }
+        }, { stats: { conflictsRemaining: 0 } }, claimedRings));
 
         expectComplete(spies);
     });

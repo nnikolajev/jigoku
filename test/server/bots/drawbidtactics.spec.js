@@ -300,6 +300,35 @@ describe('DrawBidTactics', function() {
             expect(tuned({ cardsOverHonorRequiresOpenStronghold: false })
                 .analyze(quiet).reason).toBe('cards-over-honor');
         });
+
+        describe('per-OPPONENT disable', function() {
+            // L5R decklists are public. Against a deck that can end the game on
+            // the honor track the honor we pay for cards is the honor they are
+            // trying to strip (dishonor) or the honor they need to reach 25
+            // (Crane/Lion honor); against every other deck the game is decided
+            // on the board and the cards are worth it.
+            const off = () => tuned({ cardsOverHonorDisableVsHonorPlan: true });
+
+            it('refuses the trade against an honor or dishonor decklist', function() {
+                const result = off().analyze(context({ ...open, opponentHonorPlan: true }));
+
+                expect(result.reason).toBe('protect-low-honor');
+                expect(result.selectedBid).toBe(1);
+            });
+
+            it('keeps buying cards against every other decklist', function() {
+                const result = off().analyze(context({ ...open, opponentHonorPlan: false }));
+
+                expect(result.reason).toBe('defend-open-stronghold');
+                expect(result.selectedBid).toBe(5);
+            });
+
+            it('is inert while the knob is off, which is field-wide default', function() {
+                expect(DEFAULT_DRAW_BID_PROFILE.cardsOverHonorDisableVsHonorPlan).toBe(false);
+                expect(tuned().analyze(context({ ...open, opponentHonorPlan: true })).reason)
+                    .toBe('defend-open-stronghold');
+            });
+        });
     });
 
     // Regression for the live loss of 2026-08-23. The bot held 8 honor with ONE

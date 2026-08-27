@@ -87,7 +87,14 @@ import type { ShugenjaProfile } from './ShugenjaTactics';
 import { REBIRTH_DEFAULTS } from './RebirthTactics.js';
 import type { RebirthProfile } from './RebirthTactics';
 import { DRAGON_ATTACHMENT_DEFAULTS } from './DragonAttachmentTactics.js';
-import type { DragonAttachmentProfile } from './DragonAttachmentTactics';
+import type {
+    AgashaTaikoProfile,
+    DragonAttachmentProfile,
+    IllustriousForgeProfile,
+    ShunsenProfile,
+    StoneOfSorrowsProfile,
+    WaterfallTattooProfile
+} from './DragonAttachmentTactics';
 import { STRONGHOLD_DEFENSE_DEFAULTS } from './StrongholdDefenseTactics.js';
 import type { StrongholdDefenseProfile } from './StrongholdDefenseTactics';
 import { ATTACHMENT_CONTROL_DEFAULTS } from './AttachmentControlTactics.js';
@@ -1601,7 +1608,18 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
 // merged over the strategy-derived profile. Matched by card contents + derived
 // strategy so it works in both live play and self-play (no deck-id needed).
 type DeckProfileOverride = Omit<Partial<DeckProfile>,
-    'strongholdDefense' | 'provinceTargeting' | 'duelBidding' | 'drawBidding' | 'legacyDrawBidding' | 'mulligan' | 'boardAwareDynasty' | 'conflictDeckSafety' | 'conflictPlanning' | 'conflictIntents'> & {
+    'strongholdDefense' | 'provinceTargeting' | 'duelBidding' | 'drawBidding' | 'legacyDrawBidding' | 'mulligan' | 'boardAwareDynasty' | 'conflictDeckSafety' | 'conflictPlanning' | 'conflictIntents' | 'attachmentTower'> & {
+    // Only the sub-profiles a deck actually retunes; everything else keeps the
+    // value `profileFromStrategy` already put there. A whole-object override
+    // here would silently drop every list the strategy pass filled in.
+    attachmentTower?: Omit<Partial<DragonAttachmentProfile>,
+        'shunsen' | 'stoneOfSorrows' | 'waterfallTattoo' | 'agashaTaiko' | 'illustriousForge'> & {
+        shunsen?: Partial<ShunsenProfile>;
+        stoneOfSorrows?: Partial<StoneOfSorrowsProfile>;
+        waterfallTattoo?: Partial<WaterfallTattooProfile>;
+        agashaTaiko?: Partial<AgashaTaikoProfile>;
+        illustriousForge?: Partial<IllustriousForgeProfile>;
+    };
     strongholdDefense?: Partial<StrongholdDefenseProfile>;
     provinceTargeting?: Omit<Partial<ProvinceTargetingProfile>, 'abilityPriority' | 'effectiveStrengthById' | 'priorityTierById'> & {
         abilityPriority?: Partial<ProvinceTargetingProfile['abilityPriority']>;
@@ -1784,7 +1802,33 @@ const OVERRIDES: ProfileOverride[] = [
         name: 'dragon-attachments-illustrious-forge',
         match: (ids, strategy) => strategy.attachmentTower && ids.has('illustrious-forge'),
         apply: {
-            strongholdProvinceId: 'illustrious-forge',
+            strongholdProvinceId: 'pilgrimage',
+            // The Taiko list is keyed to the stronghold choice, because the
+            // province under the stronghold cannot be targeted at all. With
+            // Pilgrimage there, City of the Rich Frog is protected first, then
+            // Manicured Garden, then Illustrious Forge — but ONLY once the
+            // Forge has been revealed. While it is facedown its own on-reveal
+            // search is a card we still want, so the list skips it and
+            // protects Restoration of Balance instead (owner's rule,
+            // 2026-08-27).
+            attachmentTower: {
+                agashaTaiko: {
+                    provincePriority: [
+                        'city-of-the-rich-frog', 'manicured-garden',
+                        'illustrious-forge', 'restoration-of-balance'
+                    ],
+                    requireRevealedIds: ['illustrious-forge']
+                }
+            },
+            // The Taiko list is keyed to the stronghold choice, because the
+            // province under the stronghold cannot be targeted at all. With
+            // Pilgrimage there, City of the Rich Frog is protected first, then
+            // Manicured Garden, then Illustrious Forge — but ONLY once the
+            // Forge has been revealed. While it is facedown its own on-reveal
+            // search is a card we still want, so the list skips it and
+            // protects Restoration of Balance instead (owner's rule,
+            // 2026-08-27).
+
             boardAwareDynasty: {
                 urgentTowerAdditionalFate: 2,
                 fullPlannerAtUrgent: false,
@@ -1795,13 +1839,17 @@ const OVERRIDES: ProfileOverride[] = [
             attackKeepHome: 1,
             chumpBlock: true,
             defenseSkillBuffer: 2,
-            // HONOR IS NOT A RESOURCE THIS DECK CAN SPEND. `cardsOverHonor`
-            // keeps bidding high to buy draw until our honor reaches 2, and
-            // the field punishes that twice over: the honor we pay is the
+            // HONOR IS NOT A RESOURCE THIS DECK CAN SPEND — AGAINST HALF THE
+            // FIELD. `cardsOverHonor` keeps bidding high to buy draw until our
+            // honor reaches 2, and against a deck that can end the game on the
+            // honor track that is punished twice over: the honor we pay is the
             // honor a dishonor deck is trying to strip, and it is also the
-            // honor a Crane/Lion honor deck needs to reach 25. Off, the tower
-            // profile still bids 4+ for its cards but stops paying for them
-            // out of the honor track.
+            // honor a Crane/Lion honor deck needs to reach 25. Against every
+            // OTHER opponent the game is decided on the board and the cards are
+            // worth the honor, so the trade is disabled per OPPONENT rather
+            // than per deck. L5R decklists are public, so reading the archetype
+            // off the opposing decklist is fair information (see
+            // `JigokuBotController.opponentHasHonorPlan`).
             drawBidding: { cardsOverHonor: false },
             // Waterfall Tattoo readies its bearer after a province we control
             // is revealed, and the opponent's declaration is what reveals one.
@@ -2837,6 +2885,7 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                 conflictDeckSafety,
                 conflictPlanning,
                 conflictIntents,
+                attachmentTower,
                 ...flatApply
             } = override.apply;
             const apply: Partial<DeckProfile> = { ...flatApply };
@@ -2918,6 +2967,26 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                     ...override.apply.strongholdBow,
                     championCharacterIds: [...override.apply.strongholdBow.championCharacterIds],
                     towerCharacterIds: [...override.apply.strongholdBow.towerCharacterIds]
+                };
+            }
+            if(attachmentTower && profile.attachmentTower) {
+                const tower = attachmentTower;
+                apply.attachmentTower = {
+                    ...profile.attachmentTower,
+                    ...tower,
+                    shunsen: { ...profile.attachmentTower.shunsen, ...(tower.shunsen || {}) },
+                    stoneOfSorrows: {
+                        ...profile.attachmentTower.stoneOfSorrows, ...(tower.stoneOfSorrows || {})
+                    },
+                    waterfallTattoo: {
+                        ...profile.attachmentTower.waterfallTattoo, ...(tower.waterfallTattoo || {})
+                    },
+                    agashaTaiko: {
+                        ...profile.attachmentTower.agashaTaiko, ...(tower.agashaTaiko || {})
+                    },
+                    illustriousForge: {
+                        ...profile.attachmentTower.illustriousForge, ...(tower.illustriousForge || {})
+                    }
                 };
             }
             if(override.apply.conflictRecursion) {

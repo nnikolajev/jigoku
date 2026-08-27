@@ -2,7 +2,9 @@
 
 EmeraldDB deck: [Dragon Attachments](https://www.emeralddb.org/decks/bb472c4c-e26a-4896-9693-fd87363cf0ea)
 (Dragon with Crab splash), deck id `ce8df8ae-ee05-4ab7-bc13-087a8fc092cb`,
-**revision 0.5**.
+**revision 0.5**, bot build **0.6** (owner corrections of 2026-08-27:
+Shunsen's conflict window, the Waterfall Tattoo province counts, the Agasha
+Taiko order, and Pilgrimage under the stronghold).
 
 This is an Iron Mountain Castle attachment-tower deck. The bot builds two
 durable characters, puts 3-4 fate on them, searches for attachments, and uses
@@ -36,12 +38,34 @@ Dragon-attachment profile references were dropped.
 
 - `iron-mountain-castle` derives the separate `attachmentTower` strategy. It
   does not activate the High House monk/card-count profile.
-- **Illustrious Forge is the stronghold province** (`dragon-attachments-illustrious-forge`
-  override). It is the only province in the list whose reveal reaction pays,
-  and the stronghold province is the one province guaranteed to be revealed in
-  a game the deck is losing — so the free attachment arrives exactly at the
-  game-deciding defense. Ancestral Lands left the deck in 0.5, and City of the
-  Rich Frog is Eminent, so it cannot be a stronghold province at all.
+- **Pilgrimage is the stronghold province** (`dragon-attachments-illustrious-forge`
+  override). Illustrious Forge held the slot through 0.5 on the reasoning that
+  the stronghold province is the one province guaranteed to be revealed in a
+  game the deck is losing, so the free attachment would arrive at the
+  game-deciding defense. **Measured, that is backwards**: the stronghold
+  province is only attackable once three outer provinces break
+  (`ProvinceCard.canBeAttacked`), so in most games the Forge is never revealed
+  and its reaction never fires at all. In an OUTER province it is revealed by
+  the first attack that lands on it and the free attachment arrives while there
+  is still a game to spend it on. Pilgrimage — which cancels the ring effect of
+  any conflict declared against it — is the province that wants the
+  late-and-maybe-never slot instead.
+
+  | base set | Illustrious Forge | Pilgrimage | delta |
+  |---|---:|---:|---:|
+  | 91001-96001 (6) | 1044-865 (54.69%) | 1066-842 (55.87%) | +1.18pp |
+  | 81001-86001 (6) | 1021-885 (53.57%) | 1040-864 (54.62%) | +1.05pp |
+  | 61001-66001 + 71001-76001 (12) | 2096-1709 (55.09%) | 2118-1690 (55.62%) | +0.53pp |
+  | **pooled (24)** | **4161-3459 (54.61%)** | **4224-3396 (55.43%)** | **+0.83pp** |
+
+  **+0.83pp over 15,240 games on 24 independent bases**, positive on all three
+  disjoint base sets and on 14 of 24 bases. The pooled paired flip test reads
+  **907 to / 825 away, 1732 decided, z=1.97, p=0.049**. Note the regression from
+  the first six bases (+1.18pp) to the twelve fresh ones (+0.53pp): the first set
+  is where the question was ASKED, so the honest estimate is the pooled one.
+  The choice flips roughly **18% of games**, so the ceiling was never the
+  constraint here — only the sample size was. City of the Rich Frog is Eminent
+  and cannot be a stronghold province at all.
 - Dynasty mulligan replaces non-tower cards. Ranked towers are Togashi Yokuni,
   Niten Master, Mirumoto Raitsugu, Agasha Sumiko, Kitsuki Yuikimi, and Solitary
   Hero, in that order.
@@ -118,13 +142,32 @@ Four separate decisions, all in `DragonAttachmentTactics`:
   an attachment landing on a character worth decorating, so with no tower
   standing the three fate is better spent becoming the tower. Gated on
   `shunsen.requireTowerOnBoard`.
-- **When to fire** (`shouldUseShunsen`). Held until neither player has a
-  conflict opportunity left — a claimed ring is worth something for as long as
-  another conflict can be fought over the rest of the pool, and in the last
-  conflict it is not. It also refuses while a Self-Understanding is attached to
+- **When to fire** (`shouldUseShunsen`). Held until OUR last conflict
+  opportunity is the one running — a claimed ring is worth something for as long
+  as another conflict can be fought over the rest of the pool, and once we have
+  none left it is not. It also refuses while a Self-Understanding is attached to
   a body PARTICIPATING in the running conflict, because that card's gained
   reaction resolves every ring in the pool Shunsen's cost would empty
   (`shunsen.respectSelfUnderstanding`).
+
+  **Waiting for BOTH players to run out was a defect.** The Action's own
+  condition is `game.isDuringConflict()` (`AgashaShunsen.ts`), so a window that
+  no conflict opens is a window that never happens: the last conflict of the
+  round is the last window there is, and if the opponent declines theirs the
+  card sits in play unused for the rest of the game. Whose conflict it is does
+  not matter — Shunsen neither bows nor participates — so once we are out we
+  fire in the opponent's conflict too. The old reading survives as
+  `shunsen.requireOpponentOutOfConflicts` (ships `false`) so it stays an A/B arm
+  rather than an edit.
+- **Whether to declare a conflict to open the window at all**
+  (`shouldDeclareForShunsen`, `shunsen.declareToTrigger`). At our last
+  opportunity, with the opponent already out, passing ends the round with no
+  window and throws the whole card away — so the pass is suppressed and the
+  attacker prompt falls through to `declare-required-attacker`, which sends the
+  WEAKEST body: the cheapest declaration that opens the window. While the
+  opponent still holds an opportunity this stays false, because their conflict
+  is a free window and our bodies keep the tempo by staying home. That is the
+  "or not use him, because it is not worth it" half of the rule.
 - **How many rings** (`shunsenRingsToReturn`). As many as possible, capped at
   3 — the deck's dearest attachment costs 3, so a fourth ring buys nothing. The
   cost re-prompts after every pick, so the policy counts what it has already
@@ -184,14 +227,29 @@ Two decisions:
 The opponent's declaration is what reveals a facedown province of ours, and the
 reveal happens before defenders are declared. So the card converts a bowed body
 into a defender for the conflict that is about to be declared. The bot attaches
-it in the pre-conflict window, to a BOWED body, when all four legs hold
+it in the pre-conflict window, to a BOWED body, when all five legs hold
 (`waterfallTattooBearer`):
 
 1. we have a bowed body that can still take a Restricted slot;
 2. the opponent still has a conflict opportunity;
 3. the opponent has a ready body legally able to declare one of the types they
    have left — a printed dash in a skill cannot declare that conflict type;
-4. we still hold a facedown province, or nothing can be revealed at all.
+4. we still hold a facedown province, or nothing can be revealed at all;
+5. the reveal is LIKELY rather than merely possible, which is two separate
+   counts over our four OUTER provinces.
+
+**Leg 5, and why the stronghold province does not count.** A province that is
+already faceup reveals nothing when it is attacked again, so with one outer
+province left hidden out of four the reaction is a coin flip the card is not
+worth: `minFacedownOuterProvinces` (2) refuses there. And the stronghold
+province becomes attackable as soon as **three** outer provinces are broken —
+`ProvinceCard.canBeAttacked` gates it on
+`getProvinces(card => card.isBroken).length > 2`, not on all four — so from that
+point the opponent attacks the stronghold for the win rather than the one outer
+province we have left, and the stronghold province is usually already faceup
+from an earlier attack. `maxBrokenOuterProvinces` (2) stops the card there.
+Both counts exclude the stronghold slot deliberately: the conflict that reveals
+it is the conflict that ends the game.
 
 The bearer is remembered across the play and its follow-up attach prompt, since
 the ordinary tower ranking would put the tattoo on the best tower — the one body
@@ -230,14 +288,15 @@ its old self when no free defender is named.
 *Reaction: After you play this character, choose a non-stronghold province -
 that province cannot be attacked this round.*
 
-`pickTaikoProvince` protects in the owner's order — Public Forum, Pilgrimage,
-Manicured Garden — stepping to the next entry only once the one before it is
-broken, since a broken province cannot be attacked anyway and protecting it is
-the one strictly wasted choice. **Public Forum is not in revision 0.5**, so the
-effective order today is Pilgrimage then Manicured Garden; it is kept first in
-the list so the owner's stated order survives a future revision that adds it.
-With nothing on the list available, the strongest unbroken province is
-protected rather than declining a free effect.
+`pickTaikoProvince` protects in the owner's order — **City of the Rich Frog,
+Pilgrimage, Manicured Garden** — stepping to the next entry only once the one
+before it is broken, since a broken province cannot be attacked anyway and
+protecting it is the one strictly wasted choice. With nothing on the list
+available, the strongest unbroken province is protected rather than declining a
+free effect.
+
+Revision 0.5 has no Public Forum; City of the Rich Frog took the head of the
+list in its place (owner's correction, 2026-08-27).
 
 The engine's own `cardCondition` only excludes the stronghold SLOT, so it offers
 both players' provinces. Picking from our own side is load bearing — protecting
@@ -250,7 +309,10 @@ conflict deck for an attachment and put it into play.*
 
 It fires on the province being revealed, i.e. at the declaration of a conflict
 against it — so the conflict type is already known and the right card is
-whichever adds the most skill on THAT axis. The menu lists conflict-DECK cards,
+whichever adds the most skill on THAT axis. **It sits in an OUTER province**
+(see "Profile and economy"): under the stronghold it is only revealed once three
+other provinces have broken, which in most games never happens, and a reaction
+that never fires is worth nothing. The menu lists conflict-DECK cards,
 which carry no live skill summaries at all, so the ranking comes from the
 printed `attachmentSkillBonuses` table. Equal-skill ties fall to the owner's
 order: Waterfall Tattoo, The Stone of Sorrows, Elegant Tessen, Finger of Jade,
@@ -321,6 +383,35 @@ reason on a different deck family. Note that `cardsOverHonor` ships field-wide a
 the owner's request despite measuring negative; this is a per-deck exclusion, the
 same treatment the honor, dishonor and fate-economy profiles already carry.
 
+### Measured and rejected: spending honor for cards against non-honor decks
+
+The natural refinement is to make the exclusion per-OPPONENT rather than per-deck.
+L5R decklists are public, so `JigokuBotController.opponentHasHonorPlan` already
+knows whether the deck across the table is a dishonor, Crane-honor, Lion-honor or
+bid-war list; against everything else the game is decided on the board, so the
+cards ought to be worth the honor. `cardsOverHonorDisableVsHonorPlan` in
+`DrawBidProfile` implements exactly that.
+
+It **loses**, and not marginally:
+
+| arm | bases 91001-96001 | flips |
+|---|---:|---:|
+| `cardsOverHonor: false` (shipped) | 1044-865 (**54.69%**) | — |
+| per-opponent disable | 1009-900 (**52.85%**) | 25 to / 60 away |
+
+**-1.83pp, 85 decided, p=0.0001**, 95.5% of games bit-identical. The per-deck
+rows confirm the rig rather than contradict it: Scorpion, ScorpionBidWar,
+CraneHonor and LionHonor show **zero flips**, because against exactly those four
+the disable reproduces `cardsOverHonor: false` — every game that moved was
+against a deck the refinement was supposed to help, and eleven of twelve of them
+moved the wrong way. The win-reason census says why: dishonor losses **160 ->
+218**, dishonor wins **82 -> 40**. Honor bled at a bid is honor gone whoever is
+sitting opposite; it does not have to be a dishonor deck to kill us with it.
+
+The knob stays in `DrawBidProfile` at its inert default (`false`) so the arm is a
+JSON string if it is ever worth re-asking, and the shipped setting remains the
+unconditional per-deck `cardsOverHonor: false`.
+
 ## Measured and rejected: keeping Revered Bonshō through the fate phase
 
 The obvious companion to the Stone of Sorrows lock is to stop the fate-phase
@@ -340,7 +431,7 @@ still ship.
 ## Verification
 
 Focused unit coverage lives in `test/server/bots/dragonattachmenttactics.spec.js`
-(85+ cases) and `test/server/bots/revealreadypolicy.spec.js`. The
+(100+ cases) and `test/server/bots/revealreadypolicy.spec.js`. The
 `StrongholdDefenseTactics` free-defender cases include a bit-identity assertion
 against the old planner. `test/server/bots/specializedpolicycoverage.spec.js`
 executes every method on `DragonAttachmentTactics` through all six seed and
@@ -348,10 +439,11 @@ information-mode combinations, so a method that stops being reachable fails the
 build.
 
 `test/server/integration/botdragonattachments.spec.js` drives the REAL engine
-to the real prompt for the four cards whose decision is invisible to a unit
-test — Self-Understanding's granted reaction, Waterfall Tattoo's reveal ready,
-Agasha Taiko's province pick, and Agasha Shunsen's bearer — and answers each one
-with a real `JigokuBotController`.
+to the real prompt for the cards whose decision is invisible to a unit test —
+Self-Understanding's granted reaction, Waterfall Tattoo's reveal ready, Agasha
+Taiko's province pick (including the facedown-Forge skip, which needs a real
+province in a real location to be meaningful), and Agasha Shunsen's bearer —
+and answers each one with a real `JigokuBotController`.
 
 ### Live card coverage
 
@@ -366,9 +458,36 @@ with a real `JigokuBotController`.
 | Abilities exercised | 14/15 |
 
 The single unreached ability is `seeker-of-fire`, the role card, whose reaction
-needs a claimed fire ring. One game in 102 stalls; the same rate reproduces on
+needs a claimed fire ring. One game in 68 stalls; the same rate reproduces on
 the untouched Dragon monk deck, so it is pre-existing background noise and not
-a revision-0.5 regression.
+a deck regression.
+
+### Clicks and stalls
+
+`node tools/selfplay/validateBotInteractions.js --decks DragonAttachments
+--opponents all --seeds 1 --games 2` over 34 games against all 17 registered
+decks. The audit watches for click/rejection cycles and decision-budget
+pressure independently of the win rate.
+
+| metric (subject bot only) | result |
+|---|---|
+| Decisions | 6,878 |
+| Rejected | 0 |
+| Unsupported prompts | 0 |
+| Forced-progress recoveries | 0 |
+| Periodic click cycles | 0 |
+| No-progress runs | 0 |
+| Repeated-action runs | 0 |
+| Budget exhaustions | 0 |
+| Stalls | 0 |
+| Peak clicks in one tick | 11 (cap 35) |
+
+The run reports FAIL at the suite level, but **every one of the 11 rejected
+decisions belongs to the OPPONENT bot** — four each in two Crab games, two in a
+Crane Duels game, one in a Crane Honor game. The same audit on the untouched
+Dragon monk deck against those same three opponents produces 0 subject
+rejections and 7 opponent rejections, so this is a property of those opponent
+decks and not of this revision.
 
 ### Win rate
 
@@ -382,6 +501,21 @@ bases.
 | + Illustrious Forge axis fix, Waterfall Tattoo slot fix | 485-469 | 50.84% |
 | + Revered Bonshō retention (rejected) | 482-473 | 50.47% |
 | **+ honor-safe draw bid (shipped)** | **524-430** | **54.93%** |
+
+Revision 0.6 re-measured the same rig at GPB=10 (20 games per opponent per
+base, 1,909 games per arm) so the arms below are all directly comparable:
+
+| build | record | win rate | vs previous |
+|---|---:|---:|---:|
+| 0.5 shipped (control) | 1043-866 | 54.64% | — |
+| + Shunsen / Tattoo / Taiko corrections | 1044-865 | 54.69% | +0.05pp, p=0.84 |
+| + per-opponent card bidding (rejected) | 1009-900 | 52.85% | -1.83pp, p=0.0001 |
+| **+ Pilgrimage under the stronghold (shipped)** | **1066-842** | **55.87%** | **+1.18pp** |
+
+The correctness batch is a deliberate null: its ceiling is 1.31pp (98.7% of
+games bit-identical), so no run of this size could resolve it either way. That
+is the expected shape for a fix that changes a DECISION without changing which
+side wins — the same class as `polarityGuards` and `attachmentTarget`.
 
 On the same rig `botRoundRobin.js` used for the revision-0.2 figure — subject
 against the field, N=40 per matchup, seats alternating, v1/seed 1/adaptive bids:

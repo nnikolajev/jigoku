@@ -33,10 +33,22 @@ export interface ShunsenProfile {
     // is "put an attachment on a character you control", which is worth the
     // three fate only when there is a body worth decorating.
     requireTowerOnBoard: boolean;
-    // Hold the Action until no conflict opportunity remains on either side.
+    // Hold the Action until OUR last conflict opportunity is the one running.
     // A claimed ring is worth something for as long as another conflict can be
-    // fought over the rest of the pool; in the last conflict it is not.
+    // fought over the rest of the pool; once we have none left it is not.
+    //
+    // The Action reads "During a conflict", so waiting for BOTH players to run
+    // out is waiting for a window that no longer exists: the last conflict of
+    // the round is the last window there is, and if the opponent declines it
+    // there is no window at all.
     lastConflictOnly: boolean;
+    // The stricter reading: also wait for the opponent to be out. Kept as a
+    // knob so the old behaviour is an A/B arm rather than an edit.
+    requireOpponentOutOfConflicts: boolean;
+    // At our last conflict opportunity, DECLARE rather than pass when the
+    // Action is otherwise about to be stranded. Passing there costs the whole
+    // card; declaring costs a conflict we were going to decline anyway.
+    declareToTrigger: boolean;
     // Never return more rings than the most expensive attachment in the deck
     // costs. Every ring past that buys nothing.
     maxRingsReturned: number;
@@ -83,6 +95,17 @@ export interface WaterfallTattooProfile {
     requireOpponentEligibleAttacker: boolean;
     // Require a facedown province of ours for the reveal to happen at all.
     requireFacedownProvince: boolean;
+    // ...and require enough of them that the opponent's next declaration is
+    // LIKELY to hit one. A revealed province reveals nothing when it is
+    // attacked again, so with only one of our four outer provinces still
+    // facedown the reaction is a coin flip the card is not worth.
+    minFacedownOuterProvinces: number;
+    // The stronghold province becomes attackable once THREE outer provinces
+    // are broken (`ProvinceCard.canBeAttacked`). At that point the opponent
+    // attacks the stronghold for the win rather than the one outer province we
+    // have left, and the stronghold province is usually already faceup from an
+    // earlier attack — so the reveal never comes.
+    maxBrokenOuterProvinces: number;
 }
 
 /** Agasha Taiko: a province that cannot be attacked this round. */
@@ -92,6 +115,14 @@ export interface AgashaTaikoProfile {
     // Protect in this order, stepping to the next entry only once the one
     // before it is broken. Ids absent from the deck are skipped.
     provincePriority: string[];
+    // Provinces that are only worth protecting once they have already been
+    // REVEALED. Illustrious Forge searches the top five cards of the conflict
+    // deck when it is revealed, so while it is still facedown an attack on it
+    // is a card we want — protecting it there gives up the reaction for
+    // nothing. A facedown id listed here is skipped and the list moves on,
+    // which is how "the Forge if it is revealed, otherwise Restoration of
+    // Balance" is expressed as an ordering rather than a branch.
+    requireRevealedIds: string[];
 }
 
 /** Illustrious Forge: a top-five attachment put straight into play. */
@@ -227,6 +258,8 @@ export const DRAGON_ATTACHMENT_DEFAULTS: DragonAttachmentProfile = {
         cardId: 'agasha-shunsen',
         requireTowerOnBoard: true,
         lastConflictOnly: true,
+        requireOpponentOutOfConflicts: false,
+        declareToTrigger: true,
         maxRingsReturned: 3,
         searchOrder: [
             'self-understanding', 'waterfall-tattoo', 'jade-tetsubo',
@@ -249,15 +282,20 @@ export const DRAGON_ATTACHMENT_DEFAULTS: DragonAttachmentProfile = {
         requireBowedBearer: true,
         requireOpponentConflictOpportunity: true,
         requireOpponentEligibleAttacker: true,
-        requireFacedownProvince: true
+        requireFacedownProvince: true,
+        minFacedownOuterProvinces: 2,
+        maxBrokenOuterProvinces: 2
     },
     agashaTaiko: {
         enabled: true,
         cardId: 'agasha-taiko',
-        // `public-forum` is not in revision 0.5 and is skipped; it is kept
-        // first so the owner's stated order survives a future deck revision
-        // that adds it back.
-        provincePriority: ['public-forum', 'pilgrimage', 'manicured-garden']
+        // Revision 0.5 has no Public Forum. City of the Rich Frog is the most
+        // valuable province left, so it is protected first and the list steps
+        // down only once the entry above it is broken. The deck override
+        // replaces this list when the stronghold province changes, because the
+        // province sitting under the stronghold is not targetable at all.
+        provincePriority: ['city-of-the-rich-frog', 'pilgrimage', 'manicured-garden'],
+        requireRevealedIds: []
     },
     illustriousForge: {
         enabled: true,
@@ -268,6 +306,18 @@ export const DRAGON_ATTACHMENT_DEFAULTS: DragonAttachmentProfile = {
         ]
     }
 };
+
+export interface ShunsenDeclarationContext {
+    // Conflict opportunities we have left INCLUDING the one being declared,
+    // which is why the "last one" test is `=== 1` and not `=== 0`.
+    myConflictOpportunities: number;
+    opponentConflictsRemaining: number;
+    claimedRingCount: number;
+    // Shunsen is in play and his Action has not been used this round.
+    shunsenActionAvailable: boolean;
+    // Some body of ours can legally wear the attachment he fetches.
+    hasBearer: boolean;
+}
 
 export interface ShunsenContext {
     // Conflict opportunities left AFTER the running conflict, both sides.
@@ -293,6 +343,12 @@ export interface WaterfallTattooContext {
     // Unbroken facedown provinces of ours. Without one there is nothing to
     // reveal and the reaction never fires.
     facedownProvinceCount: number;
+    // The same count over our four OUTER provinces only, plus how many of them
+    // are broken. The stronghold province is excluded from both: it is only
+    // attackable once three outer provinces are broken, and by then the attack
+    // that reveals it is the attack that ends the game.
+    facedownOuterProvinceCount?: number;
+    brokenOuterProvinceCount?: number;
 }
 
 export interface StoneOfSorrowsContext {
@@ -527,8 +583,10 @@ export class DragonAttachmentTactics {
             return null;
         }
         const mine = (provinces || []).filter((card) => card && card.uuid);
+        const revealedOnly = new Set(taiko.requireRevealedIds || []);
         for(const id of taiko.provincePriority) {
-            const match = mine.find((card) => card.id === id && !card.isBroken);
+            const match = mine.find((card) => card.id === id && !card.isBroken &&
+                (!revealedOnly.has(id) || card.facedown !== true));
             if(match) {
                 return match;
             }
@@ -551,9 +609,13 @@ export class DragonAttachmentTactics {
      *
      * Returning a claimed ring costs everything that ring would still have
      * done this round — it goes back to the unclaimed pool where the opponent
-     * can contest it again — so the ability is held until neither player has a
-     * conflict opportunity left. In that window the rings are worth nothing and
-     * the attachment is worth its printed line.
+     * can contest it again — so the ability is held until OUR last conflict
+     * opportunity is the one running. From that point on the rings buy us
+     * nothing and the attachment is worth its printed line.
+     *
+     * Holding for the opponent to run out too is a trap: the Action's own
+     * condition is `game.isDuringConflict()`, so a window the opponent never
+     * opens is a window that never happens and the card is stranded in play.
      */
     shouldUseShunsen(ctx: ShunsenContext): boolean {
         const shunsen = this.profile.shunsen;
@@ -561,13 +623,51 @@ export class DragonAttachmentTactics {
             return false;
         }
         if(shunsen.lastConflictOnly &&
-            (Math.max(0, Number(ctx?.myConflictsRemaining) || 0) > 0 ||
-                Math.max(0, Number(ctx?.opponentConflictsRemaining) || 0) > 0)) {
+            Math.max(0, Number(ctx?.myConflictsRemaining) || 0) > 0) {
+            return false;
+        }
+        if(shunsen.lastConflictOnly && shunsen.requireOpponentOutOfConflicts &&
+            Math.max(0, Number(ctx?.opponentConflictsRemaining) || 0) > 0) {
             return false;
         }
         // Self-Understanding resolves EVERY claimed ring after its bearer wins.
         // Emptying the pool to fetch one attachment throws that away.
         if(shunsen.respectSelfUnderstanding && ctx?.selfUnderstandingParticipating) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Declare a conflict we were about to pass, purely to open the window the
+     * Action needs?
+     *
+     * Only at OUR last conflict opportunity, and only when the whole payoff is
+     * already on the table: rings claimed, Shunsen standing with his Action
+     * unused, and a body that will still be there to wear what he fetches.
+     * Anywhere else the normal pass logic is right and this returns false —
+     * which is the "or not use him because it is not worth it" half.
+     */
+    shouldDeclareForShunsen(ctx: ShunsenDeclarationContext): boolean {
+        const shunsen = this.profile.shunsen;
+        if(!shunsen.enabled || !shunsen.declareToTrigger || !ctx?.shunsenActionAvailable ||
+            !ctx?.hasBearer) {
+            return false;
+        }
+        if(Math.max(0, Number(ctx?.claimedRingCount) || 0) === 0) {
+            return false;
+        }
+        // `myConflictOpportunities` counts the one being declared right now, so
+        // 1 is "this is the last one". Anything higher and the Action can still
+        // wait for a conflict we have not spent yet.
+        if(Math.max(0, Number(ctx?.myConflictOpportunities) || 0) !== 1) {
+            return false;
+        }
+        // Passing only STRANDS the Action when no conflict is coming from
+        // either side. The Action does not care whose conflict it is, so while
+        // the opponent still has an opportunity we fire during theirs and keep
+        // our bodies home doing it.
+        if(Math.max(0, Number(ctx?.opponentConflictsRemaining) || 0) > 0) {
             return false;
         }
         return true;
@@ -703,6 +803,19 @@ export class DragonAttachmentTactics {
         }
         if(tattoo.requireFacedownProvince &&
             Math.max(0, Number(ctx?.facedownProvinceCount) || 0) === 0) {
+            return null;
+        }
+        // The reveal has to be LIKELY, not merely possible. Synthetic callers
+        // that omit the outer split fall back to the aggregate count, which is
+        // exactly the old behaviour.
+        const facedownOuter = Number.isFinite(Number(ctx?.facedownOuterProvinceCount))
+            ? Math.max(0, Number(ctx?.facedownOuterProvinceCount))
+            : Math.max(0, Number(ctx?.facedownProvinceCount) || 0);
+        if(facedownOuter < Math.max(0, Number(tattoo.minFacedownOuterProvinces) || 0)) {
+            return null;
+        }
+        const brokenOuter = Math.max(0, Number(ctx?.brokenOuterProvinceCount) || 0);
+        if(brokenOuter > Math.max(0, Number(tattoo.maxBrokenOuterProvinces) || 0)) {
             return null;
         }
         if(tattoo.requireOpponentConflictOpportunity &&

@@ -1,12 +1,12 @@
 {
-  "id": "65b10e6f-afd3-4938-933a-4350ae9ce405",
+  "id": "3a5d87d2-a641-49d2-ad29-53617addef22",
   "deck_id": "2eba7619-4a0b-42b1-b158-7ad7c7ed9f65",
   "format": "standard",
   "name": "Lion Honor",
   "primary_clan": "lion",
   "secondary_clan": "crane",
   "description": "original deck by styx-san called Honor is all that matters. go find it. I just modified it a bit\nOriginal description: Preface:\n\nIt happened that I inherited a complete collection of Legends of the Five Rings cards from a friend (including Under Fu Leng's Shadow) published by FFG.\n\nI wasn't into that game when it was released or played, but I now am very drawn to the setting (currently I really enjoy playing RPG in this setting) and the mechanics of this card game.\n\nI decided to build decks for each clan in the archetype I liked the most. I hope to try them out with friends someday, either offline or online in Jigoku.\n\nI've studied a lot of online materials on L5R deckbuilding and have quite a bit of experience myself (MTG, AGoT (CCG and LCG 1.0 and 2.0), and Netrunner LCG), but I'm still open to any suggestions and recommendations regarding deck building.\n\nWhile building the decks, I tried to adhere to the latest version of the Restricted and Banned Lists.\n\nDeck: Honor is all that matters\nAs far as I know, the Lion clan has three main competitive archetypes: Tower (few large and strong creachers), Swarm (a lot of little, but still mighty creachers), and Honor (win by gaining 25 honors).\n\nAnd it was the third archetype that really interested me, so that’s what I decided to build.\n\nThe Honor-Lion deck archetype is one of the most unorthodox play styles in the game, and if you haven't seen it yet, you're in for a ride. The mental state you need to be in to play this deck well is entirely foreign to the rest of L5R.\nTo begin with, there's only one really viable stronghold for Honor-Lion: Kyuden Ikoma. The high starting honor total and the battlefield control that it offers simply can't be beaten by other options. In a deck where the primary goal is to stall out the game long enough to finish the race to 25, getting the biggest head start and an ability to slow down the opponent is pretty much ideal.\n\nThere are several options for the role of choose.\n\nI chose Seeker of Air. This gives me access to two cool provinces: Before the Throne and Kenson no Gakka, as well as Air-only cards like Forebearer's Echoes, Soul Beyond Reproach, and Setting the Standard.\n\nAlternatively, you could choose Seeker of Water and gain access to an additional water province, The Roar of the Lioness, and the amazing Renowned Singer.\n\nAlso, it's an option to build the deck with Crab splash with 3x Levy.\n\nPossible cards to add and test:\n- Hall of Victories \nIt will also benefit the opponent (who will likely win more conflicts in the game), but is nonetheless an important tool to help Lion honour decks reach 25. Because a low bid is essential to the strategy, Hall of Victories is a way to gain extra honour without the need to play conflict cards.\n\n- Master Tactician\nEven as one who doesn't include this character in his own deck, I must admit that it seems to be one of the most potentially game-breaking cards available to Lion these days. Not only is it a Commander, which turns on a lot of our best support cards, it also gives you access to several additional cards each round, the strength of which cannot be overstated. In a card game, the player than plays more cards usually wins. The requirement to have a Battlefield in play is hardly a requirement at all, since Battlefields are now so prevalent that his ability is active more often than it isn't.",
-  "version_number": "0.5",
+  "version_number": "0.6",
   "cards": {
     "court-games": 3,
     "akodo-toturi": 3,
@@ -18,7 +18,6 @@
     "seeker-of-air": 1,
     "kami-unleashed": 2,
     "steward-of-law": 2,
-    "the-art-of-war": 1,
     "voice-of-honor": 2,
     "ardent-omoidasu": 2,
     "command-respect": 3,
@@ -45,10 +44,11 @@
     "under-amaterasu-s-gaze": 3,
     "chronicler-of-conquests": 3,
     "procedural-interference": 3,
+    "the-roar-of-the-lioness": 1,
     "way-of-the-chrysanthemum": 2
   },
   "published_date": null,
-  "created_at": "2026-08-06T18:19:30.270Z",
+  "created_at": "2026-08-27T08:42:45.448Z",
   "user_id": "auth0|6a4946c8f03127d4fc77a07e",
   "card_pack_ids": {
     "court-games": "core",
@@ -61,7 +61,6 @@
     "seeker-of-air": "core",
     "kami-unleashed": "disciples-of-the-void",
     "steward-of-law": "core",
-    "the-art-of-war": "core",
     "voice-of-honor": "core",
     "ardent-omoidasu": "the-emperor-s-legion",
     "command-respect": "for-the-empire",
@@ -88,7 +87,8 @@
     "under-amaterasu-s-gaze": "honor-in-flames",
     "chronicler-of-conquests": "spreading-shadows",
     "procedural-interference": "twisted-loyalties",
+    "the-roar-of-the-lioness": "honor-in-flames",
     "way-of-the-chrysanthemum": "the-chrysanthemum-throne"
   },
-  "username": "Unnamed Samurai"
+  "username": "Kingitus"
 }

@@ -155,11 +155,65 @@ class JigokuBotController {
         return this.omniscientCapability.opponentParticipantCanBow(me);
     }
 
+    // A card's OWN persistent effects are switched off while it is facedown
+    // (`Effect.isEffectActive()` gates on `source.facedown`), so a province
+    // whose printed strength is X reads as 0 base until an attack reveals it.
+    // The Roar of the Lioness prints "X is equal to half the amount of honor in
+    // your honor pool, rounded up" and is the first such province in the field.
+    //
+    // Our own province is known information and the planners here need the
+    // number the province will ACTUALLY have when the attack that reveals it
+    // arrives — a stronghold province is only attackable after three outer
+    // provinces break, so it is facedown for almost the whole game. Read the
+    // suppressed base-strength effects off the Effect objects the engine has
+    // already registered for the card: nothing is constructed and nothing is
+    // applied, so this cannot change the game it is measuring.
+    //
+    // Returns the DELTA to add to `getStrength()`, which already carries every
+    // modifier whose source is not itself facedown (stronghold, holdings).
+    private facedownOwnBaseStrengthDelta(card: any): number {
+        const entries: any[] = Array.isArray(card?.persistentEffects) ? card.persistentEffects : [];
+        let setBase: number | null = null;
+        let modifyBase = 0;
+        for(const entry of entries) {
+            const registered: any[] = Array.isArray(entry?.ref) ? entry.ref : [];
+            for(const effect of registered) {
+                const applied = effect?.effect;
+                const isSet = applied?.type === EffectNames.SetBaseProvinceStrength;
+                if(!isSet && applied?.type !== EffectNames.ModifyBaseProvinceStrength) {
+                    continue;
+                }
+                if(effect.condition && !effect.condition(effect.context)) {
+                    continue;
+                }
+                // `EffectBuilder.card.flexible` builds a DynamicEffect for a
+                // function value and a StaticEffect for a constant one.
+                const value = Number(applied.calculate
+                    ? applied.calculate(card, effect.context)
+                    : applied.getValue());
+                if(!Number.isFinite(value)) {
+                    continue;
+                }
+                if(isSet) {
+                    setBase = value;
+                } else {
+                    modifyBase += value;
+                }
+            }
+        }
+        if(setBase === null) {
+            return modifyBase;
+        }
+        const printed = Number(card?.printedStrength);
+        return setBase - (Number.isFinite(printed) ? printed : 0);
+    }
+
     private liveProvinceStrength(card: any): number {
         const rawStrength = typeof card.getStrength === 'function'
             ? card.getStrength()
             : (card.strength ?? card.printedStrength ?? card.cardData?.strength);
-        const strength = Number(rawStrength);
+        const strength = Number(rawStrength) +
+            (card?.facedown ? this.facedownOwnBaseStrengthDelta(card) : 0);
         return Number.isFinite(strength) ? Math.max(strength, 0) : 0;
     }
 

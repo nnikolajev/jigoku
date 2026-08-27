@@ -332,6 +332,11 @@ export const LION_HONOR_DEFAULTS: LionHonorProfile = {
     magistrateMinimumHonoredShare: 1,
 
     battlefieldAttachmentCardIds: ['under-amaterasu-s-gaze'],
+    // Deck revision 0.6 dropped The Art of War for The Roar of the Lioness, so
+    // the third entry no longer names a card in the list and the preference
+    // resolves to Kenson / Before the Throne and then the generic fallback.
+    // That is EXACTLY what was measured with the province swap; adding the Roar
+    // here would be an unmeasured change on top of it. Left as-is deliberately.
     battlefieldProvincePreference: ['kenson-no-gakka', 'before-the-throne', 'the-art-of-war'],
     battlefieldCardIds: ['under-amaterasu-s-gaze', 'exposed-courtyard'],
 

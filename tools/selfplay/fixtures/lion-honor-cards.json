@@ -1704,14 +1704,14 @@
     ]
   },
   {
-    "id": "the-art-of-war",
-    "name": "The Art of War",
+    "id": "the-roar-of-the-lioness",
+    "name": "The Roar of the Lioness",
     "name_extra": null,
     "faction": "lion",
     "side": "province",
     "type": "province",
     "is_unique": false,
-    "text": "<b>Interrupt:</b> When this province is broken – draw 3 cards.",
+    "text": "X is equal to half the amount of honor in your honor pool, rounded up.",
     "restricted_in": [],
     "banned_in": [],
     "allowed_clans": [
@@ -1724,7 +1724,7 @@
     "elements": [
       "water"
     ],
-    "strength": "3",
+    "strength": "X",
     "glory": null,
     "fate": null,
     "honor": null,
@@ -1738,14 +1738,14 @@
     "role_restrictions": [],
     "versions": [
       {
-        "card_id": "the-art-of-war",
-        "pack_id": "core",
-        "flavor": "\"Let your enemy see what he wishes to see, so that he will underestimate you.\" - Akodo's Leadership",
-        "illustrator": "Eli Ring",
-        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_11.jpg",
-        "position": "11",
+        "card_id": "the-roar-of-the-lioness",
+        "pack_id": "honor-in-flames",
+        "flavor": "\"I am a samurai of the Lion Clan, and I can no longer bear to see it kept low.\" - Matsu Tsuko",
+        "illustrator": "Stormbrush",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C37_24.jpg",
+        "position": "24",
         "quantity": 1,
-        "rotated": true
+        "rotated": false
       }
     ]
   },

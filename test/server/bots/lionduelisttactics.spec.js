@@ -75,7 +75,11 @@ describe('LionDuelistTactics', function() {
             const profile = resolveDeckProfile(ids, deriveDeckStrategy(ids));
             expect(profile.lionDuelist).toBeDefined();
             expect(profile.overrideNames).toContain('lion-duelist-kyuden-ikoma');
-            expect(profile.strongholdProvinceId).toBe('frostbitten-crossing');
+            // Deck revision 0.3: The Roar of the Lioness replaced The Art of
+            // War in the list and took the stronghold slot from Frostbitten
+            // Crossing. Half of an honor pool this deck deliberately keeps
+            // ahead beats a printed 4, and it keeps growing.
+            expect(profile.strongholdProvinceId).toBe('the-roar-of-the-lioness');
         });
 
         it('leaves the generic and Lion swarm profiles without it', function() {
@@ -305,7 +309,7 @@ describe('LionDuelistTactics', function() {
     describe('playbook entries', function() {
         it('covers every previously unmodelled card in the list', function() {
             const ids = [
-                'kyuden-ikoma', 'frostbitten-crossing', 'the-art-of-war', 'ikoma-prodigy',
+                'kyuden-ikoma', 'frostbitten-crossing', 'ikoma-prodigy',
                 'kitsu-motso', 'akodo-zentaro', 'kitsu-spiritcaller', 'matsu-agetoki',
                 'matsu-mitsuko', 'matsu-tsuko-2', 'ikoma-reservist', 'called-to-war',
                 'even-the-odds', 'prepare-for-war', 'formal-invitation', 'fan-of-command',

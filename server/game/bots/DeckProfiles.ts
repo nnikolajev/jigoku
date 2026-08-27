@@ -139,6 +139,14 @@ import type {
     DeckDefenseIntentRule
 } from './DeckConflictIntents';
 
+// The Roar of the Lioness prints "Strength: X. X is equal to half the amount of
+// honor in your honor pool, rounded up", so its strength is the deck's own game
+// plan. Both Lion honor-track decks put it under the STRONGHOLD, the province
+// that is only attackable once three outer provinces break — the latest point
+// in the game, where their honor and therefore this province is at its largest.
+// Measured for both decks; see `docs/bot-lion-roar-province.md`.
+const ROAR_STRONGHOLD_PROVINCE = 'the-roar-of-the-lioness';
+
 // How many attackers to commit at a conflict declaration.
 //   'all'                  — commit every eligible body (rush: swarm payoffs).
 //   'all-but-one'          — send all but a stay-home defender (generic).
@@ -1492,11 +1500,18 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             duelLossUtility: 3,
             honorRaceUtility: 3
         };
-        // Kenson no Gakka: "after you LOSE a conflict at this province — honor
-        // each defending character". Losing is the trigger, so the deck puts
-        // its game-ending province behind the effect it most wants to fire, and
-        // sizes the defense to stop the BREAK rather than to win.
-        profile.strongholdProvinceId = LION_HONOR_DEFAULTS.honorProvinceId;
+        // Kenson no Gakka held this slot until deck revision 0.6: "after you
+        // LOSE a conflict at this province — honor each defending character",
+        // so the deck put its game-ending province behind the effect it most
+        // wants to fire. MEASURED, that is backwards on both counts. The Roar
+        // of the Lioness grows with the honor this deck is racing anyway, and
+        // the stronghold province is where it is largest; Kenson's trigger is
+        // LOSING a conflict at it, which an OUTER province offers all game and
+        // the stronghold province offers only after three others break.
+        // +8.85pp over 24 bases / 1525 paired games — see
+        // `docs/bot-lion-roar-province.md`. `honorProvinceId` still names Kenson
+        // for the rest of the deck's rules.
+        profile.strongholdProvinceId = ROAR_STRONGHOLD_PROVINCE;
         profile.defenseCommitment = 'prevent-break';
         profile.spendCardsOnDefense = true;
         // "Go first in all cases" — the deck wants the first air ring and the
@@ -2410,22 +2425,29 @@ const OVERRIDES: ProfileOverride[] = [
         }
     },
     {
-        // Lion Duelist (EmeraldDB a2058c37, Kyuden Ikoma). Honor is the SWITCH:
+        // Lion Duelist v0.3 (EmeraldDB 105158ff, Kyuden Ikoma). Honor is the SWITCH:
         // Matsu Tsuko's free break, Matsu Agetoki's conflict move, Matsu
         // Mitsuko's move-in and Blade of 10,000 Battles all require "more
         // honorable than your opponent", and the stronghold starts at 13 honor
         // to make that the default state. So the deck bids into the honor lead
         // rather than for cards (which also fires Tactician's Apprentice) and
         // buys its cards back with Regal Bearing, Setting the Standard, Blade,
-        // Imperial Storehouse, Proving Ground and The Art of War.
+        // Imperial Storehouse and Proving Ground. (Revision 0.3 dropped The Art
+        // of War, which used to be part of that card economy, for The Roar of
+        // the Lioness — a wall instead of a refill.)
         name: 'lion-duelist-kyuden-ikoma',
         match: (ids, strategy) => strategy.lionDuelist && ids.has('kyuden-ikoma'),
         apply: {
-            // Deck-guide directive: Frostbitten Crossing sits under the
-            // stronghold. Its 4 strength makes the game-deciding province the
-            // joint-hardest to break, and its Action is a conflict-only effect
-            // that a defended stronghold conflict can still cash in.
-            strongholdProvinceId: 'frostbitten-crossing',
+            // Frostbitten Crossing held this slot until deck revision 0.3, on
+            // the deck-guide directive that its 4 strength makes the
+            // game-deciding province the joint-hardest to break. The Roar of
+            // the Lioness is simply bigger: this deck bids into an honor LEAD
+            // by design (the stronghold starts at 13), so half its honor beats
+            // a printed 4 from the first round and keeps growing. Frostbitten's
+            // conflict-only Action moves outward where it is revealed earlier.
+            // +6.55pp over 24 bases / 1527 paired games — see
+            // `docs/bot-lion-roar-province.md`.
+            strongholdProvinceId: ROAR_STRONGHOLD_PROVINCE,
             // "Go first in all cases" — the deck wants the first break and the
             // first Regal Bearing.
             firstPlayerChoice: 'first',

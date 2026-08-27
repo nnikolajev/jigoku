@@ -47,9 +47,12 @@ The consequences for the shared knobs all follow from "honor is the scoreboard":
 - the AIR ring is the best ring on the board, and the generic `ringScore` files
   it dead last;
 - `provinceConcede` is **empty** and `firstPlayerChoice` is **first**;
-- **Kenson no Gakka is the stronghold province.** It is the only province in the
-  deck that pays for *losing*, and the generic stronghold rule already commits
-  every ready body there, so the honor payoff is maximised for free;
+- **The Roar of the Lioness is the stronghold province** (deck revision 0.6).
+  Its strength is half this deck's own honor pool, and the stronghold province
+  is the one the opponent reaches last, so that is where it is largest.
+  **Kenson no Gakka moved out to an outer province**: it pays for *losing* a
+  conflict at itself, which an outer province offers all game. +8.85pp over 24
+  bases — see `bot-lion-roar-province.md`;
 - honor is **never sold**: `personalHonor.honorGiftResponse.enabled = false`.
 
 ## Why the two Kyūden Ikoma decks are MUTUALLY EXCLUSIVE
@@ -93,7 +96,8 @@ Everything else the brief listed was **already** generic and is simply reused:
 
 | Card | Status |
 |---|---|
-| The Art of War, City of the Rich Frog, Akodo Toturi, Honored General, Ikoma Prodigy | already generic playbook entries |
+| City of the Rich Frog, Akodo Toturi, Honored General, Ikoma Prodigy | already generic playbook entries |
+| The Roar of the Lioness | passive province, strength = half our honor; no decision to make. Replaced The Art of War in revision 0.6 and took the stronghold slot |
 | Court Games, Voice of Honor, Way of the Lion, Soul Beyond Reproach, Way of the Chrysanthemum, Honored Blade, Shameful Display | already generic (entries + policy steering) |
 | Called to War's **defender** side | already `PersonalHonorProfile.honorGiftResponse` — field-wide policy, so this deck sets `enabled: false` instead of adding a Lion knob |
 | Before the Throne | entry existed but was **scoped** to `craneHonor` |
@@ -115,8 +119,8 @@ entries are globally safe without scoping. Four needed more than an entry:
    `PlaybookContext.battlefieldInPlay` — the same class of blind spot
    `conflictRingElements` fixed for the Crane list.
 2. **Under Amaterasu's Gaze** attaches to a *province*, so it needed its own
-   target steering (`pickBattlefieldProvince`): the stronghold province first,
-   never one that already carries a Battlefield, never a broken one.
+   target steering (`pickBattlefieldProvince`): highest-preference province
+   first, never one that already carries a Battlefield, never a broken one.
 3. **Procedural Interference** is a dynasty EVENT — no dynasty economy path in
    the bot ranks events — plus a province target ranking. Both branches of it
    pay us, so it plays on sight; the target is whichever province makes the
@@ -254,11 +258,13 @@ contests the political Favor less, so the deck simply holds it more often.
 Both measured **bit-identical**, which is the broken-wire signature, not a null:
 
 - **`honorProvinceDefenseBuffer`** was meant to over-commit the defense at Kenson
-  no Gakka so more defenders get honored. It is unreachable *because the deck is
-  already doing it*: Kenson is the stronghold province, and
+  no Gakka so more defenders get honored. It was unreachable *because the deck
+  was already doing it*: Kenson was then the stronghold province, and
   `JigokuBotPolicy.declareDefenders` commits **every** ready body when the
   stronghold is attacked, before any sizing runs. The knob was deleted and the
-  reason recorded in the module header so nobody re-adds one.
+  reason recorded in the module header so nobody re-adds one. (Revision 0.6
+  moved Kenson to an outer province, so that particular reason no longer holds —
+  the knob is still deleted, and a new one would need its own measurement.)
 - **The Implacable Magistrate attacker ordering is MEASURED INERT.** Both
   `magistrateMinimumHonoredShare: 0` and `magistrateCardIds: []` read
   bit-identical over 384 games, and a direct instrument confirmed why:

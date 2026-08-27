@@ -27,6 +27,11 @@
 //   * `readied-in`— landed on a bowed participant that was standing by
 //                   resolution: the ready -> skill sequence working.
 //   * `forced`    — idle, but the prompt offered no participating alternative.
+//   * `out-of-reach` — idle with an alternative, in a conflict short by more
+//                   skill than `AttachmentTargetConfig.maxSkillNeeded`. The
+//                   shipped policy banks the card on the durable body there by
+//                   design, so the monitor reads the cap off the policy rather
+//                   than second-guessing it.
 //
 // Scaling knobs (default is one game per deck per seat, ~1 minute):
 //   ATTACH_BASES=91001,92001   shuffle bases to play
@@ -116,7 +121,8 @@ describe('bot attachment value (self-play field)', function() {
 
     const totals = {
         total: 0, contributed: 0, abilityCarrier: 0, prep: 0, usedLater: 0,
-        readiedIn: 0, idle: 0, wasted: 0, forced: 0, outsideConflict: 0
+        readiedIn: 0, idle: 0, wasted: 0, forced: 0, outOfReach: 0,
+        outsideConflict: 0
     };
     let knownOpenSeen = 0;
     const allIdle = [];
@@ -179,7 +185,8 @@ ${formatPlacements(allWasted)}`
             `${totals.abilityCarrier} ability carriers, ` +
             `${totals.outsideConflict} placed outside a conflict ` +
             `(${totals.usedLater} later fought carrying it, ${totals.prep} never did), ` +
-            `${totals.idle} idle (${totals.forced} of them forced, ${totals.wasted} avoidable).`
+            `${totals.idle} idle (${totals.forced} of them forced, ` +
+            `${totals.outOfReach} past the reach cap, ${totals.wasted} avoidable).`
         );
         if(allIdle.length > 0) {
             console.log('idle placements by card (not all failures):');

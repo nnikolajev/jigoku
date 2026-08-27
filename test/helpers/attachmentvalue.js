@@ -34,16 +34,35 @@
 //                   nothing to it. Not automatically a bug: the bearer may be
 //                   the only legal home, and next round it still carries the
 //                   bonus.
+//   out-of-reach    `idle`, with an alternative offered, but the conflict was
+//                   short by more skill than ANY attachment was going to find
+//                   (`AttachmentTargetConfig.maxSkillNeeded`). The shipped
+//                   policy deliberately banks the card on the durable body
+//                   there — "a conflict 14 short is not being rescued by a +1
+//                   weapon" — so this is the policy working, not a defect.
 //   wasted          `idle` AND the click that chose it had a legal alternative
-//                   that WAS an unbowed participant of that conflict. That is
-//                   the hard gate: the bot demonstrably had a better home for
-//                   the same card in the same prompt and passed it over.
+//                   that WAS an unbowed participant of a conflict the
+//                   attachment could still have swung. That is the hard gate:
+//                   the bot demonstrably had a better home for the same card in
+//                   the same prompt and passed it over.
 //
 // `wasted` is the only failing class, and it mirrors the `avoidable` gate in
 // `effectpolarity.js`: the alternatives come from the prompt's own selectable
 // list, so a placement the engine never offered a choice on can never fail.
+// The reach cap is READ FROM THE POLICY, never restated here, so the monitor
+// cannot drift from the rule it is auditing.
 
 const { CardTypes, EventNames } = require('../../build/server/game/Constants.js');
+const {
+    DEFAULT_ATTACHMENT_TARGET
+} = require('../../build/server/game/bots/AttachmentTargetPolicy.js');
+
+// 0 disables the cap in the policy, and disables it here too.
+const MAX_SKILL_NEEDED = DEFAULT_ATTACHMENT_TARGET.maxSkillNeeded;
+
+function withinReach(needed) {
+    return needed > 0 && (MAX_SKILL_NEEDED <= 0 || needed <= MAX_SKILL_NEEDED);
+}
 
 const CLICK_HISTORY = 12;
 
@@ -142,7 +161,8 @@ class AttachmentValueMonitor {
         this.idle = [];
         this.counts = {
             total: 0, contributed: 0, abilityCarrier: 0, prep: 0, usedLater: 0,
-            readiedIn: 0, idle: 0, wasted: 0, forced: 0, outsideConflict: 0
+            readiedIn: 0, idle: 0, wasted: 0, forced: 0, outOfReach: 0,
+            outsideConflict: 0
         };
         this.reasons = new Map();
         this.unwrapEngines = [];
@@ -396,12 +416,15 @@ class AttachmentValueMonitor {
         // better.
         this.counts.idle++;
         this.idle.push(entry);
-        if(entry.alternatives.length > 0 && entry.needed > 0) {
+        if(entry.alternatives.length === 0) {
+            this.counts.forced++;
+        } else if(withinReach(entry.needed)) {
             entry.outcome = 'wasted';
             this.counts.wasted++;
             this.wasted.push(entry);
         } else {
-            this.counts.forced++;
+            entry.outcome = entry.needed > 0 ? 'out-of-reach' : 'settled';
+            this.counts.outOfReach++;
         }
     }
 }
@@ -421,9 +444,11 @@ function formatPlacements(entries, limit = 40) {
         `${entry.conflictType ? `, ${entry.needed} skill still needed` : ''})` +
         `${entry.alternatives.length === 0
             ? ' forced'
-            : entry.needed > 0
+            : withinReach(entry.needed)
                 ? ` AVOIDABLE — participating alternatives: ${entry.alternatives.join(', ')}`
-                : ` conflict already settled — alternatives: ${entry.alternatives.join(', ')}`}` +
+                : entry.needed > 0
+                    ? ` beyond the ${MAX_SKILL_NEEDED}-skill reach cap — alternatives: ${entry.alternatives.join(', ')}`
+                    : ` conflict already settled — alternatives: ${entry.alternatives.join(', ')}`}` +
         `${entry.reason ? ` [${entry.reason}]` : ''}`
     ).join('\n');
 }

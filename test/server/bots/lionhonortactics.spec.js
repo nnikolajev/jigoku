@@ -55,9 +55,12 @@ describe('LionHonorTactics', function() {
 
         it('sets the race posture: stronghold province, go first, never concede', function() {
             const profile = profileFromStrategy({ lionHonor: true });
-            // Kenson no Gakka honors every defender after a LOST conflict there,
-            // so the deck puts its game-ending province behind that effect.
-            expect(profile.strongholdProvinceId).toBe('kenson-no-gakka');
+            // Deck revision 0.6: The Roar of the Lioness is worth half this
+            // deck's honor pool, and the stronghold province is the one it
+            // reaches latest, so that is where it is largest. Kenson no Gakka
+            // moved OUT — its trigger is losing a conflict AT the province,
+            // which an outer province offers all game.
+            expect(profile.strongholdProvinceId).toBe('the-roar-of-the-lioness');
             expect(profile.defenseCommitment).toBe('prevent-break');
             expect(profile.firstPlayerChoice).toBe('first');
             expect(profile.honorRaceAware).toBe(true);
@@ -86,9 +89,11 @@ describe('LionHonorTactics', function() {
             const profile = resolveDeckProfile(new Set(ids), strategy);
             expect(profile.lionHonor).toBeDefined();
             expect(profile.lionDuelist).toBeUndefined();
-            // The duel override would set a province this deck does not own.
+            // Both Lion Kyuden Ikoma decks now name the same stronghold
+            // province, so check the override list itself rather than inferring
+            // it from the province id.
             expect(profile.overrideNames || []).not.toContain('lion-duelist-kyuden-ikoma');
-            expect(profile.strongholdProvinceId).toBe('kenson-no-gakka');
+            expect(profile.strongholdProvinceId).toBe('the-roar-of-the-lioness');
         });
     });
 
@@ -265,14 +270,15 @@ describe('LionHonorTactics', function() {
     });
 
     describe('Kenson no Gakka', function() {
-        it('names the honor province, which becomes the stronghold province', function() {
+        it('keeps naming the honor province, which is no longer the stronghold province', function() {
             // The wide defense its "honor each defending character" reaction
             // wants comes free from the generic stronghold-defense rule; a
             // per-province defense buffer measured bit-identical at 0, 2 and 4
             // over 384 games and was removed rather than shipped dead.
             expect(LION_HONOR_DEFAULTS.honorProvinceDefenseBuffer).toBeUndefined();
+            expect(LION_HONOR_DEFAULTS.honorProvinceId).toBe('kenson-no-gakka');
             expect(profileFromStrategy({ lionHonor: true }).strongholdProvinceId)
-                .toBe(LION_HONOR_DEFAULTS.honorProvinceId);
+                .not.toBe(LION_HONOR_DEFAULTS.honorProvinceId);
         });
     });
 
@@ -299,7 +305,7 @@ describe('LionHonorTactics', function() {
     });
 
     describe('Under Amaterasu\'s Gaze', function() {
-        it('prefers the stronghold province and skips one already carrying a Battlefield', function() {
+        it('follows the preference order and skips one already carrying a Battlefield', function() {
             const kenson = { id: 'kenson-no-gakka', uuid: 'a', attachments: [] };
             const art = { id: 'the-art-of-war', uuid: 'b', attachments: [] };
             expect(tactics.pickBattlefieldProvince([art, kenson]).id).toBe('kenson-no-gakka');

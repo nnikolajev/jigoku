@@ -146,7 +146,7 @@ function loadScorpionBidWarDeck() {
     return buildDeck(decklist, cardsById);
 }
 
-// Lion Duelist (EmeraldDB a2058c37) — Kyuden Ikoma honor-switch Lion. Bids low
+// Lion Duelist v0.3 (EmeraldDB 105158ff) — Kyuden Ikoma honor-switch Lion. Bids low
 // to hold the honor lead that turns on Matsu Tsuko's free province break, Matsu
 // Agetoki's conflict move, Matsu Mitsuko's move-in and Blade of 10,000 Battles,
 // then converts every conflict win into cards and bowed enemies.
@@ -234,7 +234,7 @@ function loadCraneHonorDeck() {
     return buildDeck(decklist, indexFixtureCards(['crane-honor-cards.json']));
 }
 
-// Lion "Honor" (EmeraldDB 65b10e6f) — Kyuden Ikoma honor RACE. Unlike the Lion
+// Lion "Honor" v0.6 (EmeraldDB 3a5d87d2) — Kyuden Ikoma honor RACE. Unlike the Lion
 // Duelist list (which treats the honor lead as a switch that turns other cards
 // on), this deck plans to reach 25 honor outright: Seeker of Air over two air
 // provinces, Before the Throne's 2-honor break, Kenson no Gakka honoring its own

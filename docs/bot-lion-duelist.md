@@ -55,7 +55,7 @@ Two engine facts shape the whole profile:
 | `+` **Frostbitten Crossing** (4) | Moderate. Conflict Action at this province: discard **every** attachment on one participant. | Playbook `inPlayAction` + `actionBeforePass`; target via `LionDuelistTactics.pickStripTarget`, which reuses the shared `AttachmentControlProfile` score tables. Theirs scores every attachment; **ours is a NET reading** — the debuffs we shed minus everything good that comes off with them (`ownAttachmentLossWeight`), because the effect is not selective the way Let Go is and cannot take the Pacifism while leaving the katana. Cancels cleanly when nothing clears `stripMinimumValue`. The **click** is gated too (`JigokuBotPolicy.provinceActionWorthwhile`): the attacked-province paths otherwise fire an own province's Action on sight, and once this one is on the stack its only legal target may be our own loaded tower. Shipped as the **stronghold province** per the deck guide; measured against the alternatives in §5. |
 | `=` **Illustrious Forge** (4) | High. Reveal: dig the top 5 for an attachment and put it into play. | Existing province reaction. The "Choose an attachment" menu carries no stats, so the pick is a ranked list: `LionDuelistTactics.attachmentRanking` puts Blade of 10,000 Battles and Setting the Standard first (both convert every conflict win into cards). |
 | `=` **Shameful Display** (3) | Moderate. | Existing shared handler (`shameful-*` reasons) from Crab/Crane. No new code. |
-| `+` **The Art of War** (3) | Moderate. Interrupt on break: draw 3. | Playbook entry, priority 9, `optionalDrawCards: 3`. **The concede rule around it was made injectable** — see §3. |
+| `+` **The Roar of the Lioness** (X) | High. **Strength X = half our honor pool, rounded up**, recomputed live. No ability to steer. | Sits under the **stronghold** (§4.1). Replaced The Art of War in revision 0.3, so the `provinceConcede` default (`['the-art-of-war']`, §3) no longer names a card in this list and the deck concedes nothing — which is right: this province is a wall, not a refill. The bot reads its true strength while the province is still facedown (`JigokuBotController.facedownOwnBaseStrengthDelta`). |
 | `·` **City of the Rich Frog** (3) | Moderate. Holds 3 dynasty cards instead of 1. | No bot change (also true for the swarm Lion list). |
 
 ### Dynasty characters
@@ -140,7 +140,7 @@ conceded province walks the opponent one step closer to conquest. It is now
 which is exactly the old behaviour.
 
 It also now refuses to concede the **stronghold province**, which had no guard at
-all. That was reachable: nothing stopped a profile from parking The Art of War
+all. That was reachable: nothing stopped a profile from parking a conceded province
 under the stronghold and then conceding the game-ending conflict to draw three
 cards.
 
@@ -211,7 +211,7 @@ up, and this deck trips no other strategy flag (both locked in
 
 | Setting | Value | Why |
 |---|---|---|
-| `strongholdProvinceId` | `frostbitten-crossing` | Deck-guide directive. Measured against all three alternatives (§5.4); all inside noise, so the directive stands. |
+| `strongholdProvinceId` | `the-roar-of-the-lioness` | Revision 0.3. Its strength is half our honor pool, and this deck bids to KEEP an honor lead from a stronghold that starts at 13, so it beats a printed 4 from round one and keeps growing. **+6.55pp over 24 bases / 1527 paired games, p<0.0001** — see `bot-lion-roar-province.md`. Frostbitten Crossing held the slot on the deck-guide directive until then; the three alternatives measured in §5.4 were all inside noise, which is why a card that is not a fixed strength was the thing that moved it. |
 | `firstPlayerChoice` | `first` | Deck-guide directive — and **confirmed by measurement**: `second` costs about 4pp. |
 | `honorRaceAware` | `true` | Honor is a live resource in both directions here. (`bidWarAware` was tried and removed: the only entry reading it is Make an Opening, which this deck does not run, and it measured bit-identical.) |
 | `reserveDynastyFate` | `true` | Regal Bearing, Prepare for War and Blade all cost fate in the conflict phase. |

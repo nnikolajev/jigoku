@@ -1,12 +1,12 @@
 {
-  "id": "a2058c37-5909-4119-bf16-bdddd3a80262",
+  "id": "105158ff-a1a0-4cbe-959b-9bec5b208a94",
   "deck_id": "c4205edb-c44f-4a91-a19b-88b71463d682",
   "format": "standard",
   "name": "Lion Duelist",
   "primary_clan": "lion",
   "secondary_clan": "crane",
   "description": "Original description: ",
-  "version_number": "0.2",
+  "version_number": "0.3",
   "cards": {
     "kitsu-motso": 3,
     "miya-mystic": 3,
@@ -24,7 +24,6 @@
     "regal-bearing": 3,
     "fan-of-command": 3,
     "proving-ground": 3,
-    "the-art-of-war": 1,
     "a-season-of-war": 3,
     "ikoma-reservist": 3,
     "keeper-initiate": 3,
@@ -46,10 +45,11 @@
     "city-of-the-rich-frog": 1,
     "in-service-to-my-lord": 3,
     "tactician-s-apprentice": 3,
-    "blade-of-10-000-battles": 2
+    "blade-of-10-000-battles": 2,
+    "the-roar-of-the-lioness": 1
   },
   "published_date": null,
-  "created_at": "2026-08-05T07:29:34.923Z",
+  "created_at": "2026-08-27T08:43:35.254Z",
   "user_id": "auth0|6a4946c8f03127d4fc77a07e",
   "card_pack_ids": {
     "kitsu-motso": "the-emperor-s-legion",
@@ -68,7 +68,6 @@
     "regal-bearing": "the-children-of-heaven",
     "fan-of-command": "a-champion-s-foresight",
     "proving-ground": "children-of-the-empire",
-    "the-art-of-war": "core",
     "a-season-of-war": "rokugan-at-war",
     "ikoma-reservist": "tainted-lands",
     "keeper-initiate": "core",
@@ -90,7 +89,8 @@
     "city-of-the-rich-frog": "rokugan-at-war",
     "in-service-to-my-lord": "shoju-s-duty",
     "tactician-s-apprentice": "all-and-nothing",
-    "blade-of-10-000-battles": "for-the-empire"
+    "blade-of-10-000-battles": "for-the-empire",
+    "the-roar-of-the-lioness": "honor-in-flames"
   },
-  "username": "Unnamed Samurai"
+  "username": "Kingitus"
 }

@@ -1748,6 +1748,7 @@ class JigokuBotController {
                 continue;
             }
             result[uuid] = {
+                id: String(card.cardData?.id || ''),
                 cost: Math.max(0, this.parseStat(card.printedCost ?? card.cardData?.cost) ?? 0),
                 military: Math.max(0, this.parseStat(card.cardData?.military) ?? 0),
                 political: Math.max(0, this.parseStat(card.cardData?.political) ?? 0),

@@ -1957,7 +1957,8 @@ class JigokuBotPolicy {
             const selectable = this.findVisibleCards(playerState).filter((card) =>
                 card.selectable && card.uuid && card.type === 'attachment' &&
                 !this.isAttempted('cardClicked', [card.uuid]));
-            const pick = attachmentTower.pickShunsenAttachment(selectable, this.shunsenRingsReturned);
+            const pick = attachmentTower.pickShunsenAttachment(
+                selectable, this.shunsenRingsReturned, this.shunsenBearer(me, attachmentTower));
             if(pick) {
                 return this.cardClickDecision(pick, 'attachment-tower-shunsen-attachment');
             }
@@ -2286,6 +2287,41 @@ class JigokuBotPolicy {
         // 180 games: 350 such decisions, including Kyūden Hida offering
         // Kuni Ritsuko / Frontline Engineer / Hida Kisada and taking Kuni
         // Ritsuko. Runs last so it can never pre-empt an existing handler.
+        // AGASHA SHUNSEN'S TUTOR MENU is a handler menu whose choices are
+        // BUTTONS, not selectable cards, so the deck's own search order never
+        // saw it and the generic printed-power ranking answered instead —
+        // measured fetching a Restricted Ornate Fan onto a tower whose
+        // Restricted slots were full, attached and discarded in one breath.
+        // The prompt is titled with the SOURCE card's name, so recognise it by
+        // matching the live Shunsen on our own board rather than by
+        // reconstructing a display name from the id.
+        const shunsenSource = attachmentTower
+            ? this.myCharactersInPlay(me).find((card: any) =>
+                card?.id === attachmentTower.profile.shunsen.cardId)
+            : undefined;
+        if(attachmentTower && context.menuCardInfo && shunsenSource &&
+            String(me?.promptTitle || '') === String(shunsenSource.name || '')) {
+            const offered = buttons
+                .map((button: any) => ({
+                    button,
+                    info: context.menuCardInfo?.[String(button?.card?.uuid || '')]
+                }))
+                .filter((entry) => !!entry.info);
+            const pick = attachmentTower.pickShunsenAttachment(
+                offered.map((entry) => ({
+                    uuid: String(entry.button.card.uuid),
+                    id: entry.info!.id,
+                    cost: entry.info!.cost
+                })),
+                this.shunsenRingsReturned,
+                this.shunsenBearer(me, attachmentTower));
+            const chosen = pick && offered
+                .find((entry) => String(entry.button.card.uuid) === String(pick.uuid));
+            if(chosen) {
+                return this.buttonDecision(chosen.button, 'attachment-tower-shunsen-attachment');
+            }
+        }
+
         const rankedMenuCard = profile.rankCardMenus
             ? this.bestMenuCardButton(buttons, me, context.menuCardInfo)
             : null;
@@ -2777,14 +2813,26 @@ class JigokuBotPolicy {
      */
     private shouldUseShunsen(playCtx: any, attachmentTower: DragonAttachmentTactics): boolean {
         const selfUnderstandingId = attachmentTower.profile.shunsen.selfUnderstandingId;
-        return attachmentTower.shouldUseShunsen({
+        const context = {
             myConflictsRemaining: Math.max(0, Number(playCtx?.conflictsRemaining) || 0),
             opponentConflictsRemaining: Math.max(0, Number(playCtx?.opponentConflictsRemaining) || 0),
             claimedRingCount: (playCtx?.myClaimedRingElements || []).length,
             selfUnderstandingParticipating: (playCtx?.myCharacters || []).some((card: any) =>
                 card.inConflict && (card.attachments || []).some((attachment: any) =>
-                    attachment?.id === selfUnderstandingId))
-        });
+                    attachment?.id === selfUnderstandingId)),
+            losingConflict: playCtx?.losing === true
+        };
+        // The boolean is the decision; the reason is only computed when a probe
+        // is listening, because naming the refusing leg is what makes a gate
+        // this narrow censusable rather than guessable.
+        if(BotTelemetry.enabled) {
+            BotTelemetry.record('shunsen-action-gate', () => ({
+                gate: attachmentTower.shunsenGate(context),
+                activeConflict: !!playCtx?.activeConflict,
+                ...context
+            }));
+        }
+        return attachmentTower.shouldUseShunsen(context);
     }
 
     /**
@@ -2828,6 +2876,21 @@ class JigokuBotPolicy {
             }));
         }
         return wants;
+    }
+
+    /**
+     * The body Agasha Shunsen's tutored card is about to land on, resolved
+     * from the uuid his target prompt settled on. The menu prompt lists deck
+     * cards, so the bearer has to be looked up on the board.
+     */
+    private shunsenBearer(me: any, attachmentTower: DragonAttachmentTactics): any {
+        // RECOMPUTED, not remembered. The engine resolves Shunsen's character
+        // target before it opens the tutor menu, but that prompt does not reach
+        // the policy's own target handler, so a uuid stashed at click time is
+        // null by the time the menu asks (measured). `pickShunsenTarget` is a
+        // pure function of the board and the attach has not happened yet, so
+        // recomputing here names the same body the engine is holding.
+        return attachmentTower.pickShunsenTarget(this.myCharactersInPlay(me));
     }
 
     /** `RevealReadyPolicy` for the deck currently being piloted. */
@@ -5887,6 +5950,14 @@ class JigokuBotPolicy {
             if(hint.oncePerRound && this.boardAbilityIsUsed(card, dragon)) {
                 return false;
             }
+            // Agasha Shunsen carries the marker so the card-saving shortcuts
+            // cannot close the window on him, but the deck gate still decides
+            // whether the Action is worth firing. Holding the window open for a
+            // gate that is about to refuse would spend cards this conflict was
+            // saving.
+            if(attachmentTower && card.id === attachmentTower.profile.shunsen.cardId) {
+                return this.shouldUseShunsen(sharedPlayCtx, attachmentTower);
+            }
             return typeof hint.shouldUseAction !== 'function' || hint.shouldUseAction(sharedPlayCtx);
         });
         const myHonor = me?.stats?.honor ?? 10;
@@ -6104,6 +6175,23 @@ class JigokuBotPolicy {
             }));
         }
         const abilitySource = legalAbilityCandidates.find(canSelectAbility);
+        if(BotTelemetry.enabled && attachmentTower) {
+            const shunsenId = attachmentTower.profile.shunsen.cardId;
+            const has = (list: any[]) => list.some((card: any) => card.id === shunsenId);
+            if(has(abilityCandidates)) {
+                BotTelemetry.record('shunsen-funnel', () => ({
+                    candidate: true,
+                    seat: me?.name,
+                    prompt: `${me?.promptTitle || ''}|${me?.menuTitle || ''}`,
+                    haveLegalSet: legalDirectCardUuids !== undefined,
+                    engineLegal: has(legalAbilityCandidates),
+                    selectable: has(legalAbilityCandidates.filter(canSelectAbility)),
+                    picked: abilitySource?.id === shunsenId,
+                    aheadOfIt: legalAbilityCandidates.filter(canSelectAbility)
+                        .map((card: any) => String(card.id)).join(',')
+                }));
+            }
+        }
         if(abilitySource) {
             // Record once-per-round board abilities so they are not re-fired for
             // the rest of the round (stops the Tranquil Philosopher fate loop).
@@ -10529,10 +10617,30 @@ class JigokuBotPolicy {
             }
         }
 
+        // AGASHA SHUNSEN opens TWO card prompts under the same source id and the
+        // same "Agasha Shunsen" title: first the character his attachment will
+        // go on, then the tutor menu of conflict-deck attachments. Routing both
+        // to the attachment picker answered the BEARER prompt with the card
+        // ranking (measured: it clicked Niten Master with reason
+        // `attachment-tower-shunsen-attachment`) and left the real menu to the
+        // generic `menu-card-best-body` ordering, which fetched a Restricted
+        // Ornate Fan onto a tower whose Restricted slots were already full —
+        // attached and discarded in the same breath. Split them by what the
+        // prompt is actually offering.
         if(attachmentTower && targetHint?.sourceCardId === attachmentTower.profile.shunsen.cardId) {
-            const attachment = attachmentTower.pickShunsenAttachment(cards, this.shunsenRingsReturned);
-            if(attachment) {
-                return this.cardClickDecision(attachment, 'attachment-tower-shunsen-attachment');
+            const attachments = cards.filter((card: any) => card?.type === 'attachment');
+            if(attachments.length > 0) {
+                const attachment = attachmentTower.pickShunsenAttachment(
+                    attachments, this.shunsenRingsReturned, this.shunsenBearer(me, attachmentTower));
+                if(attachment) {
+                    return this.cardClickDecision(attachment, 'attachment-tower-shunsen-attachment');
+                }
+            } else {
+                const bearer = attachmentTower.pickShunsenTarget(
+                    cards.filter((card: any) => card?.type === 'character'), skillType);
+                if(bearer) {
+                    return this.cardClickDecision(bearer, 'attachment-tower-shunsen-bearer');
+                }
             }
         }
 

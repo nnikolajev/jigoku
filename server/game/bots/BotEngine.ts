@@ -44,6 +44,9 @@ export interface BotDecision {
  * supplies these from the live card object and the policy ranks on them.
  */
 export interface MenuCardInfo {
+    // Printed card id. A handler menu's buttons carry only a uuid and a label,
+    // so without this no deck rule can recognise WHICH card a choice is.
+    id: string;
     cost: number;
     military: number;
     political: number;

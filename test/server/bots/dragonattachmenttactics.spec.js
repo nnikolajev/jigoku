@@ -454,9 +454,23 @@ describe('DragonAttachmentTactics', function() {
             selfUnderstandingParticipating: false
         };
 
-        it('holds the ability until OUR last conflict opportunity is the one running', function() {
+        it('holds the ability until our last conflict opportunities are close', function() {
+            // `maxConflictsRemaining` ships at 1: the second-to-last conflict
+            // counts as late enough. Relaxing it further was measured inert on
+            // the firing rate (the extra windows are ones the ENGINE refuses),
+            // and tightening it to 0 refused the owner's own scenario — a tower
+            // on the board, rings claimed, one opportunity left.
             expect(tactics.shouldUseShunsen(lastConflict)).toBe(true);
-            expect(tactics.shouldUseShunsen({ ...lastConflict, myConflictsRemaining: 1 })).toBe(false);
+            expect(tactics.shouldUseShunsen({ ...lastConflict, myConflictsRemaining: 1 })).toBe(true);
+            expect(tactics.shouldUseShunsen({ ...lastConflict, myConflictsRemaining: 2 })).toBe(false);
+        });
+
+        it('keeps the threshold as an injectable knob', function() {
+            const strict = new DragonAttachmentTactics({
+                shunsen: { ...DRAGON_ATTACHMENT_DEFAULTS.shunsen, maxConflictsRemaining: 0 }
+            });
+            expect(strict.shouldUseShunsen({ ...lastConflict, myConflictsRemaining: 1 })).toBe(false);
+            expect(strict.shouldUseShunsen(lastConflict)).toBe(true);
         });
 
         it('fires during the opponent’s conflict once we have none left', function() {
@@ -1946,7 +1960,8 @@ describe('DragonAttachmentTactics', function() {
                     attackerSkill: 5, defenderSkill: 4
                 }
             });
-            const held = new JigokuBotPolicy('shunsen-early').decide(build(1, 1), 'Jigoku Bot', {
+            // Two of our own opportunities still to come is too early.
+            const held = new JigokuBotPolicy('shunsen-early').decide(build(2, 1), 'Jigoku Bot', {
                 strategy: ATTACHMENTS, cardHint: getPlaybookEntry
             });
             expect(held.target).not.toBe('shunsen');

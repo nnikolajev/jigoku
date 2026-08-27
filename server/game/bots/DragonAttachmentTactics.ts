@@ -42,6 +42,13 @@ export interface ShunsenProfile {
     // the round is the last window there is, and if the opponent declines it
     // there is no window at all.
     lastConflictOnly: boolean;
+    // HOW LATE is late enough. The number of conflict opportunities we may
+    // still hold and fire anyway: 0 is "only once this is our last", 1 also
+    // allows the second-to-last, and a large number disables the wait. The
+    // trade is real in both directions — a returned ring goes back to the
+    // unclaimed pool where the opponent can contest it, but a card that waits
+    // for a window it rarely reaches is a dead card. Measured, not argued.
+    maxConflictsRemaining: number;
     // The stricter reading: also wait for the opponent to be out. Kept as a
     // knob so the old behaviour is an A/B arm rather than an edit.
     requireOpponentOutOfConflicts: boolean;
@@ -61,6 +68,19 @@ export interface ShunsenProfile {
     // With this on, hold Shunsen while a live Self-Understanding payoff is on
     // the table.
     respectSelfUnderstanding: boolean;
+    // ...but the reaction is "After this character WINS a conflict", so a
+    // deferral in a conflict we are losing defers to a payoff that will never
+    // happen. Worse, the deck routinely puts Self-Understanding on Shunsen
+    // himself, and without this the card permanently blocks its own Action:
+    // measured live, this leg refused at EVERY moment the engine said the
+    // Action was legal, and the Action resolved in 0 of 64 games.
+    selfUnderstandingRequiresWinning: boolean;
+    // ...and the pool has to be worth more than what Shunsen would fetch with
+    // it. Self-Understanding resolves each claimed ring ONCE; Shunsen converts
+    // the same rings into a permanent attachment, and he fires at most once a
+    // round on our last conflict. Below this many claimed rings the attachment
+    // wins and the deferral is just the card refusing to be used.
+    selfUnderstandingMinRings: number;
     selfUnderstandingId: string;
 }
 
@@ -258,6 +278,7 @@ export const DRAGON_ATTACHMENT_DEFAULTS: DragonAttachmentProfile = {
         cardId: 'agasha-shunsen',
         requireTowerOnBoard: true,
         lastConflictOnly: true,
+        maxConflictsRemaining: 1,
         requireOpponentOutOfConflicts: false,
         declareToTrigger: true,
         maxRingsReturned: 3,
@@ -266,6 +287,8 @@ export const DRAGON_ATTACHMENT_DEFAULTS: DragonAttachmentProfile = {
             'the-stone-of-sorrows', 'tetsubo-of-blood'
         ],
         respectSelfUnderstanding: true,
+        selfUnderstandingRequiresWinning: true,
+        selfUnderstandingMinRings: 3,
         selfUnderstandingId: 'self-understanding'
     },
     stoneOfSorrows: {
@@ -307,6 +330,9 @@ export const DRAGON_ATTACHMENT_DEFAULTS: DragonAttachmentProfile = {
     }
 };
 
+export type ShunsenGateReason = 'fire' | 'disabled' | 'no-claimed-ring' |
+    'not-our-last-conflict' | 'opponent-still-has-conflicts' | 'self-understanding-live';
+
 export interface ShunsenDeclarationContext {
     // Conflict opportunities we have left INCLUDING the one being declared,
     // which is why the "last one" test is `=== 1` and not `=== 0`.
@@ -329,6 +355,10 @@ export interface ShunsenContext {
     // running conflict? Returning the rings empties the pool its reaction
     // reads.
     selfUnderstandingParticipating: boolean;
+    // Are we LOSING the running conflict? The gained reaction is "after this
+    // character wins a conflict", so a bearer on the losing side is deferring
+    // to a payoff that never arrives.
+    losingConflict?: boolean;
 }
 
 export interface WaterfallTattooContext {
@@ -618,24 +648,44 @@ export class DragonAttachmentTactics {
      * opens is a window that never happens and the card is stranded in play.
      */
     shouldUseShunsen(ctx: ShunsenContext): boolean {
+        return this.shunsenGate(ctx) === 'fire';
+    }
+
+    /**
+     * The same decision, but naming WHICH leg refused.
+     *
+     * A gate this narrow has to be censused rather than reasoned about: if the
+     * card is dead in live play, the reason it is dead is the leg that refuses
+     * most often, and a boolean cannot say which one that was.
+     */
+    shunsenGate(ctx: ShunsenContext): ShunsenGateReason {
         const shunsen = this.profile.shunsen;
-        if(!shunsen.enabled || Math.max(0, Number(ctx?.claimedRingCount) || 0) === 0) {
-            return false;
+        if(!shunsen.enabled) {
+            return 'disabled';
+        }
+        if(Math.max(0, Number(ctx?.claimedRingCount) || 0) === 0) {
+            return 'no-claimed-ring';
         }
         if(shunsen.lastConflictOnly &&
-            Math.max(0, Number(ctx?.myConflictsRemaining) || 0) > 0) {
-            return false;
+            Math.max(0, Number(ctx?.myConflictsRemaining) || 0) >
+                Math.max(0, Math.floor(Number(shunsen.maxConflictsRemaining) || 0))) {
+            return 'not-our-last-conflict';
         }
         if(shunsen.lastConflictOnly && shunsen.requireOpponentOutOfConflicts &&
             Math.max(0, Number(ctx?.opponentConflictsRemaining) || 0) > 0) {
-            return false;
+            return 'opponent-still-has-conflicts';
         }
-        // Self-Understanding resolves EVERY claimed ring after its bearer wins.
-        // Emptying the pool to fetch one attachment throws that away.
-        if(shunsen.respectSelfUnderstanding && ctx?.selfUnderstandingParticipating) {
-            return false;
+        // Self-Understanding resolves EVERY claimed ring after its bearer WINS.
+        // Emptying the pool to fetch one attachment throws that away — but only
+        // when the win is actually coming. On a conflict we are losing the
+        // reaction never fires, so deferring to it costs the Action for nothing.
+        if(shunsen.respectSelfUnderstanding && ctx?.selfUnderstandingParticipating &&
+            !(shunsen.selfUnderstandingRequiresWinning && ctx?.losingConflict === true) &&
+            Math.max(0, Number(ctx?.claimedRingCount) || 0) >=
+                Math.max(0, Math.floor(Number(shunsen.selfUnderstandingMinRings) || 0))) {
+            return 'self-understanding-live';
         }
-        return true;
+        return 'fire';
     }
 
     /**
@@ -689,10 +739,17 @@ export class DragonAttachmentTactics {
      * the only cost-3 card first, which is what makes returning the third ring
      * worth doing.
      */
-    pickShunsenAttachment(cards: any[], ringsReturned?: number): any {
+    pickShunsenAttachment(cards: any[], ringsReturned?: number, bearer?: any): any {
         const budget = Number.isFinite(Number(ringsReturned))
             ? Math.max(0, Number(ringsReturned))
             : Number.POSITIVE_INFINITY;
+        // The bearer is chosen a prompt BEFORE this menu opens, so by the time
+        // we rank the deck the Restricted slot is already spent or not. A
+        // Restricted card fetched onto a full bearer is attached and discarded
+        // in the same breath (`too many Restricted attachments`), which is the
+        // whole Action thrown away — measured live on an Ornate Fan.
+        const restrictedFree = !bearer ||
+            this.restrictedCount(bearer) < this.restrictedCap(bearer);
         const order = this.profile.shunsen.searchOrder;
         const rank = (id: string) => {
             const index = order.indexOf(id);
@@ -702,7 +759,14 @@ export class DragonAttachmentTactics {
             const cost = Number(card?.cost ?? card?.printedCost);
             return !Number.isFinite(cost) || cost <= budget;
         };
-        return (cards || []).filter((card) => card && card.uuid && affordable(card))
+        const keepable = (card: any) => restrictedFree || !this.isRestricted(card.id);
+        const pool = (cards || []).filter((card) => card && card.uuid && affordable(card));
+        const usable = pool.filter(keepable);
+        // Every legal choice would be discarded on arrival: the engine's menu
+        // also offers "Don't attach a card", so taking nothing is strictly
+        // better than paying the rings for a discard. Returning null lets the
+        // policy fall through to that button.
+        return (usable.length > 0 ? usable : [])
             .sort((a, b) => rank(a.id) - rank(b.id) ||
                 this.attachmentPriority(b.id) - this.attachmentPriority(a.id) ||
                 (Number(b.cost ?? b.printedCost) || 0) - (Number(a.cost ?? a.printedCost) || 0) ||
@@ -726,13 +790,21 @@ export class DragonAttachmentTactics {
             const index = this.profile.towerCharacters.indexOf(id);
             return index < 0 ? this.profile.towerCharacters.length : index;
         };
+        // Four of the five entries in the search order are Restricted, so a
+        // bearer whose Restricted slots are full throws the fetched card away.
+        // It is a TIE-BREAK, not a filter: a full tower still beats an empty
+        // body with no fate, and the menu ranking drops Restricted cards when
+        // the bearer cannot keep one.
+        const slotFree = (card: any) =>
+            this.restrictedCount(card) < this.restrictedCap(card) ? 0 : 1;
         if(towers.length > 0) {
-            return towers.slice().sort((a, b) => rank(a.id) - rank(b.id) ||
+            return towers.slice().sort((a, b) => slotFree(a) - slotFree(b) ||
+                rank(a.id) - rank(b.id) ||
                 (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
                 String(a.uuid).localeCompare(String(b.uuid)))[0];
         }
         const pool = withFate.length > 0 ? withFate : characters;
-        return pool.slice().sort((a, b) =>
+        return pool.slice().sort((a, b) => slotFree(a) - slotFree(b) ||
             this.liveSkill(b, axis) - this.liveSkill(a, axis) ||
             (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
             String(a.uuid).localeCompare(String(b.uuid)))[0] || null;

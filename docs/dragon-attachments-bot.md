@@ -181,6 +181,65 @@ Four separate decisions, all in `DragonAttachmentTactics`:
   in the fate phase and takes the attachment with it, so the tower is only the
   right answer while it still has fate; otherwise the strongest body that does.
 
+#### The Action was dead in live play, and the gate was not why
+
+Censused with `tools/selfplay/analyzeShunsen.js` over 64 games against all
+sixteen opponents, both seats: Shunsen reached the board in 7 games, the deck
+gate said **fire in 14.8% of evaluations** — and the Action **resolved in 0 of
+64 games**. Four independent blockers, each in a different layer, and none of
+them the gate's width:
+
+1. **The conflict window closed before board abilities were considered.**
+   `attack-already-breaking` and `defense-province-safe` are card-saving
+   shortcuts in `conflictWindowDecision` that return *before*
+   `conflictAbilitySources()` runs. Shunsen's Action costs no card and no fate,
+   so nothing it does is what those gates are saving. The playbook's existing
+   `actionBeforePass` marker — added for Doji Challenger for exactly this — now
+   covers him, and the policy applies the deck gate on top so the window is only
+   held open when the Action would actually fire.
+2. **Self-Understanding permanently blocked its own enabler.**
+   `respectSelfUnderstanding` refused while *any* participating body carried
+   one, and this deck routinely attaches it to Shunsen himself. Two corrections:
+   the reaction reads "after this character **wins** a conflict", so deferring on
+   a conflict we are losing defers to a payoff that never arrives
+   (`selfUnderstandingRequiresWinning`); and the pool has to be worth more than
+   what Shunsen buys with it — Self-Understanding resolves each claimed ring
+   once, Shunsen converts the same rings into a permanent attachment, so below
+   `selfUnderstandingMinRings` (3) the attachment wins.
+3. **The bearer prompt and the tutor menu were crossed.** Both open under the
+   same source id and the same `Agasha Shunsen` title. The bot answered the
+   BEARER prompt with the attachment ranking (measured: it clicked Niten Master
+   with reason `attachment-tower-shunsen-attachment`) and left the real menu to
+   the generic printed-power ranker, which fetched a Restricted Ornate Fan onto
+   a tower whose Restricted slots were already full — attached and discarded in
+   the same breath, the whole Action thrown away. They are split by what the
+   prompt is actually offering.
+4. **The tutor menu is a handler menu of BUTTONS, not selectable cards**, so the
+   deck's search order never saw it at all. `MenuCardInfo` now carries the
+   printed `id`, and `pickShunsenAttachment` prices the menu against the
+   bearer's live Restricted slot — dropping cards the bearer cannot keep, and
+   taking nothing rather than paying rings for a discard.
+
+After all four: the Action resolves in **4 of 64 games, 5 times, 0 wasted**.
+
+**On the gate's width specifically.** Relaxing `maxConflictsRemaining` from 0 to
+1 to 99 doubles the gate's `fire` verdicts (65 -> 127) and leaves the resolve
+count unchanged at 5: every extra window is one the ENGINE refuses, because no
+ring is claimed yet or we do not hold priority. The threshold was never the
+limiter. It ships at **1** so the owner's scenario — a tower on the board, rings
+claimed, one conflict opportunity left — fires, which is now a passing
+integration test; going further buys nothing.
+
+The remaining limiter is the BUY rate: Shunsen reaches the board in only 7 of 64
+games. Given a body, he now fires in 4 of 7.
+
+**Win rate**: the batch measures **-0.21pp, 10 decided, p=0.21** over 1,909
+games on six bases, with **99.5% of games bit-identical** and a ceiling of
+0.52pp — indistinguishable from zero, which is the only thing a card appearing
+in 11% of games and firing in 6% could read. Correctness class, like
+`polarityGuards`; do not re-measure it hoping for a number. The value is that a
+card in the deck list now does the thing it is in the deck list for.
+
 ### Self-Understanding — and a reachability bug it exposed
 
 *Restricted. This attachment cannot be chosen as the target of an opponent's

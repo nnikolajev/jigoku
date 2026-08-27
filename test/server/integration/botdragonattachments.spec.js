@@ -234,6 +234,50 @@ describe('bot Dragon attachments (scripted boards)', function() {
                 this.whisperer = this.player2.findCardByName('doji-whisperer');
             });
 
+            // The scenario the owner described: a tower on the board, Shunsen
+            // standing, two rings claimed, and ONE conflict opportunity left.
+            // The Action must actually resolve inside that conflict. The older
+            // test below passes vacuously when it does not fire at all, which
+            // is exactly how the card went dead unnoticed.
+            it('fires the Action during our last conflict', function() {
+                this.player1.claimRing('air');
+                this.player1.claimRing('fire');
+                this.niten.fate = 2;
+                this.shunsen.fate = 1;
+                this.noMoreActions();
+                this.initiateConflict({
+                    attackers: [this.niten],
+                    defenders: [],
+                    type: 'military',
+                    ring: 'water'
+                });
+                this.game.continue();
+                // The conflict action window opens on the OPPONENT. Pass it so
+                // priority reaches the bot, which is the only state in which
+                // the engine offers it any action at all.
+                this.player2.pass();
+                this.game.continue();
+
+                // Sanity: the ENGINE agrees the Action is activatable here.
+                // Without this, a bot-side failure and an engine-side one look
+                // identical.
+                const action = this.shunsen.abilities.actions[0];
+                expect(action).toBeDefined();
+                expect(action.meetsRequirements(action.createContext(this.player1Object)))
+                    .toBe('');
+
+                runBot(this, botFor(this), 40);
+
+                const tutorable = ['self-understanding', 'jade-tetsubo', 'ornate-fan',
+                    'fine-katana', 'adopted-kin'];
+                const attached = this.player1Object.cardsInPlay.toArray()
+                    .flatMap((bearer) => (bearer.attachments || []).toArray
+                        ? bearer.attachments.toArray()
+                        : (bearer.attachments || []))
+                    .filter((attachment) => tutorable.includes(attachment.id));
+                expect(attached.length).toBeGreaterThan(0);
+            });
+
             it('only ever attaches the tutored card to a body that keeps it', function() {
                 this.player1.claimRing('air');
                 this.player1.claimRing('fire');

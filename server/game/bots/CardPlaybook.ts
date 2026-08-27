@@ -3035,6 +3035,16 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
         // in the policy where the live claimed-ring pool and the participating
         // Self-Understanding are both readable.
         inPlayAction: true,
+        // HOLD THE WINDOW OPEN. His Action is `During a conflict` and costs no
+        // card and no fate, but the conflict window's card-saving shortcuts
+        // ("we are already breaking", "the province is already safe") return
+        // BEFORE `conflictAbilitySources()` is ever consulted. Measured live:
+        // the deck gate said fire in 14.8% of evaluations and the Action
+        // resolved in 0 of 64 games, every one of them lost to
+        // `attack-already-breaking`. Same marker Doji Challenger needs, for the
+        // same reason. The policy still applies the deck gate on top, so the
+        // window is only held open when the Action would actually be used.
+        actionBeforePass: true,
         oncePerRound: true
     }),
 

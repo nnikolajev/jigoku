@@ -14,6 +14,12 @@
  */
 export type StrongholdDefenseAxis = 'military' | 'political';
 
+/** A province priced against each conflict axis. */
+export interface ProvinceStrengthByAxis {
+    military: number;
+    political: number;
+}
+
 export interface StrongholdDefenseProfile {
     enabled: boolean;
     // Fair bots follow the user's "keep the strongest defender" rule. Seed 3
@@ -84,6 +90,13 @@ export interface StrongholdDefenseInput {
     active: boolean;
     opponentStrongholdExposed?: boolean;
     strongholdProvinceStrength: number;
+    // The same province priced per conflict AXIS. A province whose strength is
+    // conditional on the conflict type is a different wall depending on what it
+    // is attacked with: Entrenched Position is 5 against a political attack and
+    // 10 against a military one. Absent (or missing an axis) falls back to the
+    // scalar above, which is V1 exactly for every province with a flat
+    // strength.
+    strongholdProvinceStrengthByAxis?: Partial<ProvinceStrengthByAxis>;
     myReady: StrongholdDefenseCharacter[];
     opponentReady: StrongholdDefenseCharacter[];
     opponentConflictsRemaining?: number;
@@ -149,7 +162,7 @@ export class StrongholdDefenseTactics {
         const free = input.myReady.filter((card) => freeUuids.has(String(card.uuid)));
         const reservable = input.myReady.filter((card) => !freeUuids.has(String(card.uuid)));
         const survivesWith = (defenders: StrongholdDefenseCharacter[]) =>
-            this.survives(defenders.concat(free), axes, threats, input.strongholdProvinceStrength, disables);
+            this.survives(defenders.concat(free), axes, threats, input, disables);
         // Both players are one province from defeat. The bot has the current
         // conflict opportunity, so race for the enemy stronghold before the
         // opponent gets a counterattack.
@@ -229,10 +242,13 @@ export class StrongholdDefenseTactics {
             return false;
         }
         const outer = Math.max(0, Number(input.weakestOuterProvinceStrength) || 0);
-        const stronghold = Math.max(0, Number(input.strongholdProvinceStrength) || 0);
-        const required = (outer + stronghold) * Math.max(0, Number(this.profile.preStrongholdThreatRatio) || 0) +
-            (Number(this.profile.preStrongholdThreatBuffer) || 0);
-        return AXES.some((axis) => this.boardSkill(input.opponentReady, axis) >= required);
+        const ratio = Math.max(0, Number(this.profile.preStrongholdThreatRatio) || 0);
+        const buffer = Number(this.profile.preStrongholdThreatBuffer) || 0;
+        // The bar an attack has to clear is what BOTH provinces are worth
+        // against that axis, so the stronghold half is priced per axis too.
+        return AXES.some((axis) =>
+            this.boardSkill(input.opponentReady, axis) >=
+                (outer + this.provinceStrength(input, axis)) * ratio + buffer);
     }
 
     private result(mode: StrongholdDefenseMode, reserveUuids: string[], forceAllAttackers: boolean,
@@ -263,10 +279,17 @@ export class StrongholdDefenseTactics {
     }
 
     private survives(defenders: StrongholdDefenseCharacter[], axes: StrongholdDefenseAxis[],
-        threats: Record<StrongholdDefenseAxis, number>, strongholdStrength: number, disables: number): boolean {
-        const province = Math.max(0, Number(strongholdStrength) || 0);
+        threats: Record<StrongholdDefenseAxis, number>, input: StrongholdDefenseInput, disables: number): boolean {
         return axes.every((axis) =>
-            province + this.skillAfterDisables(defenders, axis, disables) > threats[axis] + this.profile.skillBuffer);
+            this.provinceStrength(input, axis) + this.skillAfterDisables(defenders, axis, disables) >
+                threats[axis] + this.profile.skillBuffer);
+    }
+
+    /** Province strength against one axis, falling back to the scalar. */
+    private provinceStrength(input: StrongholdDefenseInput, axis: StrongholdDefenseAxis): number {
+        const byAxis = Number(input.strongholdProvinceStrengthByAxis?.[axis]);
+        const strength = Number.isFinite(byAxis) ? byAxis : Number(input.strongholdProvinceStrength);
+        return Math.max(0, strength || 0);
     }
 
     private skillAfterDisables(cards: StrongholdDefenseCharacter[], axis: StrongholdDefenseAxis, disables: number): number {

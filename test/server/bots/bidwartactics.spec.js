@@ -81,7 +81,11 @@ describe('BidWarTactics', function() {
             const ids = deckIds(loadScorpionBidWarDeck());
             const profile = resolveDeckProfile(ids, deriveDeckStrategy(ids));
             expect(profile.bidWar).toBeDefined();
-            expect(profile.strongholdProvinceId).toBe('honor-s-reward');
+            // Entrenched Position took the slot in the province revision:
+            // +2.49pp over 48 bases, positive in all four independent base
+            // sets (docs/bot-entrenched-position-province.md). Honor's Reward
+            // stays in the deck as an outer province.
+            expect(profile.strongholdProvinceId).toBe('entrenched-position');
             expect(profile.personalHonor.reverseHonorCardIds).toContain('shosuro-sadako');
             expect(profile.personalHonor.ownDishonorCostSourceIds).toContain('calling-in-favors');
         });

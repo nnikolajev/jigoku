@@ -95,7 +95,7 @@ import { DragonAttachmentTactics } from './DragonAttachmentTactics.js';
 import { StrongholdDefenseTactics } from './StrongholdDefenseTactics.js';
 import { RevealReadyPolicy } from './RevealReadyPolicy.js';
 import type { RevealReadyProvinces } from './RevealReadyPolicy';
-import type { StrongholdDefenseCharacter, StrongholdDefensePlan } from './StrongholdDefenseTactics';
+import type { ProvinceStrengthByAxis, StrongholdDefenseCharacter, StrongholdDefensePlan } from './StrongholdDefenseTactics';
 import { CraneBaselineTactics } from './CraneBaselineTactics.js';
 import { AttachmentControlTactics, isNegativeAttachmentId } from './AttachmentControlTactics.js';
 import { PersonalHonorTactics, PERSONAL_HONOR_DEFAULTS } from './PersonalHonorTactics.js';
@@ -109,7 +109,7 @@ import {
 import type { ProvinceKnowledgeSnapshot, ScoutedAttackReadiness } from './UnicornRevealTactics';
 import type { HonorPersistenceBoard, PersonalHonorConflict } from './PersonalHonorTactics';
 import MulliganTactics from './MulliganTactics.js';
-import type { MulliganPolicyVariant } from './MulliganTactics';
+import type { MulliganPolicyVariant, RefillProvinceState } from './MulliganTactics';
 import BoardAwareDynastyTactics from './BoardAwareDynastyTactics.js';
 import type { DynastyCharacterInfo, DynastyHandCard } from './BoardAwareDynastyTactics';
 import ConflictDeckSafetyTactics from './ConflictDeckSafetyTactics.js';
@@ -291,6 +291,11 @@ interface DecideContext {
     // the serialized dynasty card only exposes its province location.
     income?: number;
     provinceIdsByLocation?: Record<string, string>;
+    // Live contents and live refill amount of the bot's OWN provinces. Neither
+    // is derivable from the serialized board: a facedown dynasty card publishes
+    // no id, and the number a province refills TO is a persistent EFFECT that a
+    // broken province no longer has. See `RefillProvinceState`.
+    provinceRefill?: Record<string, RefillProvinceState>;
     provinceKnowledge?: ProvinceKnowledgeSnapshot;
     completedConflictsThisRound?: number;
     opponentCompletedConflictsThisRound?: number;
@@ -416,6 +421,10 @@ interface DecideContext {
     // Exact live total for our stronghold province, including stronghold and
     // holding modifiers even while the province remains facedown.
     strongholdProvinceStrength?: number;
+    // The same province priced per conflict axis, present only when the two
+    // differ (Entrenched Position: 10 military / 5 political). Undefined keeps
+    // the scalar, which is V1 for every flat-strength province.
+    strongholdProvinceStrengthByAxis?: ProvinceStrengthByAxis;
     // Exact weakest unbroken outer province total, including holdings and
     // active effects. Used only by the two-break counterattack-risk planner.
     weakestOuterProvinceStrength?: number;
@@ -1483,7 +1492,8 @@ class JigokuBotPolicy {
                 profile,
                 context.omniscient,
                 context.strongholdProvinceStrength,
-                context.weakestOuterProvinceStrength
+                context.weakestOuterProvinceStrength,
+                context.strongholdProvinceStrengthByAxis
             );
             // Same last-window exception as the elemental-ring prompt: with no
             // conflict coming from either side, passing strands Agasha
@@ -1554,6 +1564,13 @@ class JigokuBotPolicy {
                     // same tick instead of retrying the stale UUID forever.
                     cards: this.findVisibleCards(me).filter((card: any) =>
                         !card?.uuid || !this.isAttempted('cardClicked', [card.uuid])),
+                    // An all-or-nothing refill province is settled from the
+                    // ENGINE's own view of it, not from this prompt: the list
+                    // above shrinks as the bot clicks, a facedown dynasty card
+                    // publishes no id, and a broken province's refill amount is
+                    // an effect it no longer has.
+                    provinceRefill: context.provinceRefill,
+                    playerName: String(me?.name || ''),
                     board: this.myCharactersInPlay(me),
                     currentFate: me?.stats?.fate ?? 0,
                     income: context.income ?? 7,
@@ -1565,7 +1582,8 @@ class JigokuBotPolicy {
                     ? this.cardClickDecision(pick.card, pick.reason)
                     : this.buttonDecision(this.findButton(buttons, ['done']), pick.reason);
             }
-            return this.dynastyDiscardDecision(playerState, me, buttons, duelist, attachmentTower);
+            return this.dynastyDiscardDecision(playerState, me, buttons, duelist, attachmentTower,
+                mulligan, context.provinceRefill, context.roundNumber ?? 1);
         }
 
         if(promptTitle === 'Initiate Conflict' || CONFLICT_TITLE_REGEX.test(promptTitle)) {
@@ -2708,7 +2726,8 @@ class JigokuBotPolicy {
     }
 
     private strongholdDefensePlan(me: any, opponent: any, profile: DeckProfile,
-        omni?: Omniscient, exactStrength?: number, exactWeakestOuterStrength?: number): StrongholdDefensePlan {
+        omni?: Omniscient, exactStrength?: number, exactWeakestOuterStrength?: number,
+        exactStrengthByAxis?: ProvinceStrengthByAxis): StrongholdDefensePlan {
         const strongholdProfile = profile.strongholdDefense || DEFAULT_PROFILE.strongholdDefense;
         const visibleProvince = (me?.strongholdProvince || []).find((card: any) =>
             card.isProvince !== false && (card.isProvince || card.type === 'province' || card.facedown));
@@ -2736,6 +2755,7 @@ class JigokuBotPolicy {
             active: mustAttackStronghold(me),
             opponentStrongholdExposed: mustAttackStronghold(opponent),
             strongholdProvinceStrength: strength,
+            strongholdProvinceStrengthByAxis: exactStrengthByAxis,
             myReady: this.readyCharacters(me).map((card) => this.strongholdDefenseCharacter(card)),
             opponentReady: theirReady.map((card) => this.strongholdDefenseCharacter(card)),
             opponentConflictsRemaining: opponent?.stats?.conflictsRemaining,
@@ -3924,7 +3944,8 @@ class JigokuBotPolicy {
         const conflictMatch = promptTitle.match(CONFLICT_TITLE_REGEX);
         const conflictType = conflictMatch ? conflictMatch[1].toLowerCase() : null;
         const strongholdPlan = this.strongholdDefensePlan(
-            me, opponent, profile, omni, strongholdProvinceStrength, weakestOuterProvinceStrength);
+            me, opponent, profile, omni, strongholdProvinceStrength, weakestOuterProvinceStrength,
+            decisionContext.strongholdProvinceStrengthByAxis);
         const reserved = new Set(strongholdPlan.reserveUuids);
         const selectedElement = conflictMatch ? conflictMatch[2].toLowerCase() : undefined;
         const selectedProvince = PROVINCE_KEYS.map((key) => opponent?.provinces?.[key] || [])
@@ -9795,16 +9816,43 @@ class JigokuBotPolicy {
         return this.buttonDecision(this.findButton(buttons, ['done']), 'finish-mulligan');
     }
 
-    private dynastyDiscardDecision(playerState: any, me: any, buttons: any[], duelist: DuelTactics | null = null, attachmentTower: DragonAttachmentTactics | null = null): BotDecision | null {
+    private dynastyDiscardDecision(playerState: any, me: any, buttons: any[], duelist: DuelTactics | null = null,
+        attachmentTower: DragonAttachmentTactics | null = null, mulligan?: MulliganTactics,
+        provinceRefill?: Record<string, RefillProvinceState>, roundNumber = 1): BotDecision | null {
         // End-of-round province cleanup: discard leftover faceup dynasty cards
         // so provinces refill with fresh cards, then confirm with Done. Never
         // discard a holding — holdings (Kaiu Wall especially) are permanent
         // board value and throwing them away is always a loss.
         const board = this.myCharactersInPlay(me);
+        // ...except on an all-or-nothing refill province. City of the Rich Frog
+        // refills to three, and `Player.replaceDynastyCard` refills only from
+        // EMPTY, so a holding left there caps the province at that holding for
+        // the rest of the game. Same plan the adaptive path uses.
+        const refillProvinces = mulligan
+            ? mulligan.refillProvincePlan({
+                cards: this.findVisibleCards(playerState),
+                board: board,
+                currentFate: me?.stats?.fate ?? 0,
+                income: 0,
+                roundNumber: roundNumber,
+                provinceRefill: provinceRefill,
+                playerName: String(me?.name || '')
+            })
+            : [];
+        const forcedDiscardUuids = new Set<string>();
+        const forcedKeepUuids = new Set<string>();
+        for(const decision of refillProvinces) {
+            for(const uuid of decision.uuids) {
+                (decision.keep ? forcedKeepUuids : forcedDiscardUuids).add(uuid);
+            }
+        }
         const leftover = this.findVisibleCards(playerState).find((card) =>
-            card.selectable && !card.selected && card.uuid && card.type !== 'holding' &&
-            !(duelist && duelist.shouldKeepDynasty(card.id, board)) &&
-            !(attachmentTower && attachmentTower.shouldKeepDynasty(card.id, board)) &&
+            card.selectable && !card.selected && card.uuid &&
+            !forcedKeepUuids.has(String(card.uuid)) &&
+            (forcedDiscardUuids.has(String(card.uuid)) ||
+                (card.type !== 'holding' &&
+                    !(duelist && duelist.shouldKeepDynasty(card.id, board)) &&
+                    !(attachmentTower && attachmentTower.shouldKeepDynasty(card.id, board)))) &&
             !this.isAttempted('cardClicked', [card.uuid]));
         if(leftover) {
             return this.cardClickDecision(leftover, 'discard-leftover-dynasty');

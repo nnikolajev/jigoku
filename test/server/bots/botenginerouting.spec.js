@@ -125,7 +125,7 @@ describe('Jigoku bot engine routing', function() {
         };
         const withoutShugenja = () => resolveDeckProfile([], deriveDeckStrategy([]));
         const withShugenja = () => resolveDeckProfile(
-            ['kyuden-isawa', 'vassal-fields'], deriveDeckStrategy(['kyuden-isawa'])
+            ['kyuden-isawa', 'offerings-to-the-kami'], deriveDeckStrategy(['kyuden-isawa'])
         );
         const arm = { shugenja: { clarityPoliticalOnly: false }, drawBidding: { deckExhaustionAware: false } };
 

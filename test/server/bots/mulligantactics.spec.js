@@ -174,6 +174,146 @@ describe('MulliganTactics', function() {
         )).toBe(kaezin);
     });
 
+    describe('all-or-nothing refill provinces (City of the Rich Frog)', function() {
+        // `Player.replaceDynastyCard` refuses to refill a province that still
+        // holds ANY dynasty card, and City of the Rich Frog refills to THREE.
+        // So the fate-phase answer there is per PROVINCE and binary: keep the
+        // lot, or empty the lot. A partial discard throws cards away AND gets
+        // nothing back.
+        const frogProfile = (ids, min = 2) => ({
+            ...DEFAULT_MULLIGAN_PROFILE,
+            refillProvincePriorityCharacterIds: ids,
+            refillProvinceMinPriorityCharacters: min
+        });
+        const state = (faceupCards, overrides = {}) => ({
+            'province 1': {
+                provinceId: 'city-of-the-rich-frog',
+                broken: false,
+                refillTo: 3,
+                faceupCards,
+                facedownCards: 0,
+                ...overrides
+            }
+        });
+        const frogCard = (uuid, id, type = 'character') => ({ uuid, id, type });
+
+        it('empties the province, holdings included, below the priority bar', function() {
+            const tactics = new MulliganTactics(frogProfile(['togashi-mitsu-2']));
+            const plan = tactics.refillProvincePlan(input([], {}, {
+                provinceRefill: state([
+                    frogCard('a', 'togashi-mitsu-2'),
+                    frogCard('b', 'filler-body'),
+                    frogCard('c', 'shintao-monastery', 'holding')
+                ])
+            }));
+
+            expect(plan.length).toBe(1);
+            expect(plan[0].keep).toBe(false);
+            expect(plan[0].priorityCount).toBe(1);
+            expect(plan[0].uuids).toEqual(['a', 'b', 'c']);
+        });
+
+        it('keeps the whole province once the priority bar is met', function() {
+            const tactics = new MulliganTactics(frogProfile(['togashi-mitsu-2', 'togashi-ichi']));
+            const plan = tactics.refillProvincePlan(input([], {}, {
+                provinceRefill: state([
+                    frogCard('a', 'togashi-mitsu-2'),
+                    frogCard('b', 'togashi-ichi'),
+                    frogCard('c', 'filler-body')
+                ])
+            }));
+
+            expect(plan[0].keep).toBe(true);
+            expect(plan[0].priorityCount).toBe(2);
+        });
+
+        it('discards a kept holding off the province and keeps holdings elsewhere', function() {
+            const tactics = new MulliganTactics({
+                ...frogProfile([]),
+                endHoldingLimit: { weak: 3, developing: 3, strong: 3 },
+                keepHoldingIds: ['forgotten-library']
+            });
+            const onFrog = card('frog-holding', 'forgotten-library', 'holding', 'province 1');
+            const elsewhere = card('other-holding', 'forgotten-library', 'holding', 'province 2');
+
+            const pick = tactics.pickDynastyDiscard(input([onFrog, elsewhere], {}, {
+                provinceRefill: state([frogCard('frog-holding', 'forgotten-library', 'holding')])
+            }));
+
+            expect(pick.card).toBe(onFrog);
+        });
+
+        it('leaves a BROKEN province alone: it is blank, so it refills to 1', function() {
+            // `ProvinceCard.isBlank()` is true while broken, which switches the
+            // card's own `refillProvinceTo(3)` off. The controller reads the
+            // live effect, so a broken Rich Frog arrives here as refillTo 1 and
+            // is an ordinary one-card province.
+            const tactics = new MulliganTactics(frogProfile([]));
+            const plan = tactics.refillProvincePlan(input([], {}, {
+                provinceRefill: state([frogCard('a', 'filler-body')], { broken: true, refillTo: 1 })
+            }));
+
+            expect(plan).toEqual([]);
+        });
+
+        it('leaves the province alone while a facedown card blocks the refill', function() {
+            // A facedown dynasty card is not offered by the fate phase's discard
+            // prompt, so the province cannot reach empty and no refill is
+            // coming. Emptying the faceup half gives up cards for nothing.
+            const tactics = new MulliganTactics(frogProfile([]));
+            const plan = tactics.refillProvincePlan(input([], {}, {
+                provinceRefill: state([frogCard('a', 'filler-body')], { facedownCards: 2 })
+            }));
+
+            expect(plan).toEqual([]);
+        });
+
+        it('is inert on a one-card province and off with an empty id list', function() {
+            const tactics = new MulliganTactics(frogProfile([]));
+            expect(tactics.refillProvincePlan(input([], {}, {
+                provinceRefill: {
+                    'province 2': {
+                        provinceId: 'manicured-garden',
+                        broken: false,
+                        refillTo: 1,
+                        faceupCards: [frogCard('a', 'filler-body')],
+                        facedownCards: 0
+                    }
+                }
+            }))).toEqual([]);
+
+            const off = new MulliganTactics({ ...frogProfile([]), refillProvinceIds: [] });
+            expect(off.refillProvincePlan(input([], {}, {
+                provinceRefill: state([frogCard('a', 'filler-body')])
+            }))).toEqual([]);
+        });
+
+        it('gives every Rich Frog deck a short priority list', function() {
+            const cases = [
+                {
+                    ids: ['illustrious-forge'], strategy: { attachmentTower: true },
+                    expected: ['niten-master', 'togashi-yokuni']
+                },
+                {
+                    ids: ['sacred-sanctuary'], strategy: { monk: true },
+                    expected: ['togashi-mitsu-2', 'togashi-tadakatsu', 'togashi-ichi']
+                },
+                {
+                    ids: [], strategy: { lionHonor: true },
+                    expected: ['akodo-toturi', 'honored-general']
+                },
+                {
+                    ids: ['hayaken-no-shiro', 'ashigaru-levy'], strategy: { aggressive: true },
+                    expected: ['akodo-toturi', 'honored-general']
+                }
+            ];
+            for(const item of cases) {
+                const profile = resolveDeckProfile(item.ids, item.strategy);
+                expect(profile.mulligan.refillProvincePriorityCharacterIds).toEqual(item.expected);
+            }
+        });
+    });
+
     it('provides injectable mulligan profiles for every supported deck family', function() {
         const cases = [
             {
@@ -181,7 +321,7 @@ describe('MulliganTactics', function() {
                 check: (profile) => profile.mulligan.preferredCharacterIds.includes('niten-master')
             },
             {
-                ids: ['vassal-fields'], strategy: { shugenja: true },
+                ids: ['offerings-to-the-kami'], strategy: { shugenja: true },
                 check: (profile) => profile.mulligan.preferredCharacterIds.includes('asako-togama')
             },
             {

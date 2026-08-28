@@ -55,11 +55,14 @@ describe('RebirthTactics', function() {
             expect(profileFromStrategy(undefined).rebirth).toBeUndefined();
         });
 
-        it('resolves the deck override and parks Retire to the Brotherhood under the stronghold', function() {
+        it('resolves the deck override and parks Entrenched Position under the stronghold', function() {
             const ids = deckIds();
             const profile = resolveDeckProfile(ids, deriveDeckStrategy(ids));
             expect(profile.overrideNames).toContain('phoenix-phoenix-fushicho-rotation');
-            expect(profile.strongholdProvinceId).toBe('retire-to-the-brotherhood');
+            // Entrenched Position took the slot in the province revision:
+            // +5.69pp (docs/bot-entrenched-position-province.md). Retire to
+            // the Brotherhood stays in the deck as an outer province.
+            expect(profile.strongholdProvinceId).toBe('entrenched-position');
             // Ring steering has exactly one owner here.
             expect(profile.shugenja.ringCardBonus).toBe(0);
         });

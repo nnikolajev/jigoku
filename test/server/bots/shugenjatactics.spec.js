@@ -7,7 +7,7 @@ const { profileFromStrategy, resolveDeckProfile } = require('../../../build/serv
 describe('Phoenix Shugenja tactics', function() {
     const tactics = new ShugenjaTactics(SHUGENJA_DEFAULTS);
     const strategy = deriveDeckStrategy(['kyuden-isawa']);
-    const profile = resolveDeckProfile(['kyuden-isawa', 'vassal-fields'], strategy);
+    const profile = resolveDeckProfile(['kyuden-isawa', 'offerings-to-the-kami'], strategy);
     // The disguise/Clarity gates ship ON (see docs/bot-phoenix-replay-2026-08-23.md).
     // Behaviour they deliberately removed is still exercised through this arm,
     // which is exactly the JSON an A/B run injects to revert them.
@@ -1310,7 +1310,7 @@ describe('Phoenix Shugenja tactics', function() {
         // Both Kyuden Isawa decks spread SHUGENJA_DEFAULTS in their own
         // overlay, so neither can silently reset the gates.
         for(const ids of [
-            ['kyuden-isawa', 'vassal-fields'],
+            ['kyuden-isawa', 'offerings-to-the-kami'],
             ['kyuden-isawa', 'fushicho', 'city-of-the-rich-frog']
         ]) {
             const resolved = resolveDeckProfile(ids, deriveDeckStrategy(ids)).shugenja;

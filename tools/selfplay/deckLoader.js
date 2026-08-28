@@ -63,16 +63,22 @@ function buildDeck(decklist, cardsById) {
     return deck;
 }
 
+// Load a deck by fixture slug: the decklist plus every card fixture the list
+// needs, indexed by id.
+function loadBySlug(slug, cardFiles) {
+    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, `${slug}-decklist.json`), 'utf8'));
+    return buildDeck(decklist, indexFixtureCards(cardFiles));
+}
+
 // Default: the aggressive Unicorn Cavalry precon from the cached fixtures.
 function loadUnicornDeck() {
-    return buildDeck(loadDecklist(), loadCards());
+    return loadBySlug('unicorn', ['unicorn-cards.json']);
 }
 
 // Unicorn Reveal (EmeraldDB 6057d28e) -- Shiro Shinjo economy, province
 // reveal/redirect effects, and a late Scouted Terrain stronghold attack.
 function loadUnicornRevealDeck() {
-    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'unicorn-reveal-decklist.json'), 'utf8'));
-    return buildDeck(decklist, indexFixtureCards(['unicorn-reveal-cards.json']));
+    return loadBySlug('unicorn-reveal', ['unicorn-reveal-cards.json']);
 }
 
 // Crane Baseline (EmeraldDB 4736f7c0) — the standard win-rate opponent and
@@ -80,7 +86,10 @@ function loadUnicornRevealDeck() {
 function indexFixtureCards(fileNames) {
     const cardsById = {};
     for(const fileName of fileNames) {
-        const cards = JSON.parse(fs.readFileSync(path.join(FIXTURES, fileName), 'utf8'));
+        const parsed = JSON.parse(fs.readFileSync(path.join(FIXTURES, fileName), 'utf8'));
+        // The oldest fixtures are already id-keyed maps; the importer writes
+        // arrays. Accept both so one loader path covers every deck.
+        const cards = Array.isArray(parsed) ? parsed : Object.values(parsed);
         for(const card of cards) {
             cardsById[card.id] = card;
         }
@@ -100,13 +109,7 @@ function loadCraneDeck() {
 
 // Crab Defense (EmeraldDB 3a8006b7) — holding-engine / defensive precon.
 function loadCrabDeck() {
-    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'crab-decklist.json'), 'utf8'));
-    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'crab-cards.json'), 'utf8'));
-    const cardsById = {};
-    for(const card of cardsArray) {
-        cardsById[card.id] = card;
-    }
-    return buildDeck(decklist, cardsById);
+    return loadBySlug('crab', ['crab-cards.json']);
 }
 
 // Crab "Berserker Sacrifice" (EmeraldDB 59c4d29f) — Castle of the Forgotten
@@ -116,19 +119,12 @@ function loadCrabDeck() {
 // Your Duty). Iron Mine / Reprieve / Ceaseless Duty keep the sacrificed body
 // on the table while the sacrifice effect still resolves.
 function loadCrabSacrificeDeck() {
-    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'crab-sacrifice-decklist.json'), 'utf8'));
-    return buildDeck(decklist, indexFixtureCards(['crab-sacrifice-cards.json']));
+    return loadBySlug('crab-sacrifice', ['crab-sacrifice-cards.json']);
 }
 
 // Scorpion "Poison Mill" v0.6 (EmeraldDB 914dc4d4) — dishonor/mill deck.
 function loadScorpionDeck() {
-    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'scorpion-decklist.json'), 'utf8'));
-    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'scorpion-cards.json'), 'utf8'));
-    const cardsById = {};
-    for(const card of cardsArray) {
-        cardsById[card.id] = card;
-    }
-    return buildDeck(decklist, cardsById);
+    return loadBySlug('scorpion', ['scorpion-cards.json']);
 }
 
 // Scorpion "Bid War" (EmeraldDB 2bf73f61) — Kyuden Bayushi honor-dial control.
@@ -137,13 +133,7 @@ function loadScorpionDeck() {
 // gap into cards (Regal Bearing), removal (I Can Swim) and debuffs (Make an
 // Opening). Duty is the safety net that lets it live down there.
 function loadScorpionBidWarDeck() {
-    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'scorpion-bidwar-decklist.json'), 'utf8'));
-    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'scorpion-bidwar-cards.json'), 'utf8'));
-    const cardsById = {};
-    for(const card of cardsArray) {
-        cardsById[card.id] = card;
-    }
-    return buildDeck(decklist, cardsById);
+    return loadBySlug('scorpion-bidwar', ['scorpion-bidwar-cards.json']);
 }
 
 // Lion Duelist v0.3 (EmeraldDB 105158ff) — Kyuden Ikoma honor-switch Lion. Bids low
@@ -157,70 +147,34 @@ function loadLionDuelistDeck() {
 
 // Lion Swarm v0.3 (EmeraldDB 27a913d1) — cheap-body province-trading rush.
 function loadLionDeck() {
-    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'lion-decklist.json'), 'utf8'));
-    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'lion-cards.json'), 'utf8'));
-    const cardsById = {};
-    for(const card of cardsArray) {
-        cardsById[card.id] = card;
-    }
-    return buildDeck(decklist, cardsById);
+    return loadBySlug('lion', ['lion-cards.json']);
 }
 
 function loadPhoenixDeck() {
-    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'phoenix-decklist.json'), 'utf8'));
-    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'phoenix-cards.json'), 'utf8'));
-    const cardsById = {};
-    for(const card of cardsArray) {
-        cardsById[card.id] = card;
-    }
-    return buildDeck(decklist, cardsById);
+    return loadBySlug('phoenix', ['phoenix-cards.json']);
 }
 
 // Phoenix "Shugenja Spells" (EmeraldDB b260d778) — Kyuden Isawa spell
 // recursion, ring manipulation, and Display of Power province trades.
 function loadPhoenixShugenjaDeck() {
-    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'phoenix-shugenja-decklist.json'), 'utf8'));
-    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'phoenix-shugenja-cards.json'), 'utf8'));
-    const cardsById = {};
-    for(const card of cardsArray) {
-        cardsById[card.id] = card;
-    }
-    return buildDeck(decklist, cardsById);
+    return loadBySlug('phoenix-shugenja', ['phoenix-shugenja-cards.json']);
 }
 
 // Phoenix "Phoenix" (EmeraldDB 2c127136) — the Fushicho rebirth deck. Zero-fate
 // bodies cycle through the dynasty discard and come back off Fushicho's
 // leaves-play interrupt, Forebearer's Echoes and My Ancestor's Strength.
 function loadPhoenixPhoenixDeck() {
-    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'phoenix-phoenix-decklist.json'), 'utf8'));
-    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'phoenix-phoenix-cards.json'), 'utf8'));
-    const cardsById = {};
-    for(const card of cardsArray) {
-        cardsById[card.id] = card;
-    }
-    return buildDeck(decklist, cardsById);
+    return loadBySlug('phoenix-phoenix', ['phoenix-phoenix-cards.json']);
 }
 
 function loadDragonDeck() {
-    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-decklist.json'), 'utf8'));
-    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-cards.json'), 'utf8'));
-    const cardsById = {};
-    for(const card of cardsArray) {
-        cardsById[card.id] = card;
-    }
-    return buildDeck(decklist, cardsById);
+    return loadBySlug('dragon', ['dragon-cards.json']);
 }
 
 // Dragon "Attachments" (EmeraldDB ce8df8ae) — Iron Mountain Castle tower
 // deck with Crab splash.
 function loadDragonAttachmentsDeck() {
-    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-attachments-decklist.json'), 'utf8'));
-    const cardsArray = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'dragon-attachments-cards.json'), 'utf8'));
-    const cardsById = {};
-    for(const card of cardsArray) {
-        cardsById[card.id] = card;
-    }
-    return buildDeck(decklist, cardsById);
+    return loadBySlug('dragon-attachments', ['dragon-attachments-cards.json']);
 }
 
 // Crane "Courtier Honor" (EmeraldDB db118806) — Seven Fold Palace honor race.
@@ -247,11 +201,7 @@ function loadLionHonorDeck() {
 }
 
 function loadCraneDuelDeck() {
-    const decklist = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'craneduel-decklist.json'), 'utf8'));
-    return buildDeck(decklist, indexFixtureCards([
-        'craneduel-cards.json',
-        'craneduel-v03-extra-cards.json'
-    ]));
+    return loadBySlug('craneduel', ['craneduel-cards.json', 'craneduel-v03-extra-cards.json']);
 }
 
 module.exports = { buildDeck, loadCards, loadDecklist, loadUnicornDeck, loadUnicornRevealDeck, loadCraneDeck, loadCraneHonorDeck, loadCrabDeck, loadCrabSacrificeDeck, loadScorpionDeck, loadScorpionBidWarDeck, loadLionDeck, loadLionDuelistDeck, loadLionHonorDeck, loadPhoenixDeck, loadPhoenixShugenjaDeck, loadPhoenixPhoenixDeck, loadDragonDeck, loadDragonAttachmentsDeck, loadCraneDuelDeck, FIXTURES };

@@ -23,18 +23,19 @@ describe('DragonAttachmentTactics', function() {
     };
 
     describe('strategy and profile gating', function() {
-        it('uses the v0.5 EmeraldDB deck with the new attachment package', function() {
+        it('uses the v0.6 EmeraldDB deck with the new attachment package', function() {
             expect(dragonAttachmentDecklist.deck_id).toBe('ce8df8ae-ee05-4ab7-bc13-087a8fc092cb');
-            expect(dragonAttachmentDecklist.version_number).toBe('0.5');
+            expect(dragonAttachmentDecklist.version_number).toBe('0.6');
             expect(dragonAttachmentDecklist.cards['mountaintop-statuary']).toBe(3);
             for(const added of ['agasha-shunsen', 'agasha-taiko', 'waterfall-tattoo',
                 'self-understanding', 'the-stone-of-sorrows', 'revered-bonsho',
-                'restoration-of-balance', 'city-of-the-rich-frog']) {
+                'restoration-of-balance', 'city-of-the-rich-frog',
+                'entrenched-position']) {
                 expect(dragonAttachmentDecklist.cards[added]).withContext(added).toBeGreaterThan(0);
             }
             for(const removed of ['alchemical-laboratory', 'keen-warrior', 'ancestral-lands',
                 'hiruma-skirmisher', 'tattooed-wanderer', 'inventive-mirumoto',
-                'riot-in-the-streets', 'two-heavens-technique']) {
+                'riot-in-the-streets', 'two-heavens-technique', 'pilgrimage']) {
                 expect(dragonAttachmentDecklist.cards[removed]).withContext(removed).toBeUndefined();
             }
         });

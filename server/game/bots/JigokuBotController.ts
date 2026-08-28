@@ -30,6 +30,8 @@ import type { BotDecision, BotEngine, MenuCardInfo } from './BotEngine';
 import { getPlaybookEntry, deriveDeckStrategy } from './CardPlaybook.js';
 import type { DeckStrategy } from './CardPlaybook';
 import { resolveDeckProfile } from './DeckProfiles.js';
+import { BotTelemetry } from './BotTelemetry.js';
+import type { RefillProvinceState } from './MulliganTactics';
 import { MOVE_SOURCES, READY_SOURCES, moveSourceSpec, readySourceSpec } from './ReadyMovePlanner.js';
 import type { SequenceSourceTargets } from './ReadyMovePlanner';
 import type { DeckProfile } from './DeckProfiles';
@@ -50,7 +52,8 @@ import type Player from '../player';
 import type Ring from '../ring';
 import type BaseCard from '../basecard';
 import type { JigokuBotConfig } from './JigokuBotConfig';
-import { CharacterStatus, EffectNames, EventNames } from '../Constants';
+import { CharacterStatus, EffectNames, EventNames, PlayTypes } from '../Constants';
+import type { ProvinceStrengthByAxis, StrongholdDefenseAxis } from './StrongholdDefenseTactics';
 import { PlayAttachmentAction } from '../PlayAttachmentAction.js';
 
 interface BotTraceEntry {
@@ -125,6 +128,81 @@ class JigokuBotController {
         this.onStateChange = services.onStateChange;
         (this.game as any).on?.(EventNames.OnInitiateAbilityEffects, (event: any) =>
             this.recordDisplayOfPowerInitiated(event));
+        // Optional-called like the listener above it: the bot specs construct a
+        // controller over a stub game that has no emitter, and a hard call here
+        // fails every one of them.
+        this.game.on?.(EventNames.OnCardPlayed, (event: any) => this.recordProvincePlay(event));
+        this.game.on?.(EventNames.OnPhaseStarted, (event: any) => this.recordDynastyProvinceStock(event));
+    }
+
+    /**
+     * How full each of the bot's own provinces actually is when the dynasty
+     * phase opens.
+     *
+     * This is the number the Rich Frog rule exists to move, and it cannot be
+     * inferred from anything else: the province prints three cards, but
+     * `Player.replaceDynastyCard` refills only from EMPTY, so one card left
+     * behind in the fate phase caps it at one card for the rest of the game.
+     * A play census would show the province producing less without ever saying
+     * that this was why.
+     */
+    private recordDynastyProvinceStock(event: any): void {
+        if(!BotTelemetry.enabled || String(event?.phase || '') !== 'dynasty') {
+            return;
+        }
+        const player = this.player;
+        if(!player) {
+            return;
+        }
+        for(const province of player.getProvinces?.() || []) {
+            const location = String(province?.location || '');
+            if(!location) {
+                continue;
+            }
+            const cards = player.getDynastyCardsInProvince?.(location) || [];
+            BotTelemetry.record('province-stock', () => ({
+                player: String(player.name || ''),
+                location: location,
+                provinceId: String(province?.id || ''),
+                broken: !!province?.isBroken,
+                cards: cards.length,
+                round: this.game.roundNumber
+            }));
+        }
+    }
+
+    /**
+     * Census of what the bot actually buys out of each province.
+     *
+     * The question a refill rule has to answer is whether the province is
+     * producing cards the bot PLAYS, and no win rate can say that. `DynastyCardAction`
+     * publishes `originalLocation` and `playType`, and the province card sitting
+     * at that location names the province, so one listener covers every buy
+     * without touching a decision site.
+     *
+     * `BotTelemetry` is a global static sink and every controller in the game
+     * shares it, so this filters to its OWN seat -- otherwise a two-bot game
+     * records each play twice and attributes half of them to the wrong deck.
+     */
+    private recordProvincePlay(event: any): void {
+        if(!BotTelemetry.enabled || event?.cancelled ||
+            event?.playType !== PlayTypes.PlayFromProvince) {
+            return;
+        }
+        const player = event?.player;
+        if(!player || String(player?.name || '') !== String(this.config.playerName || '')) {
+            return;
+        }
+        const location = String(event?.originalLocation || '');
+        const province = player.getProvinceCardInProvince?.(location);
+        BotTelemetry.record('province-play', () => ({
+            player: String(player.name || ''),
+            location: location,
+            provinceId: String(province?.id || ''),
+            cardId: String(event?.card?.id || ''),
+            cardType: String(event?.card?.type || ''),
+            round: this.game.roundNumber
+        }));
     }
 
     // Information access is independent from seed-selected strategy.
@@ -215,6 +293,77 @@ class JigokuBotController {
         const strength = Number(rawStrength) +
             (card?.facedown ? this.facedownOwnBaseStrengthDelta(card) : 0);
         return Number.isFinite(strength) ? Math.max(strength, 0) : 0;
+    }
+
+    // Which conflict AXES a province's own conditional strength effect applies
+    // to, read from the printed text on the card record. The engine cannot
+    // answer the counterfactual the planner needs ("what is this province worth
+    // when a MILITARY attack arrives") — the condition closes over the live
+    // game — and nothing else in the serialized card says which type it keys
+    // on, so the printed text is the source, the same one
+    // `BaseCard.parseKeywords` parses for attachment restrictions. Both axes
+    // when the text names neither or both, which leaves a flat province exactly
+    // where it already was.
+    private conditionalStrengthAxes(card: any): StrongholdDefenseAxis[] {
+        const text = String(card?.cardData?.text || card?.text || '');
+        const military = text.includes('conflict-military');
+        const political = text.includes('conflict-political');
+        if(military === political) {
+            return ['military', 'political'];
+        }
+        return military ? ['military'] : ['political'];
+    }
+
+    // Our own province priced per conflict axis.
+    //
+    // `getStrength()` reports what the province is worth RIGHT NOW: a facedown
+    // province has its own effects switched off (`Effect.isEffectActive`), and
+    // a conflict-type condition is false outside a conflict of that type. The
+    // planner needs what the province will be worth when the attack it is
+    // planning against actually arrives, which for Entrenched Position is 10
+    // against military and 5 against political.
+    //
+    // So every non-base strength effect the engine has ALREADY registered for
+    // the card is settled against each axis: one that is currently suppressed
+    // is added to the axes it applies to, and one that is currently applied is
+    // subtracted from the axes it does NOT apply to. Nothing is constructed and
+    // nothing is applied, so this cannot change the game it is measuring. The
+    // base-strength half is handled by `liveProvinceStrength`.
+    private provinceStrengthByAxis(card: any): ProvinceStrengthByAxis {
+        const live = this.liveProvinceStrength(card);
+        const byAxis = { military: live, political: live };
+        const entries: any[] = Array.isArray(card?.persistentEffects) ? card.persistentEffects : [];
+        for(const entry of entries) {
+            const registered: any[] = Array.isArray(entry?.ref) ? entry.ref : [];
+            for(const effect of registered) {
+                const applied = effect?.effect;
+                if(applied?.type !== EffectNames.ModifyProvinceStrength) {
+                    continue;
+                }
+                const value = Number(applied.calculate
+                    ? applied.calculate(card, effect.context)
+                    : applied.getValue());
+                if(!Number.isFinite(value) || value === 0) {
+                    continue;
+                }
+                const axes = this.conditionalStrengthAxes(card);
+                if(axes.length === 2) {
+                    continue;
+                }
+                const active = !card?.facedown &&
+                    (!effect.condition || effect.condition(effect.context));
+                const militaryApplies = axes.includes('military');
+                if(active) {
+                    // Applied right now, so `getStrength()` already carries it
+                    // on BOTH readings. Take it back off the axis it does not
+                    // actually apply to.
+                    byAxis[militaryApplies ? 'political' : 'military'] -= value;
+                } else {
+                    byAxis[militaryApplies ? 'military' : 'political'] += value;
+                }
+            }
+        }
+        return { military: Math.max(0, byAxis.military), political: Math.max(0, byAxis.political) };
     }
 
     private buildOmniscient(me: Player) {
@@ -536,11 +685,27 @@ class JigokuBotController {
     // holdings + current effects. `strengthSummary` intentionally hides this
     // number while facedown.
     private strongholdProvinceStrength(player: Player): number | undefined {
+        const province = this.ownStrongholdProvince(player);
+        return province ? this.liveProvinceStrength(province) : undefined;
+    }
+
+    private ownStrongholdProvince(player: Player): any {
         const provinces: any[] = typeof (player as any).getProvinces === 'function'
             ? (player as any).getProvinces() : [];
-        const province = provinces.find((card) =>
+        return provinces.find((card) =>
             card?.location === 'stronghold province' && card.isProvince !== false);
-        return province ? this.liveProvinceStrength(province) : undefined;
+    }
+
+    // Undefined for a province with no conflict-type-conditional strength, so
+    // the planner keeps using the scalar and V1 is unchanged for every deck
+    // whose stronghold province prints a flat number.
+    private strongholdProvinceStrengthByAxis(player: Player): ProvinceStrengthByAxis | undefined {
+        const province = this.ownStrongholdProvince(player);
+        if(!province) {
+            return undefined;
+        }
+        const byAxis = this.provinceStrengthByAxis(province);
+        return byAxis.military === byAxis.political ? undefined : byAxis;
     }
 
     private weakestOuterProvinceStrength(player: Player): number | undefined {
@@ -660,6 +825,7 @@ class JigokuBotController {
                         ? (player as any).getTotalIncome()
                         : 7,
                     provinceIdsByLocation: this.provinceIdsByLocation(player),
+                    provinceRefill: this.provinceRefillState(player),
                     provinceKnowledge: this.provinceKnowledgeSnapshot(player),
                     completedConflictsThisRound: ((this.game as any).conflictRecord || [])
                         .filter((record: any) => record?.completed).length,
@@ -746,6 +912,7 @@ class JigokuBotController {
                         ? this.drawBidContext(player)
                         : undefined,
                     strongholdProvinceStrength: this.strongholdProvinceStrength(player),
+                    strongholdProvinceStrengthByAxis: this.strongholdProvinceStrengthByAxis(player),
                     weakestOuterProvinceStrength: this.weakestOuterProvinceStrength(player),
                     // Public visible defender ability; every seed may protect
                     // its participant immediately when that defender can bow.
@@ -1811,6 +1978,55 @@ class JigokuBotController {
             };
         }
         return Object.keys(result).length > 0 ? result : undefined;
+    }
+
+    /**
+     * The bot's own provinces as the ENGINE holds them, for the fate-phase
+     * discard decision.
+     *
+     * `Player.replaceDynastyCard` refuses to refill a province that still holds
+     * ANY dynasty card, and refills it by the amount a persistent effect on the
+     * province names (`EffectNames.RefillProvinceTo`, 1 when absent). Both facts
+     * are invisible in the serialized board:
+     *
+     *   * a BROKEN province is blank (`ProvinceCard.isBlank`), so it has lost
+     *     that effect and refills to 1 -- a broken City of the Rich Frog is an
+     *     ordinary one-card province for the rest of the game, and a card-id
+     *     list would still call it a three-card one;
+     *   * a facedown dynasty card publishes neither id nor type, and the fate
+     *     phase does not offer it for discard, so its presence means the
+     *     province cannot reach empty this round at all.
+     *
+     * Read, never constructed: `mostRecentEffect` is the same accessor the
+     * refill itself uses, so this cannot disagree with the engine.
+     */
+    private provinceRefillState(player: Player): Record<string, RefillProvinceState> | undefined {
+        // Optional-called: this runs on the decision path for every prompt, and
+        // the bot specs drive the controller with a stub player that has no
+        // province API at all.
+        const provinces = player.getProvinces?.() || [];
+        const state: Record<string, RefillProvinceState> = {};
+        for(const province of provinces) {
+            const location = String(province?.location || '');
+            const id = String(province?.id || province?.cardData?.id || '');
+            if(!location || !id) {
+                continue;
+            }
+            const cards = player.getDynastyCardsInProvince?.(location) || [];
+            const faceup = cards.filter((card: any) => !card?.facedown);
+            state[location] = {
+                provinceId: id,
+                broken: !!province?.isBroken,
+                refillTo: Number(province?.mostRecentEffect?.(EffectNames.RefillProvinceTo)) || 1,
+                faceupCards: faceup.map((card: any) => ({
+                    uuid: String(card?.uuid || ''),
+                    id: String(card?.id || card?.cardData?.id || ''),
+                    type: String(card?.type || '')
+                })),
+                facedownCards: cards.length - faceup.length
+            };
+        }
+        return Object.keys(state).length > 0 ? state : undefined;
     }
 
     private provinceIdsByLocation(player: Player): Record<string, string> | undefined {

@@ -726,7 +726,11 @@ export const DEFAULT_PROFILE: DeckProfile = {
         endHoldingLimit: { ...DEFAULT_MULLIGAN_PROFILE.endHoldingLimit },
         holdingCopyLimitById: { ...DEFAULT_MULLIGAN_PROFILE.holdingCopyLimitById },
         keepHoldingIds: [...DEFAULT_MULLIGAN_PROFILE.keepHoldingIds],
-        keepDynastyCardIds: [...DEFAULT_MULLIGAN_PROFILE.keepDynastyCardIds]
+        keepDynastyCardIds: [...DEFAULT_MULLIGAN_PROFILE.keepDynastyCardIds],
+        endPhaseDiscardCardIds: [...DEFAULT_MULLIGAN_PROFILE.endPhaseDiscardCardIds],
+        refillProvinceIds: [...DEFAULT_MULLIGAN_PROFILE.refillProvinceIds],
+        refillProvincePriorityCharacterIds:
+            [...DEFAULT_MULLIGAN_PROFILE.refillProvincePriorityCharacterIds]
     },
     strongholdDefense: { ...STRONGHOLD_DEFENSE_DEFAULTS },
     provinceTargeting: {
@@ -1024,7 +1028,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             endHoldingLimit: { ...DEFAULT_PROFILE.mulligan.endHoldingLimit },
             holdingCopyLimitById: { ...DEFAULT_PROFILE.mulligan.holdingCopyLimitById },
             keepHoldingIds: [...DEFAULT_PROFILE.mulligan.keepHoldingIds],
-            keepDynastyCardIds: [...DEFAULT_PROFILE.mulligan.keepDynastyCardIds]
+            keepDynastyCardIds: [...DEFAULT_PROFILE.mulligan.keepDynastyCardIds],
+            endPhaseDiscardCardIds: [...DEFAULT_PROFILE.mulligan.endPhaseDiscardCardIds],
+            refillProvinceIds: [...DEFAULT_PROFILE.mulligan.refillProvinceIds],
+            refillProvincePriorityCharacterIds:
+                [...DEFAULT_PROFILE.mulligan.refillProvincePriorityCharacterIds]
         },
         strongholdDefense: { ...DEFAULT_PROFILE.strongholdDefense },
         provinceTargeting: {
@@ -1073,7 +1081,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             endHoldingLimit: { ...RUSH_MULLIGAN_PROFILE.endHoldingLimit },
             holdingCopyLimitById: { ...RUSH_MULLIGAN_PROFILE.holdingCopyLimitById },
             keepHoldingIds: [...RUSH_MULLIGAN_PROFILE.keepHoldingIds],
-            keepDynastyCardIds: [...RUSH_MULLIGAN_PROFILE.keepDynastyCardIds]
+            keepDynastyCardIds: [...RUSH_MULLIGAN_PROFILE.keepDynastyCardIds],
+            endPhaseDiscardCardIds: [...RUSH_MULLIGAN_PROFILE.endPhaseDiscardCardIds],
+            refillProvinceIds: [...RUSH_MULLIGAN_PROFILE.refillProvinceIds],
+            refillProvincePriorityCharacterIds:
+                [...RUSH_MULLIGAN_PROFILE.refillProvincePriorityCharacterIds]
         };
         profile.aggressiveFate = true;
         profile.boardAwareDynasty = {
@@ -1609,6 +1621,11 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             ],
             openingPaidConflictKeepLimit: 2,
             keepDynastyCardIds: ['honored-veterans', 'procedural-interference'],
+            // City of the Rich Frog refills to THREE cards, but only from EMPTY
+            // (`Player.replaceDynastyCard`). The province is worth holding for
+            // the two towers and for nothing else -- everything short of that
+            // is churned for a fresh three next dynasty phase.
+            refillProvincePriorityCharacterIds: ['akodo-toturi', 'honored-general'],
             preferredCharacterIds: [
                 'ikoma-prodigy', 'chronicler-of-conquests', 'revered-ikoma',
                 'honored-general', 'bushido-adherent', 'hero-of-three-trees',
@@ -1877,6 +1894,15 @@ const OVERRIDES: ProfileOverride[] = [
             },
             mulligan: {
                 openingHoldingLimit: 0,
+                // City of the Rich Frog refills to THREE cards, but only
+                // from EMPTY (`Player.replaceDynastyCard`). The province is
+                // worth holding for the two towers, and for
+                // nothing else -- everything short of that is churned for a
+                // fresh three next dynasty phase.
+                refillProvincePriorityCharacterIds: [
+                    'niten-master',
+                    'togashi-yokuni'
+                ],
                 preferredCharacterIds: [
                     'niten-master',
                     'togashi-yokuni',
@@ -1888,13 +1914,23 @@ const OVERRIDES: ProfileOverride[] = [
         }
     },
     {
-        // Phoenix Shugenja Spells (EmeraldDB b260d778): keep Offerings to the
-        // Kami in an outer province so its free ring accelerates the Water/
-        // Void plan early. Vassal Fields is persistent value on the final
-        // province and drains the attacker during the game-deciding conflict.
-        name: 'phoenix-shugenja-vassal-fields',
-        match: (ids, strategy) => strategy.shugenja && ids.has('vassal-fields'),
+        // Phoenix Shugenja Spells: keep Offerings to the Kami in an outer
+        // province so its free ring accelerates the Water/Void plan early.
+        //
+        // KEYED ON `offerings-to-the-kami`, NOT on the stronghold province.
+        // This override used to match `ids.has('vassal-fields')`, so when the
+        // deck swapped Vassal Fields out for Entrenched Position the whole
+        // block — the defense thresholds, the mulligan, the entire shugenja
+        // ring plan — switched itself off silently, and the province arm was
+        // measuring that as well as the province. A match must key on
+        // something the deck cannot trade away for the very change being
+        // measured. Offerings to the Kami is unique to this list in the field,
+        // and `strategy.shugenja` alone would newly catch Phoenix Phoenix.
+        name: 'phoenix-shugenja-ring-plan',
+        match: (ids, strategy) => strategy.shugenja && ids.has('offerings-to-the-kami'),
         apply: {
+            // Superseded by `entrenched-position-stronghold` while the deck
+            // holds that card; kept for a list that does not.
             strongholdProvinceId: 'vassal-fields',
             // This ring/spell deck needs conflict opportunities more than an
             // early one-body reserve. Require a 50% larger two-province threat
@@ -2050,6 +2086,14 @@ const OVERRIDES: ProfileOverride[] = [
                 openingKeepConflictIds: [
                     'forebearer-s-echoes', 'my-ancestor-s-strength',
                     'walking-the-way', 'display-of-power'
+                ],
+                // City of the Rich Frog refills to THREE cards, but only
+                // from EMPTY (`Player.replaceDynastyCard`). The province is
+                // worth holding for Fushicho, the card the whole rotation is for, and for
+                // nothing else -- everything short of that is churned for a
+                // fresh three next dynasty phase.
+                refillProvincePriorityCharacterIds: [
+                    'fushicho'
                 ],
                 preferredCharacterIds: [
                     'fushicho',
@@ -2285,6 +2329,16 @@ const OVERRIDES: ProfileOverride[] = [
             preventBreakAfterBrokenProvinces: 2,
             mulligan: {
                 openingHoldingLimit: 0,
+                // City of the Rich Frog refills to THREE cards, but only
+                // from EMPTY (`Player.replaceDynastyCard`). The province is
+                // worth holding for the three towers, and for
+                // nothing else -- everything short of that is churned for a
+                // fresh three next dynasty phase.
+                refillProvincePriorityCharacterIds: [
+                    'togashi-mitsu-2',
+                    'togashi-tadakatsu',
+                    'togashi-ichi'
+                ],
                 preferredCharacterIds: [
                     'togashi-mitsu-2',
                     'togashi-tadakatsu',
@@ -2419,6 +2473,13 @@ const OVERRIDES: ProfileOverride[] = [
             mulligan: {
                 openingHoldingLimit: 0,
                 keepDynastyCardIds: ['honored-veterans', 'a-season-of-war'],
+                // City of the Rich Frog refills to THREE cards, but only from
+                // EMPTY (`Player.replaceDynastyCard`). This deck's curve is 0-2
+                // cost filler, so the only two bodies worth blocking a refill
+                // for are the towers. Measured against the `[]` arm (empty the
+                // province every fate phase, take three fresh cards) -- a swarm
+                // deck plausibly wants the churn more than either tower.
+                refillProvincePriorityCharacterIds: ['akodo-toturi', 'honored-general'],
                 endHoldingLimit: { weak: 0, developing: 1, strong: 1 }
             },
             lion: { ...LION_DEFAULTS }
@@ -2518,6 +2579,16 @@ const OVERRIDES: ProfileOverride[] = [
                 openingKeepHoldingIds: ['imperial-storehouse', 'proving-ground'],
                 keepHoldingIds: ['imperial-storehouse', 'proving-ground'],
                 keepDynastyCardIds: ['honored-veterans', 'a-season-of-war'],
+                // City of the Rich Frog refills to THREE cards, but only
+                // from EMPTY (`Player.replaceDynastyCard`). The province is
+                // worth holding for the three duel finishers, and for
+                // nothing else -- everything short of that is churned for a
+                // fresh three next dynasty phase.
+                refillProvincePriorityCharacterIds: [
+                    'matsu-tsuko-2',
+                    'akodo-toturi',
+                    'matsu-mitsuko'
+                ],
                 preferredCharacterIds: [
                     'ikoma-prodigy', 'matsu-agetoki', 'matsu-mitsuko',
                     'kitsu-motso', 'akodo-toturi', 'matsu-tsuko-2',
@@ -2885,6 +2956,28 @@ const OVERRIDES: ProfileOverride[] = [
                 endHoldingLimit: { weak: 0, developing: 1, strong: 2 }
             }
         }
+    },
+    {
+        // GENERIC ENTRENCHED POSITION RULE, keyed on the CARD rather than an
+        // archetype. Entrenched Position is a 5-strength earth province with a
+        // persistent "+5 strength during military conflicts", so it is a
+        // 10-strength wall against the axis most of this field attacks on.
+        //
+        // `ProvinceCard.canBeAttacked` gates the stronghold province on three
+        // broken outer provinces, so it is the province reached LAST — the slot
+        // where a WALL is worth most and an on-reveal payoff is worth least.
+        // That is the same rule that put The Roar of the Lioness under both
+        // Lion strongholds (`docs/bot-lion-roar-province.md`).
+        //
+        // Listed LAST on purpose: a deck holding this card has swapped a
+        // province out for it, so this pick must win over the id its own
+        // override named. No deck in the shipped field holds the card, so the
+        // entry is inert until a decklist adds it.
+        name: 'entrenched-position-stronghold',
+        match: (ids) => ids.has('entrenched-position'),
+        apply: {
+            strongholdProvinceId: 'entrenched-position'
+        }
     }
 ];
 
@@ -3128,7 +3221,16 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                         : [...profile.mulligan.keepHoldingIds],
                     keepDynastyCardIds: mulligan.keepDynastyCardIds
                         ? [...mulligan.keepDynastyCardIds]
-                        : [...profile.mulligan.keepDynastyCardIds]
+                        : [...profile.mulligan.keepDynastyCardIds],
+                    endPhaseDiscardCardIds: mulligan.endPhaseDiscardCardIds
+                        ? [...mulligan.endPhaseDiscardCardIds]
+                        : [...profile.mulligan.endPhaseDiscardCardIds],
+                    refillProvinceIds: mulligan.refillProvinceIds
+                        ? [...mulligan.refillProvinceIds]
+                        : [...profile.mulligan.refillProvinceIds],
+                    refillProvincePriorityCharacterIds: mulligan.refillProvincePriorityCharacterIds
+                        ? [...mulligan.refillProvincePriorityCharacterIds]
+                        : [...profile.mulligan.refillProvincePriorityCharacterIds]
                 };
             }
             if(boardAwareDynasty) {

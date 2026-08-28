@@ -652,6 +652,69 @@
     ]
   },
   {
+    "id": "entrenched-position",
+    "name": "Entrenched Position",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "This province gets +5 strength during [conflict-military] conflicts.",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "earth"
+    ],
+    "strength": "5",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "entrenched-position",
+        "pack_id": "core",
+        "flavor": "\"It would take an entire Moto horde to break through here.\"",
+        "illustrator": "Stanislav Dikolenko",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_17.jpg",
+        "position": "17",
+        "quantity": 2,
+        "rotated": true
+      },
+      {
+        "card_id": "entrenched-position",
+        "pack_id": "emerald-core-set",
+        "flavor": "“These earthworks could withstand an entire Matsu legion.”",
+        "illustrator": "Raysandra Morton",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs216.jpg",
+        "position": "216",
+        "quantity": 1,
+        "rotated": false
+      }
+    ]
+  },
+  {
     "id": "ethereal-dreamer",
     "name": "Ethereal Dreamer",
     "name_extra": null,
@@ -1099,55 +1162,6 @@
     ]
   },
   {
-    "id": "kakudaira",
-    "name": "Kakudaira",
-    "name_extra": null,
-    "faction": "phoenix",
-    "side": "province",
-    "type": "province",
-    "is_unique": true,
-    "text": "Eminent. <i>(This province starts the game faceup and cannot be turned facedown. It cannot be a stronghold province.)</i>\nAfter each phase begins, reveal each facedown card in this province.",
-    "restricted_in": [],
-    "banned_in": [],
-    "allowed_clans": [
-      "phoenix"
-    ],
-    "traits": [
-      "city"
-    ],
-    "cost": null,
-    "deck_limit": 1,
-    "influence_cost": null,
-    "elements": [
-      "air",
-      "void"
-    ],
-    "strength": "5",
-    "glory": null,
-    "fate": null,
-    "honor": null,
-    "influence_pool": null,
-    "strength_bonus": null,
-    "military": null,
-    "political": null,
-    "military_bonus": null,
-    "political_bonus": null,
-    "splash_banned_in": null,
-    "role_restrictions": [],
-    "versions": [
-      {
-        "card_id": "kakudaira",
-        "pack_id": "rokugan-at-war",
-        "flavor": "",
-        "illustrator": "Nele Diel",
-        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C29_5.jpg",
-        "position": "5",
-        "quantity": 1,
-        "rotated": false
-      }
-    ]
-  },
-  {
     "id": "kudaka",
     "name": "Kudaka",
     "name_extra": null,
@@ -1198,52 +1212,6 @@
         "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C09_13.jpg",
         "position": "13",
         "quantity": 3,
-        "rotated": true
-      }
-    ]
-  },
-  {
-    "id": "kuroi-mori",
-    "name": "Kuroi Mori",
-    "name_extra": null,
-    "faction": "phoenix",
-    "side": "province",
-    "type": "province",
-    "is_unique": false,
-    "text": "Cannot be a stronghold province.\n<b>Action:</b> During a conflict at this province, select one – switch the contested ring with an unclaimed ring <i>(the conflict retains its type)</i>, or switch the conflict type <i>(the conflict retains its element)</i>.\n<i>Errata from Imperial Law (2020-04-06).</i>",
-    "restricted_in": [],
-    "banned_in": [],
-    "allowed_clans": [
-      "phoenix"
-    ],
-    "traits": [],
-    "cost": null,
-    "deck_limit": 1,
-    "influence_cost": null,
-    "elements": [
-      "void"
-    ],
-    "strength": "4",
-    "glory": null,
-    "fate": null,
-    "honor": null,
-    "influence_pool": null,
-    "strength_bonus": null,
-    "military": null,
-    "political": null,
-    "military_bonus": null,
-    "political_bonus": null,
-    "splash_banned_in": null,
-    "role_restrictions": [],
-    "versions": [
-      {
-        "card_id": "kuroi-mori",
-        "pack_id": "core",
-        "flavor": "",
-        "illustrator": "Oliver Specht",
-        "image_url": "https://images-cdn.fantasyflightgames.com/filer_public/04/36/04363de6-60b2-442c-83c1-185d4c6d5b01/l5c01_kuroi-mori.png",
-        "position": "12",
-        "quantity": 1,
         "rotated": true
       }
     ]
@@ -1473,6 +1441,69 @@
         "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs148.jpg",
         "position": "148",
         "quantity": 3,
+        "rotated": false
+      }
+    ]
+  },
+  {
+    "id": "pilgrimage",
+    "name": "Pilgrimage",
+    "name_extra": null,
+    "faction": "neutral",
+    "side": "province",
+    "type": "province",
+    "is_unique": false,
+    "text": "During conflicts at this province, cancel all ring effects. <i>(If this province breaks, resolve ring effects as normal.)</i>",
+    "restricted_in": [],
+    "banned_in": [],
+    "allowed_clans": [
+      "crab",
+      "crane",
+      "dragon",
+      "lion",
+      "phoenix",
+      "scorpion",
+      "unicorn",
+      "mantis"
+    ],
+    "traits": [],
+    "cost": null,
+    "deck_limit": 1,
+    "influence_cost": null,
+    "elements": [
+      "void"
+    ],
+    "strength": "5",
+    "glory": null,
+    "fate": null,
+    "honor": null,
+    "influence_pool": null,
+    "strength_bonus": null,
+    "military": null,
+    "political": null,
+    "military_bonus": null,
+    "political_bonus": null,
+    "splash_banned_in": null,
+    "role_restrictions": [],
+    "versions": [
+      {
+        "card_id": "pilgrimage",
+        "pack_id": "core",
+        "flavor": null,
+        "illustrator": "Nele Diel",
+        "image_url": "http://lcg-cdn.fantasyflightgames.com/l5r/L5C01_22.jpg",
+        "position": "22",
+        "quantity": 2,
+        "rotated": true
+      },
+      {
+        "card_id": "pilgrimage",
+        "pack_id": "emerald-core-set",
+        "flavor": "“Faith is the greatest armor. The Seppun understand this as they guard the Empress — and as they brave the mountain's elemental trials.”\n— Teachings of the Imperial Guard",
+        "illustrator": "Thulsa Doom",
+        "image_url": "https://emerald-legacy.github.io/emeralddb-images/emerald-core-set/ecs226.jpg",
+        "position": "226",
+        "quantity": 1,
         "rotated": false
       }
     ]

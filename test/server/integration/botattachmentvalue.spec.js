@@ -122,7 +122,7 @@ describe('bot attachment value (self-play field)', function() {
     const totals = {
         total: 0, contributed: 0, abilityCarrier: 0, prep: 0, usedLater: 0,
         readiedIn: 0, idle: 0, wasted: 0, forced: 0, outOfReach: 0,
-        outsideConflict: 0
+        outsideConflict: 0, moveInBearer: 0
     };
     let knownOpenSeen = 0;
     const allIdle = [];
@@ -182,6 +182,7 @@ ${formatPlacements(allWasted)}`
             `attachment value: ${totals.total} own-side attachments — ` +
             `${totals.contributed} counted in the conflict they were played into, ` +
             `${totals.readiedIn} on a bowed participant that stood up, ` +
+            `${totals.moveInBearer} on a home bearer their own Action moves in, ` +
             `${totals.abilityCarrier} ability carriers, ` +
             `${totals.outsideConflict} placed outside a conflict ` +
             `(${totals.usedLater} later fought carrying it, ${totals.prep} never did), ` +

@@ -192,8 +192,10 @@ describe('DeckProfiles', function() {
     });
 
     it('Phoenix Shugenja raises only the injectable pre-stronghold threat ratio', function() {
-        const first = resolveDeckProfile(['vassal-fields'], SHUGENJA);
-        const second = resolveDeckProfile(['vassal-fields'], SHUGENJA);
+        // Keyed on Offerings to the Kami, not on the stronghold province:
+        // the deck traded Vassal Fields away for Entrenched Position.
+        const first = resolveDeckProfile(['offerings-to-the-kami'], SHUGENJA);
+        const second = resolveDeckProfile(['offerings-to-the-kami'], SHUGENJA);
 
         expect(first.strongholdProvinceId).toBe('vassal-fields');
         expect(first.strongholdDefense.preStrongholdThreatRatio).toBe(1.5);

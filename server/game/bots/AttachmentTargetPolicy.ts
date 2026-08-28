@@ -48,6 +48,25 @@ export interface AttachmentTargetConfig {
     // for a window where one of them is fighting — which is what makes the bot
     // reach for the Weapon in the same hand instead.
     requireUsableBearer: boolean;
+    // Refuse a bearer the RULES bar from the conflict type the card works in.
+    //
+    // The other three flags all reason about STATE the board publishes — bowed,
+    // at home, fighting. This one is about a ban the board never mentions:
+    // Stolen Breath and Pacifism switch off a whole conflict type for as long
+    // as they sit there, Shiba Peacemaker and Otomo Courtier switch off the
+    // attacking side, and a printed dash does the same with no attachment at
+    // all. A body under one of those is at home, unbowed, and permanently
+    // unable to use a move-in card — so every other test here waves it through
+    // and the ENGINE then refuses the Action the card exists for.
+    //
+    // Live defect 2026-08-28 (LionDuelist vs PhoenixShugenja, r3): a Matsu
+    // Tsuko wearing Stolen Breath sat at home through a political conflict, the
+    // bot hung a SECOND Formal Invitation on her, and passed the window.
+    //
+    // Only sources that name their own axis are judged (`MOVE_SOURCES`), and
+    // rider sources are exempt — Adorned Barcha's bow pays whether or not its
+    // bearer arrives. `false` restores the pre-2026-08-28 behaviour.
+    requireParticipableBearer: boolean;
 }
 
 export const DEFAULT_ATTACHMENT_TARGET: AttachmentTargetConfig = {
@@ -56,7 +75,8 @@ export const DEFAULT_ATTACHMENT_TARGET: AttachmentTargetConfig = {
     enabled: false,
     preferParticipantWhenNeeded: true,
     maxSkillNeeded: 6,
-    requireUsableBearer: true
+    requireUsableBearer: true,
+    requireParticipableBearer: true
 };
 
 export interface AttachmentTargetInput {
@@ -105,6 +125,11 @@ export class AttachmentTargetPolicy {
     /** Is the "hold it until a legal bearer can use it" play gate active? */
     get gatesPlayOnBearer(): boolean {
         return this.config.enabled && this.config.requireUsableBearer;
+    }
+
+    /** Is the "the rules must let this bearer join that conflict" gate active? */
+    get gatesBearerParticipation(): boolean {
+        return this.config.requireParticipableBearer;
     }
 
     /** Does this card want a bearer at home, whatever the conflict needs? */

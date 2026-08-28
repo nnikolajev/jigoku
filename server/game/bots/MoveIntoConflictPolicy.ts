@@ -139,6 +139,70 @@ export interface MoveIntoConflictVerdict {
     reason: MoveIntoConflictReason;
 }
 
+/**
+ * The two conflict axes, named the way the engine names them.
+ */
+export type ConflictAxisName = 'military' | 'political';
+
+/**
+ * Bodies of OURS the ENGINE forbids from joining a conflict, by axis and by
+ * side.
+ *
+ * Nothing in the serialized board says this. A policy sees `bowed`,
+ * `inConflict` and the skills; it does not see that Stolen Breath and Pacifism
+ * attach `cannotParticipateAs{Attacker,Defender}` for ONE conflict type, that
+ * Otomo Courtier / Seppun Guardsman / Shiba Peacemaker / Ofushikai / Diligent
+ * Chaperone block only the ATTACKING side, or that a printed dash is the same
+ * ban by another route.
+ *
+ * That blind spot costs a card whenever the payoff of the card IS the body
+ * joining the conflict. Measured live (2026-08-28, LionDuelist vs
+ * PhoenixShugenja): a Matsu Tsuko wearing Stolen Breath sat at home through a
+ * political conflict, the bot hung a SECOND Formal Invitation on her, and then
+ * passed the window — because the engine refuses the move Action for a bearer
+ * that cannot participate, which is exactly right and entirely invisible to
+ * the gate that spent the card.
+ *
+ * Populated from `canParticipateAs{Attacker,Defender}(axis)`, so the dash, the
+ * attachments and any future effect are folded in and no card-id list can go
+ * stale.
+ */
+export interface ParticipationBlockedUuids {
+    military: { attacker: readonly string[]; defender: readonly string[] };
+    political: { attacker: readonly string[]; defender: readonly string[] };
+}
+
+/**
+ * Can this body still JOIN a conflict on the given axis?
+ *
+ * `side` is the side we would join on. Undefined means the caller does not know
+ * yet — a pre-conflict attachment play, say — and the answer is then only
+ * `false` when the body is banned from BOTH sides, so an unknown side can never
+ * refuse a placement that would have been legal.
+ *
+ * An undefined `axis`, or an unpublished map, is "no information": every legacy
+ * caller and every synthetic test keeps the behaviour it had.
+ */
+export function bodyCanJoinConflict(
+    blocked: ParticipationBlockedUuids | undefined,
+    uuid: string | undefined,
+    axis: ConflictAxisName | undefined,
+    side?: 'attacker' | 'defender'
+): boolean {
+    if(!blocked || !axis || !uuid) {
+        return true;
+    }
+    const bans = blocked[axis];
+    if(!bans) {
+        return true;
+    }
+    const id = String(uuid);
+    if(side) {
+        return !bans[side].includes(id);
+    }
+    return !(bans.attacker.includes(id) && bans.defender.includes(id));
+}
+
 export class MoveIntoConflictPolicy {
     public readonly config: MoveIntoConflictConfig;
 

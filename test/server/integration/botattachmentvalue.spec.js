@@ -102,6 +102,7 @@ async function playAndWatch(deckA, deckB, base) {
         counts: monitor.counts,
         wasted: monitor.wasted.filter((entry) => !open.has(entry.sourceId)),
         knownOpen: monitor.wasted.filter((entry) => open.has(entry.sourceId)).length,
+        blockedBearers: monitor.blockedBearers,
         idle: monitor.idle,
         placements: monitor.placements
     };
@@ -122,11 +123,12 @@ describe('bot attachment value (self-play field)', function() {
     const totals = {
         total: 0, contributed: 0, abilityCarrier: 0, prep: 0, usedLater: 0,
         readiedIn: 0, idle: 0, wasted: 0, forced: 0, outOfReach: 0,
-        outsideConflict: 0, moveInBearer: 0
+        outsideConflict: 0, moveInBearer: 0, blockedBearer: 0
     };
     let knownOpenSeen = 0;
     const allIdle = [];
     const allWasted = [];
+    const allBlockedBearers = [];
 
     DECKS.forEach(function(deck, index) {
         // Both seats: first-player order decides which conflicts a deck ever
@@ -151,6 +153,7 @@ describe('bot attachment value (self-play field)', function() {
                         knownOpenSeen += result.knownOpen;
                         wasted.push(...result.wasted.filter((entry) => entry.deck === deck));
                         allWasted.push(...result.wasted);
+                        allBlockedBearers.push(...result.blockedBearers);
                         allIdle.push(...result.idle);
                     }
                 }
@@ -177,12 +180,27 @@ ${formatPlacements(allWasted)}`
         ).toBe(0);
     });
 
+    // The move-in cards (Formal Invitation, Spyglass) are exempted from the
+    // participant preference precisely BECAUSE their Action moves the bearer
+    // in. That exemption is only sound while the bearer can actually join the
+    // conflict the card works in: a body under Stolen Breath or Pacifism is at
+    // home, unbowed, and permanently unable to use the card, and the engine
+    // then refuses the Action. Live defect, 2026-08-28.
+    it('never hands a move-in attachment to a bearer the rules bar from that conflict type', function() {
+        expect(allBlockedBearers.length).withContext(
+            `move-in attachments placed on a bearer that can never join a conflict of ` +
+            `the type the card works in:
+${formatPlacements(allBlockedBearers)}`
+        ).toBe(0);
+    });
+
     it('reports the idle placements rather than hiding them', function() {
         console.log(
             `attachment value: ${totals.total} own-side attachments — ` +
             `${totals.contributed} counted in the conflict they were played into, ` +
             `${totals.readiedIn} on a bowed participant that stood up, ` +
-            `${totals.moveInBearer} on a home bearer their own Action moves in, ` +
+            `${totals.moveInBearer} on a home bearer their own Action moves in ` +
+            `(${totals.blockedBearer} of them on a bearer the rules bar from that conflict type), ` +
             `${totals.abilityCarrier} ability carriers, ` +
             `${totals.outsideConflict} placed outside a conflict ` +
             `(${totals.usedLater} later fought carrying it, ${totals.prep} never did), ` +

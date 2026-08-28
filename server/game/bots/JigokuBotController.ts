@@ -34,6 +34,13 @@ import { BotTelemetry } from './BotTelemetry.js';
 import type { RefillProvinceState } from './MulliganTactics';
 import { MOVE_SOURCES, READY_SOURCES, moveSourceSpec, readySourceSpec } from './ReadyMovePlanner.js';
 import type { SequenceSourceTargets } from './ReadyMovePlanner';
+import type { ConflictAxisName, ParticipationBlockedUuids } from './MoveIntoConflictPolicy';
+
+/** Mutable companion of one axis of `ParticipationBlockedUuids`, filled in below. */
+interface MutableParticipationBans {
+    attacker: string[];
+    defender: string[];
+}
 import type { DeckProfile } from './DeckProfiles';
 import { applyV2DeckProfile } from './shared/V2DeckProfiles.js';
 import type { DuelBidContext } from './DuelBidTactics';
@@ -52,7 +59,7 @@ import type Player from '../player';
 import type Ring from '../ring';
 import type BaseCard from '../basecard';
 import type { JigokuBotConfig } from './JigokuBotConfig';
-import { CharacterStatus, EffectNames, EventNames, PlayTypes } from '../Constants';
+import { CardTypes, CharacterStatus, EffectNames, EventNames, PlayTypes } from '../Constants';
 import type { ProvinceStrengthByAxis, StrongholdDefenseAxis } from './StrongholdDefenseTactics';
 import { PlayAttachmentAction } from '../PlayAttachmentAction.js';
 
@@ -497,6 +504,46 @@ class JigokuBotController {
     }
 
     /**
+     * Which of our characters the ENGINE forbids from joining a conflict, by
+     * axis and by side.
+     *
+     * See `ParticipationBlockedUuids` for why this cannot be derived from the
+     * serialized board. `canParticipateAs{Attacker,Defender}` is the engine's
+     * own predicate and already folds in the printed dash, so passing the axis
+     * explicitly makes the answer usable OUTSIDE a conflict too — which is
+     * where the pre-conflict attachment plays are decided.
+     */
+    private participationBlockedUuids(me: Player): ParticipationBlockedUuids {
+        // Built mutable and returned as the readonly shape, so nothing here
+        // needs a cast.
+        const military: MutableParticipationBans = { attacker: [], defender: [] };
+        const political: MutableParticipationBans = { attacker: [], defender: [] };
+        const blocked = { military, political };
+        const axes: ConflictAxisName[] = ['military', 'political'];
+        for(const card of me.cardsInPlay?.toArray?.() || []) {
+            if(!card?.uuid || card.type !== CardTypes.Character) {
+                continue;
+            }
+            const uuid = String(card.uuid);
+            for(const axis of axes) {
+                try {
+                    if(card.canParticipateAsAttacker?.(axis) === false) {
+                        blocked[axis].attacker.push(uuid);
+                    }
+                    if(card.canParticipateAsDefender?.(axis) === false) {
+                        blocked[axis].defender.push(uuid);
+                    }
+                } catch{
+                    // A snapshot or a partially built card may not answer the
+                    // predicate. Omitting it reports "not blocked", which is
+                    // the behaviour every build before this one had.
+                }
+            }
+        }
+        return blocked;
+    }
+
+    /**
      * Exact legal targets for the ready and move sources the ready -> move
      * sequencer plans with, read from the ENGINE instead of from a hand-written
      * eligibility table.
@@ -894,6 +941,7 @@ class JigokuBotController {
                     displayOfPowerActive: this.displayOfPowerActiveThisConflict(),
                     legalDirectCardUuids: this.currentLegalDirectCardUuids(player),
                     legalAttachmentTargetUuidsBySource: this.legalAttachmentTargetUuidsBySource(player),
+                    participationBlockedUuids: this.participationBlockedUuids(player),
                     legalRingElements: this.currentLegalRingElements(player),
                     // Printed fate cost of dynasty province cards (reserve 1 fate).
                     dynastyCosts: this.dynastyCostsHint(player),

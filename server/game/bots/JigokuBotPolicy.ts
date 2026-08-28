@@ -99,7 +99,8 @@ import type { ProvinceStrengthByAxis, StrongholdDefenseCharacter, StrongholdDefe
 import { CraneBaselineTactics } from './CraneBaselineTactics.js';
 import { AttachmentControlTactics, isNegativeAttachmentId } from './AttachmentControlTactics.js';
 import { PersonalHonorTactics, PERSONAL_HONOR_DEFAULTS } from './PersonalHonorTactics.js';
-import { MoveIntoConflictPolicy, recordMoveIntoConflict } from './MoveIntoConflictPolicy.js';
+import { MoveIntoConflictPolicy, bodyCanJoinConflict, recordMoveIntoConflict } from './MoveIntoConflictPolicy.js';
+import type { ConflictAxisName, ParticipationBlockedUuids } from './MoveIntoConflictPolicy';
 import { UnicornTactics } from './UnicornTactics.js';
 import type { UnicornMoveContext } from './UnicornTactics';
 import {
@@ -399,6 +400,12 @@ interface DecideContext {
     // restrictions at all. Published for V2 since it was added; V1 reads it
     // too now. Undefined leaves every gate exactly as it was.
     legalAttachmentTargetUuidsBySource?: Record<string, readonly string[]>;
+    // Our characters the ENGINE forbids from joining a conflict, by axis and
+    // by side. Nothing else the bot reads can say that a body is under Stolen
+    // Breath or Pacifism, so a card whose payoff IS the body joining the fight
+    // was priced on bodies the rules never let it reach. Undefined leaves
+    // every gate exactly as it was.
+    participationBlockedUuids?: ParticipationBlockedUuids;
     // Ring elements accepted by the live prompt. This matters while declaring
     // a conflict: the selected ring can only toggle to the other conflict type
     // when the engine says that declaration remains legal.
@@ -578,6 +585,8 @@ class JigokuBotPolicy {
     private currentPreferParticipantBearer?: boolean;
     // Engine-exact legal bearers per hand attachment; see the context field.
     private currentLegalAttachmentBearers?: Record<string, readonly string[]>;
+    // Engine-exact participation bans, by axis and side; see the context field.
+    private currentParticipationBlocked?: ParticipationBlockedUuids;
     private currentSequenceSourceTargets?: SequenceSourceTargets;
     // The ready -> move plan, also one reading per decide() call. Null is a
     // real answer (no sequence is worth doing), so a separate `computed`
@@ -785,6 +794,7 @@ class JigokuBotPolicy {
         this.currentReadyAfterMoveCharacterUuids = context.readyAfterMoveCharacterUuids;
         this.currentNoBowCharacterUuids = context.noBowCharacterUuids;
         this.currentLegalAttachmentBearers = context.legalAttachmentTargetUuidsBySource;
+        this.currentParticipationBlocked = context.participationBlockedUuids;
         this.currentReadyValueVerdict = undefined;
         this.currentPreferParticipantBearer = undefined;
         this.currentSequenceSourceTargets = context.sequenceSourceTargets;
@@ -7034,8 +7044,23 @@ class JigokuBotPolicy {
                     if(moveSource && playCtx?.activeConflict) {
                         const axis: 'military' | 'political' =
                             playCtx?.conflictType === 'political' ? 'political' : 'military';
-                        const canMoveSomebody = (playCtx?.myCharacters || [])
+                        // A `selfOrBearerOnly` source can only ever move ONE
+                        // body, so scanning the whole board answers about a
+                        // character the card cannot touch. That is how the gate
+                        // stayed open on a Formal Invitation whose own bearer
+                        // was under Stolen Breath.
+                        const movable = (playCtx?.myCharacters || []).filter((body: any) => {
+                            if(!moveSource.selfOrBearerOnly) {
+                                return true;
+                            }
+                            return card.type === 'character'
+                                ? String(body.uuid) === String(card.uuid)
+                                : (body.attachments || []).some((attachment: any) =>
+                                    String(attachment.uuid) === String(card.uuid));
+                        });
+                        const canMoveSomebody = movable
                             .some((body: any) => !body.inConflict &&
+                                this.bearerCanReachConflict(body, card.id, playCtx) &&
                                 this.moveIntoConflictAllowed(body, card.id, me, axis));
                         const retreatUse = !!dragon && card.id === 'favorable-ground' &&
                             playCtx?.losing === true && playCtx?.strongholdConflict !== true &&
@@ -7386,6 +7411,58 @@ class JigokuBotPolicy {
             site: 'move-target-prompt'
         });
         return verdict.allowed;
+    }
+
+    /**
+     * Can this body still be brought into a conflict by THIS card at all?
+     *
+     * The question is separate from every other bearer test in the bot. Bowed,
+     * at home, already fighting — all of those are states the board publishes
+     * and the placement rules already read. This one is a RULES ban the board
+     * never mentions: Stolen Breath and Pacifism switch off one conflict type
+     * for as long as they sit there, Otomo Courtier and Ofushikai switch off
+     * the attacking side, and a printed dash does the same thing without an
+     * attachment. A card whose entire payoff is the bearer joining the fight is
+     * worth nothing on such a body, and the engine will refuse the Action —
+     * which is what turns the two-step into an attach followed by a pass.
+     *
+     * The AXIS comes from the SOURCE, never from the conflict on the table.
+     * Formal Invitation can only ever be used in a political conflict, so a
+     * bearer permanently barred from political conflicts can never use it —
+     * that is a statement about the card's whole life, which is what justifies
+     * refusing a permanent attachment. An axis-agnostic card (Spyglass pays on
+     * "commits OR moves", either type) says nothing of the kind: its bearer
+     * being barred from THIS conflict leaves every later one open, so those
+     * sources are left alone.
+     */
+    private bearerCanReachConflict(candidate: any, sourceCardId: string | undefined,
+        conflict?: { conflictType?: string; amAttacker?: boolean }): boolean {
+        if(!new AttachmentTargetPolicy(this.currentDeckProfile.attachmentTarget)
+            .gatesBearerParticipation) {
+            return true;
+        }
+        // A RIDER pays with its OWN effect whoever is carried along — Adorned
+        // Barcha bows an enemy participant — and the engine agrees: an ability
+        // stays legal while ANY of its game actions has a target
+        // (`baseability.checkGameActionsForPotential`), so the bow alone keeps
+        // Barcha usable on a bearer that can never join. Refusing those would
+        // throw away the half of the card that still works.
+        const riders = new MoveIntoConflictPolicy(this.currentDeckProfile.moveIntoConflict)
+            .config.riderSourceIds;
+        if(riders.includes(String(sourceCardId || ''))) {
+            return true;
+        }
+        const conflictType = conflict?.conflictType;
+        const axis: ConflictAxisName | undefined =
+            moveSourceSpec(String(sourceCardId || ''))?.conflictType;
+        // Only while the running conflict is on the axis being judged do we
+        // know which SIDE the body would join on. A source restricted to the
+        // OTHER axis is being judged for a conflict that has not happened yet,
+        // and an unknown side refuses only a body banned from both.
+        const side = axis && conflictType === axis && conflict?.amAttacker !== undefined
+            ? (conflict.amAttacker ? 'attacker' : 'defender')
+            : undefined;
+        return bodyCanJoinConflict(this.currentParticipationBlocked, candidate?.uuid, axis, side);
     }
 
     /**
@@ -8005,10 +8082,14 @@ class JigokuBotPolicy {
             }
             if(this.currentPreferParticipantBearer === true && !forcedAttachmentBearerUuid) {
                 // A move-in card wants a bearer at HOME, so "usable" means a
-                // legal home body it can actually carry into the conflict.
+                // legal home body it can actually carry into the conflict —
+                // which includes being allowed to JOIN one. A body under Stolen
+                // Breath or Pacifism is at home, unbowed and completely unable
+                // to use the card (`bearerCanReachConflict`).
                 const usable = bearerGate.wantsHomeBearer(card.id)
                     ? myCharacters.filter((candidate: any) => !candidate.inConflict &&
-                        (!bearerGate.wantsReadyHomeBearer(card.id) || !candidate.bowed))
+                        (!bearerGate.wantsReadyHomeBearer(card.id) || !candidate.bowed) &&
+                        this.bearerCanReachConflict(candidate, card.id, playCtx))
                     : myCharacters.filter((candidate: any) => candidate.inConflict && !candidate.bowed);
                 if(usable.length === 0) {
                     return deny('no-usable-attachment-bearer');
@@ -10911,12 +10992,20 @@ class JigokuBotPolicy {
         if(!attachPolicy.inert && actionNames.includes('attach') &&
             this.preferParticipantBearer(playerState, me)) {
             const characters = mine.filter((card) => card.type === 'character');
+            const conflictSides = {
+                conflictType: playerState?.conflict?.type,
+                amAttacker: playerState?.conflict?.attackingPlayerId === undefined
+                    ? undefined
+                    : playerState.conflict.attackingPlayerId === me?.id
+            };
             const narrowed = attachPolicy.wantsHomeBearer(sourceId)
                 // A move-in card still needs a bearer that arrives with skill,
                 // so the bowed half of the home board is no better than a
-                // participant for it.
+                // participant for it — and a body the rules bar from the
+                // conflict cannot arrive at all.
                 ? (attachPolicy.wantsReadyHomeBearer(sourceId)
-                    ? characters.filter((card) => !card.bowed)
+                    ? characters.filter((card) => !card.bowed &&
+                        this.bearerCanReachConflict(card, sourceId, conflictSides))
                     : [])
                 : characters.filter((card) => card.inConflict && !card.bowed);
             if(narrowed.length > 0) {
@@ -13363,8 +13452,14 @@ class JigokuBotPolicy {
             }
         } else if(wantsHomeBearer) {
             // Its bearer has to be able to MOVE, so a body already fighting is
-            // the one placement that wastes it outright.
-            const home = mine.filter((card) => !card.inConflict);
+            // the one placement that wastes it outright — and so is one the
+            // rules forbid from joining this conflict type at all.
+            const reachable = mine.filter((card) => !card.inConflict &&
+                this.bearerCanReachConflict(card, sourceCardId, {
+                    conflictType,
+                    amAttacker: standing?.amAttacker
+                }));
+            const home = reachable.length > 0 ? reachable : mine.filter((card) => !card.inConflict);
             if(home.length > 0) {
                 pool = home;
             }

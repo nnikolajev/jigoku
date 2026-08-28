@@ -38,6 +38,14 @@
 //                   `HOME_BEARER_NEEDS_READY_IDS` says which of them also need
 //                   the bearer standing. Whether the bot then FOLLOWED THROUGH
 //                   with the move is `movevalue.js`'s question, not this one.
+//   blocked-bearer  a move-in attachment placed on a body the RULES bar from
+//                   the conflict type that card works in — Stolen Breath and
+//                   Pacifism switch off a whole type, and a printed dash does
+//                   the same. The bearer is at home and unbowed, so every other
+//                   test here passes it, and the ENGINE then refuses the Action
+//                   the card exists for. The card is spent for nothing. Read
+//                   from `MOVE_SOURCES` and `canParticipateAs*`, so no card-id
+//                   list can go stale. FAILING.
 //   idle            landed during a live conflict on a body that contributed
 //                   nothing to it. Not automatically a bug: the bearer may be
 //                   the only legal home, and next round it still carries the
@@ -54,7 +62,8 @@
 //                   the bot demonstrably had a better home for the same card in
 //                   the same prompt and passed it over.
 //
-// `wasted` is the only failing class, and it mirrors the `avoidable` gate in
+// `wasted` and `blocked-bearer` are the failing classes; `wasted` mirrors the
+// `avoidable` gate in
 // `effectpolarity.js`: the alternatives come from the prompt's own selectable
 // list, so a placement the engine never offered a choice on can never fail.
 // The reach cap is READ FROM THE POLICY, never restated here, so the monitor
@@ -64,6 +73,27 @@ const { CardTypes, EventNames } = require('../../build/server/game/Constants.js'
 const {
     DEFAULT_ATTACHMENT_TARGET, HOME_BEARER_ATTACHMENT_IDS, HOME_BEARER_NEEDS_READY_IDS
 } = require('../../build/server/game/bots/AttachmentTargetPolicy.js');
+const { moveSourceSpec } = require('../../build/server/game/bots/ReadyMovePlanner.js');
+const {
+    DEFAULT_MOVE_INTO_CONFLICT
+} = require('../../build/server/game/bots/MoveIntoConflictPolicy.js');
+
+// A move-in attachment is spent for nothing on a bearer that can never join a
+// conflict of the type it works in. Riders are exempt: Adorned Barcha's Action
+// bows an ENEMY participant, and the engine keeps that Action legal because an
+// ability needs only ONE of its game actions to have a target.
+function blockedBearerAxis(attachmentId, bearer) {
+    if(DEFAULT_MOVE_INTO_CONFLICT.riderSourceIds.includes(attachmentId)) {
+        return null;
+    }
+    const axis = moveSourceSpec(attachmentId) && moveSourceSpec(attachmentId).conflictType;
+    if(!axis || !bearer || !bearer.canParticipateAsAttacker) {
+        return null;
+    }
+    return !bearer.canParticipateAsAttacker(axis) && !bearer.canParticipateAsDefender(axis)
+        ? axis
+        : null;
+}
 
 // 0 disables the cap in the policy, and disables it here too.
 const MAX_SKILL_NEEDED = DEFAULT_ATTACHMENT_TARGET.maxSkillNeeded;
@@ -167,10 +197,11 @@ class AttachmentValueMonitor {
         this.pending = [];
         this.wasted = [];
         this.idle = [];
+        this.blockedBearers = [];
         this.counts = {
             total: 0, contributed: 0, abilityCarrier: 0, prep: 0, usedLater: 0,
             readiedIn: 0, idle: 0, wasted: 0, forced: 0, outOfReach: 0,
-            outsideConflict: 0, moveInBearer: 0
+            outsideConflict: 0, moveInBearer: 0, blockedBearer: 0
         };
         this.reasons = new Map();
         this.unwrapEngines = [];
@@ -326,6 +357,9 @@ class AttachmentValueMonitor {
             bearerFate: numeric(bearer.fate),
             bearerBowed: !!bearer.bowed,
             bearerParticipating: participating(bearer),
+            // Read at ATTACH time: this is what the decision could have known,
+            // and the ban is what makes the placement dead.
+            blockedAxis: blockedBearerAxis(cardId(attachment), bearer),
             bonus: live ? printedBonus(attachment, conflictType) : Math.max(
                 printedBonus(attachment, 'military'), printedBonus(attachment, 'political')),
             ability: hasAbility(attachment),
@@ -403,7 +437,11 @@ class AttachmentValueMonitor {
         // participant would audit the reverse of the shipped rule.
         if(HOME_BEARER_ATTACHMENT_IDS.has(entry.attachmentId) && !entry.bearerParticipating &&
             (!HOME_BEARER_NEEDS_READY_IDS.has(entry.attachmentId) || !entry.bearerBowed)) {
-            this.close(entry, 'move-in-bearer');
+            // ...unless the rules will never let that bearer join a conflict of
+            // the type the card works in, in which case the placement is the
+            // defect, not the excuse. Judged at ATTACH time, like every other
+            // decision here.
+            this.close(entry, entry.blockedAxis ? 'blocked-bearer' : 'move-in-bearer');
             return;
         }
         // A stat line that never reached the fight is judged; a pure ability
@@ -422,6 +460,10 @@ class AttachmentValueMonitor {
             case 'ability-carrier': this.counts.abilityCarrier++; return;
             case 'readied-in': this.counts.readiedIn++; return;
             case 'move-in-bearer': this.counts.moveInBearer++; return;
+            case 'blocked-bearer':
+                this.counts.blockedBearer++;
+                this.blockedBearers.push(entry);
+                return;
             case 'used-later': this.counts.usedLater++; return;
             case 'prep': this.counts.prep++; return;
             default: break;

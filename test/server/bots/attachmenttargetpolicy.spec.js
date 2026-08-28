@@ -26,6 +26,8 @@ describe('AttachmentTargetPolicy', function() {
         expect(new AttachmentTargetPolicy().inert).toBe(true);
         expect(DEFAULT_PROFILE.attachmentTarget.enabled).toBe(true);
         expect(DEFAULT_PROFILE.attachmentTarget.requireUsableBearer).toBe(true);
+        // The rules-ban gate ships on by default too; `false` is the revert arm.
+        expect(DEFAULT_PROFILE.attachmentTarget.requireParticipableBearer).toBe(true);
     });
 
     it('every deck carries its own copy, so tuning one cannot leak to another', function() {

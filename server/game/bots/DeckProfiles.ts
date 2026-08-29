@@ -889,7 +889,17 @@ export const DEFAULT_PROFILE: DeckProfile = {
     // hoping for a number. `enabled: false` is V1 exactly.
     //
     // See docs/bot-attachment-target.md.
-    attachmentTarget: { ...DEFAULT_ATTACHMENT_TARGET, enabled: true },
+    attachmentTarget: {
+        ...DEFAULT_ATTACHMENT_TARGET,
+        enabled: true,
+        // Measured a null: the OFF arm reads -0.02pp, z=-0.02, p=0.986 over
+        // 3229 games / 6 bases against a null arm at exactly 50.00% on every
+        // base, and it removes every avoidable placement on the reproducing
+        // base (3 -> 0). Correctness class. Only fires DURING a conflict — see
+        // `docs/bot-attachment-hold-until-usable.md` for why that scope is the
+        // whole rule.
+        holdUntilBearerCanUseIt: true
+    },
     // SHIPPED ON, field-wide. See `ReadyMovePlanner` and
     // `docs/bot-ready-move-sequence.md`.
     readyMove: { ...DEFAULT_READY_MOVE },

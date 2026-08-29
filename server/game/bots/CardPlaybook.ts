@@ -211,6 +211,32 @@ export interface PlaybookEntry extends CardHint {
     // per 90 games. Gated by
     // `ConflictPhasePlannerProfile.readyEffectIgnoresReadyParticipant`.
     worksWithoutReadyParticipant?: boolean;
+    // ATTACHMENTS ONLY. This card's payoff fires for a bearer that is
+    // PARTICIPATING, whatever its bow state — so a bowed participant is a fine
+    // home for it, even though it contributes 0 skill (`conflict.ts` counts
+    // only unbowed participants).
+    //
+    // `isParticipating()` is bow-agnostic, and a whole class of attachments is
+    // written against it rather than against the skill total:
+    //
+    //   * "Reaction: After attached character WINS a conflict ..." — Blade of
+    //     10,000 Battles, Honored Blade, Setting the Standard, Scarlet Sabre,
+    //     Self-Understanding, Utaku Battle Steed, Magnificent Kimono's pride.
+    //   * "Action: ... while attached character IS PARTICIPATING ..." — Fan of
+    //     Command, Jade Tetsubo, Duelist Training, Watch Commander, and the
+    //     Champion actions granted by Ofushikai and Shukujo.
+    //
+    // Owner's call, 2026-08-28: "both are okay if toturi is participating in
+    // conflict while he is bowed". Without this the hold gate
+    // (`attachmentTarget.holdUntilBearerCanUseIt`) would refuse a placement
+    // that pays perfectly well. It cannot be derived from the board — it is a
+    // fact about the card's text — so it is declared here per card.
+    bowedParticipantPays?: boolean;
+    // ATTACHMENTS ONLY. This card's payoff READIES its bearer, so a BOWED
+    // bearer is the intended home rather than a wasted one — Waterfall Tattoo
+    // stands its bearer up after a province we control is revealed, which is
+    // why `DragonAttachmentTactics` deliberately picks the bowed tower for it.
+    payoffReadiesBearer?: boolean;
     // Printed characters/attachments expose stats through controller hints.
     // Events do not, so pure/dynamic pumps inject their contribution here for
     // shared province-break budgeting.
@@ -885,6 +911,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // Reaction: honor the attached character after it wins a military
     // conflict. Free honor.
     'utaku-battle-steed': entry('utaku-battle-steed', {
+        // Bow-agnostic: Reaction on WINNING a military conflict.
+        bowedParticipantPays: true,
         targetSide: 'self',
         priority: 7,
         summary: 'honors its bearer after a military win'
@@ -992,6 +1020,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
 
     // Granted reaction while first player: opponent loses 1 fate on a win.
     'scarlet-sabre': entry('scarlet-sabre', {
+        // Bow-agnostic: granted Reaction on WINNING a conflict.
+        bowedParticipantPays: true,
         conflictTypes: ['military'],
         priority: 7,
         summary: 'win reaction: opponent loses 1 fate'
@@ -1404,6 +1434,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // bearer participates — huge on a durable defender. The unlimited reaction
     // fires through the priority>=6 hinted-trigger path.
     'watch-commander': entry('watch-commander', {
+        // Bow-agnostic: Reaction while the bearer IS PARTICIPATING.
+        bowedParticipantPays: true,
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
@@ -2096,6 +2128,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // loser. On a high-base bearer (Way of the Lion doubles base) it removes
     // a defender nearly every time. Use whenever the bearer participates.
     'true-strike-kenjutsu': entry('true-strike-kenjutsu', {
+        // Bow-agnostic: granted Action that duels, not a skill total.
+        bowedParticipantPays: true,
         conflictTypes: ['military'],
         targetSide: 'enemy',
         targetPreference: 'strongest',
@@ -2868,6 +2902,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
 
     // Pride: the bearer honors itself every time it wins a conflict.
     'magnificent-kimono': entry('magnificent-kimono', {
+        // Bow-agnostic: pride triggers on WINNING or LOSING a conflict.
+        bowedParticipantPays: true,
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 6,
@@ -2879,6 +2915,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // participating character home". Attach steered by GloryTactics; the
     // Action aims at their strongest participant.
     'ofushikai': entry('ofushikai', {
+        // Bow-agnostic: granted Champion Action during a conflict.
+        bowedParticipantPays: true,
         targetSide: 'enemy',
         targetPreference: 'strongest',
         attachSide: 'self',
@@ -3068,6 +3106,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     }),
 
     'jade-tetsubo': entry('jade-tetsubo', {
+        // Bow-agnostic: Action while the bearer IS PARTICIPATING.
+        bowedParticipantPays: true,
         targetSide: 'enemy',
         attachSide: 'self',
         targetPreference: 'strongest',
@@ -3135,6 +3175,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // conflict, resolve the effect of EVERY ring in our claimed pool. Priority
     // 10 so `triggeredWindowDecision` fires the gained reaction.
     'self-understanding': entry('self-understanding', {
+        // Bow-agnostic: granted Reaction on WINNING a conflict.
+        bowedParticipantPays: true,
         targetSide: 'self',
         targetPreference: 'most-fate',
         priority: 10,
@@ -3163,6 +3205,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // declare -- and makes the same body free to attack, which is
     // `RevealReadyPolicy`'s half.
     'waterfall-tattoo': entry('waterfall-tattoo', {
+        // The Reaction stands the bearer UP, so a bowed bearer is the point.
+        payoffReadiesBearer: true,
         targetSide: 'self',
         targetPreference: 'most-fate',
         priority: 9,
@@ -3860,6 +3904,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     }),
 
     'duelist-training': entry('duelist-training', {
+        // Bow-agnostic: granted Action while the bearer IS PARTICIPATING.
+        bowedParticipantPays: true,
         targetSide: 'enemy',
         targetPreference: 'strongest',
         attachSide: 'self',
@@ -3876,6 +3922,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
 
     // Champion weapon: switch the conflict type.
     'shukujo': entry('shukujo', {
+        // Bow-agnostic: granted Champion Action during a conflict.
+        bowedParticipantPays: true,
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 6,
@@ -3914,6 +3962,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // post-reveal margin and chooses increase/decrease without wasting honor;
     // the controller also reports whether its once-per-round use remains.
     'iaijutsu-master': entry('iaijutsu-master', {
+        // Bow-agnostic: Reaction in a duel the bearer IS PARTICIPATING in.
+        bowedParticipantPays: true,
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 7,
@@ -4630,6 +4680,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // Attachment. Action while the bearer participates: ready a participating
     // Bushi — usually the bearer's own bowed neighbour, restoring its skill.
     'fan-of-command': entry('fan-of-command', {
+        // Bow-agnostic: Action while the bearer IS PARTICIPATING.
+        bowedParticipantPays: true,
         targetSide: 'self',
         targetPreference: 'strongest-bowed',
         priority: 8,
@@ -4648,6 +4700,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // 1. Card advantage that does not cost the honor dial anything, which is
     // exactly what a deck that bids 1 needs.
     'setting-the-standard': entry('setting-the-standard', {
+        // Bow-agnostic: granted Reaction on WINNING a conflict.
+        bowedParticipantPays: true,
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 8,
@@ -4661,6 +4715,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // honorable: return any card from our conflict discard to hand. Recurs
     // Regal Bearing and the free events indefinitely.
     'blade-of-10-000-battles': entry('blade-of-10-000-battles', {
+        // Bow-agnostic: Reaction on the bearer WINNING a conflict.
+        bowedParticipantPays: true,
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 9,
@@ -5237,6 +5293,8 @@ const PLAYBOOK: Record<string, PlaybookEntry> = {
     // per conflict its bearer wins, so it needs `abilityValue` or the
     // zero-contribution filter refuses to play it at all.
     'honored-blade': entry('honored-blade', {
+        // Bow-agnostic: Reaction on the bearer WINNING a conflict.
+        bowedParticipantPays: true,
         targetSide: 'self',
         targetPreference: 'strongest',
         priority: 7,

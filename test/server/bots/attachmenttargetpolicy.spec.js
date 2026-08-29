@@ -10,6 +10,7 @@ const {
 const JigokuBotPolicy = require('../../../build/server/game/bots/JigokuBotPolicy.js');
 const { DEFAULT_PROFILE, profileFromStrategy } = require('../../../build/server/game/bots/DeckProfiles.js');
 const { MOVE_SOURCES } = require('../../../build/server/game/bots/ReadyMovePlanner.js');
+const { getPlaybookEntry } = require('../../../build/server/game/bots/CardPlaybook.js');
 
 describe('AttachmentTargetPolicy', function() {
     let policy;
@@ -28,6 +29,184 @@ describe('AttachmentTargetPolicy', function() {
         expect(DEFAULT_PROFILE.attachmentTarget.requireUsableBearer).toBe(true);
         // The rules-ban gate ships on by default too; `false` is the revert arm.
         expect(DEFAULT_PROFILE.attachmentTarget.requireParticipableBearer).toBe(true);
+        // The hold rule ships on; the CLASS default stays the revert arm.
+        expect(DEFAULT_ATTACHMENT_TARGET.holdUntilBearerCanUseIt).toBe(false);
+        expect(DEFAULT_PROFILE.attachmentTarget.holdUntilBearerCanUseIt).toBe(true);
+    });
+
+    // A stat attachment is only worth its fate while some legal bearer can
+    // still get value out of it before the round ends. Live 2026-08-28: an
+    // unopposed 2-0 attack that was not breaking sent Blade of 10,000 Battles
+    // (2 fate), Fan of Command (1) and Formal Invitation (0) onto a BOWED
+    // Akodo Toturi, who readies in the fate phase.
+    describe('bearerCanUseAttachment', function() {
+        const policy = new AttachmentTargetPolicy();
+        const bearer = (extra) => Object.assign({
+            bowed: false,
+            participating: false,
+            conflictNeedsSkill: false,
+            staysReadyAfterConflict: false,
+            conflictOpportunityRemains: true,
+            readySourceAvailable: false,
+            moveSourceAvailable: false,
+            readyAfterMoveAvailable: false,
+            payoffIgnoresBow: false,
+            payoffIgnoresBearerState: false,
+            payoffOnMoveIn: false,
+            needsSkillOnArrival: false,
+            payoffReadiesBearer: false
+        }, extra);
+
+        it('is off by default, so the class default is the revert arm', function() {
+            expect(DEFAULT_ATTACHMENT_TARGET.holdUntilBearerCanUseIt).toBe(false);
+            expect(policy.holdsUntilBearerCanUseIt).toBe(false);
+        });
+
+        // `enabled: false` is documented as "V1 exactly", so it has to switch
+        // off every rule in this class, not just the participant preference.
+        it('is switched off by the V1 revert switch even when asked for', function() {
+            expect(new AttachmentTargetPolicy({
+                enabled: false, holdUntilBearerCanUseIt: true
+            }).holdsUntilBearerCanUseIt).toBe(false);
+            expect(new AttachmentTargetPolicy({
+                enabled: false, requireParticipableBearer: true
+            }).gatesBearerParticipation).toBe(false);
+            expect(new AttachmentTargetPolicy({
+                enabled: true, holdUntilBearerCanUseIt: true
+            }).holdsUntilBearerCanUseIt).toBe(true);
+        });
+
+        // Waterfall Tattoo READIES its bearer after a province we control is
+        // revealed, so a BOWED bearer is the body the card exists for —
+        // `DragonAttachmentTactics` picks exactly that one on purpose.
+        it('accepts a bowed bearer for a card whose payoff readies it', function() {
+            expect(policy.bearerCanUseAttachment(
+                bearer({ bowed: true, payoffReadiesBearer: true }))).toBe(true);
+            expect(policy.bearerCanUseAttachment(bearer({
+                bowed: true, payoffReadiesBearer: true, conflictOpportunityRemains: false
+            }))).toBe(true);
+        });
+
+        it('refuses a bowed body at HOME: it readies in the FATE phase, not this round', function() {
+            expect(policy.bearerCanUseAttachment(bearer({ bowed: true }))).toBe(false);
+        });
+
+        // `isParticipating()` is bow-agnostic, and Blade of 10,000 Battles pays
+        // after the bearer WINS a conflict while Fan of Command works while it
+        // IS PARTICIPATING. Owner, 2026-08-28: "both are okay if toturi is
+        // participating in conflict while he is bowed."
+        it('accepts a BOWED PARTICIPANT for a card whose payoff ignores the bow', function() {
+            expect(policy.bearerCanUseAttachment(bearer({
+                bowed: true, participating: true, payoffIgnoresBow: true
+            }))).toBe(true);
+        });
+
+        it('still refuses a bowed participant for a SKILL attachment', function() {
+            expect(policy.bearerCanUseAttachment(bearer({
+                bowed: true, participating: true
+            }))).toBe(false);
+        });
+
+        // The flag says nothing about a body that is not in the conflict at all.
+        it('does not let the flag rescue a bowed body sitting at home', function() {
+            expect(policy.bearerCanUseAttachment(bearer({
+                bowed: true, participating: false, payoffIgnoresBow: true
+            }))).toBe(false);
+        });
+
+        it('accepts a bowed body a ready source can stand up right now', function() {
+            expect(policy.bearerCanUseAttachment(
+                bearer({ bowed: true, readySourceAvailable: true }))).toBe(true);
+        });
+
+        it('accepts a participant only while the conflict still needs skill', function() {
+            expect(policy.bearerCanUseAttachment(
+                bearer({ participating: true, conflictNeedsSkill: true }))).toBe(true);
+            expect(policy.bearerCanUseAttachment(
+                bearer({ participating: true, conflictNeedsSkill: false }))).toBe(false);
+        });
+
+        // A body with `DoesNotBow` comes home standing, so it fights again.
+        it('accepts a participant that will not bow on the way home', function() {
+            expect(policy.bearerCanUseAttachment(bearer({
+                participating: true, conflictNeedsSkill: false, staysReadyAfterConflict: true
+            }))).toBe(true);
+        });
+
+        // This is the case that keeps the ordinary "invest in the tower" play.
+        it('accepts an unbowed body at home while a conflict is left this round', function() {
+            expect(policy.bearerCanUseAttachment(bearer({}))).toBe(true);
+            expect(policy.bearerCanUseAttachment(
+                bearer({ conflictOpportunityRemains: false }))).toBe(false);
+        });
+
+        // Owner, 2026-08-28: "Adorned Barcha can be triggered to bow the chosen
+        // participating character, even if the attached character cannot move
+        // to the conflict (eg. Pacifism, or the attached character has a dash
+        // Mil skill). The bowing is not dependent on the movement."
+        it('accepts any bearer for a card whose payoff ignores the bearer entirely', function() {
+            for(const state of [
+                { bowed: true },
+                { bowed: true, participating: true },
+                { conflictOpportunityRemains: false },
+                { participating: true, conflictNeedsSkill: false }
+            ]) {
+                expect(policy.bearerCanUseAttachment(
+                    bearer(Object.assign({ payoffIgnoresBearerState: true }, state))))
+                    .withContext(JSON.stringify(state)).toBe(true);
+            }
+        });
+
+        // Spyglass draws on "commits to a conflict OR moves to a conflict", and
+        // a bowed body can still be MOVED in.
+        it('accepts a bowed home bearer for a move-in payoff when a move source exists', function() {
+            expect(policy.bearerCanUseAttachment(
+                bearer({ bowed: true, payoffOnMoveIn: true }))).toBe(false);
+            expect(policy.bearerCanUseAttachment(bearer({
+                bowed: true, payoffOnMoveIn: true, moveSourceAvailable: true
+            }))).toBe(true);
+            // Unbowed it can simply commit, so no move source is needed.
+            expect(policy.bearerCanUseAttachment(
+                bearer({ payoffOnMoveIn: true }))).toBe(true);
+        });
+
+        // Formal Invitation moves its own bearer; a bowed one arrives with 0
+        // skill unless it can also be readied, in either order.
+        it('accepts a bowed home bearer for a skill-on-arrival card only if it can be readied', function() {
+            expect(policy.bearerCanUseAttachment(
+                bearer({ bowed: true, needsSkillOnArrival: true }))).toBe(false);
+            expect(policy.bearerCanUseAttachment(bearer({
+                bowed: true, needsSkillOnArrival: true, readySourceAvailable: true
+            }))).toBe(true);
+            expect(policy.bearerCanUseAttachment(bearer({
+                bowed: true, needsSkillOnArrival: true, readyAfterMoveAvailable: true
+            }))).toBe(true);
+            expect(policy.bearerCanUseAttachment(
+                bearer({ needsSkillOnArrival: true }))).toBe(true);
+        });
+    });
+
+    // The flag is a fact about the CARD's text, so it is pinned against the
+    // printed text rather than trusted. A card whose ability keys on
+    // `isParticipating()` or on WINNING a conflict pays for a bowed bearer;
+    // a plain stat stick does not.
+    it('marks exactly the attachments whose payoff ignores the bearers bow', function() {
+        const pays = (id) => getPlaybookEntry(id)?.bowedParticipantPays === true;
+        for(const id of [
+            'blade-of-10-000-battles', 'fan-of-command', 'duelist-training',
+            'honored-blade', 'jade-tetsubo', 'magnificent-kimono', 'ofushikai',
+            'scarlet-sabre', 'self-understanding', 'setting-the-standard',
+            'shukujo', 'utaku-battle-steed', 'watch-commander', 'iaijutsu-master',
+            'true-strike-kenjutsu'
+        ]) {
+            expect(pays(id)).withContext(id).toBe(true);
+        }
+        // Plain stat lines, and the move-in cards whose payoff needs the bearer
+        // to ARRIVE with skill, are not marked.
+        for(const id of ['fine-katana', 'ornate-fan', 'curved-blade',
+            'formal-invitation', 'adorned-barcha', 'spyglass']) {
+            expect(pays(id)).withContext(id).toBe(false);
+        }
     });
 
     it('every deck carries its own copy, so tuning one cannot leak to another', function() {

@@ -7414,6 +7414,75 @@ class JigokuBotPolicy {
     }
 
     /**
+     * Which of these bodies can still get VALUE out of THIS attachment before
+     * the round ends?
+     *
+     * One reading, used at both ends of the decision. The PLAY gate holds the
+     * card when the answer is empty — nothing can use it, so the fate and the
+     * card are better kept — and the TARGET narrowing prefers the bodies that
+     * survive it, because "some bearer can use it" does not mean "the bearer
+     * the deck picker chose can use it". The live defect needed both halves:
+     * Matsu Tsuko was a fine home, so the play was right, and the card still
+     * went to a BOWED Akodo Toturi sitting at home.
+     *
+     * The three field cards that want a HOME bearer each pay in their own way,
+     * and every one of them is already named by a list this codebase
+     * maintains, so the classification cannot drift from the gates that share
+     * those lists.
+     */
+    private attachmentBearersThatCanUseIt(candidates: any[], cardId: string | undefined,
+        hint: any, conflict: { strengthNeeded: number; losing: boolean;
+            conflictsRemaining: number; opponentConflictsRemaining: number },
+        nowOnly = false): any[] {
+        const bearerGate = new AttachmentTargetPolicy(this.currentDeckProfile.attachmentTarget);
+        // The engine's own answer to "could this body be readied / moved right
+        // now". `readyAfterMove` is the move -> ready order: sources that can
+        // only reach a body once it participates.
+        const uuidSet = (map?: Record<string, string[]>) => {
+            const set = new Set<string>();
+            for(const uuids of Object.values(map || {})) {
+                for(const uuid of uuids) {
+                    set.add(String(uuid));
+                }
+            }
+            return set;
+        };
+        const readyTargets = uuidSet(this.currentSequenceSourceTargets?.ready);
+        const moveTargets = uuidSet(this.currentSequenceSourceTargets?.move);
+        const readyAfterMoveTargets = uuidSet(this.currentSequenceSourceTargets?.readyAfterMove);
+        const id = String(cardId || '');
+        const payoffIgnoresBearerState =
+            new MoveIntoConflictPolicy(this.currentDeckProfile.moveIntoConflict)
+                .config.riderSourceIds.includes(id);
+        const needsSkillOnArrival = bearerGate.wantsReadyHomeBearer(id);
+        const payoffOnMoveIn = bearerGate.wantsHomeBearer(id) &&
+            !payoffIgnoresBearerState && !needsSkillOnArrival;
+        const conflictNeedsSkill = conflict.strengthNeeded > 0 || conflict.losing;
+        // `nowOnly` asks the STRICTER question — does this bearer pay right
+        // now — by denying the two answers that mean "later": a body still to
+        // be declared into a coming conflict, and a bowed body a ready source
+        // could stand up. Same predicate, so the two tiers cannot disagree.
+        const conflictOpportunityRemains = !nowOnly &&
+            (conflict.conflictsRemaining > 0 || conflict.opponentConflictsRemaining > 0);
+        return candidates.filter((candidate: any) => bearerGate.bearerCanUseAttachment({
+            bowed: !!candidate.bowed,
+            participating: !!candidate.inConflict,
+            conflictNeedsSkill,
+            staysReadyAfterConflict:
+                this.currentNoBowCharacterUuids?.[String(candidate.uuid)] === 1,
+            conflictOpportunityRemains,
+            readySourceAvailable: !nowOnly && readyTargets.has(String(candidate.uuid)),
+            moveSourceAvailable: moveTargets.has(String(candidate.uuid)),
+            readyAfterMoveAvailable: readyAfterMoveTargets.has(String(candidate.uuid)),
+            payoffIgnoresBow: hint?.bowedParticipantPays === true,
+            payoffReadiesBearer: hint?.payoffReadiesBearer === true,
+            payoffIgnoresBearerState,
+            payoffOnMoveIn,
+            needsSkillOnArrival
+        }));
+    }
+
+    /**
      * Can this body still be brought into a conflict by THIS card at all?
      *
      * The question is separate from every other bearer test in the bot. Bowed,
@@ -8094,6 +8163,48 @@ class JigokuBotPolicy {
                 if(usable.length === 0) {
                     return deny('no-usable-attachment-bearer');
                 }
+            }
+        }
+
+        // HOLD IT UNTIL SOMEBODY CAN USE IT.
+        //
+        // The block above only runs while the conflict is asking for skill
+        // (`currentPreferParticipantBearer`). The board that produced the live
+        // defect is the opposite one: an unopposed 2-0 attack that was not
+        // breaking, so `conflictStrengthNeeded` is 0, the participant
+        // preference is off, and `attachmentTargetDecision` falls through to
+        // its tower branch — which explicitly accepts a BOWED tower, because an
+        // attachment is permanent. The bot spent 3 fate and three cards on a
+        // body that readies in the fate phase.
+        //
+        // A card in hand costs nothing to keep and a bearer can be chosen later
+        // with more information, so the play is only worth making while some
+        // legal bearer can still get value out of it this round.
+        if(bearerGate.holdsUntilBearerCanUseIt && card.type === 'attachment' &&
+            myCharacters.length > 0 &&
+            // ONLY while a conflict is actually running. Outside one there is
+            // no "spent for the round" to reason about — a permanent
+            // attachment played in the dynasty phase or between conflicts is an
+            // investment for the rounds ahead, which is the tower play working
+            // as intended. Without this the rule refused an unbowed tower at
+            // home whenever `conflictsRemaining` read 0, which is every prompt
+            // outside the conflict phase.
+            playCtx?.activeConflict === true &&
+            // Enemy-aimed debuffs land on THEIR board; our bodies' bow state
+            // says nothing about them.
+            !(hint?.targetSide === 'enemy' && hint?.attachSide !== 'self') &&
+            // The Dragon attachment deck's whole plan is banking attachments on
+            // a tower, and it is measured that way. Same exemption the
+            // `no-ready-participant` veto already carries.
+            !(attachmentTower && attachmentTower.isAttachment(card.id))) {
+            const usable = this.attachmentBearersThatCanUseIt(myCharacters, card.id, hint, {
+                strengthNeeded: Number(playCtx?.strengthNeeded) || 0,
+                losing: playCtx?.losing === true,
+                conflictsRemaining: Number(playCtx?.conflictsRemaining) || 0,
+                opponentConflictsRemaining: Number(playCtx?.opponentConflictsRemaining) || 0
+            });
+            if(usable.length === 0) {
+                return deny('attachment-bearer-spent-for-round');
             }
         }
 
@@ -11013,6 +11124,52 @@ class JigokuBotPolicy {
                 // attachment (Prepared Ambush, Makeshift War Camp) goes on our
                 // own PROVINCE, and dropping those would hand it a character.
                 mine = narrowed.concat(mine.filter((card) => card.type !== 'character'));
+            }
+        }
+
+        // The block above runs only while the conflict is asking for skill.
+        // When it is NOT, `attachmentTargetDecision` falls through to its tower
+        // branch, which deliberately accepts a BOWED tower because an
+        // attachment is permanent — and that is how Blade of 10,000 Battles,
+        // Fan of Command and Formal Invitation all landed on a bowed Akodo
+        // Toturi sitting at home while Matsu Tsuko was fighting (live
+        // 2026-08-28). "Some bearer can use this card" is what the PLAY gate
+        // asks; this asks whether the bearer we are about to pick can.
+        //
+        // Soft on purpose: with nothing left the list is handed back unchanged,
+        // because a selector with no legal alternative and no cancel button
+        // falls back to the unfiltered list anyway.
+        if(new AttachmentTargetPolicy(this.currentDeckProfile.attachmentTarget)
+            .holdsUntilBearerCanUseIt && actionNames.includes('attach') &&
+            // Same scope as the play gate: only while a conflict is running.
+            !!playerState?.conflict?.type &&
+            // The Dragon attachment deck's whole plan is banking attachments on
+            // a tower and it is MEASURED that way, so its bearer list is not
+            // ours to narrow. Same exemption the play gate carries.
+            !(attachmentTower && attachmentTower.isAttachment(String(sourceId || '')))) {
+            const standing = this.conflictStanding(playerState, me);
+            const opponent = this.opponentPlayer(playerState, me);
+            const characters = mine.filter((card) => card.type === 'character');
+            const conflict = {
+                strengthNeeded: this.conflictStrengthNeeded(playerState, me) ?? 0,
+                losing: standing?.losing === true,
+                conflictsRemaining: Number(me?.stats?.conflictsRemaining) || 0,
+                opponentConflictsRemaining: Number(opponent?.stats?.conflictsRemaining) || 0
+            };
+            const entry = cardHint ? cardHint(String(sourceId || '')) : undefined;
+            const usable = this.attachmentBearersThatCanUseIt(
+                characters, sourceId, entry, conflict);
+            // Two tiers, because "could be made usable" is not "pays now". The
+            // survivor of the first pass here was a BOWED Akodo Toturi kept
+            // only because In Service to My Lord could have readied him, while
+            // Matsu Tsuko was standing in the conflict and the card's own
+            // Reaction fires on the bearer WINNING it. Prefer the bearers the
+            // card pays for immediately, and fall back to the wider set.
+            const paysNow = this.attachmentBearersThatCanUseIt(
+                usable, sourceId, entry, conflict, true);
+            const preferred = paysNow.length > 0 ? paysNow : usable;
+            if(preferred.length > 0 && preferred.length < characters.length) {
+                mine = preferred.concat(mine.filter((card) => card.type !== 'character'));
             }
         }
 

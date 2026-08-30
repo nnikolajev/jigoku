@@ -580,6 +580,52 @@ class BaseCard extends EffectSource {
         return this.location === Locations.PlayArea;
     }
 
+    /**
+     * True when every LIMITED triggered ability this card currently has is
+     * spent for its present period, so nothing on the card can be activated
+     * again until that period resets.
+     *
+     * The engine already owns this — `CardAbility.meetsRequirements` refuses on
+     * `limit.isAtMax` — but the answer was never published, so a click on a
+     * spent card silently did nothing and the player had no way to see it. The
+     * bot had the same blind spot and kept its own approximate counter.
+     *
+     * Deliberately ALL, not any: a card whose Action is spent but whose
+     * reaction is still live can still be used, and reporting it as used would
+     * be wrong. An unlimited ability is never at max, so a card holding one
+     * never reports exhausted.
+     *
+     * Keyword abilities (Covert, Pride, ...) are excluded: they are not
+     * activated by clicking the card and have no per-period budget a player
+     * would track.
+     *
+     * Limits are counted PER PLAYER (`AbilityLimit` keys its use count by
+     * player name), so this is asked for the controller — the seat whose click
+     * the icon is about.
+     */
+    abilitiesExhausted(): boolean {
+        if(!this.isInPlay()) {
+            return false;
+        }
+        const player = this.controller;
+        if(!player) {
+            return false;
+        }
+        let limited = 0;
+        for(const ability of [...this.actions, ...this.reactions]) {
+            if(!ability.limit || ability.isKeywordAbility()) {
+                continue;
+            }
+            // An unlimited limit is never at max, so a card holding one can
+            // never report exhausted — which is the intended answer.
+            if(!ability.limit.isAtMax(player)) {
+                return false;
+            }
+            limited++;
+        }
+        return limited > 0;
+    }
+
     applyAnyLocationPersistentEffects(): void {
         for(const effect of this.persistentEffects) {
             if(effect.location === Locations.Any) {
@@ -1368,6 +1414,10 @@ class BaseCard extends EffectSource {
             isDishonored: this.isDishonored,
             isHonored: this.isHonored,
             isTainted: !!this.isTainted,
+            // Every limited ability on this card is spent for its period. Drives
+            // the "card used" badge in the client and the bot's own
+            // board-ability gate. Only ever true for a card in play.
+            abilitiesExhausted: this.abilitiesExhausted(),
             uuid: this.uuid
         };
 

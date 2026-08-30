@@ -1161,6 +1161,26 @@ class JigokuBotPolicy {
     }
 
     private boardAbilityIsUsed(card: any, dragon: DragonTactics | null = null): boolean {
+        // The ENGINE's own answer first, published on the card summary as
+        // `abilitiesExhausted` (every limited ability at `AbilityLimit.isAtMax`
+        // for this controller). It is strictly more accurate than the ledger
+        // below, which counts what the BOT believes it spent and prices the
+        // limit from a playbook convention rather than the card:
+        //
+        //   - it sees the real period, so a `perConflict` ability is available
+        //     again in the next conflict without the bot having to model that;
+        //   - it sees limit MODIFIERS, so Way of the Dragon's second use is
+        //     already counted (`getModifiedLimitMax` reads
+        //     `IncreaseLimitOnAbilities`), which the ledger only approximates;
+        //   - it sees abilities GAINED from another card.
+        //
+        // Only ever used to say "cannot", never "can": a card the engine
+        // reports as exhausted would refuse the click anyway, so this removes
+        // wasted decisions and can never unlock something. The ledger stays for
+        // the bot's own conventions and for synthetic contexts with no summary.
+        if(card?.abilitiesExhausted === true) {
+            return true;
+        }
         return (this.boardAbilityUsed.get(this.boardAbilityKey(card, dragon)) || 0) >= this.boardAbilityLimit(card, dragon);
     }
 

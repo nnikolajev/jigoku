@@ -145,6 +145,25 @@ class DrawCard extends BaseCard {
         return this.hasKeyword('covert');
     }
 
+    /**
+     * Whether COVERT applies to this character right now — what the client
+     * badge shows.
+     *
+     * Distinct from the `covert` FIELD, which records that this card has been
+     * chosen by an opposing covert character and may therefore not defend.
+     * Those are opposite sides of the same keyword and must not be confused.
+     *
+     * In play the keyword EFFECTS are the truth: a granted covert counts
+     * (Tattooed Wanderer while attached, Adept of the Waves during the
+     * contested element) and a lost one does not. Out of play no keyword effect
+     * is active — `parseKeywords` registers the printed keyword as a persistent
+     * effect whose location is the play area — so the printed keyword is the
+     * only answer available there.
+     */
+    hasCovertKeyword(): boolean {
+        return this.isInPlay() ? this.isCovert() : this.hasPrintedKeyword('covert');
+    }
+
     hasSincerity(): boolean {
         return this.hasKeyword('sincerity');
     }
@@ -1241,6 +1260,9 @@ class DrawCard extends BaseCard {
             fate: this.fate,
             new: this.new,
             covert: this.covert,
+            // The keyword itself, for the client's covert badge. `covert` above
+            // is the opposite reading — this card has BEEN covert-ed.
+            hasCovert: this.hasCovertKeyword(),
             showStats: this.showStats,
             militarySkillSummary: this.militarySkillSummary,
             politicalSkillSummary: this.politicalSkillSummary,

@@ -175,7 +175,9 @@ describe('card ability exhaustion published on the card summary', function() {
                     return;
                 }
                 const summary = province.getSummary(this.player1Object, false);
-                expect(typeof summary.abilitiesExhausted).toBe('boolean');
+                // A boolean either way — the point is that the field is PRESENT
+                // on a province summary, not which way it reads.
+                expect([true, false]).toContain(summary.abilitiesExhausted);
             });
         });
 

@@ -12,10 +12,10 @@ The bot treats public province knowledge as an economy resource:
 
 1. Prefer attacking a facedown province, even when an exposed province is easier.
 2. Prefer White Horde Vanguard in the first conflict and Shinjo Trailblazer when the attacked province is still hidden.
-3. Reveal the opposing stronghold province first when Border Fortress, Iuchi Farseer, Overrun, or another legal reveal effect can select it.
+3. Reveal the opposing OUTER provinces first when Border Fortress, Iuchi Farseer, Overrun, or another legal reveal effect can select one; the stronghold province is taken last, when it is the only hidden province left.
 4. Use Shiro Shinjo only when at least one opposing non-stronghold province is faceup.
 5. Reserve 4 fate for Scouted Terrain once all four outer provinces are faceup.
-6. If the opponent attacks while the Scouted plan is ready, preserve defenders unless the stronghold itself is threatened. After that attack completes, play Scouted Terrain and attack the now-eligible stronghold. Play it only when that attack can actually be declared and can reach the province's strength; once it is live, the stronghold is the declaration target.
+6. If the opponent attacks while the Scouted plan is ready, preserve defenders unless the stronghold itself is threatened. After that attack completes, play Scouted Terrain and attack the now-eligible stronghold — unless waiting for that attack cannot pay (our own stronghold province is already attackable, or they have no conflict left), in which case play it now. Play it only when that attack can actually be declared and can reach the province's strength; once it is live, the stronghold is the declaration target.
 7. Without the Scouted line, retain the fate advantage and buy one durable threat with fate.
 
 All deck-specific thresholds, IDs, fate amounts, target priorities, bid reduction, Scouted timing, and opponent Aranat response values live in `UnicornRevealProfile` or `ProvinceRevealResponseProfile`. The policy consumes those profiles through `UnicornRevealTactics` and `ProvinceRevealResponseTactics`; resolved profiles deep-clone every array/map so runtime tuning cannot leak between bots.
@@ -271,6 +271,124 @@ node tools/selfplay/deckFieldWinRate.js
 node tools/selfplay/validateBotInteractions.js --decks UnicornReveal --opponents all --seeds 1,2,3 --games 2 --out tools/selfplay/out/ur-interactions
 node tools/selfplay/auditCards.js --decks UnicornReveal --seeds 1,2,3 --opponents all --modes fair --games 3 --workers 12 --out tools/selfplay/out/ur-cardaudit
 ```
+
+## The reveal engine flipped the one province that pays nothing (2026-08-30)
+
+**Symptom.** Live replay
+(`game replays/debug/2026-08-30_kingitus_s_game_Jigoku_Bot-Unicorn_Clan_vs_kingitus-Dragon_Clan.json.gz`),
+round 1: three of the opponent's outer provinces were still hidden, and the bot
+spent Border Fortress on *"reveal kingitus's facedown province in their
+stronghold province"*. Iuchi Daiyu's Action in that same conflict then read
+**+1**.
+
+**Cause.** `preferOpponentStrongholdReveal` shipped `true`, and it is read at two
+sites: `UnicornRevealTactics.pickRevealTarget`'s comparator, and
+`JigokuBotPolicy.facedownSelectableDecision`, which puts `strongholdProvince`
+ahead of the outer four in the list it scans for a selectable facedown card.
+
+**Every payoff this deck buys with a reveal counts the OUTER four and nothing
+else.** Shiro Shinjo gains "1 fate for each faceup **non-stronghold** province",
+Iuchi Daiyu gives "+1 military for each faceup **non-stronghold** province", and
+the Scouted gate below wants all four outer provinces faceup. The stronghold
+province is worth flipping only for the one thing it does tell us — its printed
+strength, which `strongholdBreakStrength` otherwise assumes is
+`scoutedUnknownStrongholdStrength` — and that is worth less than a fate per
+round plus Daiyu's whole Action.
+
+**Fix.** `preferOpponentStrongholdReveal` ships `false`, and the comparator is
+now explicit in both directions rather than falling through to the location
+string (`'province N'` sorts before `'stronghold province'` only by accident of
+the alphabet, and the text-priority term above it can override that). The
+ordering term is scoped to **hidden** candidates: a faceup province has no flip
+left to spend, so on Overrun — whose other half blanks the printed text of an
+already-exposed province — the text priority still decides. When the outer four
+are all faceup the stronghold is the only hidden province left and the ordering
+is moot, so the flip still happens and its strength still becomes known.
+
+## The Scouted bait was measured against, and it stays (2026-08-30)
+
+**What the replay showed.** Same game, round 4. The bot was first player holding
+**two** copies of Scouted Terrain, 9 fate, and three unbowed bodies (Aranat 6,
+Kudaka 7, Moto Chagatai 6) against a **known** strength-5 stronghold province —
+Sacred Sanctuary, revealed by that same round-1 Border Fortress. All four of the
+opponent's outer provinces were faceup. It declared at an outer province
+instead, lost that conflict, and the opponent's first conflict of the phase
+broke our stronghold province and ended the game.
+
+Replaying that board through `shouldPlayScoutedTerrain` isolates one gate —
+every other leg passes:
+
+```
+outer faceup            4      (needs 4)
+all outer revealed      true
+stronghold strength     5      (faceup, known)
+canBreakStrongholdNow   true   (19 ready military)
+fate                    9      (needs 4)
+opponentStrongholdAttackable  false
+shouldPlay @0 completed conflicts   scoutedMinimumOpponentCompletedConflicts=1: false
+                                    scoutedMinimumOpponentCompletedConflicts=0: true
+```
+
+`scoutedMinimumOpponentCompletedConflicts: 1` is the bait in `defenderDecision`:
+let their attack bow their bodies, keep ours ready by declining the defense,
+then open the stronghold into a board that cannot defend it.
+
+**Decision: the bait ships (owner's call).** Its cost is real and is recorded
+here so nobody has to rediscover it — the wait is on a conflict the opponent is
+never obliged to declare, and here the one conflict it waited for was the one
+that ended the game. The alternative was built and censused before the call.
+
+**Census of the alternative** (`scoutedMinimumOpponentCompletedConflicts: 0`,
+`UnicornReveal` vs the other 16 decks, both seats, base 91001, 2 games per
+pairing = 64 games, decision traces):
+
+| | bait (shipped) | immediate |
+|---|---:|---:|
+| Scouted Terrain resolved | 24 | 44 |
+| ... followed by a stronghold declaration in the same phase | 24 | 33 |
+| ... paid for, no stronghold declaration | 0 | 11 |
+
+Immediate play roughly doubles how often the card is spent and converts nine
+more of those into the declaration it was bought for, at the cost of eleven
+plays that buy nothing (six of them in games that end before another
+declaration). The paired rig was set up for it and the null arm validated at
+**384 games, 100% bit-identical**; a first 24-base OFF arm on seat 0 read **90
+of 384 games flipped (ceiling 11.72pp), 46 to / 44 away** — dead even at that
+sample, which is why the full arm needs roughly 100 bases. The knob is still a
+one-value arm for anyone who wants to finish that run.
+
+**Two escapes ship instead** (owner's call, same day). They keep the bait and
+remove only the boards on which waiting cannot pay:
+
+| knob | fires when | why waiting cannot pay there |
+|---|---|---|
+| `scoutedIgnoreWaitWhenOwnStrongholdAtRisk` | our own stronghold province is legal to attack | their next conflict can END the game — it did in the replay above — so there is nothing left to preserve by waiting for it |
+| `scoutedIgnoreWaitWhenOpponentOutOfConflicts` | they have 0 conflict opportunities left this phase | the attack being waited for cannot happen at all, and four fate stay reserved for a card that will not be played |
+
+Both default `true` and both are single-knob arms. They **only relax the
+completed-conflicts wait**: `scoutedRequiresReadyAttacker`,
+`scoutedRequireBreakableStronghold`, the fate cost and
+`opponentStrongholdAttackable` are all still checked, so an escape can never buy
+an attack that cannot be declared or cannot reach the province. A separate spec
+asserts exactly that.
+
+"Three of our provinces are broken" is **read from the engine**, not counted:
+`ProvinceCard.canBeAttacked` gates the stronghold province on
+`getProvinces(isBroken).length > 2`, and a card can move that. The controller
+publishes `ProvinceKnowledgeSnapshot.selfStrongholdAttackable` by asking the same
+`canBeAttacked()` it already asks of the opponent's stronghold province. The play
+reports `unicorn-reveal-play-scouted-terrain-bait-pointless` when an escape is
+what let it through, so the two paths can be censused apart.
+
+**The all-in attack needs no change either way.** Once the stronghold province
+is clicked at the declaration prompt the engine sets `inConflict` on it
+immediately (`initiateconflictprompt.selectCard`), so `finalStrongholdPush` is
+true for the rest of that declaration. That makes `gameEndingPush` true, which
+bypasses the `applyAttackerPlan` rollout entirely — the rollout is what sized the
+round-4 outer attack at 6 of 19 available skill, because it holds bodies back
+for later conflicts and there is no later conflict after a stronghold break. The
+generic sizing then commits up to `provinceStrength + the opponent's ENTIRE ready
+board`, and every eligible body when even that is out of reach.
 
 ## Scouted Terrain was spent without ever attacking the stronghold (2026-08-22)
 

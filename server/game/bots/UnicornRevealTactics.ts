@@ -30,7 +30,26 @@ export interface ProvinceKnowledgeSnapshot {
     self: ProvinceKnowledge[];
     opponent: ProvinceKnowledge[];
     opponentStrongholdAttackable: boolean;
+    // OUR stronghold province is legal to attack, i.e. their next conflict can
+    // end the game. Read from the engine's own `ProvinceCard.canBeAttacked`,
+    // never from a count of broken provinces: the rule is "more than TWO
+    // broken", which is three, and a card could move it.
+    selfStrongholdAttackable: boolean;
     combinedConflictSkills: boolean;
+}
+
+// The two states in which waiting for the opponent's attack cannot pay, so the
+// bait's wait is skipped. See `shouldPlayScoutedTerrain`.
+export interface ScoutedBaitEscape {
+    ownStrongholdAttackable: boolean;
+    opponentConflictsRemaining: number;
+    // The declaration after this action window is OURS. Load bearing for both
+    // escapes: if THEY declare next, their conflict completes and the bait's
+    // own `scoutedMinimumOpponentCompletedConflicts` gate opens by itself one
+    // conflict later — so playing early buys nothing and can only lose the
+    // fate. Measured: without this, 6 of 9 escape plays bought no stronghold
+    // declaration at all.
+    ownDeclarationNext: boolean;
 }
 
 export interface ProvinceRevealResponseProfile {
@@ -49,6 +68,16 @@ export interface ScoutedAttackReadiness {
 }
 
 export interface UnicornRevealProfile {
+    // Which of the opponent's hidden provinces a reveal source flips FIRST.
+    // Every payoff this deck buys with a reveal counts the OUTER four and
+    // nothing else: Shiro Shinjo pays 1 fate per faceup NON-stronghold
+    // province, Iuchi Daiyu's Action reads the same count, and the Scouted
+    // Terrain gate below wants all four outer provinces faceup. Flipping the
+    // stronghold province pays none of them, so it is taken LAST — by which
+    // point it is the only hidden province left and the ordering is moot.
+    // Live 2026-08-30 r1: Border Fortress revealed the stronghold province
+    // while three outer provinces were still hidden, and Daiyu's Action read
+    // +1 for the rest of that conflict.
     preferOpponentStrongholdReveal: boolean;
     revealSourceIds: string[];
     // Chasing the Sun, Diversionary Maneuver and Overrun all read "... and
@@ -82,7 +111,36 @@ export interface UnicornRevealProfile {
     goodOmenMaxTargetFate: number;
     scoutedTerrainCardId: string;
     scoutedTerrainCost: number;
+    // How many conflicts the OPPONENT must have completed this phase before the
+    // card is played. Ships at 1, which is the bait in `defenderDecision`: let
+    // their attack bow their bodies, keep ours ready by declining the defense,
+    // then open the stronghold into a board that cannot defend it. Owner's
+    // call 2026-08-30, after the alternative was built and measured.
+    //
+    // Its known cost, for whoever revisits this: the wait is on a conflict the
+    // opponent is never obliged to declare. Live 2026-08-30 r4 — first player,
+    // two copies in hand, 9 fate, three ready bodies (19 military) against a
+    // known strength-5 stronghold province, all four outer provinces faceup —
+    // every other leg of `shouldPlayScoutedTerrain` passed and this one alone
+    // refused; the opponent's first conflict of that phase broke our stronghold
+    // province and ended the game. Setting this to 0 was built, tested and
+    // censused (24 -> 44 plays, 24 -> 33 converted into a stronghold
+    // declaration, 0 -> 11 paid for nothing over 64 games) and is still a
+    // one-value arm. See docs/unicorn-reveal-bot.md.
+    //
+    // The two escapes below keep the bait and remove the states in which it
+    // cannot pay.
     scoutedMinimumOpponentCompletedConflicts: number;
+    // Three of OUR provinces are broken, so the conflict the bait is waiting
+    // for may be the one that ends the game — as it was in that replay. Play
+    // now: breaking their stronghold province wins outright, and nothing is
+    // preserved by waiting for an attack that can get there first. Scoped to
+    // a declaration that is ours (`ScoutedBaitEscape.ownDeclarationNext`).
+    scoutedIgnoreWaitWhenOwnStrongholdAtRisk: boolean;
+    // They have no conflict opportunity left this phase, so the attack the
+    // bait is waiting for cannot happen at all and the card sits in hand while
+    // four fate stay reserved for it.
+    scoutedIgnoreWaitWhenOpponentOutOfConflicts: boolean;
     // Scouted Terrain buys exactly ONE thing: a legal declaration against the
     // stronghold province. It has no board effect, no card draw and no fate
     // return, so a phase in which we never declare that attack spends four
@@ -145,7 +203,7 @@ export const PROVINCE_REVEAL_RESPONSE_DEFAULTS: ProvinceRevealResponseProfile = 
 };
 
 export const UNICORN_REVEAL_DEFAULTS: UnicornRevealProfile = {
-    preferOpponentStrongholdReveal: true,
+    preferOpponentStrongholdReveal: false,
     revealSourceIds: [
         'border-fortress', 'iuchi-farseer', 'chasing-the-sun',
         'diversionary-maneuver', 'overrun'
@@ -188,6 +246,8 @@ export const UNICORN_REVEAL_DEFAULTS: UnicornRevealProfile = {
     scoutedTerrainCardId: 'scouted-terrain',
     scoutedTerrainCost: 4,
     scoutedMinimumOpponentCompletedConflicts: 1,
+    scoutedIgnoreWaitWhenOwnStrongholdAtRisk: true,
+    scoutedIgnoreWaitWhenOpponentOutOfConflicts: true,
     scoutedRequiresReadyAttacker: true,
     scoutedRequireBreakableStronghold: true,
     scoutedUnknownStrongholdStrength: 5,
@@ -266,6 +326,32 @@ export class UnicornRevealTactics {
             this.strongholdBreakStrength(snapshot) + this.profile.scoutedStrongholdSkillMargin;
     }
 
+    // Is the bait's wait pointless in this exact state? It waits for a conflict
+    // the opponent is never obliged to declare, so there are two boards on
+    // which waiting cannot pay and one of them loses the game.
+    //
+    // The default escape is deliberately inert: an omitted argument reports an
+    // opponent with conflicts left and our own stronghold province safe, which
+    // is the pre-escape behaviour exactly.
+    // Returns WHICH escape opened, not a boolean: the two fail independently
+    // and a census that cannot tell them apart cannot retire one of them.
+    baitWaitIsPointless(escape?: ScoutedBaitEscape): 'own-stronghold' | 'opponent-out' | null {
+        // Skipping the wait is only worth anything when we are the one about to
+        // declare. If they declare next, waiting costs us nothing: their
+        // conflict opens the gate the bait is waiting on.
+        if(!escape?.ownDeclarationNext) {
+            return null;
+        }
+        if(this.profile.scoutedIgnoreWaitWhenOwnStrongholdAtRisk && escape.ownStrongholdAttackable) {
+            return 'own-stronghold';
+        }
+        const remaining = Number(escape.opponentConflictsRemaining);
+        return this.profile.scoutedIgnoreWaitWhenOpponentOutOfConflicts &&
+            Number.isFinite(remaining) && Math.max(0, remaining) < 1
+            ? 'opponent-out'
+            : null;
+    }
+
     // Scouted Terrain needs unrevealed provinces to pay off, so it is gated on
     // the snapshot rather than on fate alone.
     //
@@ -273,15 +359,23 @@ export class UnicornRevealTactics {
     // effect expires at end of phase and grants nothing else, so a conflict
     // opportunity, a body that can be declared, and enough skill to reach the
     // province are all part of the card's cost, not of its follow-up.
+    //
+    // `escape` only ever RELAXES the completed-conflicts wait. Every other leg
+    // still has to pass, so an escape can never spend the card on an attack
+    // that cannot be declared or cannot reach the province.
     shouldPlayScoutedTerrain(
         snapshot: ProvinceKnowledgeSnapshot | undefined,
         fate: number,
         opponentCompletedConflicts: number,
-        attack: ScoutedAttackReadiness = { conflictsRemaining: 1, readyAttackers: 1, readyAttackSkill: Infinity }
+        attack: ScoutedAttackReadiness = { conflictsRemaining: 1, readyAttackers: 1, readyAttackSkill: Infinity },
+        escape?: ScoutedBaitEscape
     ): boolean {
         if(!snapshot || snapshot.opponentStrongholdAttackable ||
-            !this.allOpponentOuterRevealed(snapshot) || fate < this.profile.scoutedTerrainCost ||
-            opponentCompletedConflicts < this.profile.scoutedMinimumOpponentCompletedConflicts) {
+            !this.allOpponentOuterRevealed(snapshot) || fate < this.profile.scoutedTerrainCost) {
+            return false;
+        }
+        if(opponentCompletedConflicts < this.profile.scoutedMinimumOpponentCompletedConflicts &&
+            this.baitWaitIsPointless(escape) === null) {
             return false;
         }
         if(this.profile.scoutedRequiresReadyAttacker &&
@@ -360,9 +454,20 @@ export class UnicornRevealTactics {
             if(leftHidden !== rightHidden) {
                 return rightHidden - leftHidden;
             }
-            if(this.profile.preferOpponentStrongholdReveal) {
-                const stronghold = Number(right.location === 'stronghold province') -
-                    Number(left.location === 'stronghold province');
+            // Explicit in BOTH directions. Falling through to the location
+            // string happens to sort 'province N' before 'stronghold
+            // province', but that is an accident of the alphabet and the text
+            // priority below it can override it.
+            //
+            // Scoped to hidden candidates: this term is about which flip is
+            // worth more, and a faceup province has no flip left to spend. On
+            // a card like Overrun, whose other half blanks the printed text of
+            // an already-exposed province, the text priority decides instead.
+            const isStronghold = (card: any) => Number(card?.location === 'stronghold province');
+            if(left.facedown && right.facedown) {
+                const stronghold = this.profile.preferOpponentStrongholdReveal
+                    ? isStronghold(right) - isStronghold(left)
+                    : isStronghold(left) - isStronghold(right);
                 if(stronghold !== 0) {
                     return stronghold;
                 }

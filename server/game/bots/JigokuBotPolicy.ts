@@ -300,6 +300,9 @@ interface DecideContext {
     provinceKnowledge?: ProvinceKnowledgeSnapshot;
     completedConflictsThisRound?: number;
     opponentCompletedConflictsThisRound?: number;
+    // Whose declaration follows this action window, read from the engine's own
+    // `ConflictPhase.currentPlayer`. Nothing in the serialized state carries it.
+    ownConflictDeclarationNext?: boolean;
     // Identity of the live prompt step. Two consecutive prompts can have the
     // same title/menu and the same only legal target (for example both players
     // resolving Court Games). Keep their attempted-target sets separate.
@@ -631,6 +634,7 @@ class JigokuBotPolicy {
     private currentCombinedConflictSkills = false;
     private currentCompletedConflictsThisRound = 0;
     private currentOpponentCompletedConflictsThisRound = 0;
+    private currentOwnConflictDeclarationNext = false;
     // Fushicho-rotation tactics for the current decision, so helpers reached
     // below `decideForPrompt` do not each need the profile threaded through.
     private currentRebirth: RebirthTactics | null = null;
@@ -807,6 +811,7 @@ class JigokuBotPolicy {
             0,
             Number(context.opponentCompletedConflictsThisRound) || 0
         );
+        this.currentOwnConflictDeclarationNext = !!context.ownConflictDeclarationNext;
         // Needs the round number and both completed counts above it.
         this.syncConflictDeclarableScope(playerState);
         this.syncClarityConflict(playerState, context.roundNumber);
@@ -8494,14 +8499,34 @@ class JigokuBotPolicy {
                 Object.prototype.hasOwnProperty.call(conflictCosts, scouted.uuid)
                 ? Math.max(0, Number(conflictCosts[scouted.uuid]) || 0)
                 : this.currentUnicornReveal.profile.scoutedTerrainCost;
+            // The bait waits for an opposing completed conflict. These two are
+            // the boards on which that wait cannot pay: our own stronghold
+            // province is already legal to attack, so their next conflict can
+            // end the game before ours does (live 2026-08-30 r4), or they have
+            // no conflict opportunity left, so the attack being waited for
+            // cannot happen at all. Everything else about the play is unchanged.
+            const baitEscape = {
+                ownStrongholdAttackable: !!this.currentProvinceKnowledge?.selfStrongholdAttackable,
+                opponentConflictsRemaining: Number(revealOpponent?.stats?.conflictsRemaining),
+                ownDeclarationNext: this.currentOwnConflictDeclarationNext
+            };
             if(scouted && (Number(me?.stats?.fate) || 0) >= cost &&
                 this.currentUnicornReveal.shouldPlayScoutedTerrain(
                     this.currentProvinceKnowledge,
                     Number(me?.stats?.fate) || 0,
                     this.currentOpponentCompletedConflictsThisRound,
-                    this.scoutedAttackReadiness(me)
+                    this.scoutedAttackReadiness(me),
+                    baitEscape
                 )) {
-                return this.cardClickDecision(scouted, 'unicorn-reveal-play-scouted-terrain');
+                // Name the escape in the reason. The two fail independently,
+                // so a census that lumps them together cannot retire one.
+                const escaped = this.currentOpponentCompletedConflictsThisRound <
+                    this.currentUnicornReveal.profile.scoutedMinimumOpponentCompletedConflicts
+                    ? this.currentUnicornReveal.baitWaitIsPointless(baitEscape)
+                    : null;
+                return this.cardClickDecision(scouted, escaped
+                    ? `unicorn-reveal-play-scouted-terrain-bait-pointless-${escaped}`
+                    : 'unicorn-reveal-play-scouted-terrain');
             }
         }
 

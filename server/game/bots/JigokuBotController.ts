@@ -59,7 +59,7 @@ import type Player from '../player';
 import type Ring from '../ring';
 import type BaseCard from '../basecard';
 import type { JigokuBotConfig } from './JigokuBotConfig';
-import { CardTypes, CharacterStatus, EffectNames, EventNames, PlayTypes } from '../Constants';
+import { CardTypes, CharacterStatus, EffectNames, EventNames, Phases, PlayTypes } from '../Constants';
 import type { ProvinceStrengthByAxis, StrongholdDefenseAxis } from './StrongholdDefenseTactics';
 import { PlayAttachmentAction } from '../PlayAttachmentAction.js';
 
@@ -874,6 +874,7 @@ class JigokuBotController {
                     provinceIdsByLocation: this.provinceIdsByLocation(player),
                     provinceRefill: this.provinceRefillState(player),
                     provinceKnowledge: this.provinceKnowledgeSnapshot(player),
+                    ownConflictDeclarationNext: this.ownConflictDeclarationNext(player),
                     completedConflictsThisRound: ((this.game as any).conflictRecord || [])
                         .filter((record: any) => record?.completed).length,
                     opponentCompletedConflictsThisRound: ((this.game as any).conflictRecord || [])
@@ -2096,6 +2097,38 @@ class JigokuBotController {
     // are known to their controller; opponent facedown ids stay hidden. This
     // exposes counts, live strength, stronghold attackability, and the special
     // Massing-at-Twilight skill rule without granting fair bots secret data.
+    // Whose conflict declaration comes after the action window we are in.
+    //
+    // `ConflictPhase.currentPlayer` is the engine's own answer, but reaching it
+    // means walking `GamePipeline` past its PRIVATE cursor: completed steps stay
+    // in the array until the pipeline compacts, so a front-to-back scan returns
+    // the PREVIOUS round's phase object and its stale answer (measured: four
+    // Scouted plays made in the window before the OPPONENT's declaration).
+    //
+    // The declaration ORDER is public instead, and exactly reproduces
+    // `ConflictPhase`: it starts on the first player, alternates, and skips a
+    // player with no opportunities left. `game.conflictRecord` is cleared every
+    // dynasty phase and holds one entry per declaration INCLUDING passes, which
+    // is what makes the parity test exact — `completedConflictsThisRound` does
+    // NOT, because `recordConflictWinner` never runs for a passed conflict.
+    private ownConflictDeclarationNext(player: Player): boolean {
+        if(this.game.currentPhase !== Phases.Conflict || this.game.currentConflict) {
+            return false;
+        }
+        const first = this.game.getFirstPlayer?.();
+        const second = first?.opponent;
+        if(!first || !second) {
+            return false;
+        }
+        const declared = (who: Player): number =>
+            (this.game.conflictRecord || []).filter((record: any) => record?.attackingPlayer === who).length;
+        let next: Player | undefined = declared(first) === declared(second) ? first : second;
+        if(next.getConflictOpportunities?.() === 0) {
+            next = next.opponent;
+        }
+        return !!next && (next.getConflictOpportunities?.() || 0) > 0 && next === player;
+    }
+
     private provinceKnowledgeSnapshot(player: Player): ProvinceKnowledgeSnapshot {
         const describe = (owner: Player | undefined, revealHiddenIds: boolean): ProvinceKnowledge[] => {
             const provinces: any[] = typeof (owner as any)?.getProvinces === 'function'
@@ -2134,6 +2167,10 @@ class JigokuBotController {
             : [];
         const opponentStronghold = opponentProvinces.find((province: any) =>
             province?.location === 'stronghold province');
+        // Optional call, not a `typeof` guard: bot unit tests drive the
+        // controller with a minimal player stub that has no `getProvinces`.
+        const ownStronghold = (player.getProvinces?.() || []).find((province: any) =>
+            province?.location === 'stronghold province');
         const conflict: any = (this.game as any).currentConflict;
         const conflictProvinces: any[] = typeof conflict?.getConflictProvinces === 'function'
             ? conflict.getConflictProvinces() || []
@@ -2145,6 +2182,11 @@ class JigokuBotController {
                 (typeof opponentStronghold.canBeAttacked === 'function'
                     ? opponentStronghold.canBeAttacked()
                     : false),
+            // Same engine question asked of OUR side: `ProvinceCard.canBeAttacked`
+            // gates on `getProvinces(isBroken).length > 2`, so a broken-province
+            // count written here would be a second copy of a rule that a card
+            // can move.
+            selfStrongholdAttackable: !!ownStronghold && !!ownStronghold.canBeAttacked?.(),
             combinedConflictSkills: conflictProvinces.some((province: any) =>
                 (province?.id || province?.cardData?.id) === 'massing-at-twilight')
         };

@@ -19,6 +19,7 @@ describe('UnicornRevealTactics', function() {
             { location: 'stronghold province', owner: 'opponent', faceup: false, broken: false, stronghold: true }
         ],
         opponentStrongholdAttackable: false,
+        selfStrongholdAttackable: false,
         combinedConflictSkills: false,
         ...overrides
     });
@@ -49,6 +50,97 @@ describe('UnicornRevealTactics', function() {
         expect(tactics.shouldPlayScoutedTerrain(snapshot(), 4, 1)).toBe(true);
         expect(tactics.shouldPlayScoutedTerrain(snapshot(), 3, 1)).toBe(false);
         expect(tactics.shouldPlayScoutedTerrain(snapshot({ opponentStrongholdAttackable: true }), 9, 1)).toBe(false);
+    });
+
+    // The bait ships (owner's call 2026-08-30): wait for their attack to bow
+    // their bodies, keep ours ready, then open the stronghold. Playing in the
+    // first window of the phase is the arm that was built against it.
+    it('holds Scouted Terrain for the bait, and immediate play stays a one-value arm', function() {
+        expect(UNICORN_REVEAL_DEFAULTS.scoutedMinimumOpponentCompletedConflicts).toBe(1);
+
+        const immediate = new UnicornRevealTactics({
+            ...UNICORN_REVEAL_DEFAULTS,
+            scoutedMinimumOpponentCompletedConflicts: 0
+        });
+        expect(immediate.shouldPlayScoutedTerrain(snapshot(), 4, 0)).toBe(true);
+    });
+
+    // The bait waits for a conflict the opponent is never obliged to declare.
+    // Two boards make that wait unpayable; everything else about the play gate
+    // still applies on them.
+    describe('the bait escapes', function() {
+        const tactics = () => new UnicornRevealTactics();
+        const ready = { conflictsRemaining: 1, readyAttackers: 2, readyAttackSkill: 10 };
+        const waiting = {
+            ownStrongholdAttackable: false,
+            opponentConflictsRemaining: 2,
+            ownDeclarationNext: true
+        };
+
+        it('is inert when the escape argument is omitted or says nothing is wrong', function() {
+            expect(tactics().shouldPlayScoutedTerrain(snapshot(), 4, 0, ready)).toBe(false);
+            expect(tactics().shouldPlayScoutedTerrain(snapshot(), 4, 0, ready, waiting)).toBe(false);
+            expect(tactics().baitWaitIsPointless()).toBeNull();
+            expect(tactics().baitWaitIsPointless(waiting)).toBeNull();
+        });
+
+        // If THEY declare next, their conflict opens the bait's own gate one
+        // conflict later, so skipping the wait buys nothing and can only lose
+        // the fate. 6 of 9 escape plays were this before the scope was added.
+        it('does not fire when the opponent declares next', function() {
+            const theirTurn = {
+                ownStrongholdAttackable: true,
+                opponentConflictsRemaining: 0,
+                ownDeclarationNext: false
+            };
+
+            expect(tactics().baitWaitIsPointless(theirTurn)).toBeNull();
+            expect(tactics().shouldPlayScoutedTerrain(snapshot(), 9, 0, ready, theirTurn)).toBe(false);
+        });
+
+        // Live 2026-08-30 r4: the one conflict the bait was waiting for was the
+        // conflict that broke our stronghold province and ended the game.
+        it('plays now when our own stronghold province is already attackable', function() {
+            const escape = { ...waiting, ownStrongholdAttackable: true };
+
+            expect(tactics().baitWaitIsPointless(escape)).toBe('own-stronghold');
+            expect(tactics().shouldPlayScoutedTerrain(snapshot(), 4, 0, ready, escape)).toBe(true);
+
+            const off = new UnicornRevealTactics({
+                ...UNICORN_REVEAL_DEFAULTS,
+                scoutedIgnoreWaitWhenOwnStrongholdAtRisk: false
+            });
+            expect(off.shouldPlayScoutedTerrain(snapshot(), 4, 0, ready, escape)).toBe(false);
+        });
+
+        it('plays now when the opponent has no conflict left to bait', function() {
+            const escape = { ...waiting, opponentConflictsRemaining: 0 };
+
+            expect(tactics().baitWaitIsPointless(escape)).toBe('opponent-out');
+            expect(tactics().shouldPlayScoutedTerrain(snapshot(), 4, 0, ready, escape)).toBe(true);
+
+            const off = new UnicornRevealTactics({
+                ...UNICORN_REVEAL_DEFAULTS,
+                scoutedIgnoreWaitWhenOpponentOutOfConflicts: false
+            });
+            expect(off.shouldPlayScoutedTerrain(snapshot(), 4, 0, ready, escape)).toBe(false);
+        });
+
+        // An escape only RELAXES the wait. It must never buy an attack that
+        // cannot be declared or cannot reach the province.
+        it('never relaxes any other leg of the gate', function() {
+            const escape = { ownStrongholdAttackable: true, opponentConflictsRemaining: 0 };
+
+            expect(tactics().shouldPlayScoutedTerrain(snapshot(), 3, 0, ready, escape)).toBe(false);
+            expect(tactics().shouldPlayScoutedTerrain(
+                snapshot({ opponentStrongholdAttackable: true }), 9, 0, ready, escape)).toBe(false);
+            expect(tactics().shouldPlayScoutedTerrain(snapshot(), 4, 0,
+                { ...ready, readyAttackers: 0 }, escape)).toBe(false);
+            expect(tactics().shouldPlayScoutedTerrain(snapshot(), 4, 0,
+                { ...ready, conflictsRemaining: 0 }, escape)).toBe(false);
+            expect(tactics().shouldPlayScoutedTerrain(snapshot(), 4, 0,
+                { ...ready, readyAttackSkill: 4 }, escape)).toBe(false);
+        });
     });
 
     // The 2026-08-22 replay: Scouted Terrain played three times, stronghold
@@ -128,15 +220,31 @@ describe('UnicornRevealTactics', function() {
         expect(tactics.desiredAdditionalFate('not-in-the-profile')).toBeNull();
     });
 
-    it('reveals a hidden stronghold before an outer province and disables the best exposed text', function() {
+    // Shiro Shinjo and Iuchi Daiyu both count faceup NON-stronghold provinces,
+    // and the Scouted gate wants all four outer provinces faceup, so flipping
+    // the stronghold province pays nothing while an outer one is still hidden.
+    it('reveals a hidden outer province before the stronghold and disables the best exposed text', function() {
         const tactics = new UnicornRevealTactics();
         const hiddenOuter = { type: 'province', facedown: true, location: 'province 2' };
         const hiddenStronghold = { type: 'province', facedown: true, location: 'stronghold province' };
         const massing = { type: 'province', id: 'massing-at-twilight', facedown: false, location: 'province 3' };
         const ancestral = { type: 'province', id: 'ancestral-lands', facedown: false, location: 'province 4' };
 
-        expect(tactics.pickRevealTarget([hiddenOuter, hiddenStronghold])).toBe(hiddenStronghold);
+        expect(UNICORN_REVEAL_DEFAULTS.preferOpponentStrongholdReveal).toBe(false);
+        expect(tactics.pickRevealTarget([hiddenOuter, hiddenStronghold])).toBe(hiddenOuter);
+        // The only hidden province left is the stronghold: the ordering is moot
+        // and the flip still happens.
+        expect(tactics.pickRevealTarget([massing, hiddenStronghold])).toBe(hiddenStronghold);
+        // A faceup candidate has no flip left to spend, so the stronghold term
+        // does not apply and the printed-text priority decides.
         expect(tactics.pickRevealTarget([ancestral, massing])).toBe(massing);
+
+        // The old ordering is still an arm.
+        const strongholdFirst = new UnicornRevealTactics({
+            ...UNICORN_REVEAL_DEFAULTS,
+            preferOpponentStrongholdReveal: true
+        });
+        expect(strongholdFirst.pickRevealTarget([hiddenOuter, hiddenStronghold])).toBe(hiddenStronghold);
     });
 
     it('uses Outflank on the highest current-conflict skill among legal ready defenders', function() {
@@ -253,6 +361,7 @@ describe('UnicornRevealTactics', function() {
                 stronghold: false
             })),
             opponentStrongholdAttackable: false,
+            selfStrongholdAttackable: false,
             combinedConflictSkills: false
         });
 

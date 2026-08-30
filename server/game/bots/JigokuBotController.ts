@@ -26,7 +26,7 @@ import JigokuBotPolicy from './JigokuBotPolicy.js';
 import BotEngineRouter from './BotEngineRouter.js';
 import { resolveBotIdentity } from './BotConfiguration.js';
 import type { ResolvedBotIdentity } from './BotConfiguration';
-import type { BotDecision, BotEngine, MenuCardInfo } from './BotEngine';
+import type { BotDecision, BotEngine, LastingEffectSourceIds, MenuCardInfo } from './BotEngine';
 import { getPlaybookEntry, deriveDeckStrategy } from './CardPlaybook.js';
 import type { DeckStrategy } from './CardPlaybook';
 import { resolveDeckProfile } from './DeckProfiles.js';
@@ -59,7 +59,7 @@ import type Player from '../player';
 import type Ring from '../ring';
 import type BaseCard from '../basecard';
 import type { JigokuBotConfig } from './JigokuBotConfig';
-import { CardTypes, CharacterStatus, EffectNames, EventNames, Phases, PlayTypes } from '../Constants';
+import { CardTypes, CharacterStatus, Durations, EffectNames, EventNames, Phases, PlayTypes } from '../Constants';
 import type { ProvinceStrengthByAxis, StrongholdDefenseAxis } from './StrongholdDefenseTactics';
 import { PlayAttachmentAction } from '../PlayAttachmentAction.js';
 
@@ -928,6 +928,10 @@ class JigokuBotController {
                     // hand-written id list.
                     noBowCharacterUuids: this.characterNumberHint(player,
                         (card) => card?.bowsOnReturnHome?.() === false ? 1 : undefined),
+                    // Engine-read: which card is already applying a LASTING
+                    // effect to each character, so a second copy of the same
+                    // card is not spent on a body that already has it.
+                    lastingEffectSourceIdsByUuid: this.lastingEffectSourceIdsByUuid(),
                     // Exact engine legality for the ready -> move sequencer.
                     sequenceSourceTargets: this.sequenceSourceTargets(player),
                     // Exact live duel skills/honor/Iaijutsu state for shared
@@ -1698,6 +1702,61 @@ class JigokuBotController {
             }
         }
         return result;
+    }
+
+    /**
+     * Which cards are already applying a LASTING effect to each character in
+     * play, keyed by character uuid and reported as the source card's printed
+     * id.
+     *
+     * Nothing in the serialized card summary names the source of a lasting
+     * effect, so the bot cannot otherwise see that a body it is about to buff
+     * already carries that exact card. Live 2026-08-30 (Phoenix vs Crane, r3c1):
+     * the bot played Clarity of Purpose on Feral Ningyo, then used Kyuden Isawa
+     * to recur a second Clarity out of the discard and spent it on the SAME
+     * Feral Ningyo, while a freshly moved-in Ethereal Dreamer stood unprotected.
+     *
+     * Bot-side memory of accepted targets cannot answer this on its own: it is
+     * cleared by the per-round latch reset, and a DUEL opens an `Honor Bid`
+     * prompt in the middle of a conflict, which is exactly the window a
+     * recursion effect reuses.
+     *
+     * Lasting effects only (`duration !== Persistent`). A persistent effect is
+     * a card's own printed text, which a second copy of a different card does
+     * not duplicate. Conditional halves report correctly for free:
+     * `Effect.checkCondition` CANCELS a conditional effect's targets while its
+     * condition is false, so Clarity's political-only `DoesNotBow` half drops
+     * out during a military conflict and its unconditional `cardCannot('bow')`
+     * half is what keeps the protection visible on both axes.
+     *
+     * The engine also owns the LIFETIME: a conflict-duration effect is removed
+     * on `OnConflictFinished`, so this needs no conflict-scoping of its own.
+     */
+    private lastingEffectSourceIdsByUuid(): LastingEffectSourceIds {
+        const effects = this.game.effectEngine?.effects ?? [];
+        const sourcesByUuid: LastingEffectSourceIds = {};
+        for(const effect of effects) {
+            if(effect?.duration === Durations.Persistent) {
+                continue;
+            }
+            const sourceId = String(effect?.source?.id || '');
+            if(!sourceId) {
+                continue;
+            }
+            const targets: any[] = Array.isArray(effect?.targets) ? effect.targets : [];
+            for(const target of targets) {
+                const uuid = target?.uuid ? String(target.uuid) : '';
+                const type = target?.type || target?.getType?.();
+                if(!uuid || type !== 'character') {
+                    continue;
+                }
+                const existing = sourcesByUuid[uuid] || (sourcesByUuid[uuid] = []);
+                if(!existing.includes(sourceId)) {
+                    existing.push(sourceId);
+                }
+            }
+        }
+        return sourcesByUuid;
     }
 
     private characterNumberHint(

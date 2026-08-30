@@ -38,7 +38,7 @@
  *   skill and `docs/bot-v2-rejected-experiments.md` before adding a lever.
  */
 import SeededRandom from './SeededRandom.js';
-import type { MenuCardInfo } from './BotEngine';
+import type { LastingEffectSourceIds, MenuCardInfo } from './BotEngine';
 import type { CardHint } from './CardHintTypes';
 import type { DeckStrategy } from './CardPlaybook';
 import { banzaiRecurAllowed, honorCostOf, honorSpendingAllowed } from './CardPlaybook.js';
@@ -361,6 +361,11 @@ interface DecideContext {
     // bodies that stay READY through the conflict's resolution. Nothing in the
     // serialized card summary says this.
     noBowCharacterUuids?: Record<string, number>;
+    // Engine-read: for each character in play, the printed ids of the cards
+    // already applying a LASTING effect to it. Nothing in the serialized card
+    // summary names a lasting effect's source, so this is the only way to see
+    // that a body ALREADY carries the card about to be spent on it.
+    lastingEffectSourceIdsByUuid?: LastingEffectSourceIds;
     sequenceSourceTargets?: SequenceSourceTargets;
     // Seed-3 cheat view: the human's true hand/fate/province strengths. Present
     // only for the omniscient bot; every omniscient branch is gated on it, so
@@ -535,8 +540,17 @@ class JigokuBotPolicy {
     // Clarity lasts until conflict end. Player summaries do not serialize the
     // lasting-effect source, so remember accepted targets and distribute later
     // copies instead of protecting the same character twice.
+    //
+    // This half covers only the copy still IN FLIGHT — between clicking the
+    // target and the effect being applied the engine has nothing to report,
+    // and a cost prompt sits in that gap. A copy that has already RESOLVED is
+    // read off the engine instead (`lastingEffectSourceIdsByUuid`), because
+    // bot memory does not survive the per-round latch reset and a duel opens
+    // an `Honor Bid` prompt in the middle of a conflict.
     private clarityConflictKey = '';
     private clarityProtectedUuids = new Set<string>();
+    // Engine-read companion of `clarityProtectedUuids`, refreshed every prompt.
+    private currentLastingEffectSourceIds: LastingEffectSourceIds | undefined;
     private currentOmniscient: Omniscient | undefined;
     private currentOpponentParticipantCanBow = false;
     private currentOpponentDuelBidding: DuelBidProfile | undefined;
@@ -800,6 +814,7 @@ class JigokuBotPolicy {
         this.currentUnicornFactionCharacterUuids = context.unicornFactionCharacterUuids;
         this.currentReadyAfterMoveCharacterUuids = context.readyAfterMoveCharacterUuids;
         this.currentNoBowCharacterUuids = context.noBowCharacterUuids;
+        this.currentLastingEffectSourceIds = context.lastingEffectSourceIdsByUuid;
         this.currentLegalAttachmentBearers = context.legalAttachmentTargetUuidsBySource;
         this.currentParticipationBlocked = context.participationBlockedUuids;
         this.currentReadyValueVerdict = undefined;
@@ -866,8 +881,18 @@ class JigokuBotPolicy {
             this.pendingDaimyoBearerUuid = null;
             this.pendingRevealReadyBearerUuid = null;
             this.shunsenRingsReturned = 0;
-            this.clarityConflictKey = '';
-            this.clarityProtectedUuids.clear();
+            // Clarity state is deliberately NOT reset here. `promptTitle` is
+            // 'Honor Bid' for a DUEL bid as well as the draw-phase bid
+            // (`HonorBidPrompt` uses the one title; only `menuTitle` differs),
+            // so this block runs in the MIDDLE of a conflict whenever a duel is
+            // initiated -- which wiped the accepted-target memory and let the
+            // bot spend a second Clarity of Purpose on the body that already
+            // had it (live 2026-08-30, Phoenix vs Crane r3c1: Clarity on Feral
+            // Ningyo, a Disparaging Challenge duel, then a Kyuden Isawa
+            // recursion of Clarity onto the same Feral Ningyo).
+            // `syncClarityConflict` already owns the lifetime: it clears on any
+            // conflict-key change and whenever no conflict is running, which
+            // covers the draw phase this block fires in.
             // Way of the Phoenix is max one per PHASE and there is one conflict
             // phase per round, so the round boundary is the right reset.
             this.wayOfPhoenixUsedThisPhase = false;
@@ -937,6 +962,39 @@ class JigokuBotPolicy {
         }
 
         return decision;
+    }
+
+    /**
+     * Characters the ENGINE reports as already carrying a lasting effect from
+     * `sourceCardId`. Empty for a caller with no controller hint, which keeps
+     * every synthetic-context spec on the old bot-memory path.
+     */
+    private lastingEffectBearerUuids(sourceCardId: string): Set<string> {
+        const bearers = new Set<string>();
+        const bySource = this.currentLastingEffectSourceIds || {};
+        for(const uuid of Object.keys(bySource)) {
+            const sourceIds = bySource[uuid];
+            if(Array.isArray(sourceIds) && sourceIds.includes(sourceCardId)) {
+                bearers.add(String(uuid));
+            }
+        }
+        return bearers;
+    }
+
+    /**
+     * Bodies that already have Clarity of Purpose's protection this conflict.
+     *
+     * Union of the engine read (copies that have RESOLVED) and the bot's own
+     * accepted-target memory (the copy still in flight). Either alone leaves a
+     * hole: the engine cannot see a target picked but not yet applied, and bot
+     * memory is wiped by any per-round latch reset.
+     */
+    private clarityProtectedUuidSet(): Set<string> {
+        const bearers = this.lastingEffectBearerUuids('clarity-of-purpose');
+        for(const uuid of this.clarityProtectedUuids) {
+            bearers.add(uuid);
+        }
+        return bearers;
     }
 
     private syncClarityConflict(playerState: any, roundNumber?: number): void {
@@ -6182,12 +6240,19 @@ class JigokuBotPolicy {
         // A visible participating bow source, or an affordable exact omniscient
         // hand bow, can act after our next pass. Protect now, before optional
         // board actions and ordinary value plays give that threat priority.
+        const clarityProtected = this.clarityProtectedUuidSet();
         const urgentClarityThreat = (!!sharedPlayCtx.opponentParticipantCanBow ||
             !!sharedPlayCtx.opponentHasAffordableBowEffect) &&
             // Same rule as the playbook gate: with `clarityPoliticalOnly` the
             // card is not spent in a military conflict at all, so the urgent
             // pre-emption cannot re-open the door the gate just closed.
-            !(sharedPlayCtx.clarityPoliticalOnly && conflictType !== 'political');
+            !(sharedPlayCtx.clarityPoliticalOnly && conflictType !== 'political') &&
+            // ...and the same protection test, because this branch runs BEFORE
+            // the playbook gate. A body already carrying Clarity gains nothing
+            // from a second copy, so with every ready participant protected the
+            // threat is already answered and the card is held.
+            (sharedPlayCtx.myCharacters || []).some((card: any) =>
+                card?.inConflict && !card.bowed && !clarityProtected.has(String(card.uuid || '')));
         const urgentClarity = urgentClarityThreat
             ? this.normalConflictPlayCandidates(me, opponent).find((card: any) =>
                 card.id === 'clarity-of-purpose' && card.uuid && card.isPlayableByMe &&
@@ -6599,6 +6664,10 @@ class JigokuBotPolicy {
             // A bow effect only threatens us if they can actually pay for one.
             opponentCanBow: !!playCtx?.opponentHasAffordableBowEffect ||
                 !!playCtx?.opponentParticipantCanBow,
+            // Bodies already carrying Clarity, so the model prices a second
+            // copy off the next-best body instead of re-buying protection
+            // that is already there.
+            clarityProtectedUuids: Array.from(this.clarityProtectedUuidSet()),
             // Discard-pile bodies are not in play, so their printed stats come
             // from the controller rather than the serialized summary.
             dynastyDiscard: (this.currentDynastyDiscardBodies || []) as any,
@@ -7289,7 +7358,7 @@ class JigokuBotPolicy {
             opponentConflictsRemaining: opponent?.stats?.conflictsRemaining ?? 0,
             strengthNeeded: this.conflictStrengthNeeded(playerState, me),
             winSkillNeeded: standing?.losing ? standing.gap : 0,
-            clarityProtectedUuids: Array.from(this.clarityProtectedUuids),
+            clarityProtectedUuids: Array.from(this.clarityProtectedUuidSet()),
             opponentParticipantCanBow: this.currentOpponentParticipantCanBow,
             clarityPoliticalOnly: this.currentDeckProfile.shugenja?.clarityPoliticalOnly === true,
             tadakaRequiresBowedBase: this.currentDeckProfile.shugenja?.disguiseRequiresBowedBase === true,
@@ -12351,8 +12420,9 @@ class JigokuBotPolicy {
         }
 
         if(shugenja && targetHint.sourceCardId === 'clarity-of-purpose') {
+            const alreadyProtected = this.clarityProtectedUuidSet();
             const legal = mine.filter((card) => card.inConflict && !card.bowed &&
-                !this.clarityProtectedUuids.has(String(card.uuid || '')));
+                !alreadyProtected.has(String(card.uuid || '')));
             const tower = shugenja.pickTower(legal,
                 (card) => this.skillValue(card, skillType) || 0);
             if(tower) {

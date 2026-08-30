@@ -54,6 +54,15 @@ export interface MenuCardInfo {
     type: string;
 }
 
+/**
+ * Printed ids of the cards applying a LASTING (non-persistent) effect to each
+ * character in play, keyed by character uuid. Produced by
+ * `JigokuBotController.lastingEffectSourceIdsByUuid`: nothing in the serialized
+ * player state names the source of a lasting effect, so this is how a policy
+ * sees that a body ALREADY carries the card it is about to be given.
+ */
+export type LastingEffectSourceIds = Record<string, string[]>;
+
 export interface BotDecisionInput {
     readonly playerState: any;
     readonly botName?: string;

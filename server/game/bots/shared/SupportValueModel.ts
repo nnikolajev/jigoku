@@ -128,7 +128,11 @@ export function clarityOfPurposeValue(ctx: CardValueContext): CardValue {
     }
     // The engine targets any character we control, participating or not, but
     // only a participant can bow from resolution or be bowed in the conflict.
-    const candidates = participating(ctx.myCharacters).filter((card) => !card.bowed);
+    // A body that already carries Clarity is not a candidate either: both
+    // clauses are already on it, so a second copy buys nothing.
+    const alreadyProtected = new Set(ctx.clarityProtectedUuids || []);
+    const candidates = participating(ctx.myCharacters)
+        .filter((card) => !card.bowed && !alreadyProtected.has(String(card.uuid || '')));
     if(candidates.length === 0) {
         return blocked('no-standing-participant');
     }

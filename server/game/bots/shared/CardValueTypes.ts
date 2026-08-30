@@ -105,6 +105,12 @@ export interface CardValueContext {
     opponentGlory?: number;
     /** The opponent holds an affordable effect that can bow one of ours. */
     opponentCanBow?: boolean;
+    /**
+     * Characters that ALREADY carry Clarity of Purpose's protection this
+     * conflict. A second copy on the same body adds nothing, so these are not
+     * candidates -- see `clarityOfPurposeValue`.
+     */
+    clarityProtectedUuids?: string[];
     /** Our dynasty discard - Cavalry Reserves recruits out of it. */
     dynastyDiscard?: ValuedCharacter[];
     /** Do we control a holding? Siege Warfare requires one. */

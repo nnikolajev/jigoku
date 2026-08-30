@@ -66,13 +66,13 @@ import type { FateAwareEconomyProfile } from './FateAwareEconomy';
 import { planConflictCards } from './ConflictCardEconomy.js';
 import type { ConflictCardOption } from './ConflictCardEconomy';
 import { DishonorTactics } from './DishonorTactics.js';
-import { BidWarTactics } from './BidWarTactics.js';
+import { BidWarTactics, BID_WAR_DEFAULTS } from './BidWarTactics.js';
 import type { BidWarCardPower } from './BidWarTactics';
-import { LionTactics } from './LionTactics.js';
-import { LionDuelistTactics } from './LionDuelistTactics.js';
-import { CrabSacrificeTactics } from './CrabSacrificeTactics.js';
-import { CraneHonorTactics } from './CraneHonorTactics.js';
-import { LionHonorTactics } from './LionHonorTactics.js';
+import { LionTactics, LION_DEFAULTS } from './LionTactics.js';
+import { LionDuelistTactics, LION_DUELIST_DEFAULTS } from './LionDuelistTactics.js';
+import { CrabSacrificeTactics, CRAB_SACRIFICE_DEFAULTS } from './CrabSacrificeTactics.js';
+import { CraneHonorTactics, CRANE_HONOR_DEFAULTS } from './CraneHonorTactics.js';
+import { LionHonorTactics, LION_HONOR_DEFAULTS } from './LionHonorTactics.js';
 import {
     ConflictRecursionTactics,
     DynastyEventTactics,
@@ -82,31 +82,32 @@ import {
 import type { HonorTargetOptions, DynastyPrintedStats } from './SharedCardTactics';
 import { SaveFatePassPolicy } from './SaveFatePassPolicy.js';
 import { AggressiveSpendPolicy } from './AggressiveSpendPolicy.js';
-import { GloryTactics } from './GloryTactics.js';
-import { DragonTactics } from './DragonTactics.js';
-import { DuelTactics } from './DuelTactics.js';
+import { GloryTactics, GLORY_DEFAULTS } from './GloryTactics.js';
+import { DragonTactics, DRAGON_DEFAULTS } from './DragonTactics.js';
+import { DuelTactics, DUEL_DEFAULTS } from './DuelTactics.js';
 import { DuelBidTactics } from './DuelBidTactics.js';
 import type { DuelBidContext, DuelBidProfile } from './DuelBidTactics';
 import { DrawBidTactics, LegacyDrawBidTactics } from './DrawBidTactics.js';
 import type { DrawBidContext, DrawBidPolicyVariant } from './DrawBidTactics';
-import { ShugenjaTactics } from './ShugenjaTactics.js';
+import { ShugenjaTactics, SHUGENJA_DEFAULTS } from './ShugenjaTactics.js';
 import type { ShugenjaRingPlanContext } from './ShugenjaTactics';
-import { RebirthTactics } from './RebirthTactics.js';
-import { DragonAttachmentTactics } from './DragonAttachmentTactics.js';
+import { RebirthTactics, REBIRTH_DEFAULTS } from './RebirthTactics.js';
+import { DragonAttachmentTactics, DRAGON_ATTACHMENT_DEFAULTS } from './DragonAttachmentTactics.js';
 import { StrongholdDefenseTactics } from './StrongholdDefenseTactics.js';
 import { RevealReadyPolicy } from './RevealReadyPolicy.js';
 import type { RevealReadyProvinces } from './RevealReadyPolicy';
 import type { ProvinceStrengthByAxis, StrongholdDefenseCharacter, StrongholdDefensePlan } from './StrongholdDefenseTactics';
-import { CraneBaselineTactics } from './CraneBaselineTactics.js';
+import { CraneBaselineTactics, CRANE_BASELINE_DEFAULTS } from './CraneBaselineTactics.js';
 import { AttachmentControlTactics, isNegativeAttachmentId } from './AttachmentControlTactics.js';
 import { PersonalHonorTactics, PERSONAL_HONOR_DEFAULTS } from './PersonalHonorTactics.js';
 import { MoveIntoConflictPolicy, bodyCanJoinConflict, recordMoveIntoConflict } from './MoveIntoConflictPolicy.js';
 import type { ConflictAxisName, ParticipationBlockedUuids } from './MoveIntoConflictPolicy';
-import { UnicornTactics } from './UnicornTactics.js';
+import { UnicornTactics, UNICORN_DEFAULTS } from './UnicornTactics.js';
 import type { UnicornMoveContext } from './UnicornTactics';
 import {
     ProvinceRevealResponseTactics,
-    UnicornRevealTactics
+    UnicornRevealTactics,
+    UNICORN_REVEAL_DEFAULTS
 } from './UnicornRevealTactics.js';
 import type { ProvinceKnowledgeSnapshot, ScoutedAttackReadiness } from './UnicornRevealTactics';
 import type { HonorPersistenceBoard, PersonalHonorConflict } from './PersonalHonorTactics';
@@ -284,6 +285,37 @@ interface FateAwareAdditionalFateOverride {
      * declaration. Only such a deck sets this.
      */
     exact?: boolean;
+}
+
+/**
+ * Every deck-specific tactics package at its own module defaults.
+ *
+ * Bayushi Kachiko (Atonement) makes the OPPONENT's discarded events playable,
+ * so our seat can hold a card that belongs to a decklist we are not running —
+ * and the branch that owns that card's logic is gated on a package our profile
+ * does not have. Without this, a replayed event falls through to the generic
+ * skill-ordered picker and every deck-specific rule written for it is skipped.
+ *
+ * These are DEFAULT profiles, not the opponent's tuning: the tuned values are a
+ * property of the deck that shipped them and we are not that deck. Default
+ * logic for the card beats no logic for the card.
+ */
+interface ReplayTactics {
+    glory: GloryTactics;
+    lion: LionTactics;
+    dragon: DragonTactics;
+    duelist: DuelTactics;
+    shugenja: ShugenjaTactics;
+    attachmentTower: DragonAttachmentTactics;
+    crane: CraneBaselineTactics;
+    unicorn: UnicornTactics;
+    unicornReveal: UnicornRevealTactics;
+    bidWar: BidWarTactics;
+    lionDuelist: LionDuelistTactics;
+    crabSacrifice: CrabSacrificeTactics;
+    craneHonor: CraneHonorTactics;
+    lionHonor: LionHonorTactics;
+    rebirth: RebirthTactics;
 }
 
 interface DecideContext {
@@ -693,6 +725,14 @@ class JigokuBotPolicy {
     // round. The engine enforces the cap; the bot tracks its own accepted
     // replays so it stops OFFERING them once the budget is spent.
     private kachikoReplaysThisRound = 0;
+    // Printed ids of the cards we have played out of the OPPONENT's conflict
+    // discard this round. Those cards come from THEIR decklist, so the tactics
+    // package that owns their logic is missing from our profile — see
+    // `replayTacticsFor`.
+    private kachikoReplayCardIds = new Set<string>();
+    // Built once, lazily: every deck package at its own module defaults. Only
+    // ever consulted for a card we are replaying out of the opponent's discard.
+    private replayTacticsBundle: ReplayTactics | null = null;
     // A Season of War ends the dynasty phase and starts a fresh one, and the
     // refilled provinces can turn up another copy. Capped per game.
     private seasonOfWarUses = 0;
@@ -899,6 +939,7 @@ class JigokuBotPolicy {
             // Kachiko's replay budget refreshes on the round boundary, the same
             // place the card itself resets it (`onRoundEnded`).
             this.kachikoReplaysThisRound = 0;
+            this.kachikoReplayCardIds.clear();
         }
 
         const decision = this.decideForPrompt(playerState, me, context);
@@ -955,13 +996,71 @@ class JigokuBotPolicy {
             // proposing one the engine will refuse.
             if(this.currentBidWar) {
                 const opponentDiscard = this.opponentPlayer(playerState, me)?.cardPiles?.conflictDiscardPile || [];
-                if(opponentDiscard.some((entry: any) => entry?.uuid === decision.args[0])) {
+                const replayed = opponentDiscard.find((entry: any) => entry?.uuid === decision.args[0]);
+                if(replayed) {
                     this.kachikoReplaysThisRound++;
+                    if(replayed.id) {
+                        this.kachikoReplayCardIds.add(String(replayed.id));
+                    }
                 }
             }
         }
 
         return decision;
+    }
+
+    /**
+     * Deck packages to lend a prompt whose source card we are replaying out of
+     * the OPPONENT's conflict discard (Bayushi Kachiko).
+     *
+     * Returns null for every ordinary prompt, so a seat that is not mid-replay
+     * is bit-identical. When it does return a bundle the caller only ever uses
+     * it to fill packages our profile LACKS — a deck that runs the card keeps
+     * its own tuned module.
+     *
+     * Safe to lend wholesale because every package-gated branch in
+     * `polarityTargetDecision` is keyed on the source card id (the one that
+     * reads `dragon` without an id sits inside the `favorable-ground` block),
+     * so only the branch belonging to the replayed card can fire.
+     */
+    private replayTacticsFor(sourceCardId?: string): ReplayTactics | null {
+        if(!sourceCardId || !this.kachikoReplayCardIds.has(String(sourceCardId))) {
+            return null;
+        }
+        return this.replayTacticsForCard(sourceCardId);
+    }
+
+    /**
+     * The same bundle, without the "already replayed" test.
+     *
+     * The PLAY decision happens BEFORE the card is recorded as a replay, so the
+     * candidate filter identifies the card by its pile (the opponent's conflict
+     * discard) and asks for the bundle directly.
+     */
+    private replayTacticsForCard(cardId?: string): ReplayTactics | null {
+        if(!cardId) {
+            return null;
+        }
+        if(!this.replayTacticsBundle) {
+            this.replayTacticsBundle = {
+                glory: new GloryTactics(GLORY_DEFAULTS),
+                lion: new LionTactics(LION_DEFAULTS),
+                dragon: new DragonTactics(DRAGON_DEFAULTS),
+                duelist: new DuelTactics(DUEL_DEFAULTS),
+                shugenja: new ShugenjaTactics(SHUGENJA_DEFAULTS),
+                attachmentTower: new DragonAttachmentTactics(DRAGON_ATTACHMENT_DEFAULTS),
+                crane: new CraneBaselineTactics(CRANE_BASELINE_DEFAULTS),
+                unicorn: new UnicornTactics(UNICORN_DEFAULTS, new MoveIntoConflictPolicy(undefined)),
+                unicornReveal: new UnicornRevealTactics(UNICORN_REVEAL_DEFAULTS),
+                bidWar: new BidWarTactics(BID_WAR_DEFAULTS),
+                lionDuelist: new LionDuelistTactics(LION_DUELIST_DEFAULTS),
+                crabSacrifice: new CrabSacrificeTactics(CRAB_SACRIFICE_DEFAULTS),
+                craneHonor: new CraneHonorTactics(CRANE_HONOR_DEFAULTS),
+                lionHonor: new LionHonorTactics(LION_HONOR_DEFAULTS),
+                rebirth: new RebirthTactics(REBIRTH_DEFAULTS)
+            };
+        }
+        return this.replayTacticsBundle;
     }
 
     /**
@@ -6429,15 +6528,23 @@ class JigokuBotPolicy {
                 // Do not start a duel-deck attachment that cannot land on its
                 // intended tower. Canceling the target prompt returns the card
                 // to hand and otherwise causes an action-window retry loop.
+                // A Kachiko replay is a card from the OPPONENT's decklist, so
+                // the packages holding its play-refusals are missing from our
+                // profile. Lend them at their defaults for this card only: each
+                // of those checks refuses a play whose deck-specific picker
+                // finds no target, and a replay is one of only three a round.
+                const replayIntent = opponentDiscardUuids.has(String(card.uuid))
+                    ? this.replayTacticsForCard(card.id)
+                    : null;
                 return this.conflictCardHasPlayIntent(
                     card,
                     playCtx,
                     cardHint,
                     handStats,
                     feedCards,
-                    lion,
-                    duelist,
-                    attachmentTower
+                    lion || replayIntent?.lion || null,
+                    duelist || replayIntent?.duelist || null,
+                    attachmentTower || replayIntent?.attachmentTower || null
                 );
             })
             .sort((a: any, b: any) => {
@@ -11219,9 +11326,26 @@ class JigokuBotPolicy {
         let mine = cards.filter((card) => this.cardBelongsToPlayer(card, me, myUuids));
         const theirs = cards.filter((card) => !this.cardBelongsToPlayer(card, me, myUuids));
         const actionNames = targetHint.gameActions || [];
-        const unicorn = this.currentUnicorn;
-        const reveal = this.currentUnicornReveal;
         const sourceId = targetHint.sourceCardId || '';
+        // A card replayed out of the OPPONENT's conflict discard (Bayushi
+        // Kachiko) belongs to THEIR decklist, so the package holding its logic
+        // is absent from our profile and every rule written for that card would
+        // be skipped. Lend the missing packages at their module defaults for
+        // this prompt only. Null for every ordinary prompt, and a package we
+        // already run is never replaced, so this is bit-identical off the
+        // replay path.
+        const replay = this.replayTacticsFor(sourceId);
+        if(replay) {
+            glory = glory || replay.glory;
+            lion = lion || replay.lion;
+            dragon = dragon || replay.dragon;
+            duelist = duelist || replay.duelist;
+            shugenja = shugenja || replay.shugenja;
+            attachmentTower = attachmentTower || replay.attachmentTower;
+            crane = crane || replay.crane;
+        }
+        const unicorn = this.currentUnicorn || replay?.unicorn || null;
+        const reveal = this.currentUnicornReveal || replay?.unicornReveal || null;
         // ATTACHMENT BEARERS, asked once for every path below.
         //
         // A bowed body and a body at home both add 0 to the conflict being
@@ -11311,9 +11435,9 @@ class JigokuBotPolicy {
             }
         }
 
-        const bidWar = this.currentBidWar;
-        const lionDuelist = this.currentLionDuelist;
-        const crabSacrifice = this.currentCrabSacrifice;
+        const bidWar = this.currentBidWar || replay?.bidWar || null;
+        const lionDuelist = this.currentLionDuelist || replay?.lionDuelist || null;
+        const crabSacrifice = this.currentCrabSacrifice || replay?.crabSacrifice || null;
 
         // ---- Crab Berserker Sacrifice target steering ----------------------
         //
@@ -11850,7 +11974,7 @@ class JigokuBotPolicy {
         // ranks honor targets by raw skill — here the token is also an engine
         // trigger (Asahina Storyteller's Sincerity, Kakita Asami's drain), so
         // the deck's own ordering has to win.
-        const craneHonor = this.currentCraneHonor;
+        const craneHonor = this.currentCraneHonor || replay?.craneHonor || null;
         if(craneHonor) {
             const honorSources = [
                 'way-of-the-crane', 'court-games', 'callow-delegate', 'savvy-politician',
@@ -11917,7 +12041,7 @@ class JigokuBotPolicy {
             }
         }
 
-        const lionHonor = this.currentLionHonor;
+        const lionHonor = this.currentLionHonor || replay?.lionHonor || null;
         if(lionHonor) {
             // Every effect in the list that hands out an honored token. The
             // shared PersonalHonorTactics ranks by GLORY, which is right when
@@ -12115,7 +12239,7 @@ class JigokuBotPolicy {
         // Placed ahead of the shugenja branches below because the same deck
         // derives BOTH profiles and the two disagree about Fushicho: the
         // Shugenja list treats it as a 6/6 tower, this one treats it as fuel.
-        const rebirth = this.currentRebirth;
+        const rebirth = this.currentRebirth || replay?.rebirth || null;
         if(rebirth) {
             const axis: 'military' | 'political' = skillType === 'political' ? 'political' : 'military';
             const prompt = `${me?.promptTitle || ''} ${me?.menuTitle || ''}`.toLowerCase();
@@ -12419,12 +12543,28 @@ class JigokuBotPolicy {
             }
         }
 
-        if(shugenja && targetHint.sourceCardId === 'clarity-of-purpose') {
+        // NOT gated on `shugenja`. Clarity of Purpose belongs to the Phoenix
+        // decks, but Bayushi Kachiko (Atonement) makes the OPPONENT's discarded
+        // events playable, so the Scorpion bid-war seat reaches this prompt
+        // holding a card its own deck never contained — and fell through to the
+        // generic `hinted-target-self` picker, which knows nothing about the
+        // protection and re-targeted the body that already had it. Same shape
+        // as `DefenderRingChoicePolicy`: a rule gated on the deck that OWNS the
+        // card, reached from the seat that does not.
+        if(targetHint.sourceCardId === 'clarity-of-purpose') {
             const alreadyProtected = this.clarityProtectedUuidSet();
             const legal = mine.filter((card) => card.inConflict && !card.bowed &&
                 !alreadyProtected.has(String(card.uuid || '')));
-            const tower = shugenja.pickTower(legal,
-                (card) => this.skillValue(card, skillType) || 0);
+            // Phoenix keeps its own tower ranking, so that seat stays
+            // bit-identical. Any other seat orders by the same tail
+            // `pickTower` uses once its Phoenix-specific tower list is gone:
+            // survival first (fate), then skill on the conflict axis.
+            const tower = shugenja
+                ? shugenja.pickTower(legal, (card) => this.skillValue(card, skillType) || 0)
+                : legal.slice().sort((a, b) =>
+                    (Number(b.fate) || 0) - (Number(a.fate) || 0) ||
+                    (this.skillValue(b, skillType) || 0) - (this.skillValue(a, skillType) || 0) ||
+                    String(a.uuid || '').localeCompare(String(b.uuid || '')))[0];
             if(tower) {
                 return this.cardClickDecision(tower, 'clarity-of-purpose-tower');
             }

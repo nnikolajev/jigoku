@@ -33,6 +33,8 @@ import type { ReadyValueConfig } from './ReadyValuePolicy';
 import type { AttachmentTargetConfig } from './AttachmentTargetPolicy';
 import { DEFAULT_DEFENDER_RING_CHOICE } from './DefenderRingChoicePolicy.js';
 import type { DefenderRingChoiceConfig } from './DefenderRingChoicePolicy';
+import { DEFAULT_RING_PAYOFF } from './RingPayoffPolicy.js';
+import type { RingPayoffConfig } from './RingPayoffPolicy';
 import { DEFAULT_HONOR_RACE_LIMITS } from './CardPlaybook.js';
 import { DISHONOR_DEFAULTS } from './DishonorTactics.js';
 import type { DishonorProfile } from './DishonorTactics';
@@ -347,6 +349,12 @@ export interface DeckProfile {
     // declared against them. `enabled: false` restores V1's answer, which was
     // its own attacking preference — i.e. the best ring, handed to the enemy.
     defenderRingChoice: Partial<DefenderRingChoiceConfig>;
+    // What CLAIMING an element pays this board beyond the printed ring effect,
+    // owned by `RingPayoffPolicy`. Keyed on the CARD in play, not the deck, so
+    // every deck running Kudaka steers toward air instead of only the two
+    // Phoenix decks whose own tactics modules happen to model it. Ranked BELOW
+    // the fate tier. `enabled: false` restores the pre-2026-08-30 score.
+    ringPayoff: Partial<RingPayoffConfig>;
     // Which of our bodies the OPPONENT'S OWN DECLARATION readies, owned by
     // `RevealReadyPolicy`. Waterfall Tattoo readies its bearer after a province
     // we control is revealed, and the opponent's attack is what reveals one --
@@ -910,6 +918,10 @@ export const DEFAULT_PROFILE: DeckProfile = {
     // SHIPPED ON, field-wide, and generic: the prompt exists because the
     // OPPONENT has Togashi Tadakatsu in play, so every deck can be asked it.
     defenderRingChoice: { ...DEFAULT_DEFENDER_RING_CHOICE },
+    // SHIPPED ON, field-wide, and generic: it is inert for a deck that runs
+    // none of the payoff cards, and the two decks whose own tactics modules
+    // already own the element preference switch it off by name.
+    ringPayoff: { ...DEFAULT_RING_PAYOFF },
     // OFF by default and therefore inert for every deck without a
     // reveal-ready attachment. The Dragon attachment tower turns it on with
     // Waterfall Tattoo; see `RevealReadyPolicy`.
@@ -1002,6 +1014,13 @@ export function profileFromStrategy(strategy?: DeckStrategy): DeckProfile {
             moveReactionCardIds: [...(DEFAULT_PROFILE.moveIntoConflict.moveReactionCardIds || [])]
         },
         defenderRingChoice: { ...DEFAULT_PROFILE.defenderRingChoice },
+        ringPayoff: {
+            ...DEFAULT_PROFILE.ringPayoff,
+            payoffsByElement: Object.fromEntries(
+                Object.entries(DEFAULT_PROFILE.ringPayoff.payoffsByElement || {})
+                    .map(([element, ids]) => [element, [...ids]])
+            )
+        },
         revealReady: {
             ...DEFAULT_PROFILE.revealReady,
             attachmentIds: [...(DEFAULT_PROFILE.revealReady.attachmentIds || [])]
@@ -1939,6 +1958,12 @@ const OVERRIDES: ProfileOverride[] = [
         name: 'phoenix-shugenja-ring-plan',
         match: (ids, strategy) => strategy.shugenja && ids.has('offerings-to-the-kami'),
         apply: {
+            // The element preference here has exactly one owner,
+            // `ShugenjaTactics.ringPlanScore` (`ringPlanKudakaAirValue` prices
+            // this deck's Kudaka in the same fate-equivalent currency as the
+            // rest of its rings). The generic card->element steering would add
+            // a second, coarser air term on top of it.
+            ringPayoff: { enabled: false },
             // Superseded by `entrenched-position-stronghold` while the deck
             // holds that card; kept for a list that does not.
             strongholdProvinceId: 'vassal-fields',
@@ -2010,6 +2035,12 @@ const OVERRIDES: ProfileOverride[] = [
         name: 'phoenix-phoenix-fushicho-rotation',
         match: (ids, strategy) => strategy.rebirth && ids.has('retire-to-the-brotherhood'),
         apply: {
+            // Same one-owner rule as the shugenja list above: this deck's
+            // element preference belongs to `RebirthTactics.ringBonus`, whose
+            // `ringPayoffsByElement.air` already names Kudaka and whose fire
+            // guard (Isawa Tsuke) steers AWAY from an element — a balance the
+            // generic bonus is not part of.
+            ringPayoff: { enabled: false },
             strongholdProvinceId: 'retire-to-the-brotherhood',
             // Bodies rotate every round, so there is never a tower to preserve
             // and holding one back only shrinks the attack. Keep one home

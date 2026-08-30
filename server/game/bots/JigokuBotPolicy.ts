@@ -58,6 +58,7 @@ import { ReadyMovePlanner, sequenceOptionsFrom, moveSourceSpec } from './ReadyMo
 import type { ReadyMovePlan, SequenceOption, SequenceSourceTargets } from './ReadyMovePlanner';
 import type { ReadyValueVerdict } from './ReadyValuePolicy';
 import { DefenderRingChoicePolicy } from './DefenderRingChoicePolicy.js';
+import { RingPayoffPolicy } from './RingPayoffPolicy.js';
 import type { DefenderRingChoiceResult } from './DefenderRingChoicePolicy';
 import { BotTelemetry } from './BotTelemetry.js';
 import type { DeckProfile } from './DeckProfiles';
@@ -672,6 +673,8 @@ class JigokuBotPolicy {
     private pendingSacrificeCostUuid: string | null = null;
     private sacrificeCostWindowsSeen = 0;
     private currentClaimedRingElements: string[] = [];
+    private currentRingPayoff: RingPayoffPolicy | null = null;
+    private currentRingPayoffConfig: unknown = undefined;
     // Bayushi Kachiko (Atonement) replays at most three opponent events per
     // round. The engine enforces the cap; the bot tracks its own accepted
     // replays so it stops OFFERING them once the budget is spent.
@@ -3906,7 +3909,13 @@ class JigokuBotPolicy {
             return Math.max(0, Math.min(50, planEffect + this.ringElementBase(ring, me, opponent)));
         }
         const fate = Math.max(0, Number(ring?.fate) || 0);
-        const threshold = this.usesFateAwareEconomy() ? 1 : 2;
+        // Must be the SAME tier `ringScore` applied, or the subtraction leaves
+        // a 1000 behind and every ring clamps to 50. A live `RingPayoffPolicy`
+        // lowers that threshold, so read it from the same place.
+        const threshold = Math.min(
+            this.usesFateAwareEconomy() ? 1 : 2,
+            this.ringPayoffPolicy().fateThreshold(this.myCharactersInPlay(me)) ?? Number.POSITIVE_INFINITY
+        );
         const fateScore = fate >= threshold ? 1000 + fate * 100 : 0;
         return Math.max(0, Math.min(50, this.ringScore(
             ring, me, opponent, dishonor, glory, dragon, shugenja, duelist, attachmentTower) - fateScore));
@@ -4623,6 +4632,17 @@ class JigokuBotPolicy {
     // remain, dead otherwise. Air trails. The ring's displayed conflict type
     // is irrelevant — any ring can be flipped military/political by clicking
     // it again, which happens separately based on character strength.
+    /** `ringScore` runs inside ring sorts, so the policy is built once per
+     *  deck profile rather than once per ring compared. */
+    private ringPayoffPolicy(): RingPayoffPolicy {
+        const config = this.currentDeckProfile.ringPayoff;
+        if(!this.currentRingPayoff || this.currentRingPayoffConfig !== config) {
+            this.currentRingPayoffConfig = config;
+            this.currentRingPayoff = new RingPayoffPolicy(config);
+        }
+        return this.currentRingPayoff;
+    }
+
     /** Generic per-element ring value, before any fate pile or deck bonus. */
     private ringElementBase(ring: any, me: any, opponent: any): number {
         switch(ring.element) {
@@ -4677,8 +4697,18 @@ class JigokuBotPolicy {
         // whose ELEMENT is the payoff (Dragon's void recursion, its fire honor
         // on the tower) one fate is not worth giving up the plan, so that deck
         // can raise the bar it has to clear. Null keeps the generic reading.
-        const fateThreshold = dragon?.ringFateDominanceThreshold() ??
-            (this.usesFateAwareEconomy() ? 1 : 2);
+        // A live card -> element payoff (`RingPayoffPolicy`) brings its own,
+        // lower bar with it. Without that, a bonus large enough to reorder the
+        // element band would also take a bare air ring over a ring carrying ONE
+        // fate on a policy whose own threshold is 2 — "unless there is fate on
+        // another ring" has to hold on every seed, not only the fate-aware
+        // ones. Null when no payoff is on the board, which is every deck that
+        // runs none of the cards.
+        const payoffFateThreshold = this.ringPayoffPolicy().fateThreshold(this.myCharactersInPlay(me));
+        const fateThreshold = Math.min(
+            dragon?.ringFateDominanceThreshold() ?? (this.usesFateAwareEconomy() ? 1 : 2),
+            payoffFateThreshold ?? Number.POSITIVE_INFINITY
+        );
         const fateComponent = fate >= fateThreshold ? 1000 + fate * 100 : 0;
 
         // The dishonor deck's honor-drain engine is the air ring: boost it
@@ -4777,8 +4807,22 @@ class JigokuBotPolicy {
             return ringPlan + base;
         }
 
+        // Generic card -> element steering, owned by `RingPayoffPolicy`. Every
+        // bonus above belongs to one archetype's tactics module; this one is
+        // keyed on the CARD standing on the board, so a deck outside those
+        // archetypes that runs the same card gets the same steering. It is
+        // scored off `me`, which the inverted defender-ring reading passes as
+        // the OPPONENT — pricing their payoff is the point there.
+        //
+        // Added after `fateComponent` so a ring carrying fate still wins: the
+        // attacker banks that fate at declaration, while a claim payoff needs
+        // the conflict won first.
+        const ringPayoffBonus = this.ringPayoffPolicy()
+            .elementBonus(String(ring.element || ''), this.myCharactersInPlay(me));
+
         return fateComponent + base + gloryBonus + dragonBonus + shugenjaBonus + duelBonus +
-            attachmentBonus + rebirthBonus + lionDuelistBonus + craneHonorBonus + lionHonorBonus;
+            attachmentBonus + rebirthBonus + lionDuelistBonus + craneHonorBonus + lionHonorBonus +
+            ringPayoffBonus;
     }
 
     private shugenjaRingPlanContext(me: any, opponent: any,

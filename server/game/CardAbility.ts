@@ -190,7 +190,7 @@ class CardAbility extends ThenAbility {
      * `context.target` is the single-target shortcut, `context.targets` the map used
      * when an ability has several named targets, and `context.ring` the ring form.
      */
-    private targetRecords(context: AbilityContext) {
+    private targetRecords(context: AbilityContext, recorded: Set<string>) {
         const targets: any[] = [];
         if(context.target) {
             targets.push(context.target);
@@ -206,24 +206,53 @@ class CardAbility extends ThenAbility {
             targets.push(context.ring);
         }
         const sourceUuid = context.source ? context.source.uuid : undefined;
-        const seen = new Set<string>([sourceUuid]);
+        if(sourceUuid) {
+            recorded.add(sourceUuid);
+        }
         return recordCards(targets.filter((target) => {
             const uuid = target && target.uuid;
-            if(!uuid || seen.has(uuid)) {
+            if(!uuid || recorded.has(uuid)) {
                 return false;
             }
-            seen.add(uuid);
+            recorded.add(uuid);
             return true;
         }));
     }
 
+    /**
+     * The cards SPENT on this ability rather than aimed at it.
+     *
+     * A select cost stores the card the player picked under the game action's own name
+     * (`MetaActionCost`), which is the same place the cost message reads it from -- so
+     * Acclaimed Geisha House's dishonored character is here and nowhere in
+     * `context.target`. Non-card costs live in the same map as booleans, numbers, card
+     * NAMES and players, so only entries carrying a uuid are kept.
+     */
+    private costRecords(context: AbilityContext, alreadyRecorded: Set<string>): any[] {
+        const paid: any[] = [];
+        for(const cost of this.cost) {
+            const actionName = cost.getActionName?.(context);
+            const card = actionName ? context.costs[actionName] : undefined;
+            const uuid = card && card.uuid;
+            if(!uuid || alreadyRecorded.has(uuid)) {
+                continue;
+            }
+            alreadyRecorded.add(uuid);
+            paid.push(card);
+        }
+        return recordCards(paid);
+    }
+
     private playRecord(context: AbilityContext, messageVerb: string): MessageRecord {
+        const recorded = new Set<string>();
+        const targets = this.targetRecords(context, recorded);
         return {
             kind: 'play',
             player: context.player && context.player.name,
             verb: messageVerb,
             source: recordCard(context.source),
-            targets: this.targetRecords(context)
+            targets,
+            costs: this.costRecords(context, recorded)
         };
     }
 

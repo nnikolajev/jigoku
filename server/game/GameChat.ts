@@ -39,6 +39,12 @@ export type MessageRecord = {
     verb?: string;
     source?: RecordedCard;
     targets?: Array<RecordedCard>;
+    /**
+     * Cards spent to pay for the ability, as opposed to aimed at. A cost is not a
+     * target, but it is still a card this ability reached out and touched, so the
+     * client draws it the same way.
+     */
+    costs?: Array<RecordedCard>;
     conflictId?: number;
     conflictType?: string;
     ring?: RecordedCard;

@@ -57,6 +57,27 @@ describe('Acclaimed Geisha House', function() {
             expect(this.player1).not.toBeAbleToSelect(this.nergui);
         });
 
+        // The dishonored character is paid as a COST, not chosen as a target, so it is
+        // absent from context.target -- and the client's arrow had nothing to point at.
+        it('should record the character dishonored to pay for it', function() {
+            this.noMoreActions();
+            this.initiateConflict({
+                attackers: [this.manipulator, this.youth],
+                defenders: [this.nergui],
+                ring: 'air'
+            });
+            this.player2.pass();
+            this.player1.clickCard(this.house);
+            this.player1.clickRing('fire');
+            this.player1.clickCard(this.youth);
+
+            const entries = this.game.gameChat.messages.filter((entry) => entry.record && entry.record.kind === 'play');
+            const record = entries[entries.length - 1].record;
+            expect(record.source.id).toBe('acclaimed-geisha-house');
+            expect(record.targets.map((card) => card.uuid)).toEqual([this.game.rings.fire.uuid]);
+            expect(record.costs.map((card) => card.uuid)).toEqual([this.youth.uuid]);
+        });
+
         it('should not work if there is not a participating character that can be dishonored', function() {
             this.manipulator.dishonor();
             this.youth.dishonor();

@@ -1,5 +1,6 @@
 import { RingAction } from './RingAction';
 import { Durations, EventNames } from '../Constants';
+import { captureNamedCard } from '../NamedCardState';
 import { LastingEffectGeneralProperties } from './LastingEffectAction';
 
 export type LastingEffectRingProperties = LastingEffectGeneralProperties;
@@ -19,6 +20,7 @@ export class LastingEffectRingAction extends RingAction {
         if(!properties.ability) {
             properties.ability = event.context.ability;
         }
+        captureNamedCard(properties, event.context);
         event.context.source[properties.duration](() => Object.assign({ match: event.ring }, properties));
     }
 }

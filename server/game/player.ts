@@ -31,6 +31,7 @@ import type DrawCard from './drawcard';
 import type Ring from './ring';
 import type { ClockInterface } from './Clocks/types';
 import type { AbilityContext } from './AbilityContext';
+import { namedCardsForPlayer, unplayableNamedCards } from './NamedCardState';
 
 class Player extends GameObject {
     user: any;
@@ -1693,6 +1694,19 @@ class Player extends GameObject {
 
         if(this.clock) {
             state.clock = this.clock.getState();
+        }
+
+        // Cards named out loud. `namedCards` are names THIS player chose that are still
+        // driving an effect (Shiro Kitsuki); `cannotPlayNamed` are names this player is
+        // currently forbidden to play copies of (Gossip and friends). Both are derived
+        // from the live effects, so they appear and vanish exactly with the rule.
+        const namedCards = namedCardsForPlayer(this.game, this);
+        if(namedCards.length > 0) {
+            state.namedCards = namedCards;
+        }
+        const cannotPlayNamed = unplayableNamedCards(this.game, this);
+        if(cannotPlayNamed.length > 0) {
+            state.cannotPlayNamed = cannotPlayNamed;
         }
 
         return Object.assign(state, promptState);

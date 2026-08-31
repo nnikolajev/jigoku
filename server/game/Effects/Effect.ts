@@ -42,6 +42,12 @@ class Effect {
     targets: any[];
     context: any;
     endingMessage: string | undefined;
+    /**
+     * A card named out loud by the ability that created this effect (the nameCard()
+     * cost). Published so the client can show WHICH card was named for as long as the
+     * effect lasts -- see NamedCardState.
+     */
+    namedCard: string | undefined;
 
     constructor(game: Game, source: any, properties: any, effect: any) {
         this.game = game;
@@ -60,6 +66,7 @@ class Effect {
         this.effect.duration = this.duration;
         this.effect.isConditional = !!properties.condition;
         this.endingMessage = properties.endingMessage || undefined;
+        this.namedCard = properties.namedCard || undefined;
     }
 
     refreshContext() {

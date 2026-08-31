@@ -3,6 +3,7 @@ import type BaseAbility from '../baseability';
 import { Durations, EventNames, Players } from '../Constants';
 import type { WhenType } from '../Interfaces';
 import type Player from '../player';
+import { captureNamedCard } from '../NamedCardState';
 import { GameAction, type GameActionProperties } from './GameAction';
 
 export interface LastingEffectGeneralProperties extends GameActionProperties {
@@ -12,6 +13,7 @@ export interface LastingEffectGeneralProperties extends GameActionProperties {
     effect?: any;
     message?: string;
     ability?: BaseAbility;
+    namedCard?: string;
 }
 
 export interface LastingEffectProperties extends LastingEffectGeneralProperties {
@@ -59,6 +61,7 @@ export class LastingEffectAction<P extends LastingEffectProperties = LastingEffe
         if(!properties.ability) {
             properties.ability = event.context.ability;
         }
+        captureNamedCard(properties, event.context);
         event.context.source[properties.duration](() => properties);
     }
 }

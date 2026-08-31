@@ -53,6 +53,37 @@ describe('Shiro Kitsuki', function() {
                 expect(this.player1).toHavePrompt('Name a card');
             });
 
+            // The client draws the named card beside Shiro Kitsuki, so the naming
+            // player's state has to say WHICH card was named and which card named it.
+            it('should publish the named card against the stronghold', function() {
+                this.player1.clickCard(this.shiroKitsuki);
+                this.player1.chooseCardInPrompt(this.fineKatana.name, 'card-name');
+
+                const state = this.player1.player.getState(this.player1.player);
+                expect(state.namedCards).toBeDefined();
+                expect(state.namedCards.length).toBe(1);
+                expect(state.namedCards[0].name).toBe(this.fineKatana.name);
+                expect(state.namedCards[0].sourceId).toBe('shiro-kitsuki');
+                expect(state.namedCards[0].id).toBe('fine-katana');
+                expect(state.namedCards[0].packId).toBeDefined();
+                expect(state.namedCards[0].sourceUuid).toBe(this.shiroKitsuki.uuid);
+
+                expect(this.player2.player.getState(this.player2.player).namedCards).toBeUndefined();
+            });
+
+            it('should stop publishing the named card once the conflict ends', function() {
+                this.player1.clickCard(this.shiroKitsuki);
+                this.player1.chooseCardInPrompt(this.fineKatana.name, 'card-name');
+                expect(this.player1.player.getState(this.player1.player).namedCards.length).toBe(1);
+
+                this.player2.clickPrompt('Done');
+                this.noMoreActions();
+                this.player1.clickPrompt("Don't resolve");
+                this.game.checkGameState(true);
+
+                expect(this.player1.player.getState(this.player1.player).namedCards).toBeUndefined();
+            });
+
             it('should let the player name a card and claim a ring when the named card is player', function() {
                 this.player1.clickCard(this.shiroKitsuki);
                 this.player1.chooseCardInPrompt(this.fineKatana.name, 'card-name');

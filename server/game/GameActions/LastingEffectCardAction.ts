@@ -2,6 +2,7 @@ import type { AbilityContext } from '../AbilityContext';
 import type BaseCard from '../basecard';
 import { Durations, EffectNames, EventNames, Locations } from '../Constants';
 import { CardGameAction } from './CardGameAction';
+import { captureNamedCard } from '../NamedCardState';
 import type { LastingEffectGeneralProperties } from './LastingEffectAction';
 
 export interface LastingEffectCardProperties extends LastingEffectGeneralProperties {
@@ -74,6 +75,7 @@ export class LastingEffectCardAction<
         if(!properties.ability) {
             properties.ability = event.context.ability;
         }
+        captureNamedCard(properties, event.context);
 
         const lastingEffectRestrictions = event.card.getEffects(EffectNames.CannotApplyLastingEffects);
         const { effect: _effect, ...otherProperties } = properties;

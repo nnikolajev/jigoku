@@ -1,3 +1,4 @@
+import { recordCard, recordCards } from '../GameChat';
 import type { AbilityContext } from '../AbilityContext';
 import type BaseCard from '../basecard';
 import CardSelector from '../CardSelector';
@@ -111,7 +112,21 @@ export class SelectCardAction extends CardGameAction {
             onCancel: properties.cancelHandler,
             onSelect: (player, cards) => {
                 if(properties.message) {
-                    context.game.addMessage(properties.message, ...properties.messageArgs(cards, player, properties));
+                    // This is the entry that names the target an ability picked in a
+                    // follow-up prompt -- 76 cards in the pool word it as
+                    // "{0} chooses to honor {1}". The prose alone never names the SOURCE,
+                    // so the record carries both halves and the client no longer has to
+                    // pair the two entries up by position.
+                    context.game.addRecordedMessage(
+                        {
+                            kind: 'target',
+                            player: player && player.name,
+                            source: recordCard(context.source),
+                            targets: recordCards(Array.isArray(cards) ? cards : [cards])
+                        },
+                        properties.message,
+                        ...properties.messageArgs(cards, player, properties)
+                    );
                 }
                 properties.gameAction.addEventsToArray(
                     events,

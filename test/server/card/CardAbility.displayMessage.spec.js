@@ -4,8 +4,14 @@ const AbilityDsl = require('../../../build/server/game/abilitydsl');
 
 describe('CardAbility displayMessage', function () {
     beforeEach(function () {
-        this.gameSpy = jasmine.createSpyObj('game', ['addMessage', 'on']);
+        this.gameSpy = jasmine.createSpyObj('game', ['addMessage', 'addRecordedMessage', 'on']);
         this.gameSpy.gameChat = new GameChat();
+        // Mirrors Game.addRecordedMessage: the structured record rides alongside the
+        // same message, so the argument assertions below are unaffected by it.
+        this.gameSpy.addRecordedMessage.and.callFake((record, ...args) => {
+            this.lastRecord = record;
+            this.gameSpy.addMessage(...args);
+        });
         this.player = {
             name: 'Player 1',
             getShortSummary: () => this.player,

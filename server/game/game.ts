@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 
 import ChatCommands from './chatcommands.js';
 import { GameChat } from './GameChat';
+import type { MessageRecord } from './GameChat';
 import { EffectEngine } from './EffectEngine.js';
 import Player from './player.js';
 import { Spectator } from './Spectator.js';
@@ -99,6 +100,9 @@ class Game extends EventEmitter {
     currentPhase: string;
     password?: string;
     roundNumber: number;
+    // Identifies each declared conflict in the message records, so the client can fold
+    // the declaration, the covert pairings and the defenders into one entry.
+    conflictSequence = 0;
     initialFirstPlayer: string | null;
     conflictRecord: ConflictRecord[];
     rings: Record<string, Ring>;
@@ -193,6 +197,15 @@ class Game extends EventEmitter {
      */
     addMessage(message: string, ...args: any[]): void {
         this.gameChat.addMessage(message, ...args);
+    }
+
+    /**
+     * Adds a message to in-game chat together with a structured record of what it
+     * describes, so the client does not have to parse the formatted prose back apart.
+     */
+    addRecordedMessage(record: MessageRecord, message: string, ...args: any[]): void {
+        this.addMessage(message, ...args);
+        this.gameChat.attachRecord(record);
     }
 
     /**

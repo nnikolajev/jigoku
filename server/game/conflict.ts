@@ -25,6 +25,9 @@ export class Conflict extends GameObject {
     conflictUnopposed = false;
     declaredProvince = null;
     declaredRing?: Ring;
+    // Set at declaration from Game.conflictSequence, so the message records for this
+    // conflict (declaration, covert, defenders) can be folded together by the client.
+    conflictId = 0;
     declaredType = null;
     defendersChosen = false;
     defenderSkill = 0;

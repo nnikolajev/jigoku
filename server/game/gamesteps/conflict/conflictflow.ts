@@ -1,3 +1,4 @@
+import { recordCard, recordCards } from '../../GameChat';
 import { AbilityContext } from '../../AbilityContext';
 import { BaseStepWithPipeline } from '../BaseStepWithPipeline';
 import { discardCard, payFate, payFateToRing, payHonor } from '../../Costs';
@@ -353,7 +354,19 @@ class ConflictFlow extends BaseStepWithPipeline {
             this.conflict.conflictProvince && this.conflict.conflictProvince.isFacedown()
                 ? provinceSlot
                 : this.conflict.conflictProvince;
-        this.game.addMessage(
+        this.conflict.conflictId = ++this.game.conflictSequence;
+        this.game.addRecordedMessage(
+            {
+                kind: 'conflict-declared',
+                conflictId: this.conflict.conflictId,
+                player: this.conflict.attackingPlayer.name,
+                conflictType: this.conflict.conflictType,
+                ring: recordCard(this.conflict.ring),
+                // A facedown province is messaged as its slot name rather than as a
+                // card, and records the same way: absent, not half-known.
+                province: recordCard(this.conflict.conflictProvince),
+                attackers: recordCards(this.conflict.attackers)
+            },
             '{0} is initiating a {1} conflict at {2}, contesting {3}',
             this.conflict.attackingPlayer,
             this.conflict.conflictType,
@@ -592,6 +605,25 @@ class ConflictFlow extends BaseStepWithPipeline {
                 )
             );
         }
+
+        // Who covert-ed whom existed only in a prompt title before this, so it was never
+        // logged and the client had to guess the pairing from two unordered sets.
+        const bypasses = this.covert.filter((context: any) => context.source && context.target);
+        if(bypasses.length > 0) {
+            this.game.addRecordedMessage(
+                {
+                    kind: 'conflict-covert',
+                    conflictId: this.conflict.conflictId,
+                    covert: bypasses.map((context: any) => ({
+                        source: recordCard(context.source),
+                        target: recordCard(context.target)
+                    }))
+                },
+                '{0}',
+                bypasses.map((context: any) => ['{0} uses covert on {1}', context.source, context.target])
+            );
+        }
+
         this.game.openThenEventWindow(events);
     }
 
@@ -709,14 +741,25 @@ class ConflictFlow extends BaseStepWithPipeline {
         this.conflict.defenders.forEach((card: any) => (card.inConflict = true));
         this.conflict.defendingPlayer.cardsInPlay.each((card: any) => (card.covert = false));
 
+        const defenderRecord = {
+            kind: 'conflict-defenders' as const,
+            conflictId: this.conflict.conflictId,
+            player: this.conflict.defendingPlayer.name,
+            defenders: recordCards(this.conflict.defenders)
+        };
         if(this.conflict.defenders.length > 0) {
-            this.game.addMessage(
+            this.game.addRecordedMessage(
+                defenderRecord,
                 '{0} has defended with skill {1}',
                 this.conflict.defendingPlayer,
                 this.conflict.defenderSkill
             );
         } else {
-            this.game.addMessage('{0} does not defend the conflict', this.conflict.defendingPlayer);
+            this.game.addRecordedMessage(
+                defenderRecord,
+                '{0} does not defend the conflict',
+                this.conflict.defendingPlayer
+            );
         }
     }
 

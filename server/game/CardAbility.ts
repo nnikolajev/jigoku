@@ -6,6 +6,8 @@ import { initiateDuel } from './DuelHelper';
 import type Game from './game';
 import type BaseCard from './basecard';
 import type { AbilityContext } from './AbilityContext';
+import { recordCard, recordCards } from './GameChat';
+import type { MessageRecord } from './GameChat';
 
 interface CardAbilityProperties {
     title?: string;
@@ -183,6 +185,48 @@ class CardAbility extends ThenAbility {
         return location;
     }
 
+    /**
+     * Everything this ability is aimed at, from the context rather than from the words.
+     * `context.target` is the single-target shortcut, `context.targets` the map used
+     * when an ability has several named targets, and `context.ring` the ring form.
+     */
+    private targetRecords(context: AbilityContext) {
+        const targets: any[] = [];
+        if(context.target) {
+            targets.push(context.target);
+        }
+        for(const value of Object.values(context.targets || {})) {
+            if(Array.isArray(value)) {
+                targets.push(...value);
+            } else if(value) {
+                targets.push(value);
+            }
+        }
+        if(context.ring) {
+            targets.push(context.ring);
+        }
+        const sourceUuid = context.source ? context.source.uuid : undefined;
+        const seen = new Set<string>([sourceUuid]);
+        return recordCards(targets.filter((target) => {
+            const uuid = target && target.uuid;
+            if(!uuid || seen.has(uuid)) {
+                return false;
+            }
+            seen.add(uuid);
+            return true;
+        }));
+    }
+
+    private playRecord(context: AbilityContext, messageVerb: string): MessageRecord {
+        return {
+            kind: 'play',
+            player: context.player && context.player.name,
+            verb: messageVerb,
+            source: recordCard(context.source),
+            targets: this.targetRecords(context)
+        };
+    }
+
     displayMessage(context: AbilityContext, messageVerb = context.source.type === CardTypes.Event ? 'plays' : 'uses'): void {
         if(
             context.source.type === CardTypes.Event &&
@@ -210,7 +254,9 @@ class CardAbility extends ThenAbility {
             const message = typeof this.properties.message === 'function'
                 ? this.properties.message(context)
                 : this.properties.message;
-            this.game.addMessage(message, ...messageArgs);
+            // A custom message follows no fixed shape, so the record is the only way the
+            // client can know what this entry was about.
+            this.game.addRecordedMessage(this.playRecord(context, messageVerb), message, ...messageArgs);
             return;
         }
         let origin = context.ability && (context.ability as CardAbility).origin;
@@ -270,7 +316,11 @@ class CardAbility extends ThenAbility {
             // discard Stoic Gunso
             messageArgs.push({ message: this.game.gameChat.formatMessage(effectMessage, effectArgs) });
         }
-        this.game.addMessage('{0}{1}{2}{3}{4}{5}{6}{7}{8}', ...messageArgs);
+        this.game.addRecordedMessage(
+            this.playRecord(context, messageVerb),
+            '{0}{1}{2}{3}{4}{5}{6}{7}{8}',
+            ...messageArgs
+        );
     }
 
     isCardPlayed(): boolean {

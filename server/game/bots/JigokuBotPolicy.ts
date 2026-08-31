@@ -433,6 +433,13 @@ interface DecideContext {
     // UUIDs already visible to the bot that the live prompt accepts as direct
     // clicks. Undefined preserves legacy behavior for synthetic/custom calls.
     legalDirectCardUuids?: Record<string, true>;
+    // Printed ids of the hand cards the ENGINE says are legal to trigger right
+    // now. Published only while `combinedConflictSkills` is on, because that is
+    // the only state in which the playbook's `conflictTypes` gate has to be
+    // reopened, and only the engine can say which of those cards were gated on
+    // the axis by their own printed condition. Undefined leaves the gate
+    // exactly as it was.
+    combinedSkillLegalCardIds?: readonly string[];
     // Exact legal BEARERS for every attachment in hand, keyed by that card's
     // uuid, straight from the engine's own target resolver. This is the only
     // way the bot can know that Minami Kaze Regulars ("no attachments except
@@ -679,6 +686,7 @@ class JigokuBotPolicy {
     private currentProvinceRevealResponse = new ProvinceRevealResponseTactics();
     private currentProvinceKnowledge: ProvinceKnowledgeSnapshot | undefined;
     private currentCombinedConflictSkills = false;
+    private currentCombinedSkillLegalCardIds: readonly string[] | undefined;
     private currentCompletedConflictsThisRound = 0;
     private currentOpponentCompletedConflictsThisRound = 0;
     private currentOwnConflictDeclarationNext = false;
@@ -864,6 +872,7 @@ class JigokuBotPolicy {
         this.readyMovePlanComputed = false;
         this.currentProvinceKnowledge = context.provinceKnowledge;
         this.currentCombinedConflictSkills = !!context.provinceKnowledge?.combinedConflictSkills;
+        this.currentCombinedSkillLegalCardIds = context.combinedSkillLegalCardIds;
         this.currentCompletedConflictsThisRound = Math.max(0, Number(context.completedConflictsThisRound) || 0);
         this.currentOpponentCompletedConflictsThisRound = Math.max(
             0,
@@ -2745,6 +2754,30 @@ class JigokuBotPolicy {
 
     private isDirectCardLegal(card: any, legalDirectCardUuids?: Record<string, true>): boolean {
         return !legalDirectCardUuids || !!(card?.uuid && legalDirectCardUuids[card.uuid]);
+    }
+
+    /**
+     * Does a card the playbook restricts to the OTHER conflict type still pay
+     * here? Only while combined skill is live (Massing at Twilight, Shiba
+     * Ryuu), where every participant counts military PLUS political and a
+     * military pump therefore raises the total of a political conflict.
+     *
+     * `CardPlaybook.conflictTypes` conflates two rules — an engine gate
+     * ("during a [conflict-military] conflict": A Perfect Cut, Way of the Lion)
+     * and a value heuristic ("the bonus is military": Banzai!, Hurricane Punch,
+     * Ujik Tactics, Scarlet Sabre). Combined skill deletes the heuristic and
+     * leaves the gate, so the split comes from the engine's own
+     * `meetsRequirements`, published as `combinedSkillLegalCardIds`. Undefined
+     * (every prompt without combined skill, and every synthetic caller) keeps
+     * the gate closed exactly as before.
+     *
+     * Live 2026-08-31, defending the stronghold province at Massing at
+     * Twilight: the bot held Banzai! and Scarlet Sabre through a political
+     * conflict it lost by 9 and played neither.
+     */
+    private offAxisCardStillPays(cardId?: string): boolean {
+        return !!cardId && this.currentCombinedConflictSkills &&
+            !!this.currentCombinedSkillLegalCardIds?.includes(cardId);
     }
 
     private cardBelongsToPlayer(card: any, player: any, knownUuids: Set<string>): boolean {
@@ -6077,7 +6110,8 @@ class JigokuBotPolicy {
                 return true;
             }
             if(hint.useWhen === 'never' || hint.useWhen === 'winning' ||
-                (hint.conflictTypes.length > 0 && !hint.conflictTypes.includes(conflictType))) {
+                (hint.conflictTypes.length > 0 && !hint.conflictTypes.includes(conflictType) &&
+                    !this.offAxisCardStillPays(card.id))) {
                 return false;
             }
             const projected = {
@@ -8484,7 +8518,8 @@ class JigokuBotPolicy {
             if(hint.useWhen === 'never' || hint.useWhen === 'winning') {
                 return deny(`use-when-${hint.useWhen}`);
             }
-            if(hint.conflictTypes.length > 0 && !hint.conflictTypes.includes(playCtx.conflictType)) {
+            if(hint.conflictTypes.length > 0 && !hint.conflictTypes.includes(playCtx.conflictType) &&
+                !this.offAxisCardStillPays(card?.id)) {
                 return deny('wrong-conflict-type');
             }
             if(typeof hint.shouldPlay === 'function' && !hint.shouldPlay(playCtx)) {
@@ -11841,6 +11876,19 @@ class JigokuBotPolicy {
             }
         }
         if(reveal && reveal.profile.revealSourceIds.includes(sourceId)) {
+            // A source whose payoff is BLANKING a province (Overrun) wants the
+            // STRONGHOLD province: it is the wall the game ends on, the
+            // opponent reaches it last so its text has the longest left to
+            // run, and no attack plan can route around it. That beats the
+            // hidden-first shortcut below — but only when the prompt actually
+            // offers it. With no usable stronghold province the ordering
+            // reverts to hidden-first, because the token lands BEFORE the
+            // reveal and so blanks an on-reveal reaction before it can fire.
+            const blankAndReveal = reveal.profile.blankAndRevealSourceIds.includes(sourceId);
+            const blankTarget = blankAndReveal ? reveal.pickRevealTarget(theirs, sourceId) : null;
+            if(blankTarget?.location === 'stronghold province') {
+                return this.cardClickDecision(blankTarget, `unicorn-reveal-${sourceId}-stronghold`);
+            }
             // A facedown opposing province carries no uuid, so it never reaches
             // `theirs` and `pickRevealTarget`'s hidden-first ranking can only
             // ever choose between provinces that are ALREADY faceup — on cards
@@ -11854,7 +11902,7 @@ class JigokuBotPolicy {
                     return hidden;
                 }
             }
-            const target = reveal.pickRevealTarget(theirs);
+            const target = blankTarget || reveal.pickRevealTarget(theirs, sourceId);
             if(target) {
                 return this.cardClickDecision(target, `unicorn-reveal-${sourceId}-province`);
             }
@@ -14246,8 +14294,16 @@ class JigokuBotPolicy {
             }
             const revealSource = !!this.currentUnicornReveal &&
                 this.currentUnicornReveal.profile.revealSourceIds.includes(targetHint?.sourceCardId || '');
+            // A blank-and-reveal source (Overrun) wants the stronghold
+            // province, the same ordering `preferOpponentStrongholdReveal`
+            // asks for, for the opposite reason: it is blanking the wall the
+            // game ends on rather than buying a faceup outer province.
+            const strongholdFirst = revealSource && !!this.currentUnicornReveal &&
+                (this.currentUnicornReveal.profile.preferOpponentStrongholdReveal ||
+                    this.currentUnicornReveal.profile.blankAndRevealSourceIds
+                        .includes(targetHint?.sourceCardId || ''));
             const outer = PROVINCE_KEYS.map((key) => player?.provinces?.[key] || []);
-            const lists = revealSource && this.currentUnicornReveal?.profile.preferOpponentStrongholdReveal
+            const lists = strongholdFirst
                 ? [player?.strongholdProvince || [], ...outer]
                 : outer.concat([player?.strongholdProvince || []]);
             for(const list of lists) {

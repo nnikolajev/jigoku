@@ -247,6 +247,54 @@ describe('UnicornRevealTactics', function() {
         expect(strongholdFirst.pickRevealTarget([hiddenOuter, hiddenStronghold])).toBe(hiddenStronghold);
     });
 
+    // Live 2026-08-31 (Unicorn vs Dragon, r4c1): the bot broke City of the Rich
+    // Frog, then played Overrun to blank that same province.
+    // `ProvinceCard.isBlank()` already returns true while `isBroken` and a
+    // broken province is already faceup, so both halves of the card bought
+    // nothing. Every opposing province was faceup by then, so the hidden-first
+    // ranking never fired and the last tie-break -- the alphabetical location
+    // string -- picked 'province 1', which is where the break had happened.
+    it('spends Overrun on the stronghold province, never on the province it just broke', function() {
+        const tactics = new UnicornRevealTactics();
+        const broken = { type: 'province', id: 'city-of-the-rich-frog', facedown: false, isBroken: true, location: 'province 1' };
+        const outer = { type: 'province', id: 'restoration-of-balance', facedown: false, isBroken: false, location: 'province 2' };
+        const stronghold = { type: 'province', id: 'entrenched-position', facedown: false, isBroken: false, location: 'stronghold province' };
+
+        expect(UNICORN_REVEAL_DEFAULTS.blankAndRevealSourceIds).toEqual(['overrun']);
+        expect(tactics.pickRevealTarget([broken, outer, stronghold], 'overrun')).toBe(stronghold);
+        // A broken province is not a legal payoff for ANY source in the list.
+        expect(tactics.pickRevealTarget([broken, outer], 'overrun')).toBe(outer);
+        expect(tactics.pickRevealTarget([broken, outer])).toBe(outer);
+        expect(tactics.pickRevealTarget([broken], 'overrun')).toBeNull();
+
+        // Nothing left to blank there, so the token goes somewhere it still
+        // does something.
+        const alreadyBlank = { ...stronghold, isDishonored: true };
+        expect(tactics.pickRevealTarget([outer, alreadyBlank], 'overrun')).toBe(outer);
+
+        // Hidden beats faceup once the stronghold province is out of the
+        // picture: the token lands BEFORE the flip, so an on-reveal reaction
+        // is blanked before it can fire.
+        const hiddenOuter2 = { type: 'province', facedown: true, isBroken: false, location: 'province 3' };
+        expect(tactics.pickRevealTarget([outer, hiddenOuter2], 'overrun')).toBe(hiddenOuter2);
+
+        // Every other source keeps the hidden-first ordering it was measured on.
+        const hiddenStronghold2 = { type: 'province', facedown: true, isBroken: false, location: 'stronghold province' };
+        expect(tactics.pickRevealTarget([hiddenOuter2, hiddenStronghold2], 'border-fortress')).toBe(hiddenOuter2);
+    });
+
+    // `ProvinceCard.hideWhenFacedown()` is false, so a facedown PROVINCE still
+    // publishes `type: 'province'`. The facedown DYNASTY cards sitting in that
+    // province publish no type at all and no reveal source can target them.
+    it('never offers a facedown dynasty card as a province target', function() {
+        const tactics = new UnicornRevealTactics();
+        const dynasty = { facedown: true, location: 'province 1', uuid: 'd1' };
+        const province = { type: 'province', facedown: false, isBroken: false, location: 'province 2' };
+
+        expect(tactics.pickRevealTarget([dynasty, province])).toBe(province);
+        expect(tactics.pickRevealTarget([dynasty])).toBeNull();
+    });
+
     it('uses Outflank on the highest current-conflict skill among legal ready defenders', function() {
         const tactics = new UnicornRevealTactics();
         const military = { type: 'character', uuid: 'a', military: 5, political: 1, bowed: false, isUnique: false };

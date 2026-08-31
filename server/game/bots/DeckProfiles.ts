@@ -3089,6 +3089,7 @@ export function resolveDeckProfile(cardIds: Iterable<string>, strategy?: DeckStr
                 apply.unicornReveal = {
                     ...override.apply.unicornReveal,
                     revealSourceIds: [...override.apply.unicornReveal.revealSourceIds],
+                    blankAndRevealSourceIds: [...override.apply.unicornReveal.blankAndRevealSourceIds],
                     redirectSourceIds: [...override.apply.unicornReveal.redirectSourceIds],
                     firstConflictCharacterIds: [...override.apply.unicornReveal.firstConflictCharacterIds],
                     unrevealedProvinceAttackerIds: [...override.apply.unicornReveal.unrevealedProvinceAttackerIds],

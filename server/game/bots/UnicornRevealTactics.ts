@@ -88,6 +88,20 @@ export interface UnicornRevealProfile {
     // hidden above faceup; it simply never receives a hidden province. This
     // makes the hidden one win before that ranking is reached.
     preferFacedownRevealTarget: boolean;
+    // Sources whose payoff is BLANKING a province, not flipping it. Overrun
+    // places a dishonored status token ("treat its printed text box as blank")
+    // and reveals it as a rider. `ProvinceCard.isBlank()` already returns true
+    // for a BROKEN province and a broken province is already faceup, so both
+    // halves of the card are spent on the province the break just happened at
+    // -- which is exactly what the hidden-first ranking below picks when every
+    // opposing province is already faceup, because its last tie-break is the
+    // alphabetical location string and 'province 1' sorts first (live
+    // 2026-08-31: Overrun blanked the City of the Rich Frog it had just
+    // broken). For these sources the STRONGHOLD province is the target: it is
+    // the wall the game ends on, `ProvinceCard.canBeAttacked` makes the
+    // opponent reach it last so its text has the longest left to run, and it
+    // is the one province an attack plan cannot route around.
+    blankAndRevealSourceIds: string[];
     redirectSourceIds: string[];
     firstConflictCharacterIds: string[];
     unrevealedProvinceAttackerIds: string[];
@@ -209,6 +223,7 @@ export const UNICORN_REVEAL_DEFAULTS: UnicornRevealProfile = {
         'diversionary-maneuver', 'overrun'
     ],
     preferFacedownRevealTarget: true,
+    blankAndRevealSourceIds: ['overrun'],
     redirectSourceIds: ['chasing-the-sun', 'diversionary-maneuver'],
     firstConflictCharacterIds: ['white-horde-vanguard'],
     // Every character here has a reveal-triggered reaction that needs it
@@ -446,8 +461,34 @@ export class UnicornRevealTactics {
 
     // Which province to flip — this deck wants provinces revealed, so a
     // still-hidden one can outrank a weaker faceup one.
-    pickRevealTarget(cards: any[]): any | null {
-        const candidates = cards.filter((card) => card?.type === 'province' || card?.isProvince || card?.facedown);
+    //
+    // `sourceId` is optional so every legacy caller keeps the old ordering; it
+    // only selects the blank-and-reveal branch below.
+    pickRevealTarget(cards: any[], sourceId?: string): any | null {
+        // Provinces only. `ProvinceCard.hideWhenFacedown()` is false, so even a
+        // facedown province publishes `type: 'province'` — the loose
+        // `card?.facedown` test that used to be here also swept in the facedown
+        // DYNASTY cards sitting in those provinces, which no reveal source can
+        // target.
+        const candidates = cards.filter((card) => card?.type === 'province' || card?.isProvince)
+            // A broken province is already faceup AND already blank
+            // (`ProvinceCard.isBlank()` returns true while `isBroken`), so
+            // every half of every source in `revealSourceIds` is a no-op on it.
+            .filter((card) => !card?.isBroken);
+        const isStronghold = (card: any) => Number(card?.location === 'stronghold province');
+        if(this.profile.blankAndRevealSourceIds.includes(String(sourceId || ''))) {
+            // Blanking is the payoff and the reveal is the rider, so the order
+            // inverts: the stronghold province first, then a still-hidden
+            // province (blanking it also kills its on-reveal reaction, because
+            // the token lands BEFORE the flip), then printed-text priority. A
+            // province already carrying the token has nothing left to blank.
+            return candidates.sort((left, right) =>
+                Number(!!left.isDishonored) - Number(!!right.isDishonored) ||
+                isStronghold(right) - isStronghold(left) ||
+                Number(!!right.facedown) - Number(!!left.facedown) ||
+                this.provinceTextValue(right) - this.provinceTextValue(left) ||
+                String(left?.location || '').localeCompare(String(right?.location || '')))[0] || null;
+        }
         return candidates.sort((left, right) => {
             const leftHidden = Number(!!left.facedown);
             const rightHidden = Number(!!right.facedown);
@@ -460,10 +501,9 @@ export class UnicornRevealTactics {
             // priority below it can override it.
             //
             // Scoped to hidden candidates: this term is about which flip is
-            // worth more, and a faceup province has no flip left to spend. On
-            // a card like Overrun, whose other half blanks the printed text of
-            // an already-exposed province, the text priority decides instead.
-            const isStronghold = (card: any) => Number(card?.location === 'stronghold province');
+            // worth more, and a faceup province has no flip left to spend. A
+            // source whose other half BLANKS a province takes the
+            // `blankAndRevealSourceIds` branch above instead.
             if(left.facedown && right.facedown) {
                 const stronghold = this.profile.preferOpponentStrongholdReveal
                     ? isStronghold(right) - isStronghold(left)
@@ -472,10 +512,13 @@ export class UnicornRevealTactics {
                     return stronghold;
                 }
             }
-            const textValue = (card: any) => Number(this.profile.provinceTextPriorityById[card?.id]) || 0;
-            return textValue(right) - textValue(left) ||
+            return this.provinceTextValue(right) - this.provinceTextValue(left) ||
                 String(left?.location || '').localeCompare(String(right?.location || ''));
         })[0] || null;
+    }
+
+    private provinceTextValue(card: any): number {
+        return Number(this.profile.provinceTextPriorityById[card?.id]) || 0;
     }
 
     // Yoritomo's whole body is the fate we did NOT spend. Buying him down to

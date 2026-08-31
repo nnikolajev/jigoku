@@ -93,6 +93,14 @@ interface BotTraceEntry {
 
 type CommandRunner = (command: string, playerName: string, args: any[]) => boolean;
 
+/**
+ * Cards whose `ChangeConflictSkillFunction` means "count MILITARY plus
+ * POLITICAL". Not every source of that effect does: Sanpuku Seido counts glory
+ * and River Crossing counts 1, and the effect's value is an opaque closure, so
+ * the meaning cannot be read off the engine — only the source's identity.
+ */
+const COMBINED_SKILL_SOURCE_IDS = new Set(['massing-at-twilight', 'shiba-ryuu']);
+
 /** A GameObject pile (`_(...)` wrapper) as a plain array; anything else empty. */
 function pileArray(pile: { toArray?: () => any[] } | null | undefined): any[] {
     return pile?.toArray ? (pile.toArray() || []) : [];
@@ -945,6 +953,11 @@ class JigokuBotController {
                     leavingPlayCardIsMine: this.currentLeavingPlayCardIsMine(player),
                     displayOfPowerActive: this.displayOfPowerActiveThisConflict(),
                     legalDirectCardUuids: this.currentLegalDirectCardUuids(player),
+                    // Engine-read, and only while combined skill is live: the
+                    // hand cards whose ability really is legal in THIS conflict
+                    // type, so an off-axis buff can be told apart from an
+                    // off-axis engine gate. Undefined every other prompt.
+                    combinedSkillLegalCardIds: this.combinedSkillLegalCardIds(player),
                     legalAttachmentTargetUuidsBySource: this.legalAttachmentTargetUuidsBySource(player),
                     participationBlockedUuids: this.participationBlockedUuids(player),
                     legalRingElements: this.currentLegalRingElements(player),
@@ -2246,9 +2259,83 @@ class JigokuBotController {
             // count written here would be a second copy of a rule that a card
             // can move.
             selfStrongholdAttackable: !!ownStronghold && !!ownStronghold.canBeAttacked?.(),
-            combinedConflictSkills: conflictProvinces.some((province: any) =>
-                (province?.id || province?.cardData?.id) === 'massing-at-twilight')
+            combinedConflictSkills: this.combinedConflictSkillsActive(conflictProvinces)
         };
+    }
+
+    /**
+     * "While resolving conflicts at this province, each character counts its
+     * combined military and political skill" (Massing at Twilight), and the
+     * same sentence printed on a participating CHARACTER (Shiba Ryuu).
+     *
+     * The engine expresses both as `ChangeConflictSkillFunction`, but the value
+     * is an opaque closure, so which of them means COMBINED cannot be read off
+     * the effect — Sanpuku Seido counts glory with the same effect name and
+     * River Crossing counts 1, and under either of those a skill buff is worth
+     * nothing at all. So the SOURCE is keyed by id, and only liveness is read
+     * from the engine: a `ConflictEffect` targets `game.currentConflict`, and
+     * `Effect.checkCondition` adds and removes that target as the condition
+     * turns on and off, so `targets.includes(conflict)` is the engine's own
+     * answer to "is it applying right now".
+     *
+     * Keyed on the source rather than on the conflict province because Shiba
+     * Ryuu is a character on either side of the board, and the province scan
+     * this replaced could not see it.
+     */
+    private combinedConflictSkillsActive(conflictProvinces: any[]): boolean {
+        const conflict = this.game.currentConflict;
+        if(!conflict) {
+            return false;
+        }
+        if(conflictProvinces.some((province: any) =>
+            COMBINED_SKILL_SOURCE_IDS.has(String(province?.id || province?.cardData?.id || '')))) {
+            return true;
+        }
+        const effects: any[] = this.game.effectEngine?.effects ?? [];
+        return effects.some((effect: any) =>
+            effect?.effect?.type === EffectNames.ChangeConflictSkillFunction &&
+            COMBINED_SKILL_SOURCE_IDS.has(String(effect?.source?.id || effect?.source?.cardData?.id || '')) &&
+            Array.isArray(effect?.targets) && effect.targets.includes(conflict));
+    }
+
+    /**
+     * Printed ids of the conflict cards in hand whose ability the ENGINE says
+     * is legal to trigger right now.
+     *
+     * Only meaningful while `combinedConflictSkills` is on, and computed only
+     * then. `CardPlaybook.conflictTypes` carries two different meanings at once:
+     * an ENGINE gate ("during a military conflict" — A Perfect Cut, Captive
+     * Audience) and a VALUE heuristic ("its bonus is military, so it is worth
+     * nothing in a political conflict" — Banzai!, Hurricane Punch, Ujik
+     * Tactics). Combined skill deletes the second meaning and leaves the first
+     * intact, and only `meetsRequirements` can tell them apart: Banzai's
+     * condition is a bare `isDuringConflict()`, A Perfect Cut's names the type.
+     *
+     * `meetsRequirements` is asked WITHOUT ignoring `target`, so a buff with no
+     * legal participant to land on stays refused.
+     */
+    private combinedSkillLegalCardIds(player: Player): readonly string[] | undefined {
+        if(!this.combinedConflictSkillsActive(this.game.currentConflict?.getConflictProvinces?.() || [])) {
+            return undefined;
+        }
+        const ids = new Set<string>();
+        for(const card of pileArray(player.hand)) {
+            const id = String(card?.id || '');
+            if(!id || ids.has(id)) {
+                continue;
+            }
+            const legal = this.usableActions(card, player).some((action: any) => {
+                try {
+                    return action.meetsRequirements(action.createContext(player)) === '';
+                } catch{
+                    return false;
+                }
+            });
+            if(legal) {
+                ids.add(id);
+            }
+        }
+        return [...ids];
     }
 
     private conflictCostsHint(player: Player): Record<string, number> | undefined {
